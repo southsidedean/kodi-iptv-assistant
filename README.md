@@ -50,6 +50,17 @@ Restart Kodi (or disable and re-enable the add-on). The daily refresh is picked 
 | `kia.toml` | Check timeouts and concurrency, filters, guide settings, DNS verification, alerts |
 | `.env` | Deployment: public URL, port, daily run time, timezone, file owner (not committed) |
 
+Settings in `.env` override `kia.toml`. The tuning knobs most people change:
+
+| `.env` | `kia.toml` | Default | Notes |
+|---|---|---|---|
+| `KIA_EPG_DAYS` | `[epg] days` | 3 | Days of guide data. More days, longer grabs. |
+| `KIA_PARALLEL_SITES` | `[epg] parallel_sites` | 4 | Guide sites grabbed at once; each peaks around 0.7 GB RAM. |
+| `KIA_CHECK_CONCURRENCY` | `[check] concurrency` | 20 | Streams tested at once. |
+| `KIA_MEMORY_LIMIT` | | 4g | Hard memory cap for the kia container. |
+
+On a 4 GB Raspberry Pi, start with `KIA_PARALLEL_SITES=1`, `KIA_CHECK_CONCURRENCY=8`, `KIA_MEMORY_LIMIT=2g`.
+
 `sources.txt` example (see iptv-org's [playlist index](https://github.com/iptv-org/iptv/blob/master/PLAYLISTS.md)):
 
 ```

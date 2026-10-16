@@ -149,3 +149,30 @@ def test_public_url_derives_epg_url(tmp_path: Path, monkeypatch):
     assert load(cfg).public_url == "http://box:9000"
     cfg.write_text('[output]\nepg_url = "http://elsewhere/g.xml"\n')
     assert load(cfg).epg_url == "http://elsewhere/g.xml"
+
+
+def test_env_overrides(tmp_path: Path, monkeypatch):
+    import pytest
+
+    from kia.config import load
+
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    cfg = tmp_path / "kia.toml"
+    cfg.write_text("[check]\nconcurrency = 12\n[epg]\ndays = 3\nparallel_sites = 4\n")
+    for name in ("KIA_EPG_DAYS", "KIA_PARALLEL_SITES", "KIA_CHECK_CONCURRENCY"):
+        monkeypatch.setenv(name, "")  # compose passes unset values as empty strings
+    c = load(cfg)
+    assert (c.epg.days, c.epg.parallel_sites, c.concurrency) == (3, 4, 12)
+
+    monkeypatch.setenv("KIA_EPG_DAYS", "7")
+    monkeypatch.setenv("KIA_PARALLEL_SITES", " 1 ")
+    monkeypatch.setenv("KIA_CHECK_CONCURRENCY", "8")
+    c = load(cfg)
+    assert (c.epg.days, c.epg.parallel_sites, c.concurrency) == (7, 1, 8)
+
+    monkeypatch.setenv("KIA_EPG_DAYS", "0")
+    with pytest.raises(ValueError, match="KIA_EPG_DAYS"):
+        load(cfg)
+    monkeypatch.setenv("KIA_EPG_DAYS", "three")
+    with pytest.raises(ValueError, match="whole number"):
+        load(cfg)

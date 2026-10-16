@@ -99,7 +99,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         raise ValueError(f"{origin}: no playlist sources listed")
     return Config(
         sources=sources,
-        concurrency=check.get("concurrency", 20),
+        concurrency=_env_int("KIA_CHECK_CONCURRENCY", check.get("concurrency", 20)),
         timeout=check.get("timeout", 15.0),
         require_video=check.get("require_video", True),
         grace_failures=check.get("grace_failures", 2),
@@ -118,6 +118,20 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
     )
 
 
+def _env_int(name: str, fallback: int) -> int:
+    """A positive integer from the environment (e.g. Docker Compose's .env), else the fallback."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return fallback
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(f"{name}={raw!r}: expected a whole number") from None
+    if value < 1:
+        raise ValueError(f"{name}={raw!r}: must be 1 or more")
+    return value
+
+
 def _public_url(output: dict) -> str | None:
     """Base URL where the output folder is served; KIA_PUBLIC_URL (set by Docker Compose) wins."""
     url = os.environ.get("KIA_PUBLIC_URL") or output.get("public_url") or ""
@@ -134,14 +148,14 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
     return EpgConfig(
         repo_dir=base / epg.get("repo_dir", d.repo_dir),
         work_dir=base / epg.get("work_dir", d.work_dir),
-        days=epg.get("days", d.days),
+        days=_env_int("KIA_EPG_DAYS", epg.get("days", d.days)),
         max_sites_per_channel=epg.get("max_sites_per_channel", d.max_sites_per_channel),
         prefer_sites=epg.get("prefer_sites", []),
         exclude_sites=epg.get("exclude_sites", []),
         # KIA_EPG_RUNNER lets the Docker image (which bundles Node) force "local".
         runner=os.environ.get("KIA_EPG_RUNNER") or epg.get("runner", d.runner),
         docker_image=epg.get("docker_image", d.docker_image),
-        parallel_sites=epg.get("parallel_sites", d.parallel_sites),
+        parallel_sites=_env_int("KIA_PARALLEL_SITES", epg.get("parallel_sites", d.parallel_sites)),
         max_connections=epg.get("max_connections", d.max_connections),
         placeholders=epg.get("placeholders", d.placeholders),
     )

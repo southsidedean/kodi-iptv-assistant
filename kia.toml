@@ -5,7 +5,7 @@
 sources_file = "sources.txt"
 
 [check]
-concurrency = 20       # parallel ffprobe processes; lower this on a Raspberry Pi
+concurrency = 20       # parallel ffprobe processes; lower this on a Raspberry Pi (.env: KIA_CHECK_CONCURRENCY)
 timeout = 15           # seconds of network silence before a stream fails
 require_video = true   # treat audio-only streams as dead
 grace_failures = 2     # keep a stream that worked before until it fails this many runs in a row
@@ -42,13 +42,13 @@ verify_resolvers = ["8.8.8.8", "1.1.1.1"]
 [epg]
 repo_dir = "vendor/epg"        # clone of https://github.com/iptv-org/epg (kia grab clones it if missing)
 work_dir = "work"              # per-site channel lists, raw guides, logs
-days = 3                       # days of guide data to grab
+days = 3                       # days of guide data to grab (.env: KIA_EPG_DAYS)
 max_sites_per_channel = 3      # candidate guide sites grabbed per channel; the best one wins
 prefer_sites = []              # try these sites first, in order, e.g. ["pluto.tv", "plex.tv"]
 # Never use these (sites marked broken in SITES.md are skipped too).
 # epg.iptvx.one's grabber needs more than 4 GB of RAM, even for a handful of channels.
 exclude_sites = ["epg.iptvx.one"]
 runner = "docker"              # "docker" (no Node needed) or "local" (needs Node.js 22+)
-parallel_sites = 4             # sites grabbed at the same time
+parallel_sites = 4             # sites grabbed at once, ~0.7 GB RAM each (.env: KIA_PARALLEL_SITES)
 max_connections = 5            # concurrent requests per site
 placeholders = true            # fill channels with no guide data with 2-hour "<channel name>" blocks
