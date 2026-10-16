@@ -45,7 +45,9 @@ work_dir = "work"              # per-site channel lists, raw guides, logs
 days = 3                       # days of guide data to grab
 max_sites_per_channel = 3      # candidate guide sites grabbed per channel; the best one wins
 prefer_sites = []              # try these sites first, in order, e.g. ["pluto.tv", "plex.tv"]
-exclude_sites = []             # never use these (sites marked broken in SITES.md are skipped too)
+# Never use these (sites marked broken in SITES.md are skipped too).
+# epg.iptvx.one's grabber needs more than 4 GB of RAM, even for a handful of channels.
+exclude_sites = ["epg.iptvx.one"]
 runner = "docker"              # "docker" (no Node needed) or "local" (needs Node.js 22+)
 parallel_sites = 4             # sites grabbed at the same time
 max_connections = 5            # concurrent requests per site
