@@ -12,6 +12,9 @@ services:
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
       KIA_CHECK_CONCURRENCY: ${KIA_CHECK_CONCURRENCY:-}
+      KIA_EXCLUDE_SITES: ${KIA_EXCLUDE_SITES:-}
+      KIA_EXCLUDE_GROUPS: ${KIA_EXCLUDE_GROUPS:-}
+      KIA_PLACEHOLDERS: ${KIA_PLACEHOLDERS:-}
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}
     command: ["daemon", "--at", "${KIA_RUN_AT:-04:00}"]

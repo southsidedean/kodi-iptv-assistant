@@ -58,6 +58,9 @@ Settings in `.env` override `kia.toml`. The tuning knobs most people change:
 | `KIA_PARALLEL_SITES` | `[epg] parallel_sites` | 4 | Guide sites grabbed at once; each peaks around 0.7 GB RAM. |
 | `KIA_CHECK_CONCURRENCY` | `[check] concurrency` | 20 | Streams tested at once. |
 | `KIA_MEMORY_LIMIT` | | 4g | Hard memory cap for the kia container. |
+| `KIA_EXCLUDE_SITES` | `[epg] exclude_sites` | `epg.iptvx.one` | Guide sites to skip, comma-separated. Added to kia.toml's list. |
+| `KIA_EXCLUDE_GROUPS` | `[filters] exclude_groups` | none | Channel categories to drop (iptv-org `group-title`, e.g. `Religious,Shop`). Added to kia.toml's list. |
+| `KIA_PLACEHOLDERS` | `[epg] placeholders` | true | Fill channels without guide data with "channel name" blocks. |
 
 On a 4 GB Raspberry Pi, start with `KIA_PARALLEL_SITES=1`, `KIA_CHECK_CONCURRENCY=8`, `KIA_MEMORY_LIMIT=2g`.
 

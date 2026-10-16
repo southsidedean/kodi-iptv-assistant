@@ -106,7 +106,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         grace_failures=check.get("grace_failures", 2),
         user_agent=check.get("user_agent") or None,
         ffprobe=check.get("ffprobe", "ffprobe"),
-        exclude_groups=filters.get("exclude_groups", []),
+        exclude_groups=_merge_env_list("KIA_EXCLUDE_GROUPS", filters.get("exclude_groups", [])),
         exclude_labels=filters.get("exclude_labels", []),
         exclude_name_patterns=filters.get("exclude_name_patterns", []),
         output_dir=base / output.get("dir", "output"),
@@ -133,6 +133,27 @@ def _env_int(name: str, fallback: int) -> int:
     return value
 
 
+def _merge_env_list(name: str, configured: list[str]) -> list[str]:
+    """kia.toml's list plus a comma-separated list from the environment (added, not replaced)."""
+    extra = [item.strip() for item in os.environ.get(name, "").split(",") if item.strip()]
+    return configured + [item for item in extra if item not in configured]
+
+
+_TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"0", "false", "no", "off"}
+
+
+def _env_bool(name: str, fallback: bool) -> bool:
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return fallback
+    if raw in _TRUE:
+        return True
+    if raw in _FALSE:
+        return False
+    raise ValueError(f"{name}={raw!r}: expected true or false")
+
+
 def _public_url(output: dict) -> str | None:
     """Base URL where the output folder is served; KIA_PUBLIC_URL (set by Docker Compose) wins."""
     url = os.environ.get("KIA_PUBLIC_URL") or output.get("public_url") or ""
@@ -152,12 +173,12 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         days=_env_int("KIA_EPG_DAYS", epg.get("days", d.days)),
         max_sites_per_channel=epg.get("max_sites_per_channel", d.max_sites_per_channel),
         prefer_sites=epg.get("prefer_sites", []),
-        exclude_sites=epg.get("exclude_sites", []),
+        exclude_sites=_merge_env_list("KIA_EXCLUDE_SITES", epg.get("exclude_sites", [])),
         # KIA_EPG_RUNNER lets the Docker image (which bundles Node) force "local".
         runner=os.environ.get("KIA_EPG_RUNNER") or epg.get("runner", d.runner),
         docker_image=epg.get("docker_image", d.docker_image),
         parallel_sites=_env_int("KIA_PARALLEL_SITES", epg.get("parallel_sites", d.parallel_sites)),
         max_connections=epg.get("max_connections", d.max_connections),
-        placeholders=epg.get("placeholders", d.placeholders),
+        placeholders=_env_bool("KIA_PLACEHOLDERS", epg.get("placeholders", d.placeholders)),
         native_grabbers=epg.get("native_grabbers", d.native_grabbers),
     )

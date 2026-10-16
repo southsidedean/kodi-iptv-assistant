@@ -13,7 +13,7 @@ grace_failures = 2     # keep a stream that worked before until it fails this ma
 
 [filters]
 # Skipped before probing. Groups match iptv-org's group-title categories.
-exclude_groups = []            # e.g. ["Religious", "Shop", "Undefined"]
+exclude_groups = []            # e.g. ["Religious", "Shop", "Undefined"] (.env adds: KIA_EXCLUDE_GROUPS)
 exclude_labels = []            # e.g. ["Not 24/7", "Geo-blocked"]
 exclude_name_patterns = []     # regexes matched against the channel name
 
@@ -47,10 +47,10 @@ max_sites_per_channel = 3      # candidate guide sites grabbed per channel; the 
 prefer_sites = []              # try these sites first, in order, e.g. ["pluto.tv", "plex.tv"]
 # Never use these (sites marked broken in SITES.md are skipped too).
 # epg.iptvx.one's grabber needs more than 4 GB of RAM, even for a handful of channels.
-exclude_sites = ["epg.iptvx.one"]
+exclude_sites = ["epg.iptvx.one"]   # .env adds: KIA_EXCLUDE_SITES
 runner = "docker"              # "docker" (no Node needed) or "local" (needs Node.js 22+)
 parallel_sites = 4             # sites grabbed at once, ~0.7 GB RAM each (.env: KIA_PARALLEL_SITES)
 max_connections = 5            # concurrent requests per site
-placeholders = true            # fill channels with no guide data with 2-hour "<channel name>" blocks
+placeholders = true            # fill channels with no guide data with 2-hour "<channel name>" blocks (.env: KIA_PLACEHOLDERS)
 native_grabbers = true         # grab i.mjh.nz directly from its XMLTV files (seconds, little RAM)
                                # instead of iptv-org/epg's grabber (~25 min, >2 GB RAM)

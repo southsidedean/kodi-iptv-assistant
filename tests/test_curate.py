@@ -176,3 +176,29 @@ def test_env_overrides(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("KIA_EPG_DAYS", "three")
     with pytest.raises(ValueError, match="whole number"):
         load(cfg)
+
+
+def test_env_lists_and_placeholders(tmp_path: Path, monkeypatch):
+    import pytest
+
+    from kia.config import load
+
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    cfg = tmp_path / "kia.toml"
+    cfg.write_text('[filters]\nexclude_groups = ["Shop"]\n[epg]\nexclude_sites = ["epg.iptvx.one"]\nplaceholders = true\n')
+    for name in ("KIA_EXCLUDE_SITES", "KIA_EXCLUDE_GROUPS", "KIA_PLACEHOLDERS"):
+        monkeypatch.setenv(name, "")
+    c = load(cfg)
+    assert (c.epg.exclude_sites, c.exclude_groups, c.epg.placeholders) == (["epg.iptvx.one"], ["Shop"], True)
+
+    monkeypatch.setenv("KIA_EXCLUDE_SITES", " xumo.tv, ,epg.iptvx.one,tvguide.com ")
+    monkeypatch.setenv("KIA_EXCLUDE_GROUPS", "Religious")
+    monkeypatch.setenv("KIA_PLACEHOLDERS", "Off")
+    c = load(cfg)
+    assert c.epg.exclude_sites == ["epg.iptvx.one", "xumo.tv", "tvguide.com"]
+    assert c.exclude_groups == ["Shop", "Religious"]
+    assert c.epg.placeholders is False
+
+    monkeypatch.setenv("KIA_PLACEHOLDERS", "maybe")
+    with pytest.raises(ValueError, match="true or false"):
+        load(cfg)
