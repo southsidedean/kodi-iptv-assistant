@@ -94,3 +94,42 @@ def test_error_summary_prefers_root_cause():
         ]
     )
     assert _summarize_error(stderr) == "parse_playlist error Server returned 404 Not Found"
+
+
+def test_sources_file(tmp_path: Path):
+    from kia.config import load, parse_sources
+
+    text = """
+# comment
+https://iptv-org.github.io/iptv/countries/us.m3u
+https://example.com/other/us.m3u            # inline comment
+https://iptv-org.github.io/iptv/categories/news.m3u   headlines
+# https://disabled.example/x.m3u
+https://example.com/live.m3u8#frag
+"""
+    sources = parse_sources(text)
+    assert [s.name for s in sources] == ["us", "us-2", "headlines", "live"]
+    assert sources[3].url == "https://example.com/live.m3u8#frag"
+
+    (tmp_path / "kia.toml").write_text('sources_file = "lists/mine.txt"\n')
+    (tmp_path / "lists").mkdir()
+    (tmp_path / "lists" / "mine.txt").write_text("/tmp/a.m3u8\n")
+    assert [s.url for s in load(tmp_path / "kia.toml").sources] == ["/tmp/a.m3u8"]
+
+    other = tmp_path / "other.txt"
+    other.write_text("/tmp/b.m3u8 bee\n")
+    assert [s.name for s in load(tmp_path / "kia.toml", other).sources] == ["bee"]
+    assert [s.name for s in load(tmp_path / "kia.toml", other, ["/tmp/c.m3u"]).sources] == ["c"]
+
+
+def test_sources_file_rejects_empty_and_duplicate_names(tmp_path: Path):
+    import pytest
+
+    from kia.config import load, parse_sources
+
+    with pytest.raises(ValueError, match="duplicate"):
+        parse_sources("/a.m3u x\n/b.m3u x\n")
+    (tmp_path / "kia.toml").write_text("")
+    (tmp_path / "sources.txt").write_text("# nothing yet\n")
+    with pytest.raises(ValueError, match="no playlist sources"):
+        load(tmp_path / "kia.toml")

@@ -1,10 +1,12 @@
-"""Load kia.toml."""
+"""Load kia.toml and the playlist sources file."""
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -30,15 +32,51 @@ class Config:
     epg_url: str | None = None
 
 
-def load(path: Path) -> Config:
+def source_name(url: str, taken: set[str]) -> str:
+    """Derive a short name from a playlist URL: .../countries/us.m3u -> "us"."""
+    stem = Path(urlparse(url).path).stem or urlparse(url).netloc or "source"
+    name, n = stem, 2
+    while name in taken:
+        name, n = f"{stem}-{n}", n + 1
+    return name
+
+
+def parse_sources(text: str) -> list[Source]:
+    """Parse a sources file: one playlist URL or path per line, optionally followed by a name.
+
+    Blank lines and anything after a ``#`` that starts a line or follows whitespace are ignored.
+    """
+    sources: list[Source] = []
+    taken: set[str] = set()
+    for raw in text.splitlines():
+        line = re.sub(r"(^|\s)#.*", "", raw).strip()
+        if not line:
+            continue
+        url, _, name = line.partition(" ")
+        name = name.strip() or source_name(url, taken)
+        if name in taken:
+            raise ValueError(f"duplicate source name {name!r}")
+        taken.add(name)
+        sources.append(Source(name=name, url=url))
+    return sources
+
+
+def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = None) -> Config:
+    """Read kia.toml. ``sources_file`` overrides the file it names; ``urls`` overrides both."""
     data = tomllib.loads(path.read_text())
     base = path.parent.resolve()
     check = data.get("check", {})
     filters = data.get("filters", {})
     output = data.get("output", {})
-    sources = [Source(name=s["name"], url=s["url"]) for s in data.get("sources", [])]
+    if urls:
+        sources = parse_sources("\n".join(urls))
+        origin = "--url"
+    else:
+        sources_file = sources_file or base / data.get("sources_file", "sources.txt")
+        sources = parse_sources(sources_file.read_text())
+        origin = str(sources_file)
     if not sources:
-        raise ValueError(f"{path}: no [[sources]] defined")
+        raise ValueError(f"{origin}: no playlist sources listed")
     return Config(
         sources=sources,
         concurrency=check.get("concurrency", 20),

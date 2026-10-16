@@ -1,0 +1,17 @@
+# Playlists for `kia check`, one per line: a URL or a local file path.
+#
+# Optionally add a name after the URL (separated by a space); it labels the source in
+# reports and works with `kia check -s <name>`. Without one, the name comes from the
+# file name: .../countries/us.m3u -> "us".
+#
+# All playlists merge into one curated list. Shared URLs are probed once, and
+# channels with the same tvg-id collapse to the best working stream.
+#
+# More iptv-org playlists (by country, category, language):
+#   https://github.com/iptv-org/iptv/blob/master/PLAYLISTS.md
+
+https://iptv-org.github.io/iptv/countries/us.m3u
+
+# https://iptv-org.github.io/iptv/languages/eng.m3u
+# https://iptv-org.github.io/iptv/categories/news.m3u   world-news
+# /path/to/my-extras.m3u8                             extras

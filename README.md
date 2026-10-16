@@ -24,13 +24,26 @@ python3 -m venv .venv
 
 ## Usage
 
-Edit `kia.toml` to list playlists and filters, then:
+List one or more playlists in `sources.txt`, one URL or local file per line, with an optional name after it (see iptv-org's [playlist index](https://github.com/iptv-org/iptv/blob/master/PLAYLISTS.md)):
+
+```
+https://iptv-org.github.io/iptv/countries/us.m3u
+https://iptv-org.github.io/iptv/languages/eng.m3u
+/home/me/my-extras.m3u8   extras
+# lines starting with # are ignored
+```
+
+Tuning (timeouts, concurrency, filters, output paths) lives in `kia.toml`, which can point at a different list with `sources_file`.
+
+All sources merge into one curated playlist: shared URLs are probed once, and channels with the same `tvg-id` collapse to the best working stream. Then:
 
 ```sh
-.venv/bin/kia check              # check everything in kia.toml
+.venv/bin/kia check                # check every playlist in sources.txt
 .venv/bin/kia check --limit 40 -v  # quick test, log each stream
-.venv/bin/kia check -s us        # one source only
-.venv/bin/kia probe <url>        # test a single stream
+.venv/bin/kia check -s us          # only the source named "us"
+.venv/bin/kia check --sources news.txt  # a different sources file
+.venv/bin/kia check -u <url> -u <url>   # ad-hoc playlists, no file needed
+.venv/bin/kia probe <url>          # test a single stream
 ```
 
 Outputs, in `output/`:

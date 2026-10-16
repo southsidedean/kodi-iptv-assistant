@@ -82,7 +82,7 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    cfg = load(Path(args.config))
+    cfg = load(Path(args.config), Path(args.sources) if args.sources else None, args.url)
     if args.concurrency:
         cfg.concurrency = args.concurrency
     if args.timeout:
@@ -149,7 +149,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("check", help="probe every stream in the configured playlists and write curated.m3u")
     p.add_argument("-c", "--config", default="kia.toml")
-    p.add_argument("-s", "--source", action="append", help="only check this source (repeatable)")
+    p.add_argument("--sources", help="playlist sources file (default: sources_file in kia.toml, else sources.txt)")
+    p.add_argument("-s", "--source", action="append", help="only check the source with this name (repeatable)")
+    p.add_argument(
+        "-u", "--url", action="append", help="check this playlist URL or file instead of the sources file (repeatable)"
+    )
     p.add_argument("--limit", type=int, help="only check the first N entries (for testing; history isn't pruned)")
     p.add_argument("--concurrency", type=int)
     p.add_argument("--timeout", type=float, help="seconds per stream")

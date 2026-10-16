@@ -1,14 +1,8 @@
 # kodi-iptv-assistant configuration
 
-# Playlists to check. Add as many as you like; duplicate URLs are probed once,
-# and duplicate channels (same tvg-id) collapse to the best working stream.
-[[sources]]
-name = "us"
-url = "https://iptv-org.github.io/iptv/countries/us.m3u"
-
-# [[sources]]
-# name = "news"
-# url = "https://iptv-org.github.io/iptv/categories/news.m3u"
+# Playlists to check are listed in this file (one URL per line), relative to kia.toml.
+# Override per run with `kia check --sources other.txt` or `kia check -u <url>`.
+sources_file = "sources.txt"
 
 [check]
 concurrency = 20       # parallel ffprobe processes; lower this on a Raspberry Pi
