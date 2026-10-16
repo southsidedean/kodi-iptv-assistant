@@ -117,7 +117,7 @@ def _radio_source(line: str, taken: set[str]) -> Source:
         params[key.strip().lower()] = value.strip()
     name = params.pop("name", None)
     if not name:
-        base = "radio-" + "-".join(params[k].lower() for k in ("country", "tag", "language") if k in params)
+        base = "radio-" + "-".join(params[k].lower() for k in ("country", "tag", "language", "station") if k in params)
         name, n = base.rstrip("-") or "radio", 2
         while name in taken:
             name, n = f"{base}-{n}", n + 1
@@ -138,7 +138,10 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         sources = parse_sources("\n".join(urls))
         origin = "--url"
     else:
-        sources_file = sources_file or base / data.get("sources_file", "sources.txt")
+        # KIA_SOURCES_FILE lets a server use its own list (e.g. sources.local.txt, which git
+        # ignores) so updating kia never conflicts with your choices.
+        named = os.environ.get("KIA_SOURCES_FILE") or data.get("sources_file", "sources.txt")
+        sources_file = sources_file or base / named
         sources = parse_sources(sources_file.read_text())
         origin = str(sources_file)
     if not sources:

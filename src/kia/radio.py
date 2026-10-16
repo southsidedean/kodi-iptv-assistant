@@ -25,6 +25,7 @@ FILTERS = {
     "tag": "tag",
     "tags": "tagList",
     "codec": "codec",
+    "station": "name",
 }
 OPTIONS = {"top", "min_bitrate"}
 DEFAULT_TOP = 100

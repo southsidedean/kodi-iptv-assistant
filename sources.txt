@@ -72,6 +72,7 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 #   state=Texas      state or region (with country)
 #   language=english
 #   tag=jazz         one genre; tags=jazz,smooth for stations with all of them
+#   station=KINK     stations whose name contains this
 #   top=100          how many stations (default 100, most popular first)
 #   min_bitrate=128  skip low-quality streams (kbps)
 #   name=jazz        a name for the reports (otherwise made from the choices)

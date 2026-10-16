@@ -194,3 +194,21 @@ def test_transient_failures_get_a_second_try(monkeypatch):
     }  # fmt: skip
     assert calls == {"http://hdns.example/dns": 2, "http://hslow.example/slow": 2,
                      "http://hgone.example/gone": 1, "http://hfine.example/fine": 1}  # fmt: skip
+
+
+def test_station_filter_and_name():
+    assert radio.build_query({"station": "KINK", "country": "nl", "top": "1"})["name"] == "KINK"
+    (src,) = parse_sources("radio-browser: country=NL station=KINK top=1")
+    assert src.name == "radio-nl-kink"
+
+
+def test_local_sources_file(tmp_path: Path, monkeypatch):
+    from kia.config import load
+
+    (tmp_path / "kia.toml").write_text("")
+    (tmp_path / "sources.txt").write_text("/tmp/shipped.m3u\n")
+    (tmp_path / "sources.local.txt").write_text("/tmp/mine.m3u\nradio-browser: language=english top=5\n")
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    assert [s.name for s in load(tmp_path / "kia.toml").sources] == ["shipped"]
+    monkeypatch.setenv("KIA_SOURCES_FILE", "sources.local.txt")
+    assert [s.name for s in load(tmp_path / "kia.toml").sources] == ["mine", "radio-english"]

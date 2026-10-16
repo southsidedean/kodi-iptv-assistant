@@ -7,4 +7,5 @@ state/
 vendor/
 work/
 .env
+sources.local.txt
 *.tmp

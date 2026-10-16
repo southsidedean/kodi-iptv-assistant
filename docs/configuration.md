@@ -18,6 +18,7 @@ When a setting exists in both, `.env` wins. The two "exclude" lists are the exce
 | `KIA_RUN_AT` | `04:00` | Daily refresh time (24-hour clock). |
 | `TZ` | `UTC` | Your time zone, e.g. `America/New_York`. |
 | `PUID`, `PGID` | `1000` | Owner of the files kia writes (`id -u`, `id -g`). |
+| `KIA_SOURCES_FILE` | `sources.txt` | Use your own list instead, e.g. `sources.local.txt` (copy `sources.txt` to start). git ignores it, so updates never conflict with your choices. |
 | `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. |
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |
