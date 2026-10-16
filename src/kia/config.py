@@ -29,7 +29,10 @@ class EpgConfig:
     parallel_sites: int = 4
     max_connections: int = 5
     placeholders: bool = True
+    placeholder_hours: int = 2
     native_grabbers: bool = True
+    git_url: str = "https://github.com/iptv-org/epg.git"
+    git_ref: str = "master"
 
 
 @dataclass
@@ -50,6 +53,9 @@ class Config:
     public_url: str | None = None
     dns_resolvers: tuple[str, ...] = ("8.8.8.8", "1.1.1.1")
     alert_command: str | None = None
+    history_days: int = 30
+    upstream_url: str | None = None
+    upstream_fallback: str = "grab"
     epg: EpgConfig = field(default_factory=EpgConfig)
 
 
@@ -114,6 +120,9 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         epg_url=output.get("epg_url") or _derive_epg_url(output),
         public_url=_public_url(output),
         alert_command=data.get("alerts", {}).get("command") or None,
+        history_days=check.get("history_days", 30),
+        upstream_url=_upstream_url(data.get("upstream", {})),
+        upstream_fallback=_upstream_fallback(data.get("upstream", {})),
         dns_resolvers=tuple(data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
         epg=_load_epg(data.get("epg", {}), base),
     )
@@ -143,7 +152,7 @@ _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off"}
 
 
-def _env_bool(name: str, fallback: bool) -> bool:
+def env_bool(name: str, fallback: bool) -> bool:
     raw = os.environ.get(name, "").strip().lower()
     if not raw:
         return fallback
@@ -152,6 +161,25 @@ def _env_bool(name: str, fallback: bool) -> bool:
     if raw in _FALSE:
         return False
     raise ValueError(f"{name}={raw!r}: expected true or false")
+
+
+def _placeholder_hours(hours: int) -> int:
+    if hours not in (1, 2, 3, 4, 6, 8, 12, 24):
+        raise ValueError(f"placeholder_hours = {hours}: must divide a day evenly (1, 2, 3, 4, 6, 8, 12, 24)")
+    return hours
+
+
+def _upstream_url(upstream: dict) -> str | None:
+    """Another kia server to take the guide from; KIA_UPSTREAM_URL (from .env) wins."""
+    url = os.environ.get("KIA_UPSTREAM_URL") or upstream.get("url") or ""
+    return url.rstrip("/") or None
+
+
+def _upstream_fallback(upstream: dict) -> str:
+    value = (os.environ.get("KIA_UPSTREAM_FALLBACK") or upstream.get("fallback") or "grab").strip().lower()
+    if value not in ("grab", "cached"):
+        raise ValueError(f"upstream fallback {value!r}: expected 'grab' or 'cached'")
+    return value
 
 
 def _public_url(output: dict) -> str | None:
@@ -179,6 +207,9 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         docker_image=epg.get("docker_image", d.docker_image),
         parallel_sites=_env_int("KIA_PARALLEL_SITES", epg.get("parallel_sites", d.parallel_sites)),
         max_connections=epg.get("max_connections", d.max_connections),
-        placeholders=_env_bool("KIA_PLACEHOLDERS", epg.get("placeholders", d.placeholders)),
+        placeholders=env_bool("KIA_PLACEHOLDERS", epg.get("placeholders", d.placeholders)),
+        placeholder_hours=_placeholder_hours(epg.get("placeholder_hours", d.placeholder_hours)),
+        git_url=os.environ.get("KIA_EPG_GIT_URL") or epg.get("git_url", d.git_url),
+        git_ref=os.environ.get("KIA_EPG_GIT_REF") or epg.get("git_ref", d.git_ref),
         native_grabbers=epg.get("native_grabbers", d.native_grabbers),
     )

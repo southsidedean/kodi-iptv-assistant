@@ -9,6 +9,7 @@ concurrency = 20       # parallel ffprobe processes; lower this on a Raspberry P
 timeout = 15           # seconds of network silence before a stream fails
 require_video = true   # treat audio-only streams as dead
 grace_failures = 2     # keep a stream that worked before until it fails this many runs in a row
+history_days = 30      # forget streams that haven't appeared in any playlist for this many days
 # user_agent = ""      # default UA for streams that don't set their own
 
 [filters]
@@ -51,6 +52,7 @@ exclude_sites = ["epg.iptvx.one"]   # .env adds: KIA_EXCLUDE_SITES
 runner = "docker"              # "docker" (no Node needed) or "local" (needs Node.js 22+)
 parallel_sites = 4             # sites grabbed at once, ~0.7 GB RAM each (.env: KIA_PARALLEL_SITES)
 max_connections = 5            # concurrent requests per site
-placeholders = true            # fill channels with no guide data with 2-hour "<channel name>" blocks (.env: KIA_PLACEHOLDERS)
+placeholders = true            # fill channels with no guide data with "<channel name>" blocks (.env: KIA_PLACEHOLDERS)
+placeholder_hours = 2          # length of each placeholder block: 1, 2, 3, 4, 6, 8, 12 or 24
 native_grabbers = true         # grab i.mjh.nz directly from its XMLTV files (seconds, little RAM)
                                # instead of iptv-org/epg's grabber (~25 min, >2 GB RAM)

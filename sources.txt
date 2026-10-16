@@ -1,17 +1,57 @@
-# Playlists for `kia check`, one per line: a URL or a local file path.
+# Playlists to check. Remove the "#" in front of a line to turn it on, add one to turn
+# it off. You can also add your own: any playlist URL or file path, one per line.
 #
-# Optionally add a name after the URL (separated by a space); it labels the source in
-# reports and works with `kia check -s <name>`. Without one, the name comes from the
-# file name: .../countries/us.m3u -> "us".
+# All the playlists you turn on are combined into one. Channels that appear in several
+# get tested once, and the best working stream is kept. More playlists = longer checks;
+# the stream counts below (checked October 2026) give a rough idea.
 #
-# All playlists merge into one curated list. Shared URLs are probed once, and
-# channels with the same tvg-id collapse to the best working stream.
-#
-# More iptv-org playlists (by country, category, language):
-#   https://github.com/iptv-org/iptv/blob/master/PLAYLISTS.md
+# Optionally put a short name after the URL, e.g. "...us.m3u  usa"; it's used in reports.
 
-https://iptv-org.github.io/iptv/countries/us.m3u
+# --- Countries (iptv-org) ---------------------------------------------- streams ---
+https://iptv-org.github.io/iptv/countries/us.m3u               # USA            1,483
+# https://iptv-org.github.io/iptv/countries/ca.m3u             # Canada           264
+# https://iptv-org.github.io/iptv/countries/uk.m3u             # United Kingdom   302
+# https://iptv-org.github.io/iptv/countries/ie.m3u             # Ireland           63
+# https://iptv-org.github.io/iptv/countries/au.m3u             # Australia         74
+# https://iptv-org.github.io/iptv/countries/nz.m3u             # New Zealand       25
+# https://iptv-org.github.io/iptv/countries/int.m3u            # International  1,053
+# https://iptv-org.github.io/iptv/regions/nam.m3u              # North America  1,807
 
-# https://iptv-org.github.io/iptv/languages/eng.m3u
-# https://iptv-org.github.io/iptv/categories/news.m3u   world-news
-# /path/to/my-extras.m3u8                             extras
+# --- Languages (iptv-org; worldwide, so large) ------------------------------------
+# https://iptv-org.github.io/iptv/languages/eng.m3u            # English        3,023
+# https://iptv-org.github.io/iptv/languages/spa.m3u            # Spanish        2,402
+
+# --- Categories (iptv-org; worldwide, all languages) ------------------------------
+# https://iptv-org.github.io/iptv/categories/news.m3u          # News           1,019
+# https://iptv-org.github.io/iptv/categories/sports.m3u        # Sports           469
+# https://iptv-org.github.io/iptv/categories/movies.m3u        # Movies           805
+# https://iptv-org.github.io/iptv/categories/series.m3u        # Series           532
+# https://iptv-org.github.io/iptv/categories/entertainment.m3u # Entertainment    907
+# https://iptv-org.github.io/iptv/categories/comedy.m3u        # Comedy           216
+# https://iptv-org.github.io/iptv/categories/classic.m3u       # Classic TV       109
+# https://iptv-org.github.io/iptv/categories/kids.m3u          # Kids             433
+# https://iptv-org.github.io/iptv/categories/animation.m3u     # Animation        174
+# https://iptv-org.github.io/iptv/categories/family.m3u        # Family            64
+# https://iptv-org.github.io/iptv/categories/music.m3u         # Music            775
+# https://iptv-org.github.io/iptv/categories/documentary.m3u   # Documentary      273
+# https://iptv-org.github.io/iptv/categories/science.m3u       # Science           24
+# https://iptv-org.github.io/iptv/categories/education.m3u     # Education        216
+# https://iptv-org.github.io/iptv/categories/culture.m3u       # Culture          194
+# https://iptv-org.github.io/iptv/categories/travel.m3u        # Travel            61
+# https://iptv-org.github.io/iptv/categories/outdoor.m3u       # Outdoor           77
+# https://iptv-org.github.io/iptv/categories/cooking.m3u       # Cooking           60
+# https://iptv-org.github.io/iptv/categories/lifestyle.m3u     # Lifestyle        143
+# https://iptv-org.github.io/iptv/categories/auto.m3u          # Auto              31
+# https://iptv-org.github.io/iptv/categories/business.m3u      # Business          76
+# https://iptv-org.github.io/iptv/categories/weather.m3u       # Weather           16
+# https://iptv-org.github.io/iptv/categories/legislative.m3u   # Government       183
+# https://iptv-org.github.io/iptv/categories/relax.m3u         # Relaxation         9
+# https://iptv-org.github.io/iptv/categories/religious.m3u     # Religious        783
+# https://iptv-org.github.io/iptv/categories/shop.m3u          # Shopping          81
+
+# --- Other collections ------------------------------------------------------------
+# https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8   free-tv  # Free-TV, worldwide, 2,023
+# https://iptv-org.github.io/iptv/index.m3u                    # Everything iptv-org has: 11,346 (slow)
+
+# --- Your own ---------------------------------------------------------------------
+# /path/to/my-extras.m3u8   extras

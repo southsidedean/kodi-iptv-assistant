@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import shutil
 import sys
 import time
@@ -14,9 +15,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from kia import __version__, dnscheck, epgmap, grab, m3u, xmltv
+from kia import __version__, dnscheck, epgmap, grab, m3u, serve, upstream, xmltv
 from kia.alerts import EXIT_ALERT, raise_alert
-from kia.config import Config, load
+from kia.config import Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.probe import ProbeResult, probe
@@ -184,7 +185,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     (out / "report.md").write_text(render_markdown(checked, chosen, generated, cfg.dns_resolvers))
 
     if not args.limit:
-        history.prune()
+        history.prune(cfg.history_days)
     history.save()
 
     n_ok = sum(c.status == "ok" for c in checked)
@@ -266,23 +267,17 @@ def report_grab_dns(
     return lookups
 
 
-def cmd_guide(args: argparse.Namespace) -> int:
-    cfg = load_config(args)
-    epg = cfg.epg
-    entries = load_curated(cfg)
-    mapping_path = epg.work_dir / "mapping.json"
-    site_order = json.loads(mapping_path.read_text()) if mapping_path.exists() else {}
-    site_files = {
-        p.name.removesuffix(".gz").removesuffix(".xml"): p
-        for p in sorted((epg.work_dir / "guides").glob("*.xml*"))
-    }
-    log(f"Scanning {len(site_files)} site guides...")
+def build_guide(
+    cfg: Config, entries: list[m3u.Entry], site_files: dict[str, Path], site_order: dict[str, list[str]]
+) -> int:
+    """Pick the best source per channel from site_files and write guide.xml(.gz) + report."""
+    log(f"Scanning {len(site_files)} guide files...")
     site_slots = {site: xmltv.scan(path) for site, path in site_files.items()}
-
     now = datetime.now(timezone.utc)
     choices = xmltv.choose_sources([e.tvg_id for e in entries], site_slots, site_order, now)
+    epg = cfg.epg
     out = cfg.output_dir / "guide.xml"
-    xmltv.write_guide(out, entries, choices, site_files, epg.placeholders, epg.days, now)
+    xmltv.write_guide(out, entries, choices, site_files, epg.placeholders, epg.days, now, epg.placeholder_hours)
     (cfg.output_dir / "guide-report.md").write_text(xmltv.render_report(entries, choices, now_iso()))
     with_data = sum(1 for c in choices.values() if c.site)
     log(
@@ -292,23 +287,70 @@ def cmd_guide(args: argparse.Namespace) -> int:
     return 0
 
 
-PIPELINE = ("check", "map", "grab", "guide")
+def cmd_guide(args: argparse.Namespace) -> int:
+    cfg = load_config(args)
+    epg = cfg.epg
+    mapping_path = epg.work_dir / "mapping.json"
+    site_order = json.loads(mapping_path.read_text()) if mapping_path.exists() else {}
+    site_files = {
+        p.name.removesuffix(".gz").removesuffix(".xml"): p
+        for p in sorted((epg.work_dir / "guides").glob("*.xml*"))
+    }
+    return build_guide(cfg, load_curated(cfg), site_files, site_order)
+
+
+# Exit code for `kia sync` when the upstream server can't be reached (and no usable cache).
+EXIT_UPSTREAM_UNAVAILABLE = 4
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    """Take the guide from another kia server, keeping only this instance's curated channels."""
+    cfg = load_config(args)
+    if not cfg.upstream_url:
+        log("error: no upstream configured (set KIA_UPSTREAM_URL or [upstream] url)")
+        return 2
+    cached = cfg.epg.work_dir / "upstream" / "guide.xml.gz"
+    try:
+        upstream.download_guide(cfg.upstream_url, cached)
+        log(f"Downloaded the guide from {cfg.upstream_url}")
+    except upstream.UpstreamError as exc:
+        if cfg.upstream_fallback == "cached" and cached.exists():
+            log(f"Upstream unavailable ({exc}); using the guide downloaded {upstream.age(cached)} ago")
+        else:
+            log(f"Upstream unavailable: {exc}")
+            return EXIT_UPSTREAM_UNAVAILABLE
+    entries = load_curated(cfg)
+    return build_guide(cfg, entries, {"upstream": cached}, {e.tvg_id: ["upstream"] for e in entries})
 
 
 def run_pipeline(config: str, update_epg: bool) -> int:
-    """check -> map -> grab -> guide. Returns 0, EXIT_ALERT, or the first fatal step's code."""
+    """check, then the guide: from the upstream server if one is configured and reachable,
+    otherwise map -> grab -> guide. Returns 0, EXIT_ALERT, or the first fatal step's code."""
+    cfg = load(Path(config))
     worst = 0
-    for step in PIPELINE:
-        log(f"=== kia {step} ===")
-        argv = [step, "-c", config] + (["--update"] if step == "map" and update_epg else [])
-        rc = main(argv)
+
+    def step(name: str, *extra: str) -> int:
+        nonlocal worst
+        log(f"=== kia {name} ===")
+        rc = main([name, "-c", config, *extra])
         if rc == EXIT_ALERT:
             worst = EXIT_ALERT
-        elif rc != 0 and step == "grab":
-            # Sites that failed keep their previous guide, so still build one.
-            worst = worst or rc
-        elif rc != 0:
-            log(f"kia {step} failed with exit code {rc}; stopping")
+            return 0
+        return rc
+
+    if rc := step("check"):
+        log(f"kia check failed with exit code {rc}; stopping")
+        return rc
+    if cfg.upstream_url:
+        if step("sync") == 0:
+            return worst
+        log("Falling back to grabbing the guide locally")
+    for name in ("map", "grab", "guide"):
+        rc = step(name, *(["--update"] if name == "map" and update_epg else []))
+        if rc and name == "grab":
+            worst = worst or rc  # sites that failed keep their previous guide, so still build one
+        elif rc:
+            log(f"kia {name} failed with exit code {rc}; stopping")
             return rc
     return worst
 
@@ -323,17 +365,41 @@ def next_run(now: datetime, at: str) -> datetime:
     return nxt if nxt > now else nxt + timedelta(days=1)
 
 
+def wait_until(when: datetime, poll: float = 60.0) -> None:
+    """Sleep until a wall-clock time. Polling (rather than one long sleep) means a laptop
+    that was asleep or suspended at the scheduled time catches up within a minute of waking."""
+    while (remaining := (when - datetime.now().astimezone()).total_seconds()) > 0:
+        time.sleep(min(poll, remaining))
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    cfg = load_config(args)
+    server = serve.make_server(cfg.output_dir, args.bind, args.port)
+    log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/ (Ctrl-C to stop)")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Run the pipeline daily at --at (local time; set TZ), forever."""
     next_run(datetime.now(), args.at)  # validate --at before sleeping
     cfg = load_config(args)
-    run_now = args.run_now or not (cfg.output_dir / "guide.xml.gz").exists()
+    if args.serve:
+        serve.serve_in_background(cfg.output_dir, args.bind, args.port)
+        log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/")
+    run_now = (
+        args.run_now
+        or env_bool("KIA_RUN_ON_START", False)
+        or not (cfg.output_dir / "guide.xml.gz").exists()
+    )
     while True:
         if not run_now:
-            now = datetime.now().astimezone()
-            nxt = next_run(now, args.at)
+            nxt = next_run(datetime.now().astimezone(), args.at)
             log(f"Next run at {nxt:%Y-%m-%d %H:%M %Z}")
-            time.sleep((nxt - now).total_seconds())
+            wait_until(nxt)
         run_now = False
         start = time.monotonic()
         try:
@@ -345,7 +411,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         if rc is not None:
             log(f"Run finished in {minutes:.0f} min with exit code {rc}")
             if rc not in (0, EXIT_ALERT):
-                raise_alert("kia run failed", f"Pipeline exited with code {rc}; see the kia container logs.",
+                raise_alert("kia run failed", f"Pipeline exited with code {rc}; see the kia logs.",
                             cfg.state_dir, cfg.alert_command, log)  # fmt: skip
 
 
@@ -353,6 +419,15 @@ def cmd_probe(args: argparse.Namespace) -> int:
     r = asyncio.run(probe(args.url, timeout=args.timeout, user_agent=args.user_agent, referrer=args.referrer))
     print(json.dumps(r.to_dict(), indent=2))
     return 0 if r.ok else 1
+
+
+def add_serve_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--bind",
+        default=os.environ.get("KIA_BIND") or "127.0.0.1",
+        help="address to listen on (default: KIA_BIND or 127.0.0.1; 0.0.0.0 for your whole network)",
+    )
+    p.add_argument("--port", type=int, default=int(os.environ.get("KIA_PORT") or 8780), help="default: KIA_PORT or 8780")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -401,10 +476,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--update", action="store_true", help="git pull the epg checkout first")
     p.set_defaults(func=cmd_run)
 
+    p = sub.add_parser("sync", help="take the guide from another kia server (KIA_UPSTREAM_URL)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_sync)
+
+    p = sub.add_parser("serve", help="serve the output folder over HTTP (for installs without Docker)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    add_serve_args(p)
+    p.set_defaults(func=cmd_serve)
+
     p = sub.add_parser("daemon", help="run the full pipeline every day at a set time")
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--at", default="04:00", help="local time of day, HH:MM (default 04:00)")
-    p.add_argument("--run-now", action="store_true", help="also run once at startup")
+    p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
+    p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
+    add_serve_args(p)
     p.set_defaults(func=cmd_daemon)
 
     args = parser.parse_args(argv)

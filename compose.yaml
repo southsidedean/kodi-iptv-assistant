@@ -1,13 +1,19 @@
 # Copy .env.example to .env and edit it, then: docker compose up -d --build
 services:
   kia:
-    build: .
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${KIA_NODE_IMAGE:-node:22.23.3-alpine3.24}
     image: kodi-iptv-assistant:latest
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       TZ: ${TZ:-UTC}
       KIA_PUBLIC_URL: ${KIA_PUBLIC_URL:-}
+      KIA_RUN_ON_START: ${KIA_RUN_ON_START:-}
+      KIA_UPSTREAM_URL: ${KIA_UPSTREAM_URL:-}
+      KIA_UPSTREAM_FALLBACK: ${KIA_UPSTREAM_FALLBACK:-}
       # Optional overrides of kia.toml (empty = use kia.toml).
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
@@ -15,6 +21,8 @@ services:
       KIA_EXCLUDE_SITES: ${KIA_EXCLUDE_SITES:-}
       KIA_EXCLUDE_GROUPS: ${KIA_EXCLUDE_GROUPS:-}
       KIA_PLACEHOLDERS: ${KIA_PLACEHOLDERS:-}
+      KIA_EPG_GIT_URL: ${KIA_EPG_GIT_URL:-}
+      KIA_EPG_GIT_REF: ${KIA_EPG_GIT_REF:-}
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}
     command: ["daemon", "--at", "${KIA_RUN_AT:-04:00}"]
@@ -23,10 +31,11 @@ services:
       - ./:/data
 
   web:
-    image: nginx:alpine
+    image: ${KIA_NGINX_IMAGE:-nginx:1.31.7-alpine3.24}
     restart: unless-stopped
     ports:
-      - "${KIA_PORT:-8780}:80"
+      # KIA_BIND=127.0.0.1 keeps the server to this machine (e.g. Kodi on the same laptop).
+      - "${KIA_BIND:-0.0.0.0}:${KIA_PORT:-8780}:80"
     volumes:
       - ./:/srv:ro
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro

@@ -13,9 +13,6 @@ from pathlib import Path
 from kia.config import EpgConfig
 from kia.native import NATIVE_GRABBERS
 
-EPG_GIT_URL = "https://github.com/iptv-org/epg.git"
-
-
 @dataclass
 class GrabResult:
     site: str
@@ -34,9 +31,10 @@ def runner_prefix(cfg: EpgConfig) -> list[str]:
     repo, work = cfg.repo_dir.resolve(), cfg.work_dir.resolve()
     # Docker creates missing bind-mount sources as root; create it first so it stays ours.
     work.mkdir(parents=True, exist_ok=True)
+    # Run as the calling user so files stay ours (os.getuid doesn't exist on Windows).
+    user = ["-u", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
     return [
-        "docker", "run", "--rm",
-        "-u", f"{os.getuid()}:{os.getgid()}",
+        "docker", "run", "--rm", *user,
         "-e", "HOME=/tmp",
         "-v", f"{repo}:{repo}",
         "-v", f"{work}:{work}",
@@ -45,18 +43,38 @@ def runner_prefix(cfg: EpgConfig) -> list[str]:
     ]  # fmt: skip
 
 
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True)
+
+
 def ensure_repo(cfg: EpgConfig, update: bool, log: Callable[[str], None]) -> None:
+    """Check out cfg.git_ref (branch, tag, or commit) of cfg.git_url into cfg.repo_dir.
+
+    Fetches only on first use or when update is set; reinstalls npm dependencies only when
+    package-lock.json changed.
+    """
     repo = cfg.repo_dir
-    if not (repo / ".git").exists():
-        log(f"Cloning {EPG_GIT_URL} into {repo}...")
-        repo.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["git", "clone", "--depth", "1", EPG_GIT_URL, str(repo)], check=True)
-    elif update:
-        log("Updating the epg checkout...")
-        subprocess.run(["git", "-C", str(repo), "pull", "--ff-only", "--quiet"], check=True)
-    else:
+    fresh = not (repo / ".git").exists()
+    if not fresh and not update:
         return
-    install_deps(cfg, log)
+    lock = repo / "package-lock.json"
+    lock_before = lock.read_bytes() if lock.exists() else None
+    if fresh:
+        log(f"Fetching {cfg.git_url} ({cfg.git_ref}) into {repo}...")
+        repo.mkdir(parents=True, exist_ok=True)
+        _git(repo, "init", "-q")
+        _git(repo, "remote", "add", "origin", cfg.git_url)
+    else:
+        log(f"Updating the epg checkout to {cfg.git_ref}...")
+        _git(repo, "remote", "set-url", "origin", cfg.git_url)
+    # Fetching by name works the same for branches, tags, and (on GitHub) commit hashes.
+    _git(repo, "fetch", "-q", "--depth", "1", "origin", cfg.git_ref)
+    _git(repo, "checkout", "-q", "--force", "--detach", "FETCH_HEAD")
+    if fresh or lock_before != lock.read_bytes() or not (repo / "node_modules").exists():
+        install_deps(cfg, log)
+    else:
+        # Same dependencies; just refresh the iptv-org API data (channel logos, feeds).
+        subprocess.run(runner_prefix(cfg) + ["npm", "run", "api:load"], cwd=repo, check=True)
 
 
 def install_deps(cfg: EpgConfig, log: Callable[[str], None]) -> None:

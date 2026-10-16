@@ -14,6 +14,10 @@ from xml.sax.saxutils import escape, quoteattr
 
 from kia.m3u import Entry
 
+# Marks programmes kia generated for channels without guide data. Kodi ignores unknown
+# attributes; kia uses it to skip another kia server's placeholders when reading its guide.
+PLACEHOLDER_ATTR = "kia-placeholder"
+
 _TAG_RE = re.compile(r"\s*(\(\d{3,4}p\)|\[[^\]]*\])")
 
 
@@ -42,7 +46,9 @@ def scan(path: Path) -> dict[str, list[tuple[datetime, datetime]]]:
     slots: dict[str, list[tuple[datetime, datetime]]] = defaultdict(list)
     with _open(path) as f:
         for _, el in ET.iterparse(f, events=("end",)):
-            if el.tag == "programme":
+            if el.tag == "programme" and el.get(PLACEHOLDER_ATTR):
+                el.clear()
+            elif el.tag == "programme":
                 try:
                     slots[el.get("channel", "")].append((parse_time(el.get("start")), parse_time(el.get("stop"))))
                 except (TypeError, ValueError):
@@ -110,7 +116,7 @@ def _placeholders(tvg_id: str, title: str, start: datetime, days: int, hours: in
         b = a + timedelta(hours=hours)
         out.append(
             f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
-            f"channel={quoteattr(tvg_id)}><title>{escape(title)}</title></programme>"
+            f'channel={quoteattr(tvg_id)} {PLACEHOLDER_ATTR}="1"><title>{escape(title)}</title></programme>'
         )
     return out
 
@@ -123,6 +129,7 @@ def write_guide(
     placeholders: bool,
     days: int,
     now: datetime,
+    placeholder_hours: int = 2,
 ) -> None:
     """Write guide.xml (and guide.xml.gz): one <channel> per playlist entry, programmes from the chosen site."""
     wanted: dict[str, set[str]] = defaultdict(set)
@@ -146,7 +153,7 @@ def write_guide(
                 for _, el in ET.iterparse(src, events=("end",)):
                     if el.tag != "programme":
                         continue
-                    if el.get("channel") in ids:
+                    if el.get("channel") in ids and not el.get(PLACEHOLDER_ATTR):
                         el.tail = None
                         f.write("  " + ET.tostring(el, encoding="unicode") + "\n")
                     el.clear()
@@ -155,7 +162,7 @@ def write_guide(
             day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             for e in entries:
                 if not choices.get(e.tvg_id) or not choices[e.tvg_id].site:
-                    f.write("\n".join(_placeholders(e.tvg_id, display_name(e), day_start, days)) + "\n")
+                    f.write("\n".join(_placeholders(e.tvg_id, display_name(e), day_start, days, placeholder_hours)) + "\n")
         f.write("</tv>\n")
     tmp.replace(out_path)
 
