@@ -88,7 +88,13 @@ TZ=America/New_York
 
 Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print.
 
-Then choose your playlists. Open `sources.txt` and remove the `#` at the start of each playlist you want. The USA list is on already. Each line shows roughly how many streams it has; more streams make the nightly check longer.
+Then choose your playlists. Make your own copy of the list, so updating kia never touches your choices:
+
+```sh
+cp sources.txt sources.local.txt
+```
+
+Add `KIA_SOURCES_FILE=sources.local.txt` to `.env`. Then open `sources.local.txt` and remove the `#` at the start of each playlist you want. The USA list is on already. Each line shows roughly how many streams it has; more streams make the nightly check longer. The same file can add radio stations, as its comments explain.
 
 ## 6. Start kia
 

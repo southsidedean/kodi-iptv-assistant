@@ -41,7 +41,7 @@ On the **EPG** tab, leave **XMLTV URL** empty. The playlist tells Kodi where the
 
 ## 4. Restart Kodi
 
-Restart Kodi (or disable and re-enable the add-on). Channels appear under TV, and the guide fills in within a minute or two. Channels without guide data show their own name in the guide, like IraneFarda TV and It Is Written TV below. If you've added radio stations in `sources.txt`, they appear under Radio.
+Restart Kodi (or disable and re-enable the add-on). Channels appear under TV, and the guide fills in within a minute or two. Channels without guide data show their own name in the guide, like IraneFarda TV and It Is Written TV below. Radio stations, if you've added any, appear under Radio.
 
 ![The Kodi TV guide with program listings, and a few channels showing their own name](../images/kodi-iptv-guide.jpg)
 

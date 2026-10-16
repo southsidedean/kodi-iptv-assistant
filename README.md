@@ -59,7 +59,7 @@ By default, one machine serves every Kodi device in the house. kia can also run 
 
 | File | For |
 |---|---|
-| `sources.txt` | Which playlists to use |
+| `sources.txt` | Which playlists and radio stations to use |
 | `.env` | How it runs on this machine: address, schedule, time zone, memory |
 | `kia.toml` | Fine-tuning: timeouts, filters, guide sources, alerts |
 
@@ -73,7 +73,7 @@ If something breaks that needs you, such as your network's DNS failing or the ni
 
 ## Updating and stopping
 
-To update, run `git pull` and then `docker compose up -d --build` in the kia folder. Your `.env` and stream history are kept. If you've edited `sources.txt` or `kia.toml`, git may ask you to commit or stash those changes first.
+To update, run `git pull` and then `docker compose up -d --build` in the kia folder. Your `.env` and stream history are kept. Keep your playlist choices in your own copy of `sources.txt` (set `KIA_SOURCES_FILE`, see [configuration](docs/configuration.md)) and updates won't touch them; if you edit `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
 
 To stop kia, run `docker compose down`. While it's stopped, Kodi can't refresh the channel list or guide.
 

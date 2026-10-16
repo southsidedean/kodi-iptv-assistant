@@ -13,7 +13,7 @@ Alerts are off until you choose where to send them. Until then they're only writ
 | `channels_drop` | yes | Working channels fell sharply since the last run (25% by default). Usually a playlist that broke upstream or a bad internet connection during the run. |
 | `guide_drop` | yes | Channels with guide data fell sharply. A major guide source probably broke. |
 | `site_failing` | yes | One guide site failed 3 runs in a row. You hear about it once per streak, not every night. |
-| `daily_summary` | no | A short "all done" message after each run, e.g. "1174 working channels, 541 with guide data". Handy at first, to know it's working. |
+| `daily_summary` | no | A short "all done" message after each run, e.g. "1174 working channels, 541 with guide data". It's handy at first, to see that everything works. |
 
 If you remove playlists or exclude guide sites yourself, the next run may report a drop. That's expected, and the message says so.
 

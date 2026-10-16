@@ -6,7 +6,7 @@ Three files, from most to least often changed:
 - `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
 - `kia.toml`: fine-tuning. The defaults suit most people.
 
-When a setting exists in both, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
+When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
 
 ## `.env`
 

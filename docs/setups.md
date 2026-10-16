@@ -1,6 +1,6 @@
 # Setups
 
-kia works the same way everywhere. What changes is who can reach it and how much work the machine should do. Each recipe below lists the `.env` lines to change from `.env.example`.
+The setups below differ only in who can reach kia and how much work the machine does. Each recipe lists the `.env` lines to change from `.env.example`.
 
 ## Home server
 
@@ -37,11 +37,11 @@ KIA_UPSTREAM_URL=http://192.168.1.20:8780   # your home server
 KIA_UPSTREAM_FALLBACK=cached                # away from home: reuse the last guide (or "grab" a fresh one)
 ```
 
-Use the same `sources.txt` as the home server so the guide covers the same channels. Kodi on the laptop points at `http://localhost:8780/curated.m3u`.
+Use the same playlist list as the home server, so its guide covers the same channels. Kodi on the laptop points at `http://localhost:8780/curated.m3u`.
 
 ## Raspberry Pi
 
-A Pi 4 or 5 (64-bit OS, 4 GB or more) works as a home server or alongside Kodi (e.g. LibreELEC with its Docker add-on). Use any recipe above, plus:
+A Pi 4 or 5 (64-bit OS, 4 GB or more) can be a home server. It can also run kia alongside Kodi: LibreELEC offers a Docker add-on, though kia hasn't been tested there yet. Use any recipe above, plus:
 
 ```ini
 KIA_PARALLEL_SITES=1

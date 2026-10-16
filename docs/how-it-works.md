@@ -14,7 +14,7 @@ Channels listed more than once (same `tvg-id`) are reduced to the best stream: w
 
 ### Radio
 
-Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices (country, genre, language). Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `radio_placeholders`.
+Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices, such as a country, genre, language, or station name. Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `radio_placeholders`.
 
 ## 2. Match channels to guide sources (`kia map`)
 
