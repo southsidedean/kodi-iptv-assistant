@@ -15,10 +15,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from kia import __version__, dnscheck, epgmap, grab, m3u, serve, upstream, xmltv
+from kia import __version__, dnscheck, epgmap, grab, m3u, radio, serve, upstream, xmltv
 from kia import alerts
 from kia.alerts import EXIT_ALERT
-from kia.config import Config, env_bool, load
+from kia.config import KODI_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.probe import ProbeResult, probe
@@ -42,7 +42,15 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
     for src in cfg.sources:
         if only and src.name not in only:
             continue
-        found = m3u.parse(fetch(src.url), source=src.name)
+        try:
+            if src.is_radio_browser:
+                found = radio.load(src.params, src.name)
+            else:
+                found = m3u.parse(fetch(src.url), source=src.name)
+        except (OSError, ValueError, radio.RadioError) as exc:
+            # Skip it; if that loses many channels, the channels_drop alert says so.
+            log(f"{src.name}: could not load ({exc}); skipping")
+            continue
         kept = [
             e
             for e in found
@@ -59,19 +67,23 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
     for e in entries:
         unique.setdefault(e.url, e)
     sem = asyncio.Semaphore(cfg.concurrency)
+    # Many servers (radio especially) refuse more than a couple of connections per visitor,
+    # so limit tests per server as well as overall.
+    per_host: dict[str, asyncio.Semaphore] = {}
     results: dict[str, ProbeResult] = {}
     total = len(unique)
     ok = 0
 
     async def one(e: m3u.Entry) -> None:
         nonlocal ok
-        async with sem:
+        host = per_host.setdefault(urlparse(e.url).netloc, asyncio.Semaphore(cfg.per_host))
+        async with host, sem:
             r = await probe(
                 e.url,
                 timeout=cfg.timeout,
                 user_agent=e.user_agent or cfg.user_agent,
                 referrer=e.referrer,
-                require_video=cfg.require_video,
+                require_video=cfg.require_video and not e.is_radio,
                 ffprobe=cfg.ffprobe,
             )
         results[e.url] = r
@@ -332,7 +344,9 @@ def build_guide(
     choices = xmltv.choose_sources([e.tvg_id for e in entries], site_slots, site_order, now)
     epg = cfg.epg
     out = cfg.output_dir / "guide.xml"
-    xmltv.write_guide(out, entries, choices, site_files, epg.placeholders, epg.days, now, epg.placeholder_hours)
+    xmltv.write_guide(
+        out, entries, choices, site_files, epg.placeholders, epg.days, now, epg.placeholder_hours, epg.radio_placeholders
+    )
     (cfg.output_dir / "guide-report.md").write_text(xmltv.render_report(entries, choices, now_iso()))
     with_data = sum(1 for c in choices.values() if c.site)
     log(
@@ -513,7 +527,8 @@ def cmd_test_alert(args: argparse.Namespace) -> int:
 
 
 def cmd_probe(args: argparse.Namespace) -> int:
-    r = asyncio.run(probe(args.url, timeout=args.timeout, user_agent=args.user_agent, referrer=args.referrer))
+    user_agent = args.user_agent or KODI_USER_AGENT
+    r = asyncio.run(probe(args.url, timeout=args.timeout, user_agent=user_agent, referrer=args.referrer))
     print(json.dumps(r.to_dict(), indent=2))
     return 0 if r.ok else 1
 

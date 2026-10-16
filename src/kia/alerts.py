@@ -26,7 +26,8 @@ EVENTS = {
     "daily_summary": "a short summary after every successful run (not an alert)",
 }
 DEFAULT_EVENTS = ("dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing")
-# Not problems: sent only if turned on, never written to alerts.log or counted for exit codes.
+# Notices, not alerts: sent only when turned on, and never logged to alerts.log or
+# counted in exit codes.
 NOTICES = {"daily_summary"}
 URGENT = {"dns_local", "run_failed"}
 

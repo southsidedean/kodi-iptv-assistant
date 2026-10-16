@@ -48,8 +48,15 @@ class Entry:
         return int(m.group(1)) if m else None
 
     @property
+    def is_radio(self) -> bool:
+        return self.attrs.get("radio", "").lower() == "true"
+
+    @property
     def key(self) -> str:
         """Identity used to group duplicate streams of the same channel."""
+        if self.is_radio:
+            # Radio directories list the same station several times (one per bitrate).
+            return "radio:" + normalize_name(self.name)
         return self.tvg_id or "name:" + normalize_name(self.name)
 
 

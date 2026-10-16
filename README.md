@@ -10,7 +10,7 @@ Kodi and free IPTV make a great pair, but turning a raw playlist into something 
 
 kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in the playlists you pick and keeps one working stream per channel. It finds guide data for those channels and builds a single guide file that lines up with the list. Then it serves both on your network, so you set up each Kodi device once and it stays current.
 
-Channels with no guide data anywhere (small local stations, for example) show their name in the guide instead of a blank row.
+Channels with no guide data anywhere (small local stations, for example) show their name in the guide instead of a blank row. kia can also add internet radio stations, which appear under Radio in Kodi.
 
 ## What you need
 

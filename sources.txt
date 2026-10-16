@@ -1,11 +1,11 @@
-# Playlists to check. Remove the "#" in front of a line to turn it on, add one to turn
-# it off. You can also add your own: any playlist URL or file path, one per line.
+# The playlists kia checks, one per line. Remove the "#" at the start of a line to turn
+# a playlist on, or add one to turn it off. Your own playlist URLs or file paths work too.
 #
-# All the playlists you turn on are combined into one. Channels that appear in several
-# get tested once, and the best working stream is kept. More playlists = longer checks;
-# the stream counts below (checked October 2026) give a rough idea.
+# Everything you turn on is combined into one channel list. A channel that appears in
+# several playlists is tested once, and its best working stream is kept. Each extra
+# playlist makes the nightly check longer; the stream counts (October 2026) show how much.
 #
-# Optionally put a short name after the URL, e.g. "...us.m3u  usa"; it's used in reports.
+# You can put a short name after a URL, e.g. "...us.m3u  usa". It's used in the reports.
 
 # --- Countries (iptv-org) ---------------------------------------------- streams ---
 https://iptv-org.github.io/iptv/countries/us.m3u               # USA            1,483
@@ -64,6 +64,20 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # https://iptv-org.github.io/iptv/sources/us_roku.m3u          # Roku              15
 # https://iptv-org.github.io/iptv/sources/us_pbs.m3u           # PBS               13
 # https://iptv-org.github.io/iptv/sources/us_local.m3u         # US local stations 168
+
+# --- Radio (radio-browser.info) ---------------------------------------------------
+# Internet radio stations from a free community directory. They appear under Radio in
+# Kodi. Each line asks for the most popular working stations that match your choices:
+#   country=US       two-letter country code
+#   state=Texas      state or region (with country)
+#   language=english
+#   tag=jazz         one genre; tags=jazz,smooth for stations with all of them
+#   top=100          how many stations (default 100, most popular first)
+#   min_bitrate=128  skip low-quality streams (kbps)
+#   name=jazz        a name for the reports (otherwise made from the choices)
+# radio-browser: country=US top=100                                 # 7,400 US stations to choose from
+# radio-browser: country=US tag=jazz top=25
+# radio-browser: country=US tag=news top=25
 
 # --- Other collections ------------------------------------------------------------
 # https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8   free-tv  # Free-TV, worldwide, 2,023

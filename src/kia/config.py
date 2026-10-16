@@ -16,6 +16,16 @@ from kia.alerts import DEFAULT_EVENTS, EVENTS, AlertConfig
 class Source:
     name: str
     url: str
+    params: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def is_radio_browser(self) -> bool:
+        return self.url.startswith("radio-browser:")
+
+
+# Kodi is what plays the streams, so test them the way Kodi asks for them. Some servers
+# turn away ffmpeg's default identity but serve Kodi, VLC, and browsers.
+KODI_USER_AGENT = "Kodi/21.2 (X11; Linux x86_64) App_Bitness/64 Version/21.2"
 
 
 @dataclass
@@ -32,6 +42,7 @@ class EpgConfig:
     max_connections: int = 5
     placeholders: bool = True
     placeholder_hours: int = 2
+    radio_placeholders: bool = False
     native_grabbers: bool = True
     git_url: str = "https://github.com/iptv-org/epg.git"
     git_ref: str = "master"
@@ -41,10 +52,11 @@ class EpgConfig:
 class Config:
     sources: list[Source]
     concurrency: int = 20
+    per_host: int = 2
     timeout: float = 15.0
     require_video: bool = True
     grace_failures: int = 2
-    user_agent: str | None = None
+    user_agent: str | None = KODI_USER_AGENT
     ffprobe: str = "ffprobe"
     exclude_groups: list[str] = field(default_factory=list)
     exclude_labels: list[str] = field(default_factory=list)
@@ -81,13 +93,36 @@ def parse_sources(text: str) -> list[Source]:
         line = re.sub(r"(^|\s)#.*", "", raw).strip()
         if not line:
             continue
-        url, _, name = line.partition(" ")
-        name = name.strip() or source_name(url, taken)
-        if name in taken:
-            raise ValueError(f"duplicate source name {name!r}")
-        taken.add(name)
-        sources.append(Source(name=name, url=url))
+        if line.startswith("radio-browser:"):
+            source = _radio_source(line, taken)
+        else:
+            url, _, name = line.partition(" ")
+            source = Source(name=name.strip() or source_name(url, taken), url=url)
+        if source.name in taken:
+            raise ValueError(f"duplicate source name {source.name!r}")
+        taken.add(source.name)
+        sources.append(source)
     return sources
+
+
+def _radio_source(line: str, taken: set[str]) -> Source:
+    """`radio-browser: country=US top=200 tag=jazz name=jazz` -> a radio-browser query."""
+    params = {}
+    for token in line.removeprefix("radio-browser:").split():
+        key, eq, value = token.partition("=")
+        if not eq or not value:
+            raise ValueError(f"radio-browser: expected key=value, got {token!r}")
+        params[key.strip().lower()] = value.strip()
+    name = params.pop("name", None)
+    if not name:
+        base = "radio-" + "-".join(params[k].lower() for k in ("country", "tag", "language") if k in params)
+        name, n = base.rstrip("-") or "radio", 2
+        while name in taken:
+            name, n = f"{base}-{n}", n + 1
+    from kia.radio import build_query
+
+    build_query(params)  # check the filters now, not at 4 AM
+    return Source(name=name, url=line, params=params)
 
 
 def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = None) -> Config:
@@ -110,9 +145,10 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         sources=sources,
         concurrency=_env_int("KIA_CHECK_CONCURRENCY", check.get("concurrency", 20)),
         timeout=check.get("timeout", 15.0),
+        per_host=check.get("per_host", 2),
         require_video=check.get("require_video", True),
         grace_failures=check.get("grace_failures", 2),
-        user_agent=check.get("user_agent") or None,
+        user_agent=check.get("user_agent", KODI_USER_AGENT) or None,
         ffprobe=check.get("ffprobe", "ffprobe"),
         exclude_groups=_merge_env_list("KIA_EXCLUDE_GROUPS", filters.get("exclude_groups", [])),
         exclude_labels=filters.get("exclude_labels", []),
@@ -226,6 +262,7 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         max_connections=epg.get("max_connections", d.max_connections),
         placeholders=env_bool("KIA_PLACEHOLDERS", epg.get("placeholders", d.placeholders)),
         placeholder_hours=_placeholder_hours(epg.get("placeholder_hours", d.placeholder_hours)),
+        radio_placeholders=epg.get("radio_placeholders", d.radio_placeholders),
         git_url=os.environ.get("KIA_EPG_GIT_URL") or epg.get("git_url", d.git_url),
         git_ref=os.environ.get("KIA_EPG_GIT_REF") or epg.get("git_ref", d.git_ref),
         native_grabbers=epg.get("native_grabbers", d.native_grabbers),

@@ -1,74 +1,162 @@
-# kodi-iptv-assistant configuration
+# kia settings. The defaults suit most people; each setting says what it does and when
+# you might change it. With Docker, the most common ones can also be set in .env, which
+# takes priority over this file (the .env name is given where one exists).
 
-# Playlists to check are listed in this file (one URL per line), relative to kia.toml.
-# Override per run with `kia check --sources other.txt` or `kia check -u <url>`.
+# The playlists to check, one per line. See the comments in that file.
 sources_file = "sources.txt"
 
+
 [check]
-concurrency = 20       # parallel ffprobe processes; lower this on a Raspberry Pi (.env: KIA_CHECK_CONCURRENCY)
-timeout = 15           # seconds of network silence before a stream fails
-require_video = true   # treat audio-only streams as dead
-grace_failures = 2     # keep a stream that worked before until it fails this many runs in a row
-history_days = 30      # forget streams that haven't appeared in any playlist for this many days
-# user_agent = ""      # default UA for streams that don't set their own
+# How kia tests each stream.
+
+# Streams tested at the same time. Lower it on a Raspberry Pi or a slow connection.
+# .env: KIA_CHECK_CONCURRENCY
+concurrency = 20
+
+# Streams tested at the same time on any one server. Many servers, radio especially,
+# turn away more than a couple of connections from the same place.
+per_host = 2
+
+# Seconds to wait for a stream before giving up on it.
+timeout = 15
+
+# Only keep TV streams that have video. Radio stations are always allowed audio only.
+require_video = true
+
+# A stream that has worked before stays in the list until it fails this many nightly
+# checks in a row, because free streams often drop out for a while and come back.
+grace_failures = 2
+
+# Forget the history of streams that haven't been in any playlist for this many days.
+history_days = 30
+
+# How kia identifies itself to stream servers. The default looks like Kodi, because some
+# servers refuse other players. A playlist entry's own setting always wins. Set to ""
+# to use ffmpeg's own identity.
+# user_agent = "Kodi/21.2 (X11; Linux x86_64) App_Bitness/64 Version/21.2"
+
 
 [filters]
-# Skipped before probing. Groups match iptv-org's group-title categories.
-exclude_groups = []            # e.g. ["Religious", "Shop", "Undefined"] (.env adds: KIA_EXCLUDE_GROUPS)
-exclude_labels = []            # e.g. ["Not 24/7", "Geo-blocked"]
-exclude_name_patterns = []     # regexes matched against the channel name
+# Channels to leave out before testing.
+
+# Categories (the "group-title" in iptv-org playlists), e.g. ["Religious", "Shop"].
+# .env: KIA_EXCLUDE_GROUPS (adds to this list)
+exclude_groups = []
+
+# Tags in square brackets at the end of channel names, e.g. ["Not 24/7", "Geo-blocked"].
+exclude_labels = []
+
+# Regular expressions matched against channel names, e.g. ["\\bshop"].
+# Upper and lower case are treated the same.
+exclude_name_patterns = []
+
 
 [output]
-dir = "output"                 # curated.m3u, report.md, report.json
-state_dir = "state"            # check history
-# Where Kodi devices reach the output folder (Docker Compose sets this from KIA_PUBLIC_URL
-# in .env). Used to write the guide's URL into curated.m3u, so IPTV Simple can find it.
+# Where results go. output/ is what the web server shares with Kodi.
+dir = "output"
+state_dir = "state"
+
+# The address Kodi uses to reach this machine. Docker sets it from KIA_PUBLIC_URL in .env.
+# kia writes the guide's address into the playlist from it, so Kodi finds the guide itself.
 # public_url = "http://my-server.lan:8780"
-# epg_url = "http://my-server.lan:8780/guide.xml.gz"   # only if the guide lives elsewhere
+
+# Only if your guide is served from somewhere else:
+# epg_url = "http://my-server.lan:8780/guide.xml.gz"
+
 
 [dns]
-# Streams and guide sites are resolved with this machine's normal (local) DNS. When a
-# hostname fails to resolve, these backup resolvers are asked to verify it: if they can
-# resolve it, the report flags a local DNS problem instead of a dead stream.
+# When a stream's server name can't be looked up on this machine, kia asks these public
+# DNS servers as well. If they can find it, the problem is your network's DNS (and kia
+# raises an alert); if they can't, the stream is gone.
 verify_resolvers = ["8.8.8.8", "1.1.1.1"]
 
+
 [alerts]
-# Alerts tell you about problems that need a person. They're always logged and added to
-# state/alerts.log (and kia exits with code 3). To get them on your phone or elsewhere,
-# set ntfy_url and/or command; in Docker, KIA_NTFY_URL and KIA_ALERT_COMMAND in .env are
-# easier and keep these out of git. Leave both empty for no notifications.
-#
-# ntfy (https://ntfy.sh): install the app, subscribe to a long, hard-to-guess topic name
-# (anyone who knows it can read the messages), and put its URL here.
+# Notifications for problems that need you. See docs/alerts.md.
+# Alerts are always written to state/alerts.log. To also get them on your phone, set
+# ntfy_url or command. With Docker, use KIA_NTFY_URL and KIA_ALERT_COMMAND in .env
+# instead, so your topic name stays out of this file.
+
+# ntfy topic address. Pick a long, hard-to-guess topic name: anyone who knows it can
+# read the messages.
 # ntfy_url = "https://ntfy.sh/my-long-random-topic"
-#
-# Or any shell command; it gets $KIA_ALERT_EVENT, $KIA_ALERT_TITLE and $KIA_ALERT_MESSAGE.
+
+# Any shell command, run once per alert with $KIA_ALERT_EVENT, $KIA_ALERT_TITLE, and
+# $KIA_ALERT_MESSAGE set.
 # command = ""
-#
-# Which events notify you (.env: KIA_ALERT_EVENTS, comma-separated):
-#   dns_local      local DNS is failing (names resolve on public DNS but not here)
-#   run_failed     a nightly run failed or crashed
-#   channels_drop  working channels dropped sharply since the last run
-#   guide_drop     channels with guide data dropped sharply since the last run
+
+# Which events notify you. .env: KIA_ALERT_EVENTS (comma-separated, replaces this list)
+#   dns_local      your network's DNS is failing
+#   run_failed     the nightly refresh failed or crashed
+#   channels_drop  working channels fell sharply since the last run
+#   guide_drop     channels with guide data fell sharply since the last run
 #   site_failing   a guide site failed several runs in a row
-#   daily_summary  a short "all done" message after each run (not an alert; off by default)
+#   daily_summary  an "all done" message after each run (off unless you add it)
 events = ["dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing"]
-drop_percent = 25              # how big a drop (in %) counts as sharp
-site_fail_runs = 3             # failed runs in a row before site_failing alerts (once per streak)
+
+# How big a fall, in percent, counts as sharp for channels_drop and guide_drop.
+drop_percent = 25
+
+# Failed runs in a row before site_failing alerts. You hear about it once per streak.
+site_fail_runs = 3
+
 
 [epg]
-repo_dir = "vendor/epg"        # clone of https://github.com/iptv-org/epg (kia grab clones it if missing)
-work_dir = "work"              # per-site channel lists, raw guides, logs
-days = 3                       # days of guide data to grab (.env: KIA_EPG_DAYS)
-max_sites_per_channel = 3      # candidate guide sites grabbed per channel; the best one wins
-prefer_sites = []              # try these sites first, in order, e.g. ["pluto.tv", "plex.tv"]
-# Never use these (sites marked broken in SITES.md are skipped too).
-# epg.iptvx.one's grabber needs more than 4 GB of RAM, even for a handful of channels.
-exclude_sites = ["epg.iptvx.one"]   # .env adds: KIA_EXCLUDE_SITES
-runner = "docker"              # "docker" (no Node needed) or "local" (needs Node.js 22+)
-parallel_sites = 4             # sites grabbed at once, ~0.7 GB RAM each (.env: KIA_PARALLEL_SITES)
-max_connections = 5            # concurrent requests per site
-placeholders = true            # fill channels with no guide data with "<channel name>" blocks (.env: KIA_PLACEHOLDERS)
-placeholder_hours = 2          # length of each placeholder block: 1, 2, 3, 4, 6, 8, 12 or 24
-native_grabbers = true         # grab i.mjh.nz directly from its XMLTV files (seconds, little RAM)
-                               # instead of iptv-org/epg's grabber (~25 min, >2 GB RAM)
+# Building the program guide. See docs/how-it-works.md.
+
+# Days of program guide to download. More days take longer and use more memory.
+# .env: KIA_EPG_DAYS
+days = 3
+
+# Guide sites downloaded at the same time. Each one uses up to about 0.7 GB of memory.
+# .env: KIA_PARALLEL_SITES
+parallel_sites = 4
+
+# Requests at the same time to any one guide site.
+max_connections = 5
+
+# Guide sites to try for each channel. kia keeps whichever has the most listings.
+max_sites_per_channel = 3
+
+# Sites to try first, in order, e.g. ["pluto.tv", "plex.tv"].
+prefer_sites = []
+
+# Sites never to use. Sites marked broken by iptv-org are skipped anyway.
+# epg.iptvx.one needs more than 4 GB of memory, even for a few channels.
+# .env: KIA_EXCLUDE_SITES (adds to this list)
+exclude_sites = ["epg.iptvx.one"]
+
+# When a TV channel has no guide data, fill its row with blocks showing the channel's
+# name, so the guide has no empty rows. .env: KIA_PLACEHOLDERS
+placeholders = true
+# Block length in hours: 1, 2, 3, 4, 6, 8, 12, or 24.
+placeholder_hours = 2
+# Do the same for radio stations. Off by default; almost no station has guide data.
+radio_placeholders = false
+
+# Read i.mjh.nz's guide files (Pluto TV, Plex, Samsung TV Plus, Roku) directly. It takes
+# seconds and little memory, compared with about 25 minutes and over 2 GB through
+# iptv-org's downloader.
+native_grabbers = true
+
+# Where kia keeps its copy of iptv-org/epg and its working files.
+repo_dir = "vendor/epg"
+work_dir = "work"
+
+# Use a fork or a fixed version of iptv-org/epg. .env: KIA_EPG_GIT_URL, KIA_EPG_GIT_REF
+# git_url = "https://github.com/iptv-org/epg.git"
+# git_ref = "master"
+
+# How the guide downloader runs: "docker", or "local" if Node.js 22+ is installed.
+# The Docker image always uses its own built-in Node.js.
+runner = "docker"
+
+
+[upstream]
+# For laptops and other machines with a home kia server: copy the guide from it instead
+# of downloading guide data here. Streams are still tested locally. See docs/setups.md.
+# .env: KIA_UPSTREAM_URL, KIA_UPSTREAM_FALLBACK
+# url = "http://my-server.lan:8780"
+
+# If the home server can't be reached: "grab" the guide here, or reuse the "cached" copy.
+fallback = "grab"

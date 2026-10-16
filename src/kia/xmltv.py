@@ -130,6 +130,7 @@ def write_guide(
     days: int,
     now: datetime,
     placeholder_hours: int = 2,
+    radio_placeholders: bool = False,
 ) -> None:
     """Write guide.xml (and guide.xml.gz): one <channel> per playlist entry, programmes from the chosen site."""
     wanted: dict[str, set[str]] = defaultdict(set)
@@ -161,6 +162,8 @@ def write_guide(
         if placeholders:
             day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             for e in entries:
+                if e.is_radio and not radio_placeholders:
+                    continue
                 if not choices.get(e.tvg_id) or not choices[e.tvg_id].site:
                     f.write("\n".join(_placeholders(e.tvg_id, display_name(e), day_start, days, placeholder_hours)) + "\n")
         f.write("</tv>\n")
@@ -174,6 +177,9 @@ def write_guide(
 
 
 def render_report(entries: list[Entry], choices: dict[str, Choice], generated: str) -> str:
+    radio_count = sum(1 for e in entries if e.is_radio)
+    entries = [e for e in entries if not e.is_radio]  # radio rarely has guide data; report it separately
+    choices = {e.tvg_id: choices[e.tvg_id] for e in entries if e.tvg_id in choices}
     total = len(entries)
     full = [c for c in choices.values() if c.site and c.hours_24h >= 20]
     partial = [c for c in choices.values() if c.site and c.hours_24h < 20]
@@ -192,6 +198,7 @@ def render_report(entries: list[Entry], choices: dict[str, Choice], generated: s
         f"| Partial guide | {len(partial)} | {pct(len(partial))} |",
         f"| No guide data (placeholders) | {len(none)} | {pct(len(none))} |",
         "",
+        *([f"Plus {radio_count} radio stations, which usually have no guide data.", ""] if radio_count else []),
         "## Guide data by site",
         "",
         "| Site | Channels |",

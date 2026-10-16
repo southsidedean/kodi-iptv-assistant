@@ -20,7 +20,7 @@ class OutputHandler(SimpleHTTPRequestHandler):
     }
 
     def send_head(self):
-        # Half-written files from an in-progress run.
+        # Don't serve files that a run is still writing.
         if self.path.split("?", 1)[0].endswith(".tmp"):
             self.send_error(404)
             return None

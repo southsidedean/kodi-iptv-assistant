@@ -1,4 +1,6 @@
-# Copy .env.example to .env and edit it, then: docker compose up -d --build
+# Runs kia and a small web server that shares output/ with Kodi.
+# Settings come from .env: copy .env.example to .env, edit it, then run
+#   docker compose up -d --build
 services:
   kia:
     build:
@@ -17,7 +19,7 @@ services:
       KIA_NTFY_URL: ${KIA_NTFY_URL:-}
       KIA_ALERT_COMMAND: ${KIA_ALERT_COMMAND:-}
       KIA_ALERT_EVENTS: ${KIA_ALERT_EVENTS:-}
-      # Optional overrides of kia.toml (empty = use kia.toml).
+      # Optional; empty means use the setting in kia.toml.
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
       KIA_CHECK_CONCURRENCY: ${KIA_CHECK_CONCURRENCY:-}

@@ -29,9 +29,11 @@ def runner_prefix(cfg: EpgConfig) -> list[str]:
     if cfg.runner != "docker":
         raise ValueError(f"unknown epg runner {cfg.runner!r} (use 'docker' or 'local')")
     repo, work = cfg.repo_dir.resolve(), cfg.work_dir.resolve()
-    # Docker creates missing bind-mount sources as root; create it first so it stays ours.
+    # If the folder doesn't exist, Docker creates it owned by root. Create it first so it
+    # belongs to the user.
     work.mkdir(parents=True, exist_ok=True)
-    # Run as the calling user so files stay ours (os.getuid doesn't exist on Windows).
+    # Run as the calling user so the files it writes belong to them (os.getuid doesn't
+    # exist on Windows).
     user = ["-u", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
     return [
         "docker", "run", "--rm", *user,
@@ -80,8 +82,9 @@ def ensure_repo(cfg: EpgConfig, update: bool, log: Callable[[str], None]) -> Non
 def install_deps(cfg: EpgConfig, log: Callable[[str], None]) -> None:
     log("Installing epg dependencies (npm ci)...")
     prefix = runner_prefix(cfg)
-    # --ignore-scripts skips husky (needs git, which the node image lacks); the postinstall
-    # step it also skips downloads iptv-org API data, so run that explicitly.
+    # --ignore-scripts skips husky, a git hook installer that fails without git (the node
+    # image has none). It also skips the postinstall step, which downloads iptv-org's
+    # channel data, so run that separately.
     subprocess.run(prefix + ["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=cfg.repo_dir, check=True)
     subprocess.run(prefix + ["npm", "run", "api:load"], cwd=cfg.repo_dir, check=True)
 

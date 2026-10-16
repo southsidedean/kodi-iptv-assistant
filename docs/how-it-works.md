@@ -4,13 +4,17 @@ Every night (`KIA_RUN_AT`), kia runs four steps. You can also run them by hand, 
 
 ## 1. Check streams (`kia check`)
 
-Every stream in your playlists is opened with `ffprobe`. A stream counts as working if it opens and has a video track. Each one is marked:
+Every stream in your playlists is opened with `ffprobe`. A TV stream counts as working if it opens and has video; a radio station needs only audio. Some servers turn away anything that isn't a media player, or more than a couple of connections from one place, so kia introduces itself as Kodi and tests at most two streams per server at a time. Each stream is marked:
 
 - ok: works now.
 - flaky: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
 - dead: everything else.
 
 Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. The result is `curated.m3u`. `report.md` shows the counts, common failures, and every channel kept.
+
+### Radio
+
+Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices (country, genre, language). Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `radio_placeholders`.
 
 ## 2. Match channels to guide sources (`kia map`)
 
