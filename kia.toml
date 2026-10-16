@@ -33,11 +33,12 @@ state_dir = "state"            # check history
 verify_resolvers = ["8.8.8.8", "1.1.1.1"]
 
 [alerts]
-# Problems that need a person (currently: local DNS failing) are logged, appended to
-# state/alerts.log, and make kia exit with code 3. Optionally run a command too; it gets
-# $KIA_ALERT_TITLE and $KIA_ALERT_MESSAGE. Examples:
-#   command = 'curl -s -H "Title: $KIA_ALERT_TITLE" -d "$KIA_ALERT_MESSAGE" https://ntfy.sh/my-topic'
-#   command = 'echo "$KIA_ALERT_MESSAGE" | mail -s "$KIA_ALERT_TITLE" me@example.com'
+# Problems that need a person (local DNS failing, or a nightly run failing) are logged,
+# appended to state/alerts.log, and make kia exit with code 3. To also get a notification,
+# set a command; it runs inside the kia container, with $KIA_ALERT_TITLE and
+# $KIA_ALERT_MESSAGE set. ntfy (https://ntfy.sh) sends a push notification to your phone;
+# pick a long, hard-to-guess topic name, since anyone who knows it can read the messages:
+#   command = 'curl -s -H "Title: $KIA_ALERT_TITLE" -d "$KIA_ALERT_MESSAGE" https://ntfy.sh/my-long-random-topic'
 # command = ""
 
 [epg]

@@ -25,7 +25,7 @@ Open the add-on's settings (*Settings → Add-ons → My add-ons → PVR clients
 - **Location:** Remote path
 - **M3U play list URL:** `http://192.168.1.20:8780/curated.m3u`
 
-<!-- screenshot: IPTV Simple Client, General tab, with Location = Remote path and the M3U URL filled in (docs/images/kodi-general.png) -->
+<!-- screenshot: IPTV Simple Client, General tab, with Location = Remote path and the M3U URL filled in (images/kodi-iptv-simple-settings.png) -->
 
 Leave the **EPG** tab's location empty. The playlist tells Kodi where the guide is.
 
@@ -35,7 +35,7 @@ If you'd rather set the guide explicitly (or your Kodi doesn't pick it up), on t
 
 Restart Kodi (or disable and re-enable the add-on). Channels appear under TV, and the guide fills in within a minute or two.
 
-<!-- screenshot: Kodi TV guide showing channels with program data (docs/images/kodi-guide.png) -->
+<!-- screenshot: Kodi TV guide showing channels with program data (images/kodi-tv-guide.png) -->
 
 ## Troubleshooting
 

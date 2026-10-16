@@ -5,7 +5,8 @@
 ARG NODE_IMAGE=node:22.23.3-alpine3.24
 FROM ${NODE_IMAGE}
 
-RUN apk add --no-cache python3 ffmpeg git tzdata
+# curl is for alert commands (e.g. ntfy notifications); see [alerts] in kia.toml.
+RUN apk add --no-cache python3 ffmpeg git tzdata curl
 
 COPY src /app/src
 ENV PYTHONPATH=/app/src \
