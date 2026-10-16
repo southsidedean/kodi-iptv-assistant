@@ -49,6 +49,22 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # https://iptv-org.github.io/iptv/categories/religious.m3u     # Religious        783
 # https://iptv-org.github.io/iptv/categories/shop.m3u          # Shopping          81
 
+# --- Smaller lists (iptv-org) -----------------------------------------------------
+# These are parts of the country lists above, not extra channels. Use one *instead of*
+# its country list for a shorter list and a faster check, e.g. just your state.
+# States and provinces: replace us-ca with your code (us-tx, us-ny, ca-on, au-nsw, ...).
+# All codes, plus city lists: https://github.com/iptv-org/iptv/blob/master/PLAYLISTS.md
+# https://iptv-org.github.io/iptv/subdivisions/us-ca.m3u       # California       101
+# By provider:
+# https://iptv-org.github.io/iptv/sources/us_pluto.m3u         # Pluto TV         188
+# https://iptv-org.github.io/iptv/sources/us_samsung.m3u       # Samsung TV Plus   72
+# https://iptv-org.github.io/iptv/sources/us_tubi.m3u          # Tubi              35
+# https://iptv-org.github.io/iptv/sources/us_stirr.m3u         # Stirr             35
+# https://iptv-org.github.io/iptv/sources/us_xumo.m3u          # Xumo              16
+# https://iptv-org.github.io/iptv/sources/us_roku.m3u          # Roku              15
+# https://iptv-org.github.io/iptv/sources/us_pbs.m3u           # PBS               13
+# https://iptv-org.github.io/iptv/sources/us_local.m3u         # US local stations 168
+
 # --- Other collections ------------------------------------------------------------
 # https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8   free-tv  # Free-TV, worldwide, 2,023
 # https://iptv-org.github.io/iptv/index.m3u                    # Everything iptv-org has: 11,346 (slow)
