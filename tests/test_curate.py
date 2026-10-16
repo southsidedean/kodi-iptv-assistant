@@ -133,3 +133,19 @@ def test_sources_file_rejects_empty_and_duplicate_names(tmp_path: Path):
     (tmp_path / "sources.txt").write_text("# nothing yet\n")
     with pytest.raises(ValueError, match="no playlist sources"):
         load(tmp_path / "kia.toml")
+
+
+def test_public_url_derives_epg_url(tmp_path: Path, monkeypatch):
+    from kia.config import load
+
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    cfg = tmp_path / "kia.toml"
+    monkeypatch.delenv("KIA_PUBLIC_URL", raising=False)
+    cfg.write_text("")
+    assert load(cfg).epg_url is None
+    cfg.write_text('[output]\npublic_url = "http://tv.lan:8780/"\n')
+    assert load(cfg).epg_url == "http://tv.lan:8780/guide.xml.gz"
+    monkeypatch.setenv("KIA_PUBLIC_URL", "http://box:9000")
+    assert load(cfg).public_url == "http://box:9000"
+    cfg.write_text('[output]\nepg_url = "http://elsewhere/g.xml"\n')
+    assert load(cfg).epg_url == "http://elsewhere/g.xml"

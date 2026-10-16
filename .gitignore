@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 output/
 state/
+vendor/
+work/
+.env
+*.tmp

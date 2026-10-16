@@ -96,6 +96,14 @@ def render_markdown(checked: list[Checked], chosen: list[Checked], generated: st
         f"| **Channels in curated playlist** | **{len(chosen)}** |",
         "",
     ]
+    local_dns = sum(1 for c in checked if (c.result.error or "").startswith("LOCAL DNS FAILURE"))
+    if local_dns:
+        lines += [
+            f"> **Warning:** {local_dns} streams failed because their hostnames don't resolve on this network's "
+            "DNS but do on public DNS (8.8.8.8 / 1.1.1.1). Check your local DNS or ad-blocker before trusting "
+            "those results.",
+            "",
+        ]
 
     by_source = Counter((c.entry.source, c.status) for c in checked)
     sources = sorted({c.entry.source for c in checked})

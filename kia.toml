@@ -20,4 +20,33 @@ exclude_name_patterns = []     # regexes matched against the channel name
 [output]
 dir = "output"                 # curated.m3u, report.md, report.json
 state_dir = "state"            # check history
-# epg_url = "http://server.lan/guide.xml.gz"   # written into curated.m3u as x-tvg-url
+# Where Kodi devices reach the output folder (Docker Compose sets this from KIA_PUBLIC_URL
+# in .env). Used to write the guide's URL into curated.m3u, so IPTV Simple can find it.
+# public_url = "http://my-server.lan:8780"
+# epg_url = "http://my-server.lan:8780/guide.xml.gz"   # only if the guide lives elsewhere
+
+[dns]
+# Streams and guide sites are resolved with this machine's normal (local) DNS. When a
+# hostname fails to resolve, these backup resolvers are asked to verify it: if they can
+# resolve it, the report flags a local DNS problem instead of a dead stream.
+verify_resolvers = ["8.8.8.8", "1.1.1.1"]
+
+[alerts]
+# Problems that need a person (currently: local DNS failing) are logged, appended to
+# state/alerts.log, and make kia exit with code 3. Optionally run a command too; it gets
+# $KIA_ALERT_TITLE and $KIA_ALERT_MESSAGE. Examples:
+#   command = 'curl -s -H "Title: $KIA_ALERT_TITLE" -d "$KIA_ALERT_MESSAGE" https://ntfy.sh/my-topic'
+#   command = 'echo "$KIA_ALERT_MESSAGE" | mail -s "$KIA_ALERT_TITLE" me@example.com'
+# command = ""
+
+[epg]
+repo_dir = "vendor/epg"        # clone of https://github.com/iptv-org/epg (kia grab clones it if missing)
+work_dir = "work"              # per-site channel lists, raw guides, logs
+days = 3                       # days of guide data to grab
+max_sites_per_channel = 3      # candidate guide sites grabbed per channel; the best one wins
+prefer_sites = []              # try these sites first, in order, e.g. ["pluto.tv", "plex.tv"]
+exclude_sites = []             # never use these (sites marked broken in SITES.md are skipped too)
+runner = "docker"              # "docker" (no Node needed) or "local" (needs Node.js 22+)
+parallel_sites = 4             # sites grabbed at the same time
+max_connections = 5            # concurrent requests per site
+placeholders = true            # fill channels with no guide data with 2-hour "<channel name>" blocks

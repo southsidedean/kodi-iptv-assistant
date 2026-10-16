@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -13,6 +14,21 @@ from urllib.parse import urlparse
 class Source:
     name: str
     url: str
+
+
+@dataclass
+class EpgConfig:
+    repo_dir: Path = Path("vendor/epg")
+    work_dir: Path = Path("work")
+    days: int = 3
+    max_sites_per_channel: int = 3
+    prefer_sites: list[str] = field(default_factory=list)
+    exclude_sites: list[str] = field(default_factory=list)
+    runner: str = "docker"
+    docker_image: str = "node:22-alpine"
+    parallel_sites: int = 4
+    max_connections: int = 5
+    placeholders: bool = True
 
 
 @dataclass
@@ -30,6 +46,10 @@ class Config:
     output_dir: Path = Path("output")
     state_dir: Path = Path("state")
     epg_url: str | None = None
+    public_url: str | None = None
+    dns_resolvers: tuple[str, ...] = ("8.8.8.8", "1.1.1.1")
+    alert_command: str | None = None
+    epg: EpgConfig = field(default_factory=EpgConfig)
 
 
 def source_name(url: str, taken: set[str]) -> str:
@@ -90,5 +110,38 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         exclude_name_patterns=filters.get("exclude_name_patterns", []),
         output_dir=base / output.get("dir", "output"),
         state_dir=base / output.get("state_dir", "state"),
-        epg_url=output.get("epg_url") or None,
+        epg_url=output.get("epg_url") or _derive_epg_url(output),
+        public_url=_public_url(output),
+        alert_command=data.get("alerts", {}).get("command") or None,
+        dns_resolvers=tuple(data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
+        epg=_load_epg(data.get("epg", {}), base),
+    )
+
+
+def _public_url(output: dict) -> str | None:
+    """Base URL where the output folder is served; KIA_PUBLIC_URL (set by Docker Compose) wins."""
+    url = os.environ.get("KIA_PUBLIC_URL") or output.get("public_url") or ""
+    return url.rstrip("/") or None
+
+
+def _derive_epg_url(output: dict) -> str | None:
+    base = _public_url(output)
+    return f"{base}/guide.xml.gz" if base else None
+
+
+def _load_epg(epg: dict, base: Path) -> EpgConfig:
+    d = EpgConfig()
+    return EpgConfig(
+        repo_dir=base / epg.get("repo_dir", d.repo_dir),
+        work_dir=base / epg.get("work_dir", d.work_dir),
+        days=epg.get("days", d.days),
+        max_sites_per_channel=epg.get("max_sites_per_channel", d.max_sites_per_channel),
+        prefer_sites=epg.get("prefer_sites", []),
+        exclude_sites=epg.get("exclude_sites", []),
+        # KIA_EPG_RUNNER lets the Docker image (which bundles Node) force "local".
+        runner=os.environ.get("KIA_EPG_RUNNER") or epg.get("runner", d.runner),
+        docker_image=epg.get("docker_image", d.docker_image),
+        parallel_sites=epg.get("parallel_sites", d.parallel_sites),
+        max_connections=epg.get("max_connections", d.max_connections),
+        placeholders=epg.get("placeholders", d.placeholders),
     )
