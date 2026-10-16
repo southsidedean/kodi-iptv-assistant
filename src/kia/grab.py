@@ -37,6 +37,8 @@ def runner_prefix(cfg: EpgConfig) -> list[str]:
         "docker", "run", "--rm",
         "-u", f"{os.getuid()}:{os.getgid()}",
         "-e", "HOME=/tmp",
+        # Some sites' grabbers (e.g. epg.iptvx.one) outgrow Node's default heap.
+        "-e", "NODE_OPTIONS=--max-old-space-size=4096",
         "-v", f"{repo}:{repo}",
         "-v", f"{work}:{work}",
         "-w", str(repo),

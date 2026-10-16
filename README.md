@@ -36,10 +36,9 @@ When it's done, these are served at `KIA_PUBLIC_URL` (e.g. `http://my-server.lan
 
 ### Setting up Kodi
 
-On each Kodi device, install **PVR IPTV Simple Client** (*Add-ons → Install from repository → PVR clients*), then in its settings:
+On each Kodi device, install **PVR IPTV Simple Client** (*Add-ons → Install from repository → PVR clients*), then in its settings set **General → Location** to *Remote path* and **M3U play list URL** to `http://my-server.lan:8780/curated.m3u`.
 
-- **General → Location:** Remote path. **M3U playlist URL:** `http://my-server.lan:8780/curated.m3u`
-- **EPG → Location:** Remote path. **XMLTV URL:** `http://my-server.lan:8780/guide.xml.gz`
+That's the only setting needed: the playlist's header (`x-tvg-url`) tells IPTV Simple where the guide is, as long as the add-on's own EPG location is left empty. (To set it explicitly instead: **EPG → Location** *Remote path*, **XMLTV URL** `http://my-server.lan:8780/guide.xml.gz`.)
 
 Restart Kodi (or disable and re-enable the add-on). The daily refresh is picked up automatically from then on.
 

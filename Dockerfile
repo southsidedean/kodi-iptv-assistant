@@ -9,6 +9,7 @@ COPY src /app/src
 ENV PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \
     KIA_EPG_RUNNER=local \
+    NODE_OPTIONS=--max-old-space-size=4096 \
     HOME=/tmp
 
 # Config, playlists, and all generated data live in the mounted project folder.
