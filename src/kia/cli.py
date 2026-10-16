@@ -181,7 +181,7 @@ def cmd_check(args: argparse.Namespace) -> int:
             indent=1,
         )
     )
-    (out / "report.md").write_text(render_markdown(checked, chosen, generated))
+    (out / "report.md").write_text(render_markdown(checked, chosen, generated, cfg.dns_resolvers))
 
     if not args.limit:
         history.prune()

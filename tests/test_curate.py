@@ -202,3 +202,11 @@ def test_env_lists_and_placeholders(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("KIA_PLACEHOLDERS", "maybe")
     with pytest.raises(ValueError, match="true or false"):
         load(cfg)
+
+
+def test_report_names_configured_resolvers():
+    from kia.curate import render_markdown
+
+    c = Checked(entry("X", "u1"), ProbeResult(ok=False, error="LOCAL DNS FAILURE: hostname resolves on public DNS"), "dead")
+    report = render_markdown([c], [], "now", ("9.9.9.9",))
+    assert "backup resolvers (9.9.9.9)" in report and "8.8.8.8" not in report

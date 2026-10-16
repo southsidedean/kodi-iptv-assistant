@@ -78,7 +78,12 @@ def select(checked: list[Checked]) -> list[Checked]:
     return chosen
 
 
-def render_markdown(checked: list[Checked], chosen: list[Checked], generated: str) -> str:
+def render_markdown(
+    checked: list[Checked],
+    chosen: list[Checked],
+    generated: str,
+    resolvers: tuple[str, ...] = ("8.8.8.8", "1.1.1.1"),
+) -> str:
     status = Counter(c.status for c in checked)
     unique_urls = len({c.entry.url for c in checked})
     lines = [
@@ -100,7 +105,7 @@ def render_markdown(checked: list[Checked], chosen: list[Checked], generated: st
     if local_dns:
         lines += [
             f"> **Warning:** {local_dns} streams failed because their hostnames don't resolve on this network's "
-            "DNS but do on public DNS (8.8.8.8 / 1.1.1.1). Check your local DNS or ad-blocker before trusting "
+            f"DNS but do on the backup resolvers ({' / '.join(resolvers)}). Check your local DNS or ad-blocker before trusting "
             "those results.",
             "",
         ]
