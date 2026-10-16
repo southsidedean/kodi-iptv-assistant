@@ -23,9 +23,11 @@ class Source:
         return self.url.startswith("radio-browser:")
 
 
-# Kodi is what plays the streams, so test them the way Kodi asks for them. Some servers
-# turn away ffmpeg's default identity but serve Kodi, VLC, and browsers.
-KODI_USER_AGENT = "Kodi/21.2 (X11; Linux x86_64) App_Bitness/64 Version/21.2"
+# How kia identifies itself to stream servers. Servers differ in which players they turn
+# away: jmp2.uk (Pluto, Samsung, Plex) refuses Kodi's identity, and some radio servers
+# refuse ffmpeg's. VLC's is accepted most widely: in a test of 74 streams that had
+# failed, 29 worked as VLC, 16 as ffmpeg, and 11 as Kodi.
+DEFAULT_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
 
 
 @dataclass
@@ -56,7 +58,7 @@ class Config:
     timeout: float = 15.0
     require_video: bool = True
     grace_failures: int = 2
-    user_agent: str | None = KODI_USER_AGENT
+    user_agent: str | None = DEFAULT_USER_AGENT
     ffprobe: str = "ffprobe"
     exclude_groups: list[str] = field(default_factory=list)
     exclude_labels: list[str] = field(default_factory=list)
@@ -148,7 +150,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         per_host=check.get("per_host", 2),
         require_video=check.get("require_video", True),
         grace_failures=check.get("grace_failures", 2),
-        user_agent=check.get("user_agent", KODI_USER_AGENT) or None,
+        user_agent=check.get("user_agent", DEFAULT_USER_AGENT) or None,
         ffprobe=check.get("ffprobe", "ffprobe"),
         exclude_groups=_merge_env_list("KIA_EXCLUDE_GROUPS", filters.get("exclude_groups", [])),
         exclude_labels=filters.get("exclude_labels", []),

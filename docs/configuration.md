@@ -40,7 +40,7 @@ After changing `.env`, apply it with `docker compose up -d`. Add `--build` if yo
 
 Each setting is explained by a comment in the file. The sections:
 
-- `[check]`: stream testing: `concurrency`, `per_host` (tests at once per server), `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many nightly failures in a row before a stream that used to work is dropped), `history_days`, `user_agent` (kia introduces itself as Kodi by default).
+- `[check]`: stream testing: `concurrency`, `per_host` (tests at once per server), `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many nightly failures in a row before a stream that used to work is dropped), `history_days`, `user_agent` (kia introduces itself as VLC by default).
 - `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
 - `[output]`: where files go, and `public_url` / `epg_url` for setups without Docker.
 - `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.

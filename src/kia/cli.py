@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 from kia import __version__, dnscheck, epgmap, grab, m3u, radio, serve, upstream, xmltv
 from kia import alerts
 from kia.alerts import EXIT_ALERT
-from kia.config import KODI_USER_AGENT, Config, env_bool, load
+from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.probe import ProbeResult, probe
@@ -74,18 +74,21 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
     total = len(unique)
     ok = 0
 
+    def test(e: m3u.Entry):
+        return probe(
+            e.url,
+            timeout=cfg.timeout,
+            user_agent=e.user_agent or cfg.user_agent,
+            referrer=e.referrer,
+            require_video=cfg.require_video and not e.is_radio,
+            ffprobe=cfg.ffprobe,
+        )
+
     async def one(e: m3u.Entry) -> None:
         nonlocal ok
         host = per_host.setdefault(urlparse(e.url).netloc, asyncio.Semaphore(cfg.per_host))
         async with host, sem:
-            r = await probe(
-                e.url,
-                timeout=cfg.timeout,
-                user_agent=e.user_agent or cfg.user_agent,
-                referrer=e.referrer,
-                require_video=cfg.require_video and not e.is_radio,
-                ffprobe=cfg.ffprobe,
-            )
+            r = await test(e)
         results[e.url] = r
         ok += r.ok
         done = len(results)
@@ -97,7 +100,25 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
 
     log(f"Probing {total} unique streams, {cfg.concurrency} at a time...")
     await asyncio.gather(*(one(e) for e in unique.values()))
+
+    # A burst of lookups can trip up a home router's or Docker's DNS, and busy servers time
+    # out. Give those failures a second, slower try before counting them.
+    retry = [unique[url] for url, r in results.items() if not r.ok and is_transient(r.error)]
+    if retry:
+        log(f"Retrying {len(retry)} streams that failed a name lookup or timed out, more slowly...")
+        slow = asyncio.Semaphore(4)
+
+        async def again(e: m3u.Entry) -> None:
+            async with slow:
+                results[e.url] = await test(e)
+
+        await asyncio.gather(*(again(e) for e in retry))
+        log(f"  {sum(results[e.url].ok for e in retry)} of {len(retry)} worked on the second try")
     return results
+
+
+def is_transient(error: str | None) -> bool:
+    return dnscheck.is_resolve_failure(error) or "timed out" in (error or "").lower()
 
 
 def write_atomic(path: Path, text: str) -> None:
@@ -527,7 +548,7 @@ def cmd_test_alert(args: argparse.Namespace) -> int:
 
 
 def cmd_probe(args: argparse.Namespace) -> int:
-    user_agent = args.user_agent or KODI_USER_AGENT
+    user_agent = args.user_agent or DEFAULT_USER_AGENT
     r = asyncio.run(probe(args.url, timeout=args.timeout, user_agent=user_agent, referrer=args.referrer))
     print(json.dumps(r.to_dict(), indent=2))
     return 0 if r.ok else 1

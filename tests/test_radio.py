@@ -139,13 +139,13 @@ def test_genre_capitalization():
     assert radio.genre(" , ") == "Radio"
 
 
-def test_streams_are_checked_as_kodi_by_default(tmp_path: Path):
-    from kia.config import KODI_USER_AGENT, load
+def test_streams_are_checked_as_vlc_by_default(tmp_path: Path):
+    from kia.config import DEFAULT_USER_AGENT, load
 
     (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
     cfg = tmp_path / "kia.toml"
     cfg.write_text("")
-    assert load(cfg).user_agent == KODI_USER_AGENT
+    assert load(cfg).user_agent == DEFAULT_USER_AGENT
     cfg.write_text('[check]\nuser_agent = "MyPlayer/1.0"\n')
     assert load(cfg).user_agent == "MyPlayer/1.0"
     cfg.write_text('[check]\nuser_agent = ""\n')  # empty: ffmpeg's own identity
@@ -171,3 +171,26 @@ def test_probes_are_limited_per_server(monkeypatch):
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
     assert peak["busy.example"] == 2
     assert all(peak[f"other{i}.example"] == 1 for i in range(8))
+
+
+def test_transient_failures_get_a_second_try(monkeypatch):
+    calls: dict[str, int] = {}
+
+    async def flaky_probe(url, **kwargs):
+        calls[url] = calls.get(url, 0) + 1
+        if url.endswith("dns") and calls[url] == 1:
+            return ProbeResult(ok=False, error="Failed to resolve hostname x.example: Temporary failure")
+        if url.endswith("slow") and calls[url] == 1:
+            return ProbeResult(ok=False, error="timed out")
+        if url.endswith("gone"):
+            return ProbeResult(ok=False, error="Server returned 404 Not Found")
+        return ProbeResult(ok=True)
+
+    monkeypatch.setattr(cli, "probe", flaky_probe)
+    entries = [Entry(n, f"http://h{n}.example/{n}", {"tvg-id": n}) for n in ("dns", "slow", "gone", "fine")]
+    results = asyncio.run(cli.probe_all(entries, Config(sources=[Source("s", "u")]), verbose=False))
+    assert {u.rsplit("/", 1)[1]: r.ok for u, r in results.items()} == {
+        "dns": True, "slow": True, "gone": False, "fine": True
+    }  # fmt: skip
+    assert calls == {"http://hdns.example/dns": 2, "http://hslow.example/slow": 2,
+                     "http://hgone.example/gone": 1, "http://hfine.example/fine": 1}  # fmt: skip

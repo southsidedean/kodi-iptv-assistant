@@ -30,10 +30,10 @@ grace_failures = 2
 # Forget the history of streams that haven't been in any playlist for this many days.
 history_days = 30
 
-# How kia identifies itself to stream servers. The default looks like Kodi, because some
-# servers refuse other players. A playlist entry's own setting always wins. Set to ""
-# to use ffmpeg's own identity.
-# user_agent = "Kodi/21.2 (X11; Linux x86_64) App_Bitness/64 Version/21.2"
+# How kia identifies itself to stream servers. Some servers refuse certain players, and
+# VLC's identity is the one accepted most widely. A playlist entry's own setting always
+# wins. Set to "" to use ffmpeg's own identity.
+# user_agent = "VLC/3.0.20 LibVLC/3.0.20"
 
 
 [filters]
