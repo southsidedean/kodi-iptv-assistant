@@ -2,6 +2,8 @@
 
 Turn free internet TV into a tidy channel list with a working program guide in Kodi.
 
+![Kodi's TV guide filled in from kia](images/kodi-iptv-guide.jpg)
+
 ## Why this exists
 
 Kodi and free IPTV make a great pair, but turning a raw playlist into something you'd want to watch is a mess. Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live. Guide data exists for many of those channels, but it's spread across dozens of sites whose channel IDs rarely match your playlist's, so Kodi can't connect them and the guide stays mostly empty. And streams change daily, so a list that works this week is half broken next month.
@@ -42,8 +44,8 @@ New to Docker or Git? [docs/install.md](docs/install.md) walks through installin
 
 4. Set up Kodi on each device you watch on:
    - Install Kodi from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
-   - Add IPTV Simple Client: *Settings → Add-ons → Install from repository → PVR clients → PVR IPTV Simple Client*.
-   - In the add-on's settings, set **Location** to *Remote path* and **M3U play list URL** to `http://<your address>:8780/curated.m3u`, then restart Kodi.
+   - Add IPTV Simple Client: *Settings → Add-ons → Install from repository → PVR clients → IPTV Simple Client*.
+   - In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`, then restart Kodi.
 
    Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV, Raspberry Pi, and troubleshooting: [docs/kodi.md](docs/kodi.md).
 
