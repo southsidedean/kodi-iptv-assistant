@@ -6,9 +6,9 @@ Every night (`KIA_RUN_AT`), kia runs four steps. You can also run them by hand, 
 
 Every stream in your playlists is opened with `ffprobe`. A stream counts as working if it opens and has a video track. Each one is marked:
 
-- **ok**: works now.
-- **flaky**: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
-- **dead**: everything else.
+- ok: works now.
+- flaky: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
+- dead: everything else.
 
 Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. The result is `curated.m3u`. `report.md` shows the counts, common failures, and every channel kept.
 
@@ -20,20 +20,17 @@ This is also why guides built by hand are often nearly empty: the channel lists 
 
 ## 3. Download guide data (`kia grab`)
 
-For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. If a site fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly: seconds and a few MB of memory, instead of about 25 minutes and over 2 GB.
+For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. If a site fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
 
 ## 4. Build the guide (`kia guide`)
 
 For each channel, kia picks the site with the most programs in the next 24 hours and writes `guide.xml` and `guide.xml.gz`. Channels with no data get blocks showing the channel's name (`placeholders`). `guide-report.md` shows coverage by channel and site.
 
-**With an upstream server** (`KIA_UPSTREAM_URL`), steps 2 and 3 are skipped: kia downloads the upstream's guide and keeps the channels in its own list. If the upstream can't be reached, it falls back to steps 2 and 3 (or the last copy, with `KIA_UPSTREAM_FALLBACK=cached`).
+With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downloads the upstream's guide and keeps the channels in its own list. If the upstream can't be reached, it falls back to steps 2 and 3 (or the last copy, with `KIA_UPSTREAM_FALLBACK=cached`).
 
 ## DNS checks and alerts
 
-When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) too:
-
-- **Not found there either:** the stream or site is gone. It's reported, with no alert.
-- **Found there:** your network's DNS is failing (often an ad-blocker or router problem), which would affect Kodi too. kia raises an alert.
+When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) as well. If they can't find it either, the stream or site is gone, and kia reports it without an alert. If they can, your network's DNS is the problem (an ad-blocker or the router, for example), and since that would affect Kodi too, kia raises an alert.
 
 An alert is logged, added to `state/alerts.log`, and runs `[alerts] command` if you set one (for example, a phone notification through ntfy). A nightly run that fails or crashes also raises an alert.
 

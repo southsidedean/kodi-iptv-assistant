@@ -49,7 +49,7 @@ KIA_CHECK_CONCURRENCY=8
 KIA_MEMORY_LIMIT=2g
 ```
 
-Runs take longer, but stay well within the Pi's memory. Use a good SD card or, better, a USB SSD.
+Runs take longer. With one site at a time, memory use peaks around 0.7 GB. Use a good SD card or, better, a USB SSD.
 
 ## Without Docker
 

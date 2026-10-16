@@ -2,9 +2,9 @@
 
 Three files, from most to least often changed:
 
-- **`sources.txt`**: which playlists to check. Remove `#` to turn a playlist on; add your own URLs or file paths, one per line.
-- **`.env`**: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
-- **`kia.toml`**: fine-tuning. The defaults suit most people.
+- `sources.txt`: which playlists to check. Remove `#` to turn a playlist on; add your own URLs or file paths, one per line.
+- `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
+- `kia.toml`: fine-tuning. The defaults suit most people.
 
 When a setting exists in both, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
 
@@ -37,10 +37,10 @@ After changing `.env`, apply it with `docker compose up -d`. Add `--build` if yo
 
 Each setting is explained by a comment in the file. The sections:
 
-- **`[check]`**: stream testing: `concurrency`, `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many nightly failures in a row before a stream that used to work is dropped), `history_days`, `user_agent`.
-- **`[filters]`**: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
-- **`[output]`**: where files go, and `public_url` / `epg_url` for setups without Docker.
-- **`[dns]`**: `verify_resolvers`, the public DNS servers used to double-check lookup failures.
-- **`[alerts]`**: `command`, run when something needs attention. Examples for ntfy and email are in the file.
-- **`[epg]`**: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `placeholders`, `placeholder_hours`, `native_grabbers`, `git_url`, `git_ref`, `runner`.
-- **`[upstream]`**: `url` and `fallback`, the same as the `.env` settings above.
+- `[check]`: stream testing: `concurrency`, `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many nightly failures in a row before a stream that used to work is dropped), `history_days`, `user_agent`.
+- `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
+- `[output]`: where files go, and `public_url` / `epg_url` for setups without Docker.
+- `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.
+- `[alerts]`: `command`, run when something needs attention. Examples for ntfy and email are in the file.
+- `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `placeholders`, `placeholder_hours`, `native_grabbers`, `git_url`, `git_ref`, `runner`.
+- `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.

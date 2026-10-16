@@ -4,17 +4,9 @@ Turn free internet TV into a tidy channel list with a working program guide in K
 
 ## Why this exists
 
-Kodi and free IPTV are a great combination, but getting from a raw playlist to something you'd actually want to watch is a mess:
+Kodi and free IPTV make a great pair, but turning a raw playlist into something you'd want to watch is a mess. Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live. Guide data exists for many of those channels, but it's spread across dozens of sites whose channel IDs rarely match your playlist's, so Kodi can't connect them and the guide stays mostly empty. And streams change daily, so a list that works this week is half broken next month.
 
-- **Lots of the channels don't work.** Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live.
-- **The program guide is mostly empty.** Guide data exists for many channels, but it comes from dozens of different sites, and the channel IDs rarely match the ones in your playlist, so Kodi can't connect them.
-- **It doesn't stay fixed.** Streams change daily. A list that works this week is half broken next month.
-
-kia (kodi-iptv-assistant) does that cleanup for you, every night:
-
-- **A clean channel list.** It tests every stream in the playlists you pick and keeps only the ones that work, one per channel.
-- **A program guide that matches.** It finds guide data for those channels and builds one guide file that lines up with the list.
-- **One address for every device.** It serves both on your network, so each Kodi device is set up once and stays current.
+kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in the playlists you pick and keeps one working stream per channel. It finds guide data for those channels and builds a single guide file that lines up with the list. Then it serves both on your network, so you set up each Kodi device once and it stays current.
 
 Channels with no guide data anywhere (small local stations, for example) show their name in the guide instead of a blank row.
 
@@ -47,22 +39,17 @@ Channels with no guide data anywhere (small local stations, for example) show th
    The first run takes up to an hour. Watch it with `docker compose logs -f kia`.
 
 4. Set up Kodi on each device you watch on:
-   - **Install Kodi** from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
-   - **Add IPTV Simple Client:** *Settings → Add-ons → Install from repository → PVR clients → PVR IPTV Simple Client*.
-   - **Point it at kia:** in the add-on's settings, set **Location** to *Remote path* and **M3U play list URL** to `http://<your address>:8780/curated.m3u`. Restart Kodi.
+   - Install Kodi from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
+   - Add IPTV Simple Client: *Settings → Add-ons → Install from repository → PVR clients → PVR IPTV Simple Client*.
+   - In the add-on's settings, set **Location** to *Remote path* and **M3U play list URL** to `http://<your address>:8780/curated.m3u`, then restart Kodi.
 
-   Channels appear under **TV**, and the guide fills in by itself. Step by step, with tips for Fire TV, Raspberry Pi, and troubleshooting: [docs/kodi.md](docs/kodi.md).
+   Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV, Raspberry Pi, and troubleshooting: [docs/kodi.md](docs/kodi.md).
 
-To see what it found, open `http://<your address>:8780/` in a browser: there are reports on working streams and guide coverage.
+To see what it found, open `http://<your address>:8780/` in a browser. The reports there list the working streams and guide coverage.
 
 ## Setups
 
-- **Home server:** one machine serves every Kodi device in the house. This is the default.
-- **Same machine as Kodi:** a desktop or Linux box that both runs this and plays TV.
-- **Laptop that travels:** tests streams wherever you are, copies the guide from your home server when it can reach it, and builds its own when it can't.
-- **Raspberry Pi:** works with lower settings.
-
-Recipes for each: [docs/setups.md](docs/setups.md).
+By default, one machine serves every Kodi device in the house. kia can also run on the same computer you watch on, on a Raspberry Pi with lower settings, or on a laptop that travels: the laptop tests streams wherever you are, copies the guide from your home server when it can reach it, and builds its own when it can't. Recipes for each are in [docs/setups.md](docs/setups.md).
 
 ## Configuration
 
@@ -72,11 +59,17 @@ Recipes for each: [docs/setups.md](docs/setups.md).
 | `.env` | How it runs on this machine: address, schedule, time zone, memory |
 | `kia.toml` | Fine-tuning: timeouts, filters, guide sources, alerts |
 
-Every setting: [docs/configuration.md](docs/configuration.md).
+All the settings are listed in [docs/configuration.md](docs/configuration.md).
 
 ## How it works
 
-Each night it tests every stream with `ffprobe`, keeps the working ones, matches the channels to guide sources from [iptv-org/epg](https://github.com/iptv-org/epg), downloads the guide data, and keeps the best source per channel. It also checks DNS problems against public resolvers and can alert you when something needs attention. Details: [docs/how-it-works.md](docs/how-it-works.md).
+Each night kia tests every stream with `ffprobe`, matches the working channels to guide sources from [iptv-org/epg](https://github.com/iptv-org/epg), downloads the guide data, and keeps the best source for each channel. When a name lookup fails, it checks public DNS to tell a dead stream from a problem on your network, and it can alert you when something needs attention. The details are in [docs/how-it-works.md](docs/how-it-works.md).
+
+## Updating and stopping
+
+To update, run `git pull` and then `docker compose up -d --build` in the kia folder. Your `.env` and stream history are kept. If you've edited `sources.txt` or `kia.toml`, git may ask you to commit or stash those changes first.
+
+To stop kia, run `docker compose down`. While it's stopped, Kodi can't refresh the channel list or guide.
 
 ## Credits
 
