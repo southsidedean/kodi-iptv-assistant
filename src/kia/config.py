@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
+from kia.alerts import DEFAULT_EVENTS, EVENTS, AlertConfig
+
 
 @dataclass
 class Source:
@@ -52,7 +54,7 @@ class Config:
     epg_url: str | None = None
     public_url: str | None = None
     dns_resolvers: tuple[str, ...] = ("8.8.8.8", "1.1.1.1")
-    alert_command: str | None = None
+    alerts: AlertConfig = field(default_factory=AlertConfig)
     history_days: int = 30
     upstream_url: str | None = None
     upstream_fallback: str = "grab"
@@ -119,7 +121,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         state_dir=base / output.get("state_dir", "state"),
         epg_url=output.get("epg_url") or _derive_epg_url(output),
         public_url=_public_url(output),
-        alert_command=data.get("alerts", {}).get("command") or None,
+        alerts=_load_alerts(data.get("alerts", {})),
         history_days=check.get("history_days", 30),
         upstream_url=_upstream_url(data.get("upstream", {})),
         upstream_fallback=_upstream_fallback(data.get("upstream", {})),
@@ -167,6 +169,21 @@ def _placeholder_hours(hours: int) -> int:
     if hours not in (1, 2, 3, 4, 6, 8, 12, 24):
         raise ValueError(f"placeholder_hours = {hours}: must divide a day evenly (1, 2, 3, 4, 6, 8, 12, 24)")
     return hours
+
+
+def _load_alerts(alerts: dict) -> AlertConfig:
+    events = os.environ.get("KIA_ALERT_EVENTS", "").strip()
+    chosen = [e.strip() for e in events.split(",") if e.strip()] if events else alerts.get("events", DEFAULT_EVENTS)
+    unknown = sorted(set(chosen) - set(EVENTS))
+    if unknown:
+        raise ValueError(f"unknown alert events {unknown}; choose from {sorted(EVENTS)}")
+    return AlertConfig(
+        command=os.environ.get("KIA_ALERT_COMMAND") or alerts.get("command") or None,
+        ntfy_url=(os.environ.get("KIA_NTFY_URL") or alerts.get("ntfy_url") or "").strip() or None,
+        events=tuple(chosen),
+        drop_percent=alerts.get("drop_percent", 25),
+        site_fail_runs=alerts.get("site_fail_runs", 3),
+    )
 
 
 def _upstream_url(upstream: dict) -> str | None:

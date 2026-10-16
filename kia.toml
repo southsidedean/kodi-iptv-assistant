@@ -33,13 +33,28 @@ state_dir = "state"            # check history
 verify_resolvers = ["8.8.8.8", "1.1.1.1"]
 
 [alerts]
-# Problems that need a person (local DNS failing, or a nightly run failing) are logged,
-# appended to state/alerts.log, and make kia exit with code 3. To also get a notification,
-# set a command; it runs inside the kia container, with $KIA_ALERT_TITLE and
-# $KIA_ALERT_MESSAGE set. ntfy (https://ntfy.sh) sends a push notification to your phone;
-# pick a long, hard-to-guess topic name, since anyone who knows it can read the messages:
-#   command = 'curl -s -H "Title: $KIA_ALERT_TITLE" -d "$KIA_ALERT_MESSAGE" https://ntfy.sh/my-long-random-topic'
+# Alerts tell you about problems that need a person. They're always logged and added to
+# state/alerts.log (and kia exits with code 3). To get them on your phone or elsewhere,
+# set ntfy_url and/or command; in Docker, KIA_NTFY_URL and KIA_ALERT_COMMAND in .env are
+# easier and keep these out of git. Leave both empty for no notifications.
+#
+# ntfy (https://ntfy.sh): install the app, subscribe to a long, hard-to-guess topic name
+# (anyone who knows it can read the messages), and put its URL here.
+# ntfy_url = "https://ntfy.sh/my-long-random-topic"
+#
+# Or any shell command; it gets $KIA_ALERT_EVENT, $KIA_ALERT_TITLE and $KIA_ALERT_MESSAGE.
 # command = ""
+#
+# Which events notify you (.env: KIA_ALERT_EVENTS, comma-separated):
+#   dns_local      local DNS is failing (names resolve on public DNS but not here)
+#   run_failed     a nightly run failed or crashed
+#   channels_drop  working channels dropped sharply since the last run
+#   guide_drop     channels with guide data dropped sharply since the last run
+#   site_failing   a guide site failed several runs in a row
+#   daily_summary  a short "all done" message after each run (not an alert; off by default)
+events = ["dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing"]
+drop_percent = 25              # how big a drop (in %) counts as sharp
+site_fail_runs = 3             # failed runs in a row before site_failing alerts (once per streak)
 
 [epg]
 repo_dir = "vendor/epg"        # clone of https://github.com/iptv-org/epg (kia grab clones it if missing)

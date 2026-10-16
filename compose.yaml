@@ -14,6 +14,9 @@ services:
       KIA_RUN_ON_START: ${KIA_RUN_ON_START:-}
       KIA_UPSTREAM_URL: ${KIA_UPSTREAM_URL:-}
       KIA_UPSTREAM_FALLBACK: ${KIA_UPSTREAM_FALLBACK:-}
+      KIA_NTFY_URL: ${KIA_NTFY_URL:-}
+      KIA_ALERT_COMMAND: ${KIA_ALERT_COMMAND:-}
+      KIA_ALERT_EVENTS: ${KIA_ALERT_EVENTS:-}
       # Optional overrides of kia.toml (empty = use kia.toml).
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}

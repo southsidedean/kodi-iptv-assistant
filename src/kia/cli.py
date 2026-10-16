@@ -16,7 +16,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from kia import __version__, dnscheck, epgmap, grab, m3u, serve, upstream, xmltv
-from kia.alerts import EXIT_ALERT, raise_alert
+from kia import alerts
+from kia.alerts import EXIT_ALERT
 from kia.config import Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
@@ -137,8 +138,9 @@ def alert_on_local_dns(lookups: dict[str, dnscheck.PublicLookup], context: str, 
             "(network outage?): " + ", ".join(unverified[:10])
         )
     lines.append("Check this machine's DNS (resolv.conf / systemd-resolved, router, ad-blocker) and re-run.")
-    raise_alert(f"kia {context}: local DNS problem", "\n".join(lines), cfg.state_dir, cfg.alert_command, log)
-    return True
+    return alerts.notify(
+        "dns_local", f"kia {context}: local DNS problem", "\n".join(lines), cfg.state_dir, cfg.alerts, log
+    )
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -188,13 +190,37 @@ def cmd_check(args: argparse.Namespace) -> int:
         history.prune(cfg.history_days)
     history.save()
 
+    drop_alert = False if args.limit else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
+                                                             "working channels")  # fmt: skip
+
     n_ok = sum(c.status == "ok" for c in checked)
     n_flaky = sum(c.status == "flaky" for c in checked)
     log(
         f"\n{len(checked)} entries: {n_ok} ok, {n_flaky} flaky, {len(checked) - n_ok - n_flaky} dead "
         f"-> {len(chosen)} channels in {out / 'curated.m3u'}"
     )
-    return EXIT_ALERT if dns_alert else 0
+    return EXIT_ALERT if dns_alert or drop_alert else 0
+
+
+def check_count_drop(cfg: Config, key: str, current: int, event: str, what: str) -> bool:
+    """Alert when a count fell sharply since the last run; remember the new count either way."""
+    state = alerts.load_state(cfg.state_dir)
+    previous = state.get(key)
+    state[key] = current
+    alerts.save_state(cfg.state_dir, state)
+    if not alerts.sharp_drop(previous, current, cfg.alerts.drop_percent):
+        return False
+    return alerts.notify(
+        event,
+        f"kia: {what} dropped from {previous} to {current}",
+        f"{what.capitalize()} fell by {100 - round(100 * current / previous)}% since the last run. "
+        "A playlist or guide source may have broken upstream, or this machine's internet "
+        "connection had trouble during the run. If you just removed playlists or excluded guide "
+        "sites, that explains it and you can ignore this. See the reports for details.",
+        cfg.state_dir,
+        cfg.alerts,
+        log,
+    )
 
 
 def load_config(args: argparse.Namespace) -> Config:
@@ -243,10 +269,39 @@ def cmd_grab(args: argparse.Namespace) -> int:
     results = grab.grab_all(cfg.epg, args.site, log)
     failed = [r for r in results if r.returncode != 0 or not r.output.exists()]
     dns_alert = alert_on_local_dns(report_grab_dns(results, cfg.dns_resolvers), "grab", cfg)
+    site_alert = track_site_failures(cfg, results)
     log(f"{len(results) - len(failed)} of {len(results)} sites grabbed into {cfg.epg.work_dir / 'guides'}")
     if failed and len(failed) == len(results):
         return 1
-    return EXIT_ALERT if dns_alert else 0
+    return EXIT_ALERT if dns_alert or site_alert else 0
+
+
+def track_site_failures(cfg: Config, results: list[grab.GrabResult]) -> bool:
+    """Count consecutive failed grabs per site; alert once when a streak reaches the threshold."""
+    state = alerts.load_state(cfg.state_dir)
+    streaks: dict[str, int] = state.setdefault("site_failures", {})
+    newly_failing = []
+    for r in results:
+        if r.returncode == 0 and r.output.exists():
+            streaks.pop(r.site, None)
+            continue
+        streaks[r.site] = streaks.get(r.site, 0) + 1
+        if streaks[r.site] == cfg.alerts.site_fail_runs:
+            newly_failing.append(r)
+    alerts.save_state(cfg.state_dir, state)
+    if not newly_failing:
+        return False
+    names = ", ".join(r.site for r in newly_failing)
+    return alerts.notify(
+        "site_failing",
+        f"kia: guide site failing: {names}",
+        f"{names} failed {cfg.alerts.site_fail_runs} runs in a row; their channels are using older "
+        f"guide data or other sites. Logs: {', '.join(str(r.log) for r in newly_failing)}. "
+        "If a site stays broken, add it to KIA_EXCLUDE_SITES.",
+        cfg.state_dir,
+        cfg.alerts,
+        log,
+    )
 
 
 def report_grab_dns(
@@ -284,7 +339,8 @@ def build_guide(
         f"{with_data} of {len(entries)} channels have guide data "
         f"-> {out} (+ .gz), report in {cfg.output_dir / 'guide-report.md'}"
     )
-    return 0
+    drop_alert = check_count_drop(cfg, "guide_channels", with_data, "guide_drop", "channels with guide data")
+    return EXIT_ALERT if drop_alert else 0
 
 
 def cmd_guide(args: argparse.Namespace) -> int:
@@ -355,8 +411,37 @@ def run_pipeline(config: str, update_epg: bool) -> int:
     return worst
 
 
+def run_and_report(config: str, update_epg: bool) -> int:
+    """Run the pipeline, alert if it fails or crashes, and send the summary if it's turned on."""
+    cfg = load(Path(config))
+    start = time.monotonic()
+    try:
+        rc = run_pipeline(config, update_epg)
+    except (Exception, SystemExit) as exc:  # tell a human; the daemon keeps going
+        alerts.notify("run_failed", "kia: nightly run crashed", f"{type(exc).__name__}: {exc}",
+                      cfg.state_dir, cfg.alerts, log)  # fmt: skip
+        return 1
+    minutes = (time.monotonic() - start) / 60
+    log(f"Run finished in {minutes:.0f} min with exit code {rc}")
+    if rc not in (0, EXIT_ALERT):
+        alerts.notify("run_failed", "kia: nightly run failed", f"The run stopped with exit code {rc}; see the kia logs.",
+                      cfg.state_dir, cfg.alerts, log)  # fmt: skip
+    else:
+        state = alerts.load_state(cfg.state_dir)
+        alerts.notify(
+            "daily_summary",
+            "kia: refresh complete",
+            f"{state.get('channels', '?')} working channels, {state.get('guide_channels', '?')} with guide data "
+            f"({minutes:.0f} min){'; alerts were raised, see the log' if rc == EXIT_ALERT else ''}.",
+            cfg.state_dir,
+            cfg.alerts,
+            log,
+        )
+    return rc
+
+
 def cmd_run(args: argparse.Namespace) -> int:
-    return run_pipeline(args.config, args.update)
+    return run_and_report(args.config, args.update)
 
 
 def next_run(now: datetime, at: str) -> datetime:
@@ -401,18 +486,30 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             log(f"Next run at {nxt:%Y-%m-%d %H:%M %Z}")
             wait_until(nxt)
         run_now = False
-        start = time.monotonic()
         try:
-            rc = run_pipeline(args.config, update_epg=True)
-        except (Exception, SystemExit) as exc:  # keep the daemon alive; tell a human
-            rc = None
-            raise_alert("kia run crashed", f"{type(exc).__name__}: {exc}", cfg.state_dir, cfg.alert_command, log)
-        minutes = (time.monotonic() - start) / 60
-        if rc is not None:
-            log(f"Run finished in {minutes:.0f} min with exit code {rc}")
-            if rc not in (0, EXIT_ALERT):
-                raise_alert("kia run failed", f"Pipeline exited with code {rc}; see the kia logs.",
-                            cfg.state_dir, cfg.alert_command, log)  # fmt: skip
+            run_and_report(args.config, update_epg=True)
+        except Exception as exc:  # e.g. the config became invalid; keep the daemon alive
+            log(f"Run could not start: {type(exc).__name__}: {exc}")
+
+
+def cmd_test_alert(args: argparse.Namespace) -> int:
+    """Send a test notification through every configured channel, ignoring the event list."""
+    cfg = load_config(args)
+    a = cfg.alerts
+    if not a.ntfy_url and not a.command:
+        log("No notifications are set up. Set KIA_NTFY_URL or KIA_ALERT_COMMAND (or [alerts] in kia.toml).")
+        return 1
+    messages = []
+    test_cfg = alerts.AlertConfig(command=a.command, ntfy_url=a.ntfy_url, events=("daily_summary",))
+    alerts.notify("daily_summary", "kia: test notification",
+                  "If you can read this, kia's notifications work.", cfg.state_dir, test_cfg, messages.append)  # fmt: skip
+    failures = [m for m in messages if "failed" in m or "timed out" in m]
+    for m in failures:
+        log(m)
+    if not failures:
+        log(f"Test notification sent via {' and '.join(n for n, on in (('ntfy', a.ntfy_url), ('your command', a.command)) if on)}.")
+    log(f"Alerts turned on: {', '.join(a.events) or 'none'}")
+    return 1 if failures else 0
 
 
 def cmd_probe(args: argparse.Namespace) -> int:
@@ -475,6 +572,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--update", action="store_true", help="git pull the epg checkout first")
     p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("test-alert", help="send a test notification (ntfy and/or your alert command)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_test_alert)
 
     p = sub.add_parser("sync", help="take the guide from another kia server (KIA_UPSTREAM_URL)")
     p.add_argument("-c", "--config", default="kia.toml")

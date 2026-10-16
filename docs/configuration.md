@@ -21,6 +21,9 @@ When a setting exists in both, `.env` wins. The two "exclude" lists are the exce
 | `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. |
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |
+| `KIA_NTFY_URL` | | Send alerts to your phone through ntfy (see [alerts](alerts.md)). |
+| `KIA_ALERT_COMMAND` | | A command to run for each alert. |
+| `KIA_ALERT_EVENTS` | all but `daily_summary` | Which events notify you, comma-separated. |
 | `KIA_EPG_DAYS` | 3 | Days of program guide. |
 | `KIA_PARALLEL_SITES` | 4 | Guide sites downloaded at once. Each peaks around 0.7 GB of memory. |
 | `KIA_CHECK_CONCURRENCY` | 20 | Streams tested at once. |
@@ -41,6 +44,6 @@ Each setting is explained by a comment in the file. The sections:
 - `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
 - `[output]`: where files go, and `public_url` / `epg_url` for setups without Docker.
 - `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.
-- `[alerts]`: `command`, run when something needs attention. The file has an example that sends a phone notification through ntfy.
+- `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`. See [alerts](alerts.md).
 - `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `placeholders`, `placeholder_hours`, `native_grabbers`, `git_url`, `git_ref`, `runner`.
 - `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.
