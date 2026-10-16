@@ -85,7 +85,7 @@ Run checks from the network your Kodi devices are on, since some streams are geo
 ### How the guide is built
 
 1. **`kia map`** finds each curated channel's guide sources in iptv-org/epg (exact feed first, then other feeds of the same channel), skipping sites marked broken in its `SITES.md`, and keeps up to `max_sites_per_channel` candidates.
-2. **`kia grab`** runs iptv-org/epg's grabber once per site, several sites at a time. A site that fails keeps its previous guide.
+2. **`kia grab`** runs iptv-org/epg's grabber once per site, several sites at a time. A site that fails keeps its previous guide. i.mjh.nz (Pluto, Plex, Samsung TV Plus, Roku) is fetched directly from its published XMLTV files instead: seconds and ~40 MB of RAM, versus ~25 minutes and over 2 GB through the generic grabber (`native_grabbers = false` to turn off).
 3. **`kia guide`** picks, per channel, the site with the most coverage over the next 24 hours and writes `guide.xml(.gz)`. Channels with no guide data get 2-hour placeholder blocks with the channel name, so Kodi's guide grid isn't empty (set `placeholders = false` to turn that off).
 
 ### DNS checks and alerts

@@ -52,3 +52,5 @@ runner = "docker"              # "docker" (no Node needed) or "local" (needs Nod
 parallel_sites = 4             # sites grabbed at once, ~0.7 GB RAM each (.env: KIA_PARALLEL_SITES)
 max_connections = 5            # concurrent requests per site
 placeholders = true            # fill channels with no guide data with 2-hour "<channel name>" blocks
+native_grabbers = true         # grab i.mjh.nz directly from its XMLTV files (seconds, little RAM)
+                               # instead of iptv-org/epg's grabber (~25 min, >2 GB RAM)

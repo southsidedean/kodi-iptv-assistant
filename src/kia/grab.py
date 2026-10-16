@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kia.config import EpgConfig
+from kia.native import NATIVE_GRABBERS
 
 EPG_GIT_URL = "https://github.com/iptv-org/epg.git"
 
@@ -76,6 +77,26 @@ def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
     staged.parent.mkdir(parents=True, exist_ok=True)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     staged.unlink(missing_ok=True)
+    start = time.monotonic()
+    native = NATIVE_GRABBERS.get(site) if cfg.native_grabbers else None
+    if native:
+        with open(log_path, "w") as logf:
+            try:
+                native(channels_file, staged, cfg.days, lambda msg: print(msg, file=logf, flush=True))
+                returncode = 0
+            except Exception as exc:  # report like a failed grabber process
+                print(f"ERR: {type(exc).__name__}: {exc}", file=logf)
+                returncode = 1
+    else:
+        returncode = _run_epg_grab(cfg, channels_file, staged, log_path)
+    if returncode == 0 and staged.exists():
+        staged.replace(output)
+    elif returncode == 0:
+        returncode = 1  # exited cleanly but wrote nothing
+    return GrabResult(site, returncode, time.monotonic() - start, log_path, output)
+
+
+def _run_epg_grab(cfg: EpgConfig, channels_file: Path, staged: Path, log_path: Path) -> int:
     cmd = runner_prefix(cfg) + [
         "npm", "run", "grab", "--",
         f"--channels={channels_file.resolve()}",
@@ -83,15 +104,8 @@ def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
         f"--days={cfg.days}",
         f"--maxConnections={cfg.max_connections}",
     ]  # fmt: skip
-    start = time.monotonic()
     with open(log_path, "w") as logf:
-        proc = subprocess.run(cmd, cwd=cfg.repo_dir, stdout=logf, stderr=subprocess.STDOUT)
-    returncode = proc.returncode
-    if returncode == 0 and staged.exists():
-        staged.replace(output)
-    elif returncode == 0:
-        returncode = 1  # exited cleanly but wrote nothing
-    return GrabResult(site, returncode, time.monotonic() - start, log_path, output)
+        return subprocess.run(cmd, cwd=cfg.repo_dir, stdout=logf, stderr=subprocess.STDOUT).returncode
 
 
 def grab_all(cfg: EpgConfig, sites: list[str] | None, log: Callable[[str], None]) -> list[GrabResult]:
@@ -100,7 +114,8 @@ def grab_all(cfg: EpgConfig, sites: list[str] | None, log: Callable[[str], None]
         channel_files = {s: p for s, p in channel_files.items() if s in sites}
     if not channel_files:
         raise FileNotFoundError(f"no channel lists in {cfg.work_dir / 'channels'}; run `kia map` first")
-    if not (cfg.repo_dir / "node_modules").exists():
+    needs_node = any(not (cfg.native_grabbers and s in NATIVE_GRABBERS) for s in channel_files)
+    if needs_node and not (cfg.repo_dir / "node_modules").exists():
         install_deps(cfg, log)
 
     log(f"Grabbing {cfg.days} days from {len(channel_files)} sites, {cfg.parallel_sites} at a time...")

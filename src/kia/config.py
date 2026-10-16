@@ -29,6 +29,7 @@ class EpgConfig:
     parallel_sites: int = 4
     max_connections: int = 5
     placeholders: bool = True
+    native_grabbers: bool = True
 
 
 @dataclass
@@ -158,4 +159,5 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         parallel_sites=_env_int("KIA_PARALLEL_SITES", epg.get("parallel_sites", d.parallel_sites)),
         max_connections=epg.get("max_connections", d.max_connections),
         placeholders=epg.get("placeholders", d.placeholders),
+        native_grabbers=epg.get("native_grabbers", d.native_grabbers),
     )
