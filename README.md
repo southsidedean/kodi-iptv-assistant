@@ -12,11 +12,13 @@ Channels with no guide data anywhere (small local stations, for example) show th
 
 ## What you need
 
-- A computer that stays on, or the one you watch on: Linux, macOS, Windows, or a Raspberry Pi 4/5.
-- [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on macOS and Windows).
+- A computer to run kia: macOS, Linux, or a Raspberry Pi 4/5. It can be the one you watch on or one that stays on for the house. (Windows support is planned.)
+- [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on macOS) and Git.
 - [Kodi](https://kodi.tv/download/) on the devices you watch on (setup below).
 
 ## Quick start
+
+New to Docker or Git? [docs/install.md](docs/install.md) walks through installing everything, step by step. If you already have Docker and Git:
 
 1. Download and configure:
 
