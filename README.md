@@ -14,7 +14,7 @@ Channels with no guide data anywhere (small local stations, for example) show th
 
 ## What you need
 
-- A computer to run kia: macOS, Linux, or a Raspberry Pi 4/5. It can be the one you watch on or one that stays on for the house. (Running kia itself on Windows is planned.)
+- A computer to run kia: macOS, Linux, or a Raspberry Pi 4/5. It can be the one you watch on or one that stays on for the house.
 - [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on macOS) and Git.
 - [Kodi](https://kodi.tv/download/) on the devices you watch on: Windows, macOS, Linux, Android TV, Fire TV, and others all work (setup below).
 

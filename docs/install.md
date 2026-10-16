@@ -12,7 +12,7 @@ This guide takes you from nothing to a working channel list and program guide in
 | Kodi | Version 21 or newer is a good choice | Plays the channels. Install it on each device you watch on ([Kodi setup](kodi.md)). |
 | About 2 GB of disk space | | For kia, its downloads, and the guide. |
 
-Kodi itself can run on almost anything, including Windows, Android TV, and Fire TV; only the computer running kia needs macOS or Linux for now. Windows support for kia is planned.
+Kodi itself can run on almost anything, including Windows, Android TV, and Fire TV. Only the computer running kia needs macOS or Linux.
 
 If you plan to run kia on a different computer from the one you watch on, do steps 1 to 6 on that computer.
 

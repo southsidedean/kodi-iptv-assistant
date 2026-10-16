@@ -63,4 +63,4 @@ python3 -m venv .venv
 
 Settings go in `kia.toml` (set `runner = "local"` under `[epg]`). Most `.env` settings also work as environment variables; the schedule is `--at HH:MM` instead of `KIA_RUN_AT`, and the memory limit and image settings only apply to Docker. Add `--bind 0.0.0.0` to serve other devices.
 
-Install scripts for macOS and Linux are planned, and Windows support after that.
+Install scripts for macOS and Linux are planned.
