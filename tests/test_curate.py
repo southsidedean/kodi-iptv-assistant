@@ -1,0 +1,96 @@
+from pathlib import Path
+
+from kia.curate import Checked, classify, is_excluded, select
+from kia.history import History
+from kia.m3u import Entry
+from kia.probe import ProbeResult, interpret
+
+
+def entry(name, url, tvg_id="", group="", source="us"):
+    return Entry(name=name, url=url, attrs={"tvg-id": tvg_id, "group-title": group}, source=source)
+
+
+def test_interpret_picks_best_variant():
+    payload = {
+        "streams": [
+            {"codec_type": "video", "codec_name": "h264", "width": 640, "height": 360},
+            {"codec_type": "video", "codec_name": "h264", "width": 1920, "height": 1080},
+            {"codec_type": "audio", "codec_name": "aac"},
+        ]
+    }
+    r = interpret(payload)
+    assert r.ok and r.height == 1080 and r.audio_codec == "aac"
+
+
+def test_interpret_audio_only():
+    payload = {"streams": [{"codec_type": "audio", "codec_name": "aac"}]}
+    assert not interpret(payload).ok
+    assert interpret(payload).error == "no video stream"
+    assert interpret(payload, require_video=False).ok
+
+
+def test_classify_grace_period():
+    fail = ProbeResult(ok=False, error="timed out")
+    assert classify(ProbeResult(ok=True), {}, 2) == "ok"
+    assert classify(fail, {}, 2) == "dead"
+    assert classify(fail, {"last_ok": "x", "consecutive_failures": 2}, 2) == "flaky"
+    assert classify(fail, {"last_ok": "x", "consecutive_failures": 3}, 2) == "dead"
+
+
+def test_select_prefers_working_then_resolution_then_speed():
+    a = Checked(entry("CNN (720p)", "u1", "CNN.us"), ProbeResult(ok=True, elapsed=1), "ok", 720)
+    b = Checked(entry("CNN (1080p)", "u2", "CNN.us"), ProbeResult(ok=True, elapsed=3), "ok", 1080)
+    c = Checked(entry("CNN alt", "u3", "CNN.us"), ProbeResult(ok=False), "flaky", 2160)
+    d = Checked(entry("Dead TV", "u4", "Dead.us"), ProbeResult(ok=False), "dead")
+    chosen = select([a, b, c, d])
+    assert [x.entry.url for x in chosen] == ["u2"]
+    assert b.selected and not a.selected and not c.selected and not d.selected
+
+
+def test_select_groups_untagged_by_name():
+    a = Checked(entry("Town TV (480p)", "u1"), ProbeResult(ok=True), "ok", 480)
+    b = Checked(entry("Town TV (720p) [Not 24/7]", "u2"), ProbeResult(ok=True), "ok", 720)
+    assert [x.entry.url for x in select([a, b])] == ["u2"]
+
+
+def test_exclusions():
+    e = entry("Shop Now [Not 24/7]", "u", group="Shop;General")
+    assert is_excluded(e, ["shop"], [], [])
+    assert is_excluded(e, [], ["not 24/7"], [])
+    assert is_excluded(e, [], [], [r"^shop"])
+    assert not is_excluded(e, ["News"], ["Geo-blocked"], ["^News"])
+
+
+def test_history_counts_and_roundtrip(tmp_path: Path):
+    h = History(tmp_path / "history.json")
+    h.record("u", ProbeResult(ok=True, height=720), "2026-10-16T00:00:00+00:00")
+    h.record("u", ProbeResult(ok=False, error="403"), "2026-10-17T00:00:00+00:00")
+    h.save()
+    rec = History(tmp_path / "history.json").get("u")
+    assert rec["checks"] == 2 and rec["successes"] == 1
+    assert rec["consecutive_failures"] == 1
+    assert rec["last_ok"].startswith("2026-10-16")
+    assert rec["height"] == 720 and rec["last_error"] == "403"
+
+
+def test_error_summary_strips_noise():
+    from kia.probe import _summarize_error
+
+    hls = "[hls @ 0x99cc34000] parse_playlist error Server returned 404 Not Found [https://a.example/x_800.m3u8]"
+    assert _summarize_error(hls) == "parse_playlist error Server returned 404 Not Found"
+    assert _summarize_error("https://a.example/x.m3u8: Server returned 403 Forbidden") == "Server returned 403 Forbidden"
+    assert _summarize_error("") == "ffprobe failed with no output"
+
+
+def test_error_summary_prefers_root_cause():
+    from kia.probe import _summarize_error
+
+    stderr = "\n".join(
+        [
+            "mime type is not rfc8216 compliant",
+            "[https @ 0x1] HTTP error 404 Not Found",
+            "[hls @ 0x2] parse_playlist error Server returned 404 Not Found [https://a.example/x.m3u8]",
+            "[hls @ 0x2] Empty segment",
+        ]
+    )
+    assert _summarize_error(stderr) == "parse_playlist error Server returned 404 Not Found"

@@ -1,0 +1,29 @@
+# kodi-iptv-assistant configuration
+
+# Playlists to check. Add as many as you like; duplicate URLs are probed once,
+# and duplicate channels (same tvg-id) collapse to the best working stream.
+[[sources]]
+name = "us"
+url = "https://iptv-org.github.io/iptv/countries/us.m3u"
+
+# [[sources]]
+# name = "news"
+# url = "https://iptv-org.github.io/iptv/categories/news.m3u"
+
+[check]
+concurrency = 20       # parallel ffprobe processes; lower this on a Raspberry Pi
+timeout = 15           # seconds of network silence before a stream fails
+require_video = true   # treat audio-only streams as dead
+grace_failures = 2     # keep a stream that worked before until it fails this many runs in a row
+# user_agent = ""      # default UA for streams that don't set their own
+
+[filters]
+# Skipped before probing. Groups match iptv-org's group-title categories.
+exclude_groups = []            # e.g. ["Religious", "Shop", "Undefined"]
+exclude_labels = []            # e.g. ["Not 24/7", "Geo-blocked"]
+exclude_name_patterns = []     # regexes matched against the channel name
+
+[output]
+dir = "output"                 # curated.m3u, report.md, report.json
+state_dir = "state"            # check history
+# epg_url = "http://server.lan/guide.xml.gz"   # written into curated.m3u as x-tvg-url
