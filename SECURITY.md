@@ -1,6 +1,6 @@
 # Security
 
-kia runs on your home network and runs third-party code (iptv-org's guide downloader) every night, so security problems matter even for a small project.
+kia runs on your home network, and every night it runs third-party code: iptv-org's guide downloader.
 
 ## Reporting a problem
 
