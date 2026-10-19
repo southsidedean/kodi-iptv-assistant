@@ -578,7 +578,7 @@ def cmd_refresh_guide(args: argparse.Namespace) -> int:
     )
     results = grab.grab_all(epg, quick, log) if quick else []
     if epg.playlist_guides:
-        results += grab.grab_playlist_guides(epg, playlist_guides(cfg), log)
+        results += grab.grab_playlist_guides(epg, playlist_guides(cfg), log, quick=True)
     ok = sum(1 for r in results if r.returncode == 0)
     log(f"Refreshed {ok} of {len(results)} quick guide sources")
     return cmd_guide(args)

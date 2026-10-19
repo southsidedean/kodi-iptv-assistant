@@ -21,11 +21,12 @@ def test_refresh_guide_downloads_only_the_quick_sources(tmp_path: Path, monkeypa
     cfg = instance(tmp_path)
     calls = []
     monkeypatch.setattr(grab, "grab_all", lambda epg, sites, log: calls.append(("sites", sites)) or [])
-    monkeypatch.setattr(grab, "grab_playlist_guides", lambda epg, spec, log: calls.append(("playlists", spec)) or [])
+    monkeypatch.setattr(grab, "grab_playlist_guides",
+                        lambda epg, spec, log, quick: calls.append(("playlists", spec, quick)) or [])  # fmt: skip
     monkeypatch.setattr(cli, "cmd_guide", lambda args: calls.append(("guide",)) or 0)
     assert cli.main(["refresh-guide", "-c", cfg]) == 0
     # tvguide.com needs iptv-org's downloader (minutes, lots of memory): left for the nightly run.
-    assert calls == [("sites", ["i.mjh.nz", "kink.nl"]), ("playlists", {}), ("guide",)]
+    assert calls == [("sites", ["i.mjh.nz", "kink.nl"]), ("playlists", {}, True), ("guide",)]
 
 
 def test_refresh_guide_with_an_upstream_copies_its_guide(tmp_path: Path, monkeypatch):

@@ -1,6 +1,6 @@
 # How it works
 
-Every night (`KIA_RUN_AT`), kia runs four steps. You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
+Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide every few hours in between ([details](#4-build-the-guide-kia-guide)). You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
 
 ## 1. Check streams (`kia check`)
 
@@ -48,7 +48,7 @@ With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downlo
 
 ## The status page
 
-`http://<your address>:8780/` shows how kia is doing: the last refresh and whether it worked, the next one, when the guide was last updated, how many channels it found, the alerts from the last run, and links to the playlist, the guide, the reports, and these docs. kia updates it when a run starts and when it ends.
+`http://<your address>:8780/` shows how kia is doing: the last refresh and whether it worked, the next nightly run, when the guide was last updated, how many channels it found, the alerts from the last run, and links to the playlist, the guide, the reports, and these docs. kia updates it when a run starts and when it ends.
 
 ![kia's status page: the last refresh worked, the next is at 04:00, with channel counts, file links, and help links](../images/kia-status-screenshot.png)
 
@@ -68,7 +68,7 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 |---|---|
 | `result` | `running`, `ok`, `alerts`, `failed`, or `never` |
 | `last_run` | `started` and `finished` (UTC times), `minutes`, and `exit_code` (0 worked, 3 worked with alerts, anything else failed) |
-| `next_run` | The next refresh, in local time with its UTC offset |
+| `next_run` | The next nightly run, in local time with its UTC offset |
 | `guide_updated` | When the guide was last rebuilt, by a nightly run or a quick refresh (UTC) |
 | `channels` | `tv`, `radio`, and `with_guide` (channels with guide data) |
 | `alerts` | The last run's alerts: `time`, `event` (see [alerts](alerts.md)), and `title` |

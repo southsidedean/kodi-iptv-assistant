@@ -89,10 +89,13 @@ def _open_guide(url: str):
     return resp, stream
 
 
-def download(info: dict, output: Path, days: int, log: Callable[[str], None], now: datetime | None = None) -> int:
-    """Write the programmes for info["channels"] from info["urls"] to output; returns the count.
+def download(
+    info: dict, output: Path, days: int, log: Callable[[str], None], now: datetime | None = None
+) -> dict[str, int]:
+    """Write the programmes for info["channels"] from info["urls"] to output.
 
-    Raises RuntimeError if no guide could be read at all.
+    Returns the number of programmes each address gave. Raises RuntimeError if no guide
+    could be read at all.
     """
     now = now or datetime.now(timezone.utc)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -100,7 +103,8 @@ def download(info: dict, output: Path, days: int, log: Callable[[str], None], no
     wanted = info["channels"]
     ours = sorted({tid for tids in wanted.values() for tid in tids})
     log(f"{len(ours)} channels from {len(info['urls'])} guide(s), {days} days")
-    written, failures = 0, 0
+    counts: dict[str, int] = {}
+    failures = 0
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
@@ -112,7 +116,7 @@ def download(info: dict, output: Path, days: int, log: Callable[[str], None], no
                 resp, stream = _open_guide(url)
                 with resp, stream:
                     n = filter_xmltv(stream, wanted, start, end, out.write, suffix_fallback=False)
-                written += n
+                counts[url] = n
                 log(f"  {url}: {n} programmes in {time.monotonic() - t0:.1f}s")
             except (OSError, EOFError, ValueError, zlib.error, http.client.HTTPException, ET.ParseError) as exc:
                 # One bad guide (gone, not XML, cut off) shouldn't stop the others.
@@ -121,4 +125,4 @@ def download(info: dict, output: Path, days: int, log: Callable[[str], None], no
         out.write("</tv>\n")
     if failures == len(info["urls"]):
         raise RuntimeError("no guide could be downloaded")
-    return written
+    return counts

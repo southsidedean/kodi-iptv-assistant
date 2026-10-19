@@ -36,11 +36,9 @@ merge_duplicates = true
 # Forget the history of streams that haven't been in any playlist for this many days.
 history_days = 30
 
-# How kia identifies itself to stream servers. Some servers refuse certain players, and
-# VLC's identity is the one accepted most widely. kia also writes it into the playlist,
-# so Kodi plays each stream the way kia tested it (some servers refuse Kodi's own). A
-# playlist entry's own setting always wins. Set to "" to use ffmpeg's identity and leave
-# Kodi's alone.
+# How kia introduces itself to stream servers. VLC is accepted most widely; some servers
+# refuse Kodi, so kia writes the same identity into the playlist for Kodi to use. A
+# playlist entry's own setting wins. "" tests as ffmpeg and leaves Kodi's identity alone.
 # user_agent = "VLC/3.0.20 LibVLC/3.0.20"
 
 
@@ -141,8 +139,8 @@ prefer_sites = []
 # .env: KIA_EXCLUDE_SITES (adds to this list)
 exclude_sites = ["epg.iptvx.one"]
 
-# When a TV channel has no guide data, fill its row with blocks showing the channel's
-# name, so the guide has no empty rows. .env: KIA_PLACEHOLDERS
+# When a TV channel has no guide data, or its listings end early, fill the rest of its
+# row with blocks showing the channel's name, so the guide has no gaps. .env: KIA_PLACEHOLDERS
 placeholders = true
 # Block length in hours: 1, 2, 3, 4, 6, 8, 12, or 24.
 placeholder_hours = 2
@@ -157,12 +155,12 @@ name_matching = true
 ignore_name_matches = []
 
 # Use the guide a playlist names in its first line (x-tvg-url) for that playlist's
-# channels, e.g. the Samsung TV Plus and Roku lists in sources.txt.
+# channels, e.g. the Samsung TV Plus list in sources.txt.
 playlist_guides = true
 
-# Read i.mjh.nz's guide files (Pluto TV, Plex, Samsung TV Plus, Roku) directly. It takes
-# seconds and little memory, compared with about 25 minutes and over 2 GB through
-# iptv-org's downloader.
+# Read some guides directly instead of through iptv-org's downloader: i.mjh.nz's files
+# (Pluto TV, Plex, Samsung TV Plus, Roku) and KINK's schedule on kink.nl. For i.mjh.nz
+# that takes seconds and little memory, instead of about 25 minutes and over 2 GB.
 native_grabbers = true
 
 # Where kia keeps its copy of iptv-org/epg and its working files.

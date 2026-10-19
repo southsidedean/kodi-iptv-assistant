@@ -51,7 +51,8 @@ def test_download_keeps_only_our_channels(server, tmp_path: Path):  # noqa: F811
     info = {"urls": [f"{base}/a.xml.gz", f"{base}/missing.xml", f"{base}/b.xml"], "channels": {"A": ["A.us"], "B": ["B"]}}
     out = tmp_path / "g.xml"
     logs = []
-    assert playlistguide.download(info, out, 1, logs.append, NOW) == 3
+    counts = playlistguide.download(info, out, 1, logs.append, NOW)
+    assert counts == {f"{base}/a.xml.gz": 2, f"{base}/b.xml": 1}
     text = out.read_text()
     assert 'channel="A.us"' in text and "Not ours" not in text and "<title>Movie</title>" in text
     assert any("missing.xml: ERR" in m for m in logs)  # one bad guide doesn't stop the rest
@@ -104,3 +105,19 @@ def test_failed_playlist_guide_keeps_the_previous_one(tmp_path: Path):
     (r,) = grab.grab_playlist_guides(cfg, {"playlist-x": {"urls": ["http://127.0.0.1:9/g.xml"], "channels": {"a": ["a"]}}},
                                      lambda m: None)  # fmt: skip
     assert r.returncode == 1 and previous.read_text() == "<tv>old</tv>"
+
+
+def test_quick_refresh_fetches_only_the_guides_that_had_our_channels(server, tmp_path: Path):  # noqa: F811
+    www, base = server
+    now = datetime.now(timezone.utc)
+    (www / "ours.xml").write_bytes(guide({"A": ["News"]}, now))
+    (www / "other.xml").write_bytes(guide({"Z": ["Not ours"]}, now))
+    cfg = EpgConfig(work_dir=tmp_path / "work")
+    spec = {"playlist-free": {"urls": [f"{base}/ours.xml", f"{base}/other.xml"], "channels": {"A": ["A"]}}}
+    grab.grab_playlist_guides(cfg, spec, lambda m: None)  # nightly: tries both, notes which helped
+    used = json.loads((tmp_path / "work" / "playlist-guides-used.json").read_text())
+    assert used == {"playlist-free": [f"{base}/ours.xml"]}
+    (www / "other.xml").unlink()  # a quick refresh that tried it would log an error
+    grab.grab_playlist_guides(cfg, spec, lambda m: None, quick=True)
+    log = (tmp_path / "work" / "logs" / "playlist-free.log").read_text()
+    assert "ours.xml" in log and "other.xml" not in log

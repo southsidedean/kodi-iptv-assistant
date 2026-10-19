@@ -124,7 +124,7 @@ def render_html(s: dict) -> str:
     run, ch = s["last_run"], s["channels"]
     rows = [
         ("Last refresh", f"{_when(run['started'])}" + (f", took {run['minutes']} min" if run.get("minutes") is not None else "")),
-        ("Next refresh", _when(s["next_run"])),
+        ("Next nightly run", _when(s["next_run"])),
         ("Guide updated", _when(s.get("guide_updated"))),
         ("TV channels", f"{ch['tv']}"),
         ("Radio stations", f"{ch['radio']}"),
