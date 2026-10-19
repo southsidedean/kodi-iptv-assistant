@@ -43,6 +43,9 @@ services:
       KIA_RADIO_PLACEHOLDERS: ${KIA_RADIO_PLACEHOLDERS:-}
       KIA_EPG_GIT_URL: ${KIA_EPG_GIT_URL:-}
       KIA_EPG_GIT_REF: ${KIA_EPG_GIT_REF:-}
+      # Turns on editing profiles from the status page. nginx forwards /api/ to this port.
+      KIA_ADMIN_PASSWORD: ${KIA_ADMIN_PASSWORD:-}
+      KIA_API_PORT: "8781"
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}
     command: ["daemon", "--at", "${KIA_RUN_AT:-04:00}"]
@@ -54,6 +57,8 @@ services:
       - ./state:/data/state
       - ./work:/data/work
       - ./vendor:/data/vendor
+      # Profiles, so the status page can save them.
+      - ./profiles:/data/profiles
 
   web:
     image: ${KIA_NGINX_IMAGE:-nginx:alpine}
@@ -76,6 +81,8 @@ services:
     ports:
       # KIA_BIND=127.0.0.1 keeps the server to this machine (e.g. Kodi on the same laptop).
       - "${KIA_BIND:-0.0.0.0}:${KIA_PORT:-8780}:80"
+    depends_on:
+      - kia
     volumes:
       # Only the results; nothing else in the project folder is visible to the web server.
       - ./output:/srv/output:ro

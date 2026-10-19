@@ -1,7 +1,10 @@
-# Playlists for people and devices ("profiles"). Copy this file to profiles.local.toml
-# and change it: git ignores that copy, so updating kia never touches it.
+# Playlists for people and devices ("profiles"). The status page can make and edit these
+# for you (see docs/profiles.md). To write them by hand instead, copy this file to
+# profiles/profiles.toml and change it: git ignores that copy, so updating kia never
+# touches it.
 #
-# Each [section] makes a playlist with that name, served next to the full one:
+# Each [section] makes a playlist with that name, served next to the full one, with its
+# own guide holding only its channels:
 #   http://<your address>:8780/kids.m3u
 # Every profile uses the same program guide and the same channel numbers as the full list.
 # Changes show up after the next nightly run (or `kia check`). See docs/profiles.md.
@@ -14,6 +17,7 @@
 #   exclude_groups  categories to leave out
 #   exclude_names   channel names to leave out, as patterns
 #   tv, radio       true or false: include TV channels, radio stations (both true unless set)
+#   renumber        true: number this playlist's channels 1, 2, 3 instead of the full list's numbers
 #   title           the name shown on the status page, e.g. "The kids"
 
 [kids]

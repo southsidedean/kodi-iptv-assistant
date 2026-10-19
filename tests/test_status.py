@@ -78,7 +78,7 @@ def test_reports_link_html_and_markdown(tmp_path: Path):
     (tmp_path / "report.html").write_text("x")
     (tmp_path / "report.md").write_text("x")
     (tmp_path / "guide-report.html").write_text("x")  # no Markdown twin: no link to one
-    page = status.render_html(status.collect(tmp_path, tmp_path, {}, None))
+    page = status.render_details(status.collect(tmp_path, tmp_path, {}, None))
     assert 'href="report.html"' in page and '(<a href="report.md">Markdown</a>)' in page
     assert 'href="guide-report.md"' not in page
 
@@ -92,5 +92,34 @@ def test_coverage_and_playlist_counts(tmp_path: Path):
     s = status.collect(tmp_path, tmp_path, {"result": "alerts", "coverage": {"full": 5, "partial": 2, "none": 3}}, "http://tv.lan:8780")
     assert s["sources"] == [{"name": "us", "ok": 2, "flaky": 0, "dead": 1}, {"name": "samsung-us", "ok": 0, "flaky": 1, "dead": 0}]
     page = status.render_html(s)
-    assert "Full guide: 5" in page and "Working, with alerts" in page and "2 working, 0 flaky, 1 dead" in page
-    assert 'data-copy="playlist-0"' in page and "http://tv.lan:8780/curated.m3u" in page
+    assert "Working, with alerts" in page and 'href="details.html"' in page
+    assert 'data-copy="copy-0"' in page and "http://tv.lan:8780/curated.m3u" in page
+    details = status.render_details(s)
+    assert "Full guide: 5" in details and "2 working, 0 flaky, 1 dead" in details
+
+
+def test_a_page_per_playlist(tmp_path: Path):
+    from kia import profiles
+    from kia.m3u import Entry, write
+
+    out = tmp_path / "output"
+    out.mkdir()
+    entries = [Entry("Toons <1>", "http://a/1", {"tvg-id": "T.us", "group-title": "Kids", "tvg-chno": "7"}, source="us"),
+               Entry("CNN", "http://a/2", {"tvg-id": "C.us", "group-title": "News", "tvg-chno": "8"}, source="us")]  # fmt: skip
+    (out / "curated.m3u").write_text(write(entries, None))
+    pfile = tmp_path / "profiles.toml"
+    pfile.write_text('[kids]\ntitle = "The kids"\ngroups = ["Kids"]\n[old]\n')
+    profiles.rebuild(out, tmp_path / "state", pfile, None, lambda m: None)
+    status.update(out, tmp_path / "state", "http://tv.lan:8780")
+    home = (out / "index.html").read_text()
+    assert 'href="playlists/kids.html"' in home and 'href="playlists/curated.html"' in home
+    kids = (out / "playlists" / "kids.html").read_text()
+    assert 'data-profile="kids"' in kids and 'data-root="../"' in kids and 'href="../index.html"' in kids
+    assert "Toons &lt;1&gt;" in kids and "CNN" not in kids and "http://tv.lan:8780/kids.m3u" in kids
+    everything = (out / "playlists" / "curated.html").read_text()
+    assert 'data-profile="' not in everything and "CNN" in everything and ">8<" in everything
+    assert (out / "playlists" / "old.html").exists() and (out / "details.html").exists()
+    pfile.write_text('[kids]\ngroups = ["Kids"]\n')
+    profiles.rebuild(out, tmp_path / "state", pfile, None, lambda m: None)
+    status.update(out, tmp_path / "state", "http://tv.lan:8780")
+    assert not (out / "playlists" / "old.html").exists()

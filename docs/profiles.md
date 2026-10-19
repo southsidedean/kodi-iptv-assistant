@@ -2,46 +2,69 @@
 
 kia's main playlist, `curated.m3u`, has every working channel. That's often more than one person or one TV needs: the kids' tablet doesn't need the news, and the living room TV doesn't need shopping channels. Profiles let you make smaller playlists from the full one, each with its own address.
 
-Every profile uses the same program guide and the same channel numbers as the full list, so a channel is number 45 everywhere.
+Each profile also gets its own program guide with only its channels, so a slow device has much less to load. A channel keeps the number it has in the full list, so it's number 45 everywhere, unless you choose to number a profile from 1.
 
-## Making your first profiles
+You can make profiles on kia's status page or by editing a file. Both change the same file, `profiles/profiles.toml`, so you can switch between them.
 
-1. In the kia folder, copy the example file:
+## On the status page
 
-   ```sh
-   cp profiles.example.toml profiles.local.toml
-   ```
-
-   Updating kia never changes your copy.
-
-2. Open `profiles.local.toml` in a text editor. It starts with three profiles you can keep, change, or delete:
-
-   ```toml
-   [kids]
-   title = "Kids"
-   groups = ["Kids", "Animation", "Family"]
-   radio = false
-
-   [living-room]
-   title = "Living room"
-   exclude_groups = ["Shop", "Religious"]
-
-   [radio]
-   title = "Radio only"
-   tv = false
-   ```
-
-   The name in square brackets becomes the playlist's address, so `[kids]` is `http://<your address>:8780/kids.m3u`. Use lowercase letters, numbers, and dashes.
-
-3. Wait for the next nightly run, or make the playlists now:
+1. Pick a password for editing and put it in kia's `.env` file:
 
    ```sh
-   docker compose exec kia python3 -m kia check
+   KIA_ADMIN_PASSWORD=pick-something-long
    ```
 
-4. Open the status page at `http://<your address>:8780/`. The Playlists card lists each profile with its channel count and its address, with a Copy button.
+   Then restart kia with `docker compose up -d`. Anyone on your network can open the status page, so choose a password the people in the house won't guess. Without one, the page shows your playlists but can't change them.
 
-5. On the device, use the profile's address as the **M3U playlist URL** in IPTV Simple Client (or your player), instead of `curated.m3u`.
+2. Open the status page at `http://<your address>:8780/` and choose **Add a playlist**.
+
+3. Fill in the form:
+   - **Short name**: becomes the playlist's address, so `kids` is `http://<your address>:8780/kids.m3u`.
+   - **Start with**: every channel, or only the categories, source playlists, and channel names you tick.
+   - **Leave out**: categories or names you don't want, and TV or radio as a whole.
+   - **Channel numbers**: tick it to number this playlist 1, 2, 3 instead of using the full list's numbers.
+   - **Always include**: search for specific channels to add whatever the other settings say.
+
+   As you change things, the form shows how many channels the playlist would have.
+
+4. Enter the password and choose **Save**. kia makes the playlist straight away and opens its page, which lists its channels and its address with a Copy button.
+
+5. On the device, use that address as the **M3U playlist URL** in IPTV Simple Client (or your player), instead of `curated.m3u`. Kodi finds the playlist's own guide by itself. If another player asks for a guide address, it's on the same page.
+
+To change or delete a playlist later, open it from the status page and choose **Edit this playlist**. The browser tab remembers the password until you close it.
+
+## In the file
+
+If you'd rather use a text editor, copy the example into place:
+
+```sh
+cp profiles/example.toml profiles/profiles.toml
+```
+
+git ignores your copy, so updating kia never changes it. It starts with three profiles you can keep, change, or delete:
+
+```toml
+[kids]
+title = "Kids"
+groups = ["Kids", "Animation", "Family"]
+radio = false
+
+[living-room]
+title = "Living room"
+exclude_groups = ["Shop", "Religious"]
+
+[radio]
+title = "Radio only"
+tv = false
+```
+
+The name in square brackets becomes the playlist's address. Use lowercase letters, numbers, and dashes. Changes in the file show up after the next nightly run, or right away with:
+
+```sh
+docker compose exec kia python3 -m kia check
+```
+
+When the status page saves, it rewrites the file and drops any comments you added, so keep notes somewhere else.
 
 ## What a profile can say
 
@@ -55,10 +78,11 @@ Every profile uses the same program guide and the same channel numbers as the fu
 | `exclude_groups` | Leave out these categories | `["Shop"]` |
 | `exclude_names` | Leave out channels whose names contain these words | `["kids"]` |
 | `tv`, `radio` | Include TV channels, radio stations (both are included unless you say `false`) | `radio = false` |
+| `renumber` | Number this playlist's channels from 1 | `renumber = true` |
 
 If a profile names something to include (`groups`, `sources`, or `names`), it starts with just those channels; otherwise it starts with all of them. Anything in `exclude_groups` or `exclude_names` is then taken out. `channels` adds specific channels at the end, even ones the other rules left out.
 
-Categories are the ones in the full playlist, such as "News", "Kids", or "Sports"; the stream check report (`report.html`) shows the category of every channel. Upper and lower case don't matter. `names` and `exclude_names` are patterns, so `"news"` also matches "Fox News Now" and "NewsNation"; to match a whole name exactly, write `"^CNN$"`.
+Categories are the ones in the full playlist, such as "News", "Kids", or "Sports". Each playlist's page on the status page shows every channel's category and number. Upper and lower case don't matter. `names` and `exclude_names` are patterns, so `"news"` also matches "Fox News Now" and "NewsNation"; to match a whole name exactly, write `"^CNN$"`.
 
 ## More examples
 
@@ -78,15 +102,18 @@ sources = ["samsung-us"]
 exclude_groups = ["Shop"]
 ```
 
-A short list of favorites, picked by ID (the IDs are in `report.html`):
+A short list of favorites, picked by ID and numbered 1 to 2:
 
 ```toml
 [favorites]
 channels = ["CNN.us@SD", "PBSKids.us@SD"]
+renumber = true
 ```
 
 ## If something goes wrong
 
-If the profiles file has a mistake, such as a missing bracket or a misspelled setting, kia keeps the profile playlists it made last time and shows the problem on the status page. The full playlist updates as usual. Fix the file, and the next run picks it up.
+If the status page has no **Add a playlist** button, editing is off. Set `KIA_ADMIN_PASSWORD` in `.env` and restart kia.
 
-A profile you delete from the file is removed from the server at the next run.
+If the profiles file has a mistake, such as a missing bracket or a misspelled setting, kia keeps the profile playlists it made last time and shows the problem on the status page. The full playlist updates as usual, and the page won't save changes over a file it can't read. Fix the file, and the next run picks it up. Each time the status page saves, it keeps the previous file as `profiles/profiles.toml.bak`.
+
+When you delete a profile, kia removes its playlist, guide, and page from the server.

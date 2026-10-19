@@ -48,7 +48,9 @@ With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downlo
 
 ## The status page
 
-`http://<your address>:8780/` shows how kia is doing: whether the last refresh worked and when the next one is, how many channels have a guide, how each playlist's streams are doing, and the last run's alerts. It also links to the playlist, the reports, and these docs, with a Copy button for the playlist address. kia updates it when a run starts and when it ends.
+`http://<your address>:8780/` shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button, and links to these docs. kia updates the page when a run starts and ends, and when you save a profile.
+
+Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories. A profile's page also has **Edit this playlist**. The **Details** page has the guide coverage, how each source playlist's streams are doing, and the full reports.
 
 ![kia's status page showing everything working, the channel counts, bars for guide coverage and each playlist, and the playlist address with a Copy button](../images/kia-status-screenshot.png)
 
@@ -62,7 +64,7 @@ The banner at the top shows the state of the last refresh:
 | The last refresh failed | The playlist or guide may not have been updated. See [the refresh failed](troubleshooting.md#the-status-page-says-the-refresh-failed). |
 | Waiting for the first refresh | kia's first run hasn't finished. It can take up to an hour. |
 
-Below it, two bars show how many TV channels have a full guide, a partial one, or only their name, and how many streams in each playlist work.
+On the Details page, bars show how many TV channels have a full guide, a partial one, or only their name, and how many streams in each source playlist work.
 
 ### `status.json`
 
@@ -106,7 +108,7 @@ Alerts also cover a failed nightly run, sharp drops in working channels or guide
 
 | Folder | Contents |
 |---|---|
-| `output/` | What gets served: the playlist, guide, reports (each as `.html` for browsers and `.md`), and the status page (`index.html`, with the same information in `status.json` for scripts) |
+| `output/` | What gets served: the playlist, guide, reports (each as `.html` for browsers and `.md`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), and the status pages (`index.html`, `details.html`, one per playlist in `playlists/`, and `status.json` for scripts) |
 | `state/` | Stream history and the alert log |
 | `work/` | Intermediate files: per-site channel lists, downloaded guides, logs |
 | `vendor/epg/` | kia's copy of iptv-org/epg, updated nightly |
