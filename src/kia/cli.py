@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts
+from kia import alerts, auth, tls
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
@@ -733,7 +733,7 @@ def wait_until(when: datetime, poll: float = 60.0) -> None:
 
 
 def api_config(cfg: Config):
-    """The profile editor's settings (kia.api); editing needs KIA_ADMIN_PASSWORD."""
+    """The profile editor's settings (kia.api)."""
     from kia import api
 
     return api.ApiConfig(
@@ -741,13 +741,85 @@ def api_config(cfg: Config):
         state_dir=cfg.state_dir,
         profiles_file=cfg.profiles_file,
         epg_url=cfg.epg_url,
-        password=os.environ.get("KIA_ADMIN_PASSWORD") or None,
+        auth=auth.from_env(cfg.state_dir),
+        https_port=cfg.https_port,
         on_change=lambda: update_status(cfg),
     )
 
 
+def secure_setup(cfg: Config) -> dict | None:
+    """Make the admin password and the certificate if needed, and note the certificate and
+    the secure page's address in state/secure.json for the status page."""
+    auth.from_env(cfg.state_dir).ensure(log)
+    names = tls.names(cfg.public_url, cfg.tls_names)
+    info = tls.ensure(cfg.tls_dir, names, log)
+    secure = {"url": f"https://{names[0]}:{cfg.https_port}/" if info else None, "tls": info}
+    write_atomic(cfg.state_dir / "secure.json", json.dumps(secure, indent=1))
+    return info
+
+
+def serve_secure(cfg: Config, bind: str, port: int | None):
+    """kia's own HTTPS server (installs without Docker), when there's a certificate."""
+    if not port:
+        return None
+    if not secure_setup(cfg):
+        log("Not serving HTTPS: there's no usable certificate (see above)")
+        return None
+    server = serve.serve_in_background(cfg.output_dir, bind, port, api_config(cfg), tls_dir=cfg.tls_dir)
+    log(f"Serving the secure status page at https://{bind}:{port}/")
+    return server
+
+
+def cmd_tls(args: argparse.Namespace) -> int:
+    cfg = load_config(args)
+    names = tls.names(cfg.public_url, cfg.tls_names)
+    try:
+        if args.self_signed:
+            for name in (tls.CERT, tls.KEY):
+                if (cfg.tls_dir / name).exists():
+                    shutil.copy2(cfg.tls_dir / name, cfg.tls_dir / (name + ".bak"))
+            tls.make_self_signed(cfg.tls_dir, names)
+            log(f"Made a self-signed certificate for {', '.join(names)} (the previous files are *.bak)")
+        info = tls.info(cfg.tls_dir)
+    except tls.TlsError as exc:
+        log(f"error: {exc}")
+        return 1
+    secure_setup(cfg)
+    update_status(cfg)
+    if not info:
+        log(f"No certificate in {cfg.tls_dir}. kia makes one when it starts, or run: kia tls --self-signed")
+        return 1
+    print(f"Certificate: {cfg.tls_dir / tls.CERT}")
+    print(f"  Made by:   {'kia (self-signed; renewed automatically)' if info['generated'] else info['issuer']}")
+    print(f"  Covers:    {', '.join(info['names']) or info['subject']}")
+    print(f"  Expires:   {info['expires']}")
+    print(f"  Key:       {'matches' if info['key_matches'] else 'MISSING OR DOES NOT MATCH ' + str(cfg.tls_dir / tls.KEY)}")
+    print(f"  Open:      https://{names[0]}:{cfg.https_port}/")
+    return 0 if info["key_matches"] else 1
+
+
+def cmd_password(args: argparse.Namespace) -> int:
+    cfg = load_config(args)
+    a = auth.from_env(cfg.state_dir)
+    if a.source == "off":
+        log("Editing is off (KIA_EDITING=false), so there's no password.")
+        return 1
+    if a.source == "env":
+        log("The password is set by KIA_ADMIN_PASSWORD in .env; change it there and restart kia.")
+        return 1
+    if not args.reset:
+        shown = "is in " + str(a.shown) if a.shown.exists() else "was changed on the status page"
+        log(f"The password {shown}. To replace it: kia password --reset")
+        return 0
+    a.reset(log)
+    update_status(cfg)
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     cfg = load_config(args)
+    secure_setup(cfg)
+    serve_secure(cfg, args.bind, args.https_port)
     server = serve.make_server(cfg.output_dir, args.bind, args.port, api_config(cfg))
     log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/ (Ctrl-C to stop)")
     try:
@@ -761,12 +833,15 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     """Run the pipeline daily at --at (local time; set TZ), forever."""
     next_run(datetime.now(), args.at)  # validate --at before sleeping
     cfg = load_config(args)
+    secure_setup(cfg)
     if args.serve:
+        serve_secure(cfg, args.bind, args.https_port)
         serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg))
         log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/")
     elif args.api_port:
-        # With Docker, nginx serves the files and forwards /api/ here (not published).
-        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg))
+        # With Docker, nginx serves the files (HTTP and HTTPS) and forwards /api/ here; this
+        # port isn't published, and nginx tells it which requests came over HTTPS.
+        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg), trust_proxy=True)
         log(f"Profile editor API on port {args.api_port}")
     run_now = (
         args.run_now
@@ -790,6 +865,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             wait_until(nxt)
         run_now = False
         try:
+            secure_setup(cfg)  # renews kia's own certificate before it expires
             run_and_report(args.config, update_epg=True)
         except Exception as exc:  # e.g. the config became invalid; keep the daemon alive
             log(f"Run could not start: {type(exc).__name__}: {exc}")
@@ -842,6 +918,8 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
         help="address to listen on (default: KIA_BIND or 127.0.0.1; 0.0.0.0 for your whole network)",
     )
     p.add_argument("--port", type=int, default=int(os.environ.get("KIA_PORT") or 8780), help="default: KIA_PORT or 8780")
+    p.add_argument("--https-port", type=int, default=int(os.environ.get("KIA_HTTPS_PORT") or 8743),
+                   help="the secure status page's port (default: KIA_HTTPS_PORT or 8743; 0 = none)")  # fmt: skip
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -889,6 +967,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--update", action="store_true", help="git pull the epg checkout first")
     p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("tls", help="show the secure status page's certificate, or make a new self-signed one")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("--self-signed", action="store_true", help="replace the certificate with a new self-signed one")
+    p.set_defaults(func=cmd_tls)
+
+    p = sub.add_parser("password", help="make a new password for editing on the status page")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("--reset", action="store_true", help="replace the password with a new one and print it")
+    p.set_defaults(func=cmd_password)
 
     p = sub.add_parser("test-alert", help="send a test notification (ntfy and/or your alert command)")
     p.add_argument("-c", "--config", default="kia.toml")

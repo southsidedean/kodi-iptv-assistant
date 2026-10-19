@@ -43,8 +43,13 @@ services:
       KIA_RADIO_PLACEHOLDERS: ${KIA_RADIO_PLACEHOLDERS:-}
       KIA_EPG_GIT_URL: ${KIA_EPG_GIT_URL:-}
       KIA_EPG_GIT_REF: ${KIA_EPG_GIT_REF:-}
-      # Turns on editing profiles from the status page. nginx forwards /api/ to this port.
+      # Editing on the secure status page: the password (kia makes one if this is empty),
+      # editing on or off, the secure port, and the names its certificate covers.
       KIA_ADMIN_PASSWORD: ${KIA_ADMIN_PASSWORD:-}
+      KIA_EDITING: ${KIA_EDITING:-}
+      KIA_HTTPS_PORT: ${KIA_HTTPS_PORT:-8743}
+      KIA_TLS_NAMES: ${KIA_TLS_NAMES:-}
+      # nginx forwards /api/ to this port (not published).
       KIA_API_PORT: "8781"
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}
@@ -59,6 +64,8 @@ services:
       - ./vendor:/data/vendor
       # Profiles, so the status page can save them.
       - ./profiles:/data/profiles
+      # The secure status page's certificate (kia makes and renews its own).
+      - ./tls:/data/tls
 
   web:
     image: ${KIA_NGINX_IMAGE:-nginx:alpine}
@@ -81,9 +88,15 @@ services:
     ports:
       # KIA_BIND=127.0.0.1 keeps the server to this machine (e.g. Kodi on the same laptop).
       - "${KIA_BIND:-0.0.0.0}:${KIA_PORT:-8780}:80"
+      # The secure status page, for making changes.
+      - "${KIA_BIND:-0.0.0.0}:${KIA_HTTPS_PORT:-8743}:443"
     depends_on:
       - kia
     volumes:
       # Only the results; nothing else in the project folder is visible to the web server.
       - ./output:/srv/output:ro
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/kia-common.inc:/etc/nginx/conf.d/kia-common.inc:ro
+      - ./deploy/kia-api.inc:/etc/nginx/conf.d/kia-api.inc:ro
+      - ./deploy/nginx-tls.sh:/docker-entrypoint.d/90-kia-tls.sh:ro
+      - ./tls:/etc/kia-tls:ro

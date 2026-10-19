@@ -68,7 +68,7 @@ On the Details page, bars show how many TV channels have a full guide, a partial
 
 ### `status.json`
 
-The same information, for scripts and monitoring tools such as Uptime Kuma or Home Assistant, is at `http://<your address>:8780/status.json`:
+The same information, for scripts and monitoring tools such as Uptime Kuma or Home Assistant, is at `http://<your address>:8780/status.json`. The [API guide](api.md) covers everything else scripts can read and change.
 
 | Field | Contents |
 |---|---|
@@ -81,8 +81,9 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `sources` | For each playlist: its `name`, and how many of its streams are `ok`, `flaky`, and `dead` |
 | `alerts` | The last run's alerts: `time`, `event` (see [alerts](alerts.md)), and `title` |
 | `playlist_url` | The playlist address for Kodi |
-| `profiles` | Each [profile](profiles.md) playlist: `name`, `title`, `file`, `tv` and `radio` counts, and its `url` |
+| `profiles` | Each [profile](profiles.md) playlist: `name`, `title`, `file`, `tv` and `radio` counts, its `url`, and its own `guide` file |
 | `profiles_error` | The mistake in the profiles file, if it has one |
+| `secure` | The [secure status page](secure-page.md): its `url`, and its certificate (`tls`: `names`, `expires`, `issuer`, whether kia `generated` it, and whether its key matches) |
 | `files` | The files in the output folder |
 | `version` | kia's version |
 

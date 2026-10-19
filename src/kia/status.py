@@ -34,6 +34,8 @@ HELP = [
     (f"{DOCS_URL}/configuration.md", "Settings", "playlists, refresh time, and when changes take effect"),
     (f"{DOCS_URL}/how-it-works.md", "How it works", "what each nightly step does, and the reports"),
     (f"{DOCS_URL}/alerts.md", "Alerts", "what each alert means, and getting them on your phone"),
+    (f"{DOCS_URL}/secure-page.md", "The secure page", "the password, the browser warning, and using your own certificate"),
+    (f"{DOCS_URL}/api.md", "API", "using kia from scripts and other apps"),
 ]
 RESULTS = {
     "running": "Refreshing now",
@@ -93,6 +95,7 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "playlist_url": f"{public_url}/curated.m3u" if public_url else None,
         "profiles": _profiles(output_dir, public_url),
         "profiles_error": _load(output_dir / "profiles.json").get("error"),
+        "secure": _load(state_dir / "secure.json"),
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
 
@@ -231,10 +234,51 @@ def _playlists_card(s: dict) -> str:
             f'<span class="muted">{_counts(pl)}</span></div>{_address(i, pl["url"], pl["file"])}</div>'
         )
     return (
-        '<section class="card" id="playlists" data-add><h2>Playlists</h2>'
+        f'<section class="card" id="playlists" data-add{_secure_attr(s)}><h2>Playlists</h2>'
         "<p>Use one of these as the <strong>M3U playlist URL</strong> in IPTV Simple Client or your player. "
         "Open one to see its channels.</p>"
         f'{_profiles_error(s)}<div class="playlists">{"".join(items)}</div></section>'
+    )
+
+
+def _day(iso: str) -> str:
+    d = datetime.fromisoformat(iso).astimezone()
+    return f"{d:%b} {d.day}, {d.year}"
+
+
+def _secure_attr(s: dict) -> str:
+    """The secure page's address, for the editor's "open the secure page" link."""
+    url = (s.get("secure") or {}).get("url")
+    return f' data-secure-url="{escape(url)}"' if url else ""
+
+
+def _secure_card(s: dict) -> str:
+    secure = s.get("secure") or {}
+    cert = secure.get("tls")
+    if not cert:
+        return (
+            '<section class="card"><h2>Secure status page</h2><p class="bad-note">There\'s no certificate, so the '
+            "secure page isn't working. kia's log says why.</p></section>"
+        )
+    url = secure.get("url") or ""
+    made_by = "kia (self-signed, renewed automatically)" if cert.get("generated") else cert.get("issuer", "")
+    expires = cert.get("expires")
+    notes = []
+    if cert.get("key_matches") is False:
+        notes.append("The key in tls/privkey.pem doesn't match the certificate, so the secure page won't work.")
+    if expires and not cert.get("generated"):
+        left = (datetime.fromisoformat(expires) - datetime.now(datetime.fromisoformat(expires).tzinfo)).days
+        if left < 21:
+            notes.append(f"The certificate expires in {max(left, 0)} days. Replace the files in tls/ with a new one.")
+    rows = "".join(f"<li>{escape(k)}<span>{escape(v)}</span></li>" for k, v in [
+        ("Address", url), ("Certificate made by", made_by), ("Covers", ", ".join(cert.get("names", []))),
+        ("Expires", _day(expires) if expires else "-")])  # fmt: skip
+    return (
+        '<section class="card"><h2>Secure status page</h2>'
+        "<p>Changes are made on the secure page. Your browser warns about kia's own certificate the first time; "
+        f'<a href="{escape(DOCS_URL)}/secure-page.md">the secure page guide</a> explains why and how to use your own.</p>'
+        + "".join(f'<p class="bad-note">{escape(n)}</p>' for n in notes)
+        + f'<ul class="links">{rows}</ul></section>'
     )
 
 
@@ -308,8 +352,15 @@ def render_details(s: dict) -> str:
 
     files = "".join(file_item(name, what) for name, what in FILES if name in s["files"])
     reports = f'<section class="card"><h2>Files and reports</h2><ul class="links">{files}</ul></section>'
-    body = f'<main><h1>Details</h1>{guide}{sources}<div class="pair">{reports}{_help_card()}</div></main>'
-    return page("kia details", body, _footer(s))
+    editing = (
+        f'<section class="card" id="editing"{_secure_attr(s)}><h2>Editing</h2>'
+        '<p class="muted">Loading…</p></section>'
+    )
+    body = (
+        f'<main><h1>Details</h1>{guide}{sources}<div class="pair">{_secure_card(s)}{editing}</div>'
+        f'<div class="pair">{reports}{_help_card()}</div></main>'
+    )
+    return page("kia details", body, _footer(s), editor.PASSWORD_SCRIPT, editor.STYLE)
 
 
 def render_playlist(s: dict, pl: dict, entries: list) -> str:
@@ -332,7 +383,7 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         else "The program guide."
     )
     body = (
-        f'<main><section class="card" id="playlists" data-root="{root}">'
+        f'<main><section class="card" id="playlists" data-root="{root}"{_secure_attr(s)}>'
         f'<div class="playlist"{tag}><h1>{escape(pl["title"])}</h1><p class="muted">{_counts(pl)}</p></div>'
         f"{_profiles_error(s) if pl['name'] else ''}"
         "<h2>Playlist address</h2>"

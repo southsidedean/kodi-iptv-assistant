@@ -5,12 +5,15 @@
 ### Playlists for people and devices
 
 - Profiles make smaller playlists from the full one, each with its own address, such as `http://<your address>:8780/kids.m3u` for the kids' tablet. A profile picks channels by category, playlist, name, or ID, and can leave out categories, names, TV, or radio. See [profiles](docs/profiles.md).
-- Make and change profiles on the status page: set `KIA_ADMIN_PASSWORD` in `.env` to turn editing on. The form shows how many channels a playlist would have as you change it. Profiles live in `profiles/profiles.toml`, which you can also edit by hand (start from `profiles/example.toml`).
+- Make and change profiles on the status page. The form shows how many channels a playlist would have as you change it. Profiles live in `profiles/profiles.toml`, which you can also edit by hand (start from `profiles/example.toml`).
 - Each profile gets its own guide with only its channels. In a test, a 90-channel kids profile's guide was 391 KB instead of 3 MB, which is much less for a slow device to load.
 - `renumber = true` numbers a profile's channels from 1. Otherwise a channel has the same number in every playlist.
 
 ### Status page
 
+- The status page is also on a secure port, `https://<your address>:8743/`, where all changes are made; playlists and guides stay on plain HTTP for the players. kia makes a self-signed certificate and renews it. To use your own, from Tailscale or Let's Encrypt for example, put it in `tls/`. `KIA_TLS_NAMES` sets the names it covers, and `kia tls` shows what's installed. See [the secure status page](docs/secure-page.md).
+- kia makes an admin password on first start (in `state/admin-password.txt`), which you can change on the status page. A password in `.env` (`KIA_ADMIN_PASSWORD`) still wins. `kia password --reset` makes a new one, and `KIA_EDITING=false` turns editing off.
+- The [API guide](docs/api.md) covers reading kia's status and changing profiles from scripts and other apps.
 - The home page is shorter: the status, the channel counts, any alerts, and your playlists with their addresses and Copy buttons.
 - Each playlist has its own page with its addresses and a filterable list of its channels.
 - Guide coverage, streams by playlist, and the reports moved to a Details page.

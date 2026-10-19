@@ -1,11 +1,12 @@
 import json
+import shutil
 import threading
 import urllib.request
 from pathlib import Path
 
 import pytest
 
-from kia import api, profiles, serve
+from kia import api, auth, profiles, serve, tls
 from kia.m3u import Entry, write
 
 
@@ -22,18 +23,19 @@ def cfg(tmp_path: Path, monkeypatch) -> api.ApiConfig:
     (out / "curated.m3u").write_text(write(entries, None))
     profiles.save_sources(state, [(e, {e.source}) for e in entries])
     changes = []
-    c = api.ApiConfig(out, state, tmp_path / "profiles" / "profiles.toml", None, "secret", lambda: changes.append(1))
+    c = api.ApiConfig(out, state, tmp_path / "profiles" / "profiles.toml", None, auth.Auth(state, "secret"), 8743,
+                      lambda: changes.append(1))  # fmt: skip
     c.changes = changes
     return c
 
 
-def call(cfg, method, path, body=None, password=None, origin=None, host="tv.lan:8780"):
+def call(cfg, method, path, body=None, password=None, origin=None, host="tv.lan:8743", secure=True):
     headers = {"Host": host}
     if password:
         headers["X-Kia-Password"] = password
     if origin:
         headers["Origin"] = origin
-    return api.handle(cfg, method, path, headers, json.dumps(body).encode() if body is not None else b"")
+    return api.handle(cfg, method, path, headers, json.dumps(body).encode() if body is not None else b"", secure)
 
 
 def test_read_and_preview(cfg):
@@ -50,16 +52,22 @@ def test_save_and_delete_need_the_password(cfg):
     assert call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]})[0] == 401
     assert call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]}, password="nope")[0] == 401
     assert not cfg.profiles_file.exists()
-    cfg.password = None
+    # Never over plain HTTP, even with the right password.
+    status, data = call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]}, password="secret", secure=False)
+    assert status == 403 and "secure" in data["error"] and not cfg.profiles_file.exists()
+    assert call(cfg, "POST", "/api/password", {"new": "something-new"}, password="secret", secure=False)[0] == 403
+    data = call(cfg, "GET", "/api/profiles", secure=False)[1]
+    assert data["editable"] and not data["secure"] and data["https_port"] == 8743 and data["password"] == "env"
+    cfg.auth.enabled = False
     status, data = call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]}, password="secret")
-    assert status == 403 and "KIA_ADMIN_PASSWORD" in data["error"]
+    assert status == 403 and "KIA_EDITING" in data["error"]
     assert call(cfg, "GET", "/api/profiles")[1]["editable"] is False
 
 
 def test_other_websites_are_refused(cfg):
     assert call(cfg, "GET", "/api/profiles", origin="http://evil.example")[0] == 403
     assert call(cfg, "PUT", "/api/profiles/kids", {}, password="secret", origin="http://evil.example")[0] == 403
-    assert call(cfg, "GET", "/api/profiles", origin="http://tv.lan:8780")[0] == 200
+    assert call(cfg, "GET", "/api/profiles", origin="https://tv.lan:8743")[0] == 200
 
 
 def test_save_writes_the_file_and_playlists(cfg):
@@ -92,18 +100,97 @@ def test_toml_round_trip():
     assert profiles.load_text(profiles.to_toml(ps)) == ps
 
 
-def test_served_over_http(cfg):
-    server = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    base = f"http://127.0.0.1:{server.server_address[1]}"
-    try:
-        with urllib.request.urlopen(f"{base}/api/profiles") as r:
-            assert json.load(r)["total"] == 3
+def test_generated_password_can_be_changed(cfg, tmp_path):
+    a = auth.Auth(tmp_path / "state2")
+    logged = []
+    a.ensure(logged.append)
+    shown = a.shown.read_text().strip()
+    assert a.source == "generated" and shown in logged[0] and a.check(shown) and not a.check("nope")
+    assert len(shown) == 14 and all(c in auth.ALPHABET + "-" for c in shown)
+    assert (a.saved.stat().st_mode & 0o777) == 0o600 and shown not in a.saved.read_text()
+    a.ensure(logged.append)
+    assert len(logged) == 1  # made once
+    cfg.auth = a
+    assert call(cfg, "POST", "/api/password", {"new": "short"}, password=shown)[0] == 400
+    assert call(cfg, "POST", "/api/password", {"new": "tiddlywinks"}, password="wrong")[0] == 401
+    assert call(cfg, "POST", "/api/password", {"new": "tiddlywinks"}, password=shown) == (200, {"password": "set"})
+    assert a.check("tiddlywinks") and not a.check(shown) and not a.shown.exists()
+    assert call(cfg, "PUT", "/api/profiles/kids", {}, password="tiddlywinks")[0] == 200
+    a.reset(logged.append)
+    assert a.source == "generated" and not a.check("tiddlywinks")
+    # A password in .env wins and can't be changed here.
+    env = auth.Auth(tmp_path / "state2", "from-env-file")
+    assert env.check("from-env-file") and not env.check(a.shown.read_text().strip())
+    cfg.auth = env
+    status, data = call(cfg, "POST", "/api/password", {"new": "whatever-123"}, password="from-env-file")
+    assert status == 400 and ".env" in data["error"]
+
+
+@pytest.fixture
+def certs(tmp_path):
+    if not shutil.which("openssl"):
+        pytest.skip("needs openssl")
+    d = tmp_path / "tls"
+    tls.make_self_signed(d, tls.names("http://tv.lan:8780", []))
+    return d
+
+
+def test_certificate(certs, tmp_path):
+    info = tls.info(certs)
+    assert info["generated"] and info["key_matches"] and info["names"] == ["tv.lan", "localhost", "127.0.0.1"]
+    assert tls.names(None, ["kia.home.lan", "192.168.1.20"]) == ["kia.home.lan", "192.168.1.20", "localhost", "127.0.0.1"]
+    assert tls.names("http://[fd00::5]:8780", []) [0] == "fd00::5"
+    logged = []
+    before = (certs / tls.CERT).read_text()
+    assert tls.ensure(certs, tls.names("http://tv.lan:8780", []), logged.append)["generated"] and not logged
+    tls.ensure(certs, tls.names(None, ["kia.home.lan"]), logged.append)  # a new name: a new certificate
+    assert "kia.home.lan" in tls.info(certs)["names"] and len(logged) == 1
+    from datetime import datetime, timedelta, timezone
+    tls.ensure(certs, tls.names(None, ["kia.home.lan"]), logged.append, now=datetime.now(timezone.utc) + timedelta(days=800))
+    assert "expire" in logged[-1]
+    # Someone else's certificate is left alone, even an expired one.
+    (certs / tls.MARK).write_text("someone else\n")
+    current = (certs / tls.CERT).read_text()
+    assert not tls.ensure(certs, ["other.name"], logged.append, now=datetime.now(timezone.utc) + timedelta(days=900))["generated"]
+    assert (certs / tls.CERT).read_text() == current != before
+
+
+def test_served_over_https(cfg, certs):
+    import ssl
+    import urllib.error
+
+    secure = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg, tls_dir=certs)
+    plain = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg)
+    for s in (secure, plain):
+        threading.Thread(target=s.serve_forever, daemon=True).start()
+    context = ssl.create_default_context(cafile=str(certs / tls.CERT))
+    context.check_hostname = False
+    https, http = f"https://127.0.0.1:{secure.server_address[1]}", f"http://127.0.0.1:{plain.server_address[1]}"
+
+    def put(base, **kw):
         req = urllib.request.Request(f"{base}/api/profiles/news", data=b'{"groups":["News"]}', method="PUT",
                                      headers={"X-Kia-Password": "secret", "Content-Type": "application/json"})  # fmt: skip
-        with urllib.request.urlopen(req) as r:
+        return urllib.request.urlopen(req, **kw)
+
+    try:
+        with urllib.request.urlopen(f"{https}/api/profiles", context=context) as r:
+            assert json.load(r)["secure"] is True
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            put(http)
+        assert refused.value.code == 403
+        with put(https, context=context) as r:
             assert json.load(r)["profiles"][0]["tv"] == 1
-        with urllib.request.urlopen(f"{base}/news.m3u") as r:
+        with urllib.request.urlopen(f"{http}/news.m3u") as r:  # playlists stay on plain HTTP
             assert b"CNN" in r.read()
+        # Behind nginx: only its X-Kia-Secure header makes a request secure.
+        proxied = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg, trust_proxy=True)
+        threading.Thread(target=proxied.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{proxied.server_address[1]}"
+        with urllib.request.urlopen(urllib.request.Request(f"{base}/api/profiles", headers={"X-Kia-Secure": "1"})) as r:
+            assert json.load(r)["secure"] is True
+        with urllib.request.urlopen(f"{base}/api/profiles") as r:
+            assert json.load(r)["secure"] is False
+        proxied.shutdown()
     finally:
-        server.shutdown()
+        secure.shutdown()
+        plain.shutdown()

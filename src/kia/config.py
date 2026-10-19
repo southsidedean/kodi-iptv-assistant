@@ -84,6 +84,12 @@ class Config:
     channel_numbers: bool = True
     profiles_file: Path | None = None
     public_url: str | None = None
+    # The secure status page (kia.tls): its certificate's folder, the port people open
+    # (with Docker, the one published on this machine), and the names the certificate
+    # covers (empty: the host in public_url).
+    tls_dir: Path = Path("tls")
+    https_port: int = 8743
+    tls_names: list[str] = field(default_factory=list)
     dns_resolvers: tuple[str, ...] = ("8.8.8.8", "1.1.1.1")
     alerts: AlertConfig = field(default_factory=AlertConfig)
     history_days: int = 30
@@ -185,6 +191,9 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         channel_numbers=output.get("channel_numbers", True),
         profiles_file=base / (os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles/profiles.toml")),
         public_url=_public_url(output),
+        tls_dir=base / output.get("tls_dir", "tls"),
+        https_port=_env_int("KIA_HTTPS_PORT", output.get("https_port", 8743)),
+        tls_names=_merge_env_list("KIA_TLS_NAMES", list(output.get("tls_names", []))),
         alerts=_load_alerts(data.get("alerts", {})),
         history_days=check.get("history_days", 30),
         upstream_url=_upstream_url(data.get("upstream", {})),

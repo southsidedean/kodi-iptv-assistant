@@ -22,7 +22,10 @@ When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" 
 | `PUID`, `PGID` | `1000` | The user and group that own the files kia writes. Use the numbers `id -u` and `id -g` print, so you can open and delete those files yourself. |
 | `KIA_SOURCES_FILE` | `sources.txt` | Use your own list instead, e.g. `sources.local.txt` (copy `sources.txt` to start). git ignores it, so updates never conflict with your choices. |
 | `KIA_PROFILES_FILE` | `profiles/profiles.toml` | Your playlists for people and devices; see [profiles](profiles.md). With Docker it must be in the `profiles` folder, the one kia can write. |
-| `KIA_ADMIN_PASSWORD` | | A password for making and changing those playlists on the status page. Empty means the page only shows them. |
+| `KIA_HTTPS_PORT` | `8743` | The secure status page, where you make changes. Playlists and guides stay on `KIA_PORT`. See [the secure status page](secure-page.md). |
+| `KIA_TLS_NAMES` | the host in `KIA_PUBLIC_URL` | Names and addresses the certificate covers, comma-separated, e.g. `kia.home.lan,192.168.1.20`. The status page links to the first. |
+| `KIA_ADMIN_PASSWORD` | made by kia | The password for making changes on the status page. When it's empty, kia makes one and saves it in `state/admin-password.txt`, and you can change it on the status page. |
+| `KIA_EDITING` | true | `false` turns off changes from the status page. |
 | `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. |
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |
