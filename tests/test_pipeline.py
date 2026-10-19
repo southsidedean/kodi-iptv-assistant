@@ -36,3 +36,17 @@ def test_run_pipeline(monkeypatch, codes, expected, steps_run):
     assert len(ran) == steps_run
     if steps_run >= 2:
         assert ran[1] == ["map", "-c", "kia.toml", "--update"]
+
+
+def test_next_run_keeps_wall_clock_time_across_dst(monkeypatch):
+    import time
+
+    monkeypatch.setenv("TZ", "America/Chicago")
+    time.tzset()
+    try:
+        # The evening before US clocks go back (Nov 1, 2026): 04:00 that morning is CST.
+        nxt = cli.next_run_local("04:00", datetime(2026, 10, 31, 23, 0))
+        assert (nxt.hour, nxt.utcoffset().total_seconds() / 3600) == (4, -6)
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()

@@ -96,7 +96,7 @@ def _parse_extinf(line: str) -> tuple[str, dict[str, str], str]:
 def parse(text: str, source: str = "") -> list[Entry]:
     entries: list[Entry] = []
     pending: Entry | None = None
-    for raw in text.splitlines():
+    for raw in text.removeprefix("\ufeff").splitlines():
         line = raw.strip()
         if not line or line.startswith("#EXTM3U"):
             continue

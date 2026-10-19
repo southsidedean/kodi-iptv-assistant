@@ -231,13 +231,14 @@ def cmd_check(args: argparse.Namespace) -> int:
     out = cfg.epg.work_dir / "check-test" if partial else cfg.output_dir
     out.mkdir(parents=True, exist_ok=True)
     write_atomic(out / "curated.m3u", m3u.write([c.entry for c in chosen], cfg.epg_url))
-    (out / "report.json").write_text(
+    write_atomic(
+        out / "report.json",
         json.dumps(
             {"generated": generated, "streams": [c.to_dict() for c in checked]},
             indent=1,
-        )
+        ),
     )
-    (out / "report.md").write_text(render_markdown(checked, chosen, generated, cfg.dns_resolvers))
+    write_atomic(out / "report.md", render_markdown(checked, chosen, generated, cfg.dns_resolvers))
 
     if not partial:
         history.prune(cfg.history_days)
@@ -300,14 +301,15 @@ def cmd_map(args: argparse.Namespace) -> int:
 
     candidates = epgmap.find_candidates([e.tvg_id for e in entries], site_channels, epg, broken)
     per_site = epgmap.write_channel_files(candidates, epg.work_dir / "channels")
-    (epg.work_dir / "mapping.json").write_text(
-        json.dumps({tid: [c.channel.site for c in cands] for tid, cands in candidates.items()}, indent=1)
+    write_atomic(
+        epg.work_dir / "mapping.json",
+        json.dumps({tid: [c.channel.site for c in cands] for tid, cands in candidates.items()}, indent=1),
     )
     report = epgmap.render_report(
         [(e.tvg_id, xmltv.display_name(e)) for e in entries], candidates, per_site, broken | set(epg.exclude_sites)
     )
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
-    (cfg.output_dir / "mapping-report.md").write_text(report)
+    write_atomic(cfg.output_dir / "mapping-report.md", report)
     log(
         f"{len(candidates)} of {len(entries)} channels have guide candidates "
         f"({sum(per_site.values())} site channels across {len(per_site)} sites) "
@@ -418,7 +420,7 @@ def build_guide(
     xmltv.write_guide(
         out, entries, choices, site_files, epg.placeholders, epg.days, now, epg.placeholder_hours, epg.radio_placeholders
     )
-    (cfg.output_dir / "guide-report.md").write_text(xmltv.render_report(entries, choices, now_iso()))
+    write_atomic(cfg.output_dir / "guide-report.md", xmltv.render_report(entries, choices, now_iso()))
     with_data = sum(1 for c in choices.values() if c.site)
     log(
         f"{with_data} of {len(entries)} channels have guide data "
@@ -535,6 +537,15 @@ def next_run(now: datetime, at: str) -> datetime:
     return nxt if nxt > now else nxt + timedelta(days=1)
 
 
+def next_run_local(at: str, now: datetime | None = None) -> datetime:
+    """The next --at time in local time, with the UTC offset in force on that day.
+
+    Working it out from an aware "now" would keep today's offset, so the run after a
+    daylight-saving change would happen an hour early or late.
+    """
+    return next_run(now or datetime.now(), at).astimezone()
+
+
 def wait_until(when: datetime, poll: float = 60.0) -> None:
     """Sleep until a wall-clock time. Polling (rather than one long sleep) means a laptop
     that was asleep or suspended at the scheduled time catches up within a minute of waking."""
@@ -567,7 +578,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     )
     while True:
         if not run_now:
-            nxt = next_run(datetime.now().astimezone(), args.at)
+            nxt = next_run_local(args.at)
             log(f"Next run at {nxt:%Y-%m-%d %H:%M %Z}")
             wait_until(nxt)
         run_now = False

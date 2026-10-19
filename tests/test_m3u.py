@@ -58,3 +58,11 @@ def test_write_epg_header():
 def test_bare_url_lines():
     entries = m3u.parse("#EXTM3U\nhttp://a.example/x.m3u8\n")
     assert entries[0].url == "http://a.example/x.m3u8"
+
+
+def test_byte_order_mark_is_ignored():
+    from kia.config import parse_sources
+
+    (entry,) = m3u.parse("\ufeff#EXTM3U\n#EXTINF:-1,A\nhttp://a/1\n")
+    assert entry.name == "A"
+    assert [s.url for s in parse_sources("\ufeffhttps://x/us.m3u\n")] == ["https://x/us.m3u"]

@@ -91,7 +91,8 @@ def parse_sources(text: str) -> list[Source]:
     """
     sources: list[Source] = []
     taken: set[str] = set()
-    for raw in text.splitlines():
+    # Files saved by Windows Notepad can start with a byte-order mark.
+    for raw in text.removeprefix("\ufeff").splitlines():
         line = re.sub(r"(^|\s)#.*", "", raw).strip()
         if not line:
             continue

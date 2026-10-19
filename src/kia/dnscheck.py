@@ -35,10 +35,21 @@ def hosts_in_log(text: str) -> set[str]:
     return set(_ENOTFOUND_HOST_RE.findall(text))
 
 
+def encode_name(host: str) -> bytes:
+    """A hostname in DNS wire format. International labels become xn-- (punycode) labels;
+    raises ValueError for names no resolver could look up."""
+    name = b""
+    for label in host.rstrip(".").split("."):
+        raw = label.encode("idna")  # also checks the label isn't empty or too long
+        if not 0 < len(raw) <= 63:
+            raise ValueError(f"bad DNS label {label!r}")
+        name += bytes([len(raw)]) + raw
+    return name + b"\0"
+
+
 def build_query(host: str, qtype: int, qid: int) -> bytes:
     header = struct.pack(">HHHHHH", qid, 0x0100, 1, 0, 0, 0)  # recursion desired, one question
-    name = b"".join(bytes([len(p)]) + p.encode("idna") for p in host.rstrip(".").split(".")) + b"\0"
-    return header + name + struct.pack(">HH", qtype, 1)
+    return header + encode_name(host) + struct.pack(">HH", qtype, 1)
 
 
 def _skip_name(data: bytes, pos: int) -> int:
@@ -85,7 +96,7 @@ def query(host: str, resolver: str, qtype: int = A, timeout: float = 3.0) -> tup
 @dataclass
 class PublicLookup:
     host: str
-    verdict: str  # "resolves" | "broken-ipv6" | "nxdomain" | "no-records" | "unreachable"
+    verdict: str  # "resolves" | "broken-ipv6" | "nxdomain" | "no-records" | "invalid" | "unreachable"
     addresses: list[str]
 
     @property
@@ -101,6 +112,8 @@ class PublicLookup:
             return f"{self.host} does not exist on public DNS either"
         if self.verdict == "no-records":
             return f"{self.host} has no address records on public DNS either"
+        if self.verdict == "invalid":
+            return f"{self.host} is not a valid hostname"
         return f"{self.host}: public DNS servers unreachable, couldn't double-check"
 
 
@@ -109,6 +122,12 @@ _QUERY_ERRORS = (OSError, ValueError, struct.error, IndexError)
 
 def check_public(host: str, resolvers: tuple[str, ...] = PUBLIC_RESOLVERS) -> PublicLookup:
     """Look host up on public resolvers (A, then AAAA), trying each resolver until one answers."""
+    try:
+        encode_name(host)
+    except ValueError:  # UnicodeError is a ValueError
+        # Not a name any resolver can look up (an empty or overlong label, a bad
+        # international name), so no DNS server is to blame.
+        return PublicLookup(host, "invalid", [])
     for resolver in resolvers:
         try:
             rcode, addrs = query(host, resolver, A)

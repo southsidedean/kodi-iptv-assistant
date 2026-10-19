@@ -70,3 +70,9 @@ def test_broken_ipv6_upstream_is_not_blamed_on_local_dns(monkeypatch):
 def test_summaries_for_every_verdict():
     for verdict, addrs in [("resolves", ["1.2.3.4"]), ("broken-ipv6", ["1.2.3.4"]), ("nxdomain", []), ("no-records", []), ("unreachable", [])]:
         assert "h.example" in dnscheck.PublicLookup("h.example", verdict, addrs).summary
+
+
+def test_international_and_invalid_names():
+    assert dnscheck.encode_name("münchen.de") == b"\x0exn--mnchen-3ya\x02de\x00"
+    for bad in ("a..b", "x" * 64 + ".com"):
+        assert dnscheck.check_public(bad).verdict == "invalid"  # no query sent, nobody blamed
