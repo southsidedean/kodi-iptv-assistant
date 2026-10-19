@@ -74,8 +74,8 @@ footer { color: var(--muted); font-size: var(--step--1); margin-top: var(--space
 
 /* Brand mark at the top of every page */
 .brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none;
-  font-weight: 700; font-size: var(--step-3); line-height: 1; letter-spacing: -.01em; margin-bottom: var(--space-4); min-height: 44px; }
-.brand svg { width: 3.25rem; height: 3.25rem; }
+  font-weight: 700; font-size: 2.6rem; line-height: 1; letter-spacing: -.01em; margin-bottom: var(--space-4); min-height: 44px; }
+.brand svg { width: 4.25rem; height: 4.25rem; }
 
 /* Tables (reports) */
 .wide { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -130,6 +130,8 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
 /* Phones */
 @media (max-width: 34rem) {
   :root { --step-2: 1.3rem; --step-3: 1.7rem; }
+  .brand { font-size: 2.1rem; }
+  .brand svg { width: 3.5rem; height: 3.5rem; }
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .tiles .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .tile, .card { padding: var(--space-3); }
