@@ -24,6 +24,7 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 - The guide is still built when no channel matches a guide site, when GitHub can't be reached, when installing the downloader fails, or when one site's guide file is damaged.
 - A mistyped `KIA_NTFY_URL` is logged instead of crashing the alert, and the run.
 - A single failed name lookup during a guide download no longer raises a DNS alert; names are tried again first.
+- A site whose own DNS servers send broken IPv6 answers is no longer reported as a problem with your network's DNS. kia's public double-check now looks up IPv6 as well as IPv4.
 - The second try for slow streams keeps the limit of two tests per server.
 - Test runs (`kia check` with `--limit`, `-s`, or `-u`) write to `work/check-test/` and leave the live playlist alone.
 

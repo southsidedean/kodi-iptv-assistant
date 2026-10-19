@@ -34,7 +34,7 @@ With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downlo
 
 ## DNS checks and alerts
 
-When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) as well. If they can't find it either, the stream or site is gone, and kia just reports it. If they can, your network's DNS is the problem (an ad-blocker or the router, for example), and since that would affect Kodi too, kia raises an alert. Names are tried twice on your network first, so a single slow lookup doesn't raise one.
+When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) as well. If they can't find it either, the stream or site is gone, and kia just reports it. If they can, your network's DNS is the problem (an ad-blocker or the router, for example), and since that would affect Kodi too, kia raises an alert. Names are tried twice on your network first, so a single slow lookup doesn't raise one. Some sites' own DNS servers send broken IPv6 answers, which make the lookup fail everywhere; kia recognizes that and reports it as the site's problem, not yours.
 
 Alerts also cover a failed nightly run, sharp drops in working channels or guide coverage, and a guide site that keeps failing. They can go to your phone through ntfy or to any command you choose: see [alerts](alerts.md).
 

@@ -52,6 +52,21 @@ def test_check_public_falls_back_and_classifies(monkeypatch):
     assert calls == [("8.8.8.8", 1), ("1.1.1.1", 1), ("1.1.1.1", 28)]
 
 
+def test_broken_ipv6_upstream_is_not_blamed_on_local_dns(monkeypatch):
+    # Like api.prod.sngtv.magentatv.de: IPv4 works, the site's nameserver sends a malformed
+    # IPv6 answer that Google rejects (SERVFAIL) and Cloudflare tolerates.
+    def fake_query(host, resolver, qtype=dnscheck.A, timeout=3.0):
+        if qtype == dnscheck.A:
+            return 0, ["80.157.246.218"]
+        return (dnscheck.SERVFAIL, []) if resolver == "8.8.8.8" else (0, [])
+
+    monkeypatch.setattr(dnscheck, "query", fake_query)
+    assert dnscheck.check_public("broken.example").verdict == "broken-ipv6"
+
+    monkeypatch.setattr(dnscheck, "query", lambda host, resolver, qtype=1, timeout=3.0: (0, ["1.2.3.4"] if qtype == 1 else []))
+    assert dnscheck.check_public("fine.example").verdict == "resolves"
+
+
 def test_summaries_for_every_verdict():
-    for verdict, addrs in [("resolves", ["1.2.3.4"]), ("nxdomain", []), ("no-records", []), ("unreachable", [])]:
+    for verdict, addrs in [("resolves", ["1.2.3.4"]), ("broken-ipv6", ["1.2.3.4"]), ("nxdomain", []), ("no-records", []), ("unreachable", [])]:
         assert "h.example" in dnscheck.PublicLookup("h.example", verdict, addrs).summary

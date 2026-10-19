@@ -163,6 +163,8 @@ def double_check_dns(
         lookup = lookups.get(host)
         if lookup and lookup.verdict == "resolves":
             results[url].error = "LOCAL DNS FAILURE: hostname resolves on public DNS"
+        elif lookup and lookup.verdict == "broken-ipv6":
+            results[url].error = "the site's own DNS is broken (bad IPv6 answers)"
         elif lookup and lookup.verdict != "unreachable":
             results[url].error = "hostname gone (not on public DNS either)"
     return lookups

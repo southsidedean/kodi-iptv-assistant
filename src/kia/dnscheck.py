@@ -23,6 +23,7 @@ _RESOLVE_FAILURE_RE = re.compile(
 _ENOTFOUND_HOST_RE = re.compile(r"(?:ENOTFOUND|EAI_AGAIN)\s+([A-Za-z0-9.-]+)")
 
 A, AAAA = 1, 28
+SERVFAIL = 2
 
 
 def is_resolve_failure(message: str | None) -> bool:
@@ -84,13 +85,18 @@ def query(host: str, resolver: str, qtype: int = A, timeout: float = 3.0) -> tup
 @dataclass
 class PublicLookup:
     host: str
-    verdict: str  # "resolves" | "nxdomain" | "no-records" | "unreachable"
+    verdict: str  # "resolves" | "broken-ipv6" | "nxdomain" | "no-records" | "unreachable"
     addresses: list[str]
 
     @property
     def summary(self) -> str:
         if self.verdict == "resolves":
             return f"{self.host} resolves on public DNS ({self.addresses[0]}), so the local DNS is the problem"
+        if self.verdict == "broken-ipv6":
+            return (
+                f"{self.host}: its own DNS servers send broken IPv6 (AAAA) answers, which public DNS can't "
+                "resolve either; the site's problem, not your network's"
+            )
         if self.verdict == "nxdomain":
             return f"{self.host} does not exist on public DNS either"
         if self.verdict == "no-records":
@@ -98,16 +104,40 @@ class PublicLookup:
         return f"{self.host}: public DNS servers unreachable, couldn't double-check"
 
 
+_QUERY_ERRORS = (OSError, ValueError, struct.error, IndexError)
+
+
 def check_public(host: str, resolvers: tuple[str, ...] = PUBLIC_RESOLVERS) -> PublicLookup:
     """Look host up on public resolvers (A, then AAAA), trying each resolver until one answers."""
     for resolver in resolvers:
         try:
             rcode, addrs = query(host, resolver, A)
+            ipv4 = bool(addrs)
             if not addrs and rcode == 0:
                 rcode, addrs = query(host, resolver, AAAA)
-        except (OSError, ValueError, struct.error, IndexError):
+        except _QUERY_ERRORS:
             continue
-        if addrs:
-            return PublicLookup(host, "resolves", addrs)
-        return PublicLookup(host, "nxdomain" if rcode == 3 else "no-records", [])
+        if not addrs:
+            return PublicLookup(host, "nxdomain" if rcode == 3 else "no-records", [])
+        if ipv4 and ipv6_fails_publicly(host, resolvers):
+            return PublicLookup(host, "broken-ipv6", addrs)
+        return PublicLookup(host, "resolves", addrs)
     return PublicLookup(host, "unreachable", [])
+
+
+def ipv6_fails_publicly(host: str, resolvers: tuple[str, ...]) -> bool:
+    """True if a public resolver also fails host's IPv6 lookup.
+
+    Programs ask for IPv4 and IPv6 addresses together, and some (Alpine Linux, so kia's
+    container) give up if either fails. When a site's own nameservers send a broken IPv6
+    answer, local DNS correctly fails it, the lookup fails, and the IPv4 check alone would
+    wrongly blame local DNS.
+    """
+    for resolver in resolvers:
+        try:
+            rcode, _ = query(host, resolver, AAAA)
+        except _QUERY_ERRORS:
+            continue
+        if rcode == SERVFAIL:
+            return True
+    return False
