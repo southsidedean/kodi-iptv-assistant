@@ -9,6 +9,10 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 - Channels keep the same number from night to night (`tvg-chno`), instead of being renumbered whenever a stream drops out or a playlist is added. A channel that comes back within a month gets its old number. Turn on Kodi's *Use channel numbers from backend* to see them ([Kodi setup](docs/kodi.md)). TV and radio are numbered separately.
 - The Kodi setup now includes IPTV Simple Client's daily refresh (*Auto refresh mode: Once per day*). Without it, Kodi loads the list and guide only when it starts, so devices that sleep instead of shutting down kept old data.
 
+### Status page
+
+- `http://<your address>:8780/` now shows a status page instead of a file list: when kia last refreshed, whether it worked, the next refresh, TV, radio, and guide counts, the last run's alerts, and links to the reports. `status.json` has the same information for scripts and monitoring tools.
+
 ### Versions
 
 - kia now uses the latest Node.js LTS (`node:lts-alpine`), the latest nginx (`nginx:alpine`), and the latest iptv-org/epg (`KIA_EPG_GIT_REF=latest`, its default branch) unless you pin a version in `.env`. Updating kia now pulls the newest images too. Tested with Node.js 24.22.0 and nginx 1.31.7.

@@ -42,7 +42,7 @@ Alerts also cover a failed nightly run, sharp drops in working channels or guide
 
 | Folder | Contents |
 |---|---|
-| `output/` | What gets served: the playlist, guide, and reports |
+| `output/` | What gets served: the playlist, guide, reports, and the status page (`index.html`, with the same information in `status.json` for scripts) |
 | `state/` | Stream history and the alert log |
 | `work/` | Intermediate files: per-site channel lists, downloaded guides, logs |
 | `vendor/epg/` | kia's copy of iptv-org/epg, updated nightly |

@@ -2,7 +2,7 @@
 
 kia runs on its own at night, so nobody is watching when something goes wrong. Most problems need no attention: a dead stream drops out of the list and a broken guide site is replaced by another. Alerts are for the problems that break things for you and won't fix themselves, such as your network's DNS failing or the nightly refresh crashing. Without an alert, you'd find out days later when the guide goes blank.
 
-Alerts are off until you choose where to send them. Until then they're only written to `state/alerts.log`.
+Alerts are off until you choose where to send them. Until then they're written to `state/alerts.log`, and the last run's alerts are listed on kia's status page at `http://<your address>:8780/`.
 
 ## What triggers an alert
 

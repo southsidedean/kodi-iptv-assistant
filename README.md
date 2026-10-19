@@ -49,7 +49,7 @@ New to Docker or Git? [docs/install.md](docs/install.md) walks through installin
 
    Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV, Raspberry Pi, and troubleshooting: [docs/kodi.md](docs/kodi.md).
 
-To see what it found, open `http://<your address>:8780/` in a browser. The reports there list the working streams and guide coverage.
+To check on kia, open `http://<your address>:8780/` in a browser. The status page there shows when it last refreshed, whether that worked, how many channels it found, and any alerts, with links to the detailed reports.
 
 ## Setups
 

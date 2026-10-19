@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import xml.etree.ElementTree as ET
 
-from kia import __version__, dnscheck, epgmap, grab, m3u, radio, serve, upstream, xmltv
+from kia import __version__, dnscheck, epgmap, grab, m3u, radio, serve, status, upstream, xmltv
 from kia import alerts
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -261,6 +261,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     )
     if partial:
         log(f"Test run: the live playlist in {cfg.output_dir} was left as it was.")
+    else:
+        update_status(cfg)
     return EXIT_ALERT if dns_alert or drop_alert else 0
 
 
@@ -433,6 +435,7 @@ def build_guide(
         f"-> {out} (+ .gz), report in {cfg.output_dir / 'guide-report.md'}"
     )
     drop_alert = check_count_drop(cfg, "guide_channels", with_data, "guide_drop", "channels with guide data")
+    update_status(cfg)
     return EXIT_ALERT if drop_alert else 0
 
 
@@ -504,17 +507,31 @@ def run_pipeline(config: str, update_epg: bool) -> int:
     return worst
 
 
+def update_status(cfg: Config, **run: object) -> None:
+    """Rewrite the status page; a failure here never stops a run."""
+    try:
+        status.update(cfg.output_dir, cfg.state_dir, cfg.public_url, **run)
+    except (OSError, ValueError) as exc:
+        log(f"Couldn't update the status page: {exc}")
+
+
 def run_and_report(config: str, update_epg: bool) -> int:
     """Run the pipeline, alert if it fails or crashes, and send the summary if it's turned on."""
     cfg = load(Path(config))
     start = time.monotonic()
+    started = now_iso()
+    update_status(cfg, result="running", started=started, finished=None, minutes=None, exit_code=None, next_run=None)
     try:
         rc = run_pipeline(config, update_epg)
     except (Exception, SystemExit) as exc:  # tell a human; the daemon keeps going
         alerts.notify("run_failed", "kia: nightly run crashed", f"{type(exc).__name__}: {exc}",
                       cfg.state_dir, cfg.alerts, log)  # fmt: skip
+        update_status(cfg, result="failed", finished=now_iso(), minutes=round((time.monotonic() - start) / 60),
+                      exit_code=1)  # fmt: skip
         return 1
     minutes = (time.monotonic() - start) / 60
+    result = "ok" if rc == 0 else "alerts" if rc == EXIT_ALERT else "failed"
+    update_status(cfg, result=result, finished=now_iso(), minutes=round(minutes), exit_code=rc)
     log(f"Run finished in {minutes:.0f} min with exit code {rc}")
     if rc not in (0, EXIT_ALERT):
         alerts.notify("run_failed", "kia: nightly run failed", f"The run stopped with exit code {rc}; see the kia logs.",
@@ -586,6 +603,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         if not run_now:
             nxt = next_run_local(args.at)
             log(f"Next run at {nxt:%Y-%m-%d %H:%M %Z}")
+            update_status(cfg, next_run=nxt.isoformat(timespec="seconds"))
             wait_until(nxt)
         run_now = False
         try:

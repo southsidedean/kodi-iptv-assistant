@@ -216,3 +216,10 @@ def _passthrough_git(refreshes):
         return subprocess.CompletedProcess(cmd, 0)
 
     return run
+
+
+def test_serve_shows_the_status_page(server):
+    www, base = server
+    (www / "index.html").write_text("<!doctype html><title>kia status</title>")
+    ctype, _, body = get(f"{base}/")
+    assert ctype == "text/html" and b"kia status" in body

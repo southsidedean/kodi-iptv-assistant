@@ -104,7 +104,7 @@ docker compose up -d --build
 
 The first time, this downloads and builds kia (a few minutes), then starts the first run straight away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia` (press Ctrl+C to stop watching; kia keeps running).
 
-When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see `curated.m3u`, `guide.xml.gz`, and the reports. If another device will use kia, open that address on it too.
+When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's status page, with the channel counts and links to `curated.m3u` and the reports. If another device will use kia, open that address on it too.
 
 If other devices can't connect:
 
