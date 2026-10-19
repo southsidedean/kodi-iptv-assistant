@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import xml.etree.ElementTree as ET
 
-from kia import __version__, dnscheck, epgmap, grab, m3u, radio, serve, status, upstream, xmltv
+from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, radio, serve, status, upstream, xmltv
 from kia import alerts
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -145,6 +145,12 @@ def write_atomic(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
+def write_report(path: Path, markdown: str) -> None:
+    """Write a Markdown report and an .html copy of it for reading in a browser."""
+    write_atomic(path, markdown)
+    write_atomic(path.with_suffix(".html"), htmlpage.report_page(markdown, path.name))
+
+
 def lookup_all(hosts: list[str], resolvers: tuple[str, ...]) -> dict[str, dnscheck.PublicLookup]:
     with ThreadPoolExecutor(16) as pool:
         return dict(zip(hosts, pool.map(lambda h: dnscheck.check_public(h, resolvers), hosts)))
@@ -244,7 +250,7 @@ def cmd_check(args: argparse.Namespace) -> int:
             indent=1,
         ),
     )
-    write_atomic(out / "report.md", render_markdown(checked, chosen, generated, cfg.dns_resolvers))
+    write_report(out / "report.md", render_markdown(checked, chosen, generated, cfg.dns_resolvers))
 
     if not partial:
         history.prune(cfg.history_days)
@@ -317,7 +323,7 @@ def cmd_map(args: argparse.Namespace) -> int:
         [(e.tvg_id, xmltv.display_name(e)) for e in entries], candidates, per_site, broken | set(epg.exclude_sites)
     )
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
-    write_atomic(cfg.output_dir / "mapping-report.md", report)
+    write_report(cfg.output_dir / "mapping-report.md", report)
     log(
         f"{len(candidates)} of {len(entries)} channels have guide candidates "
         f"({sum(per_site.values())} site channels across {len(per_site)} sites) "
@@ -428,7 +434,7 @@ def build_guide(
     xmltv.write_guide(
         out, entries, choices, site_files, epg.placeholders, epg.days, now, epg.placeholder_hours, epg.radio_placeholders
     )
-    write_atomic(cfg.output_dir / "guide-report.md", xmltv.render_report(entries, choices, now_iso()))
+    write_report(cfg.output_dir / "guide-report.md", xmltv.render_report(entries, choices, now_iso()))
     with_data = sum(1 for c in choices.values() if c.site)
     log(
         f"{with_data} of {len(entries)} channels have guide data "

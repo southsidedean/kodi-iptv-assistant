@@ -29,7 +29,7 @@ When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" 
 | `KIA_PARALLEL_SITES` | 4 | Guide sites downloaded at once. Each peaks around 0.7 GB of memory. |
 | `KIA_CHECK_CONCURRENCY` | 20 | Streams tested at once. |
 | `KIA_MEMORY_LIMIT` | `4g` | Memory limit for kia. |
-| `KIA_EXCLUDE_SITES` | | Guide sites to skip, comma-separated. Site names are listed in `mapping-report.md`. |
+| `KIA_EXCLUDE_SITES` | | Guide sites to skip, comma-separated. Site names are listed in `mapping-report.html`. |
 | `KIA_EXCLUDE_GROUPS` | | Channel categories to leave out, e.g. `Religious,Shop`. |
 | `KIA_PLACEHOLDERS` | true | Show the channel's name in the guide when there's no guide data. |
 | `KIA_EPG_GIT_URL`, `KIA_EPG_GIT_REF` | iptv-org/epg, `latest` | Use a fork of iptv-org/epg, or pin a branch, tag, or commit. See [versions](#versions). |

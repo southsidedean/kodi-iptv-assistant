@@ -13,15 +13,16 @@ from html import escape
 from pathlib import Path
 
 from kia import __version__
+from kia.htmlpage import page
 from kia.m3u import parse
 
 # Files in output/ the page links to, with what each one is for.
 FILES = [
     ("curated.m3u", "Playlist for Kodi (IPTV Simple Client's M3U playlist URL)"),
     ("guide.xml.gz", "Program guide (found through the playlist; no Kodi setting needed)"),
-    ("report.md", "Stream check: working, flaky, and dead streams"),
-    ("guide-report.md", "Guide coverage by channel and site"),
-    ("mapping-report.md", "Which guide sites were matched to which channels"),
+    ("report.html", "Stream check: working, flaky, and dead streams"),
+    ("guide-report.html", "Guide coverage by channel and site"),
+    ("mapping-report.html", "Which guide sites were matched to which channels"),
 ]
 RESULTS = {
     "running": "Refreshing now",
@@ -125,40 +126,16 @@ def render_html(s: dict) -> str:
     playlist = (
         f'<p>Playlist URL for Kodi: <code>{escape(s["playlist_url"])}</code></p>' if s["playlist_url"] else ""
     )
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>kia status</title>
-<style>
-:root {{ --bg: #fafafa; --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --bad: #b3261e; --good: #1b7f3b; }}
-@media (prefers-color-scheme: dark) {{
-  :root {{ --bg: #161617; --fg: #f5f5f7; --muted: #a1a1a6; --line: #3a3a3c; --bad: #ff8a80; --good: #7ee2a0; }}
-}}
-body {{ background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 44rem; padding: 1.5rem 1rem; }}
-h1 {{ font-size: 1.4rem; margin: 0 0 1rem; }}
-h2 {{ font-size: 1.1rem; margin-top: 2rem; }}
-table {{ border-collapse: collapse; width: 100%; }}
-th, td {{ border-bottom: 1px solid var(--line); padding: .45rem .25rem; text-align: left; vertical-align: top; }}
-th {{ color: var(--muted); font-weight: normal; width: 45%; }}
-.result-failed td, .result-alerts td {{ color: var(--bad); }} .result-ok td {{ color: var(--good); }}
-ul {{ padding-left: 1.2rem; }} li span {{ color: var(--muted); }}
-code {{ word-break: break-all; }}
-a {{ color: inherit; }}
-footer {{ color: var(--muted); font-size: .85rem; margin-top: 2rem; }}
-</style>
-</head>
-<body>
-<h1>kia status</h1>
-<table>
+    body = f"""<h1>kia status</h1>
+<table class="summary">
 {table}
 </table>
 {alerts_html}
 <h2>Files</h2>
 {playlist}
-<ul>{files}</ul>
-<footer>kodi-iptv-assistant {escape(s['version'])}. The same information for scripts: <a href="status.json">status.json</a>.</footer>
-</body>
-</html>
-"""
+<ul>{files}</ul>"""
+    footer = (
+        f"kodi-iptv-assistant {escape(s['version'])}. The same information for scripts: "
+        '<a href="status.json">status.json</a>. Each report is also available as Markdown (.md).'
+    )
+    return page("kia status", body, footer)
