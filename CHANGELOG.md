@@ -2,6 +2,15 @@
 
 ## 0.3.0 (unreleased)
 
+### Upgrading from 0.2.0
+
+Update as usual (`git pull`, then `docker compose up -d --build`). Both containers are recreated, because they gained folders and a port:
+
+- The status page is now also at `https://<your address>:8743/`, which is where you make changes. Make sure nothing else on the machine uses port 8743, or pick another with `KIA_HTTPS_PORT` in `.env`. The first visit shows a browser warning about kia's own certificate; [the secure status page](docs/secure-page.md#the-browser-warning) explains it.
+- kia makes a password for changes and saves it in `state/admin-password.txt`. Set `KIA_ADMIN_PASSWORD` in `.env` to choose your own.
+- kia writes two new folders, `profiles/` and `tls/`. `git pull` creates them; if you copied kia some other way, create them yourself so Docker doesn't make them owned by root.
+- If the web container keeps running the old settings after an update, run `docker compose up -d --force-recreate web`.
+
 ### Playlists for people and devices
 
 - Profiles make smaller playlists from the full one, each with its own address, such as `http://<your address>:8780/kids.m3u` for the kids' tablet. A profile picks channels by category, playlist, name, or ID, and can leave out categories, names, TV, or radio. See [profiles](docs/profiles.md).

@@ -125,6 +125,7 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
 .links a { display: inline-block; padding-block: .1rem; }
 .links span { display: block; font-size: var(--step--1); }
 .pl-title { font-weight: 650; }
+.copy + h2 { margin-top: var(--space-4); }
 .card h2 + p, .card h1 + p { margin-top: 0; }
 
 /* Phones */
