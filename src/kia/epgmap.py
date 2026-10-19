@@ -259,11 +259,15 @@ def render_report(
     per_site: dict[str, int],
     skipped_sites: set[str],
     suggestions: list[Suggestion] = (),
+    own_guides: dict[str, list[str]] | None = None,
 ) -> str:
-    """curated: (tvg_id, name) pairs from the curated playlist."""
+    """curated: (tvg_id, name) pairs from the curated playlist. own_guides: tvg-id -> the
+    playlist guide sites that cover it (see kia.playlistguide)."""
+    own_guides = own_guides or {}
     by_name = {tid: c for tid, c in candidates.items() if c[0].how == "name"}
     exact = sum(1 for tid, c in candidates.items() if c[0].exact and tid not in by_name)
-    unmatched = [(tid, name) for tid, name in curated if tid not in candidates]
+    unmatched = [(tid, name) for tid, name in curated if tid not in candidates and tid not in own_guides]
+    own_per_site = Counter(site for sites in own_guides.values() for site in sites)
     names = dict(curated)
     lines = [
         "# Guide mapping report",
@@ -274,13 +278,15 @@ def render_report(
         f"| Matched to a guide site (same feed) | {exact} |",
         f"| Matched to a different feed of the channel | {len(candidates) - exact - len(by_name)} |",
         f"| Matched by name | {len(by_name)} |",
+        f"| Covered by their playlist's own guide | {len(own_guides)} |",
         f"| No guide source found | {len(unmatched)} |",
         "",
     ]
     if skipped_sites:
         lines += [f"Skipped sites marked broken or excluded: {', '.join(sorted(skipped_sites))}", ""]
     lines += ["## Sites to grab", "", "| Site | Channels |", "|---|---:|"]
-    lines += [f"| {site} | {n} |" for site, n in sorted(per_site.items(), key=lambda kv: -kv[1])]
+    all_sites = {**per_site, **own_per_site}
+    lines += [f"| {site} | {n} |" for site, n in sorted(all_sites.items(), key=lambda kv: -kv[1])]
     if by_name:
         lines += [
             "",

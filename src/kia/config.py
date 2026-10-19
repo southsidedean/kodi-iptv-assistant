@@ -52,6 +52,7 @@ class EpgConfig:
     radio_placeholders: bool = False
     native_grabbers: bool = True
     name_matching: bool = True
+    playlist_guides: bool = True
     ignore_name_matches: list[str] = field(default_factory=list)
     git_url: str = "https://github.com/iptv-org/epg.git"
     git_ref: str = "latest"  # the repo's default branch
@@ -282,5 +283,6 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         git_ref=os.environ.get("KIA_EPG_GIT_REF") or epg.get("git_ref", d.git_ref),
         native_grabbers=epg.get("native_grabbers", d.native_grabbers),
         name_matching=epg.get("name_matching", d.name_matching),
+        playlist_guides=epg.get("playlist_guides", d.playlist_guides),
         ignore_name_matches=epg.get("ignore_name_matches", []),
     )

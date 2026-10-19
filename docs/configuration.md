@@ -101,5 +101,5 @@ Each setting is explained by a comment in the file. The sections:
 - `[output]`: where files go, `channel_numbers` (steady channel numbers; delete `state/channel-numbers.json` to renumber everything), and `public_url` / `epg_url` for setups without Docker.
 - `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.
 - `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`. See [alerts](alerts.md).
-- `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `git_url`, `git_ref`, `runner`.
+- `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `playlist_guides`, `git_url`, `git_ref`, `runner`.
 - `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.

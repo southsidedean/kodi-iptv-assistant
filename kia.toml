@@ -151,6 +151,10 @@ radio_placeholders = false
 name_matching = true
 ignore_name_matches = []
 
+# Use the guide a playlist names in its first line (x-tvg-url) for that playlist's
+# channels, e.g. the Samsung TV Plus and Roku lists in sources.txt.
+playlist_guides = true
+
 # Read i.mjh.nz's guide files (Pluto TV, Plex, Samsung TV Plus, Roku) directly. It takes
 # seconds and little memory, compared with about 25 minutes and over 2 GB through
 # iptv-org's downloader.

@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import xml.etree.ElementTree as ET
 
-from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, radio, serve, status, upstream, xmltv
+from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, radio, serve, status, upstream, xmltv
 from kia import alerts
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -50,7 +50,12 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
             if src.is_radio_browser:
                 found = radio.load(src.params, src.name)
             else:
-                found = m3u.parse(fetch(src.url), source=src.name)
+                text = fetch(src.url)
+                found = m3u.parse(text, source=src.name)
+                if cfg.epg.playlist_guides:
+                    guides = tuple(m3u.header_guide_urls(text))
+                    for e in found:
+                        e.guide_urls = guides
         except (OSError, ValueError, radio.RadioError) as exc:
             # Skip it; if that loses many channels, the channels_drop alert says so.
             log(f"{src.name}: could not load ({exc}); skipping")
@@ -285,6 +290,8 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     if not partial:
         history.prune(cfg.history_days)
+        # Which kept channels have a guide of their own, for `kia map` and `kia grab`.
+        playlistguide.save(cfg.epg.work_dir / "playlist-guides.json", playlistguide.plan([c.entry for c in chosen]))
     history.save()
 
     drop_alert = False if partial else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
@@ -353,26 +360,35 @@ def cmd_map(args: argparse.Namespace) -> int:
         else []
     )
     per_site = epgmap.write_channel_files(candidates, epg.work_dir / "channels")
-    write_atomic(
-        epg.work_dir / "mapping.json",
-        json.dumps({tid: [c.channel.site for c in cands] for tid, cands in candidates.items()}, indent=1),
-    )
+    # A playlist's own guide goes first for its channels; kia guide still keeps whichever
+    # source has the most listings.
+    own = playlistguide.sites_by_channel(playlist_guides(cfg)) if epg.playlist_guides else {}
+    order = {tid: [c.channel.site for c in cands] for tid, cands in candidates.items()}
+    for tid, sites in own.items():
+        order[tid] = sites + order.get(tid, [])
+    write_atomic(epg.work_dir / "mapping.json", json.dumps(order, indent=1))
     report = epgmap.render_report(
         [(e.tvg_id, xmltv.display_name(e)) for e in entries],
         candidates,
         per_site,
         broken | set(epg.exclude_sites),
         suggestions,
+        own,
     )
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
     write_report(cfg.output_dir / "mapping-report.md", report)
     by_name = sum(1 for c in candidates.values() if c[0].how == "name")
     log(
-        f"{len(candidates)} of {len(entries)} channels have guide candidates, {by_name} of them matched by name "
+        f"{len(order)} of {len(entries)} channels have guide candidates, {by_name} of them matched by name "
+        f"and {len(own)} with their playlist's own guide "
         f"({sum(per_site.values())} site channels across {len(per_site)} sites) "
         f"-> {epg.work_dir / 'channels'}, report in {cfg.output_dir / 'mapping-report.md'}"
     )
     return 0
+
+
+def playlist_guides(cfg: Config) -> dict:
+    return playlistguide.load(cfg.epg.work_dir / "playlist-guides.json")
 
 
 def cmd_grab(args: argparse.Namespace) -> int:
@@ -381,6 +397,9 @@ def cmd_grab(args: argparse.Namespace) -> int:
         cfg.epg.days = args.days
     grab.ensure_repo(cfg.epg, args.update, log)
     results = grab.grab_all(cfg.epg, args.site, log)
+    if cfg.epg.playlist_guides:
+        spec = {s: info for s, info in playlist_guides(cfg).items() if not args.site or s in args.site}
+        results += grab.grab_playlist_guides(cfg.epg, spec, log)
     if not results:
         if args.site:
             log(f"No channel lists for {', '.join(args.site)}; run `kia map` first, or check the names.")

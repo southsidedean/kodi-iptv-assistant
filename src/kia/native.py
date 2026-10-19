@@ -36,6 +36,7 @@ def filter_xmltv(
     start: datetime,
     end: datetime,
     write: Callable[[str], None],
+    suffix_fallback: bool = True,
 ) -> int:
     """Copy programmes for wanted source channel ids that start in [start, end).
 
@@ -44,7 +45,7 @@ def filter_xmltv(
     """
     # Plex ids are "<provider prefix>-<channel id>" and the prefix changes over time, while
     # the channel id doesn't; fall back to matching on the part after the last "-".
-    by_suffix = {sid.rpartition("-")[2]: tvg_ids for sid, tvg_ids in wanted.items() if "-" in sid}
+    by_suffix = {sid.rpartition("-")[2]: tvg_ids for sid, tvg_ids in wanted.items() if "-" in sid and suffix_fallback}
     written = 0
     for _, el in ET.iterparse(stream, events=("end",)):
         if el.tag != "programme":

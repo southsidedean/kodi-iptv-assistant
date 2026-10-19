@@ -80,8 +80,14 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # radio-browser: country=US tag=jazz top=25
 # radio-browser: country=US tag=news top=25
 
+# --- Free streaming services (lists from apsattv.com) ----------------------------
+# These lists name their own program guides, which kia uses for their channels. Many of
+# their channels are also in iptv-org's USA list.
+# https://www.apsattv.com/ssungusa.m3u   samsung-us   # Samsung TV Plus, USA         539
+# https://www.apsattv.com/rok.m3u        roku         # The Roku Channel             328
+
 # --- Other collections ------------------------------------------------------------
-# https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8   free-tv  # Free-TV, worldwide, 2,023
+# https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8   free-tv  # Free-TV, worldwide, 2,023, with its own guides
 # https://iptv-org.github.io/iptv/index.m3u                    # Everything iptv-org has: 11,346 (slow)
 
 # --- Your own ---------------------------------------------------------------------

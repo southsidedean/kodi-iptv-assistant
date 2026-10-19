@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kia.config import EpgConfig
+from kia import playlistguide
 from kia.native import NATIVE_GRABBERS
 
 @dataclass
@@ -168,4 +169,31 @@ def grab_all(cfg: EpgConfig, sites: list[str] | None, log: Callable[[str], None]
             status = "ok" if r.returncode == 0 and r.output.exists() else f"FAILED (see {r.log})"
             log(f"  {r.site}: {status} in {r.elapsed:.0f}s")
             results.append(r)
+    return results
+
+
+def grab_playlist_guides(cfg: EpgConfig, spec: dict, log: Callable[[str], None]) -> list[GrabResult]:
+    """Download the guides playlists name for themselves (see kia.playlistguide)."""
+    if spec:
+        log(f"Downloading {len(spec)} guides named by playlists...")
+    results = []
+    work = cfg.work_dir.resolve()
+    for site, info in sorted(spec.items()):
+        output = work / "guides" / f"{site}.xml"
+        staged = work / "guides" / ".staging" / f"{site}.xml"
+        log_path = work / "logs" / f"{site}.log"
+        staged.parent.mkdir(parents=True, exist_ok=True)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        start = time.monotonic()
+        with open(log_path, "w") as logf:
+            try:
+                playlistguide.download(info, staged, cfg.days, lambda m: print(m, file=logf, flush=True))
+                staged.replace(output)  # only a good download replaces the previous guide
+                returncode = 0
+            except (RuntimeError, OSError) as exc:
+                print(f"ERR: {exc}", file=logf)
+                returncode = 1
+        r = GrabResult(site, returncode, time.monotonic() - start, log_path, output)
+        log(f"  {site}: {'ok' if returncode == 0 else f'FAILED (see {log_path})'} in {r.elapsed:.0f}s")
+        results.append(r)
     return results

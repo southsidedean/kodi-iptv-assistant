@@ -28,9 +28,11 @@ This is also why guides built by hand are often nearly empty: the channel lists 
 
 Guide sites also list many channels iptv-org hasn't linked to an ID, and channels get renamed. So when no site lists a channel's ID, kia looks for a site channel with exactly the same name in the same country. A wrong match would show another channel's programs, so a name counts only if it belongs to one channel. Looser matches, like "CBN News" and "CBN News Channel", are listed for you to check and never used. `mapping-report.html` lists the channels matched by ID, those matched by name, the possible matches, and the channels with no guide source. If a name match is wrong, add the channel's tvg-id to `ignore_name_matches` in `kia.toml`.
 
+Some playlists name their own guide in their first line (`x-tvg-url`), with channel IDs that match the playlist's. The Samsung TV Plus and Roku lists in `sources.txt` do, for example. For channels from those playlists, kia tries the playlist's own guide first, alongside any sites it found. Set `playlist_guides = false` under `[epg]` in `kia.toml` to leave them out.
+
 ## 3. Download guide data (`kia grab`)
 
-kia first updates its copy of iptv-org/epg to the latest version (or the one you've pinned; see [versions](configuration.md#versions)). If GitHub can't be reached, it uses the copy it has. For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. If a site fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
+kia first updates its copy of iptv-org/epg to the latest version (or the one you've pinned; see [versions](configuration.md#versions)). If GitHub can't be reached, it uses the copy it has. For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. Guides named by playlists are downloaded too, keeping only the channels in your list. If a site or guide fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
 
 ## 4. Build the guide (`kia guide`)
 
