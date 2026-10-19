@@ -209,6 +209,17 @@ def write_guide(
     gz_tmp.replace(gz_path)
 
 
+def coverage(entries: list[Entry], choices: dict[str, Choice]) -> dict[str, int]:
+    """TV channels with a full guide (20+ of the next 24 hours), a partial one, or none."""
+    out = {"full": 0, "partial": 0, "none": 0}
+    for e in entries:
+        if e.is_radio:
+            continue
+        c = choices.get(e.tvg_id)
+        out["none" if not c or not c.site else "full" if c.hours_24h >= 20 else "partial"] += 1
+    return out
+
+
 def render_report(entries: list[Entry], choices: dict[str, Choice], generated: str) -> str:
     radio_count = sum(1 for e in entries if e.is_radio)
     entries = [e for e in entries if not e.is_radio]  # radio rarely has guide data; report it separately

@@ -81,3 +81,16 @@ def test_reports_link_html_and_markdown(tmp_path: Path):
     page = status.render_html(status.collect(tmp_path, tmp_path, {}, None))
     assert 'href="report.html"' in page and '(<a href="report.md">Markdown</a>)' in page
     assert 'href="guide-report.md"' not in page
+
+
+def test_coverage_and_playlist_counts(tmp_path: Path):
+    import json as _json
+
+    (tmp_path / "report.json").write_text(_json.dumps({"streams": [
+        {"source": "us", "status": "ok"}, {"source": "us", "status": "dead"}, {"source": "us", "status": "ok"},
+        {"source": "samsung-us", "status": "flaky"}]}))  # fmt: skip
+    s = status.collect(tmp_path, tmp_path, {"result": "alerts", "coverage": {"full": 5, "partial": 2, "none": 3}}, "http://tv.lan:8780")
+    assert s["sources"] == [{"name": "us", "ok": 2, "flaky": 0, "dead": 1}, {"name": "samsung-us", "ok": 0, "flaky": 1, "dead": 0}]
+    page = status.render_html(s)
+    assert "Full guide: 5" in page and "Working, with alerts" in page and "2 working, 0 flaky, 1 dead" in page
+    assert 'data-copy="playlist-url"' in page and "http://tv.lan:8780/curated.m3u" in page

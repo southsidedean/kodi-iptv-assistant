@@ -526,7 +526,7 @@ def build_guide(
         f"-> {out} (+ .gz), report in {cfg.output_dir / 'guide-report.md'}"
     )
     drop_alert = check_count_drop(cfg, "guide_channels", with_data, "guide_drop", "channels with guide data")
-    update_status(cfg, guide_updated=now_iso())
+    update_status(cfg, guide_updated=now_iso(), coverage=xmltv.coverage(entries, choices))
     return EXIT_ALERT if drop_alert else 0
 
 

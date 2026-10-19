@@ -29,17 +29,17 @@ DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
 # Docs pages for someone looking at this page because something seems wrong.
 HELP = [
     (f"{DOCS_URL}/troubleshooting.md", "Troubleshooting", "no channels, no guide, failed refreshes, alerts"),
-    (f"{DOCS_URL}/kodi.md", "Setting up Kodi", "the playlist, daily refresh, and channel numbers"),
+    (f"{DOCS_URL}/kodi.md", "Setting up Kodi", "the playlist, repeated refresh, and channel numbers"),
     (f"{DOCS_URL}/configuration.md", "Settings", "playlists, refresh time, and when changes take effect"),
     (f"{DOCS_URL}/how-it-works.md", "How it works", "what each nightly step does, and the reports"),
     (f"{DOCS_URL}/alerts.md", "Alerts", "what each alert means, and getting them on your phone"),
 ]
 RESULTS = {
     "running": "Refreshing now",
-    "ok": "Last refresh worked",
-    "alerts": "Last refresh worked, with alerts",
-    "failed": "Last refresh failed",
-    "never": "Not run yet",
+    "ok": "Everything's working",
+    "alerts": "Working, with alerts",
+    "failed": "The last refresh failed",
+    "never": "Waiting for the first refresh",
 }
 
 
@@ -86,10 +86,23 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
             "radio": radio,
             "with_guide": counts.get("guide_channels"),
         },
+        "coverage": run.get("coverage"),
+        "sources": source_counts(output_dir / "report.json"),
         "alerts": recent_alerts(state_dir / "alerts.log", run.get("started")),
         "playlist_url": f"{public_url}/curated.m3u" if public_url else None,
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
+
+
+def source_counts(report: Path) -> list[dict]:
+    """Working, flaky, and dead streams per playlist, from the last check's report."""
+    streams = _load(report).get("streams", [])
+    counts: dict[str, dict] = {}
+    for s in streams:
+        c = counts.setdefault(s.get("source") or "?", {"name": s.get("source") or "?", "ok": 0, "flaky": 0, "dead": 0})
+        if s.get("status") in ("ok", "flaky", "dead"):
+            c[s["status"]] += 1
+    return sorted(counts.values(), key=lambda c: -(c["ok"] + c["flaky"] + c["dead"]))
 
 
 def markdown_twin(name: str) -> str | None:
@@ -120,45 +133,121 @@ def _when(iso: str | None) -> str:
     return f"{dt:%a %b} {dt.day}, {dt:%H:%M %Z}"
 
 
+COPY_SCRIPT = """
+<script>
+document.querySelectorAll("button[data-copy]").forEach(function (b) {
+  b.addEventListener("click", function () {
+    var text = document.getElementById(b.dataset.copy).textContent;
+    var done = function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1500); };
+    var select = function () { var r = document.createRange(); r.selectNodeContents(document.getElementById(b.dataset.copy));
+      var s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done, select); } else { select(); }
+  });
+});
+</script>
+"""
+
+
+def _n(value: object) -> str:
+    return f"{value:,}" if isinstance(value, int) else "-"
+
+
+def _bar(parts: list[tuple[int, str]]) -> str:
+    total = sum(n for n, _ in parts) or 1
+    return '<div class="bar">' + "".join(
+        f'<span style="width:{100 * n / total:.2f}%;background:var({color})"></span>' for n, color in parts if n
+    ) + "</div>"
+
+
+def _banner(s: dict) -> str:
+    run = s["last_run"]
+    facts = []
+    if s["result"] == "running":
+        facts.append(f"Started {_when(run['started'])}.")
+    elif run.get("started"):
+        took = f", took {run['minutes']} min" if run.get("minutes") is not None else ""
+        facts.append(f"Last refresh {_when(run['started'])}{took}.")
+    if s.get("guide_updated"):
+        facts.append(f"Guide updated {_when(s['guide_updated'])}.")
+    if s.get("next_run"):
+        facts.append(f"Next nightly run {_when(s['next_run'])}.")
+    if s["result"] == "alerts":
+        facts.append("The alerts are listed below.")
+    title = RESULTS.get(s["result"], s["result"])
+    return (
+        f'<section class="banner state-{escape(s["result"])}"><span class="dot"></span>'
+        f"<div><h1>{escape(title, quote=False)}</h1><p>{escape(' '.join(facts), quote=False)}</p></div></section>"
+    )
+
+
 def render_html(s: dict) -> str:
-    run, ch = s["last_run"], s["channels"]
-    rows = [
-        ("Last refresh", f"{_when(run['started'])}" + (f", took {run['minutes']} min" if run.get("minutes") is not None else "")),
-        ("Next nightly run", _when(s["next_run"])),
-        ("Guide updated", _when(s.get("guide_updated"))),
-        ("TV channels", f"{ch['tv']}"),
-        ("Radio stations", f"{ch['radio']}"),
-        ("Channels with guide data", "-" if ch["with_guide"] is None else f"{ch['with_guide']}"),
-    ]
-    result = RESULTS.get(s["result"], s["result"])
-    table = f'<tr class="result-{escape(s["result"])}"><th>Status</th><td>{escape(result)}</td></tr>\n'
-    table += "\n".join(f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>" for k, v in rows)
-    alerts = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
-    alerts_html = f"<h2>Alerts from the last refresh</h2><ul>{alerts}</ul>" if alerts else ""
+    ch = s["channels"]
+    tv = ch["tv"] or 0
+    guided = ch["with_guide"]
+    share = f" ({100 * guided / (tv + ch['radio']):.0f}%)" if isinstance(guided, int) and tv + ch["radio"] else ""
+    tiles = (
+        '<section class="tiles">'
+        f'<div class="tile"><div class="n">{_n(tv)}</div><div class="l">TV channels</div></div>'
+        f'<div class="tile"><div class="n">{_n(ch["radio"])}</div><div class="l">Radio stations</div></div>'
+        f'<div class="tile"><div class="n">{_n(guided)}</div><div class="l">Channels with guide data{share}</div></div>'
+        "</section>"
+    )
+
+    cov = s.get("coverage") or {}
+    guide = ""
+    if cov:
+        guide = (
+            '<section class="card"><h2>Program guide for TV channels</h2>'
+            + _bar([(cov["full"], "--bar-full"), (cov["partial"], "--bar-part"), (cov["none"], "--bar-none")])
+            + '<div class="legend">'
+            f'<span><i style="background:var(--bar-full)"></i>Full guide: {_n(cov["full"])}</span>'
+            f'<span><i style="background:var(--bar-part)"></i>Partial: {_n(cov["partial"])}</span>'
+            f'<span><i style="background:var(--bar-none)"></i>Channel name only: {_n(cov["none"])}</span>'
+            "</div></section>"
+        )
+
+    sources = ""
+    if s.get("sources"):
+        rows = "".join(
+            f'<div class="source"><strong>{escape(src["name"])}</strong>'
+            + _bar([(src["ok"], "--bar-full"), (src["flaky"], "--bar-part"), (src["dead"], "--bar-dead")])
+            + f'<span class="counts">{_n(src["ok"])} working, {_n(src["flaky"])} flaky, {_n(src["dead"])} dead</span></div>'
+            for src in s["sources"]
+        )
+        sources = f'<section class="card"><h2>Streams by playlist</h2><div class="sources">{rows}</div></section>'
+
+    alerts = ""
+    if s["alerts"]:
+        items = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
+        alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
+
+    kodi = ""
+    if s["playlist_url"]:
+        kodi = (
+            '<section class="card"><h2>Add to Kodi</h2>'
+            "<p>In IPTV Simple Client, set the <strong>M3U playlist URL</strong> to:</p>"
+            f'<div class="copy"><code id="playlist-url">{escape(s["playlist_url"])}</code>'
+            '<button type="button" data-copy="playlist-url">Copy</button></div></section>'
+        )
+
     def file_item(name: str, what: str) -> str:
         twin = markdown_twin(name)
         markdown = f' (<a href="{escape(twin)}">Markdown</a>)' if twin in s["files"] else ""
-        return f'<li><a href="{escape(name)}">{escape(name)}</a>{markdown} <span>{escape(what)}</span></li>'
+        return f'<li><a href="{escape(name)}">{escape(name)}</a>{markdown}<span>{escape(what)}</span></li>'
 
     files = "".join(file_item(name, what) for name, what in FILES if name in s["files"])
-    playlist = (
-        f'<p>Playlist URL for Kodi: <code>{escape(s["playlist_url"])}</code></p>' if s["playlist_url"] else ""
-    )
     help_links = "".join(
-        f'<li><a href="{escape(url)}">{escape(name)}</a> <span>{escape(what)}</span></li>' for url, name, what in HELP
+        f'<li><a href="{escape(url)}">{escape(name)}</a><span>{escape(what)}</span></li>' for url, name, what in HELP
     )
-    body = f"""<h1>kia status</h1>
-<table class="summary">
-{table}
-</table>
-{alerts_html}
-<h2>Files</h2>
-{playlist}
-<ul>{files}</ul>
-<h2>Help</h2>
-<ul>{help_links}</ul>"""
+    pair = (
+        '<div class="pair">'
+        f'<section class="card"><h2>Files and reports</h2><ul class="links">{files}</ul></section>'
+        f'<section class="card"><h2>Help</h2><ul class="links">{help_links}</ul></section>'
+        "</div>"
+    )
+    body = f"<main>{_banner(s)}{tiles}{guide}{sources}{alerts}{kodi}{pair}</main>"
     footer = (
         f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
         '<a href="status.json">status.json</a>.'
     )
-    return page("kia status", body, footer)
+    return page("kia status", body, footer, COPY_SCRIPT if s["playlist_url"] else "")
