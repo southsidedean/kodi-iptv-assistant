@@ -327,21 +327,33 @@ def cmd_map(args: argparse.Namespace) -> int:
     entries = load_curated(cfg)
     site_channels = epgmap.load_site_channels(epg.repo_dir)
     broken = epgmap.broken_sites(epg.repo_dir)
-    log(f"{len(site_channels)} mapped channels across the epg repo's sites; {len(broken)} sites marked broken")
+    log(f"{len(site_channels)} channels across the epg repo's sites; {len(broken)} sites marked broken")
 
-    candidates = epgmap.find_candidates([e.tvg_id for e in entries], site_channels, epg, broken)
+    tvg_ids = [e.tvg_id for e in entries]
+    names = {e.tvg_id: xmltv.display_name(e) for e in entries if not e.is_radio}
+    candidates = epgmap.find_candidates(tvg_ids, site_channels, epg, broken, names)
+    suggestions = (
+        epgmap.suggest_by_name(tvg_ids, names, epgmap.usable_channels(site_channels, epg, broken), set(candidates))
+        if epg.name_matching
+        else []
+    )
     per_site = epgmap.write_channel_files(candidates, epg.work_dir / "channels")
     write_atomic(
         epg.work_dir / "mapping.json",
         json.dumps({tid: [c.channel.site for c in cands] for tid, cands in candidates.items()}, indent=1),
     )
     report = epgmap.render_report(
-        [(e.tvg_id, xmltv.display_name(e)) for e in entries], candidates, per_site, broken | set(epg.exclude_sites)
+        [(e.tvg_id, xmltv.display_name(e)) for e in entries],
+        candidates,
+        per_site,
+        broken | set(epg.exclude_sites),
+        suggestions,
     )
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
     write_report(cfg.output_dir / "mapping-report.md", report)
+    by_name = sum(1 for c in candidates.values() if c[0].how == "name")
     log(
-        f"{len(candidates)} of {len(entries)} channels have guide candidates "
+        f"{len(candidates)} of {len(entries)} channels have guide candidates, {by_name} of them matched by name "
         f"({sum(per_site.values())} site channels across {len(per_site)} sites) "
         f"-> {epg.work_dir / 'channels'}, report in {cfg.output_dir / 'mapping-report.md'}"
     )

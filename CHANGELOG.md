@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+### Program guide
+
+- Channels that no guide site lists by ID are now matched by name: exactly the same name, in the same country, belonging to one channel only. On the test server this gave 86 more TV channels full listings (from 42% to 48%). The matches are listed in `mapping-report.html`, and `ignore_name_matches` in `kia.toml` turns off a wrong one. Looser matches are listed there as suggestions, not used.
+- Channel IDs that differ only in capital letters now match (`SYFY.us@East` and `Syfy.us@East`).
+- Programs without a title no longer count as guide data. ontvtonight.com currently sends only times, which showed as empty blocks in Kodi; those channels now use another site or show their name.
+
 ## 0.1.1 (2026-10-19)
 
 Fixes from an independent review of 0.1.0, locked-down containers, and versions that follow the latest releases by default. New: steady channel numbers, a status page, and reports you can read in a browser.
