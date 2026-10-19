@@ -36,7 +36,7 @@ Some playlists name their own guide in their first line (`x-tvg-url`), with chan
 
 ## 3. Download guide data (`kia grab`)
 
-kia first updates its copy of iptv-org/epg to the latest version (or the one you've pinned; see [versions](configuration.md#versions)). If GitHub can't be reached, it uses the copy it has. For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. Guides named by playlists are downloaded too, keeping only the channels in your list. If a site or guide fails, or takes longer than `site_time_limit` (30 minutes), its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
+kia first updates its copy of iptv-org/epg to the latest version (or the one you've pinned; see [versions](configuration.md#versions)). If GitHub can't be reached, it uses the copy it has. For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. Some sites allow many requests at once and some only one at a time, so `site_connections` and `site_delay_ms` in `kia.toml` set those per site. Guides named by playlists are downloaded too, keeping only the channels in your list. If a site or guide fails, or takes longer than `site_time_limit` (30 minutes), its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
 
 ## 4. Build the guide (`kia guide`)
 

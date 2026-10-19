@@ -234,3 +234,17 @@ def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):
     assert peak == {"jmp2.uk": 6, "other.tv": cfg.per_host}
     gaps = [b - a for a, b in zip(starts["jmp2.uk"], starts["jmp2.uk"][1:])]
     assert min(gaps) >= 0.045  # starts at least host_delay_ms apart
+
+
+def test_per_site_connections_and_delay(tmp_path: Path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(grab, "runner_prefix", lambda cfg, name=None: ["sh", "-c", 'echo "$@" > "$0"', str(tmp_path / "args")])
+    cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=tmp_path, runner="local", native_grabbers=False,
+                    site_connections={"tvpassport.com": 100}, site_delay_ms={"tvpassport.com": 100})  # fmt: skip
+    for site in ("tvpassport.com", "other.tv"):
+        channels = tmp_path / f"{site}.channels.xml"
+        channels.write_text("<channels/>")
+        grab.grab_site(cfg, site, channels)
+        seen.append((tmp_path / "args").read_text())
+    assert "--maxConnections=100" in seen[0] and "--delay=100" in seen[0]
+    assert "--maxConnections=5" in seen[1] and "--delay" not in seen[1]

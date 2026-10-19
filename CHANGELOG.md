@@ -6,6 +6,7 @@
 
 - The stream check tests up to six streams at a time on jmp2.uk, which carries the Pluto TV, Samsung TV Plus, and Plex channels, instead of two (`per_host_limits` in `kia.toml`). In a test of 60 of its streams, that took 29 seconds instead of 98, with no extra failures.
 - Tests on the same server start at least 100 ms apart (`host_delay_ms`), so bursts don't set off a site's firewall.
+- Guide sites can have their own number of connections and a pause between requests (`site_connections`, `site_delay_ms`). tvpassport.com now uses 100 connections with a 100 ms pause: its download took 44 seconds instead of 16½ minutes, with complete data. plex.tv gets one connection at a time, which it needs.
 - A guide site that takes longer than 30 minutes is stopped, and its channels keep their previous guide (`site_time_limit`).
 - ontvtonight.com is skipped by default; it sends programs without titles.
 
