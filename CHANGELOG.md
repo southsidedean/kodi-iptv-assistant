@@ -11,7 +11,7 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 
 ### Status page
 
-- `http://<your address>:8780/` now shows a status page instead of a file list: when kia last refreshed, whether it worked, the next refresh, TV, radio, and guide counts, the last run's alerts, and links to the reports. `status.json` has the same information for scripts and monitoring tools.
+- `http://<your address>:8780/` now shows a status page instead of a file list: when kia last refreshed, whether it worked, the next refresh, TV, radio, and guide counts, the last run's alerts, links to the reports, and links to the documentation for setup and troubleshooting. `status.json` has the same information for scripts and monitoring tools.
 - Each report now also comes as an HTML page that reads well in a browser, with a filter box on long tables (the stream report lists every channel). The Markdown versions are still written.
 
 ### Versions

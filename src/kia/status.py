@@ -24,6 +24,15 @@ FILES = [
     ("guide-report.html", "Guide coverage by channel and site"),
     ("mapping-report.html", "Which guide sites were matched to which channels"),
 ]
+PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
+DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
+# Docs pages for someone looking at this page because something seems wrong.
+HELP = [
+    (f"{DOCS_URL}/kodi.md", "Setting up Kodi", "and troubleshooting: no channels, no guide, old channels"),
+    (f"{DOCS_URL}/configuration.md", "Settings", "playlists, refresh time, and when changes take effect"),
+    (f"{DOCS_URL}/how-it-works.md", "How it works", "what each nightly step does, and the reports"),
+    (f"{DOCS_URL}/alerts.md", "Alerts", "what each alert means, and getting them on your phone"),
+]
 RESULTS = {
     "running": "Refreshing now",
     "ok": "Last refresh worked",
@@ -126,6 +135,9 @@ def render_html(s: dict) -> str:
     playlist = (
         f'<p>Playlist URL for Kodi: <code>{escape(s["playlist_url"])}</code></p>' if s["playlist_url"] else ""
     )
+    help_links = "".join(
+        f'<li><a href="{escape(url)}">{escape(name)}</a> <span>{escape(what)}</span></li>' for url, name, what in HELP
+    )
     body = f"""<h1>kia status</h1>
 <table class="summary">
 {table}
@@ -133,9 +145,11 @@ def render_html(s: dict) -> str:
 {alerts_html}
 <h2>Files</h2>
 {playlist}
-<ul>{files}</ul>"""
+<ul>{files}</ul>
+<h2>Help</h2>
+<ul>{help_links}</ul>"""
     footer = (
-        f"kodi-iptv-assistant {escape(s['version'])}. The same information for scripts: "
+        f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
         '<a href="status.json">status.json</a>. Each report is also available as Markdown (.md).'
     )
     return page("kia status", body, footer)

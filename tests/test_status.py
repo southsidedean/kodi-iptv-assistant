@@ -62,3 +62,13 @@ def test_old_alert_lines_and_escaping(tmp_path: Path):
     s["alerts"] = found
     page = status.render_html(s)
     assert "<script>" not in page and "&lt;script&gt;" in page
+
+
+def test_page_links_to_the_docs(tmp_path: Path):
+    page = status.render_html(status.collect(tmp_path, tmp_path, {}, None))
+    for url, name, _ in status.HELP:
+        assert f'href="{url}"' in page and name in page
+    # Each help link names a docs page that exists in this repository.
+    root = Path(__file__).resolve().parent.parent
+    for url, _, _ in status.HELP:
+        assert (root / "docs" / url.rsplit("/", 1)[1]).exists(), url
