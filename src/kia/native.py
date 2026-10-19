@@ -180,6 +180,7 @@ def grab_kink(
                     f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
                     f"channel={quoteattr(tid)}><title>{escape(title)}</title>{desc}</programme>\n"
                 )
+        out.write("</tv>\n")
 
 
 # site name -> grabber(channels_file, output, days, log)

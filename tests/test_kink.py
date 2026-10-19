@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from kia import epgmap, native
+from kia import epgmap, native, xmltv
 
 
 def kink_page(slots: list[dict]) -> str:
@@ -47,6 +47,7 @@ def test_grab_kink_writes_the_schedule(tmp_path: Path, monkeypatch):
     out = tmp_path / "kink.xml"
     native.grab_kink(channels, out, 2, lambda m: None, now=datetime(2026, 10, 19, 12, tzinfo=timezone.utc))
     text = out.read_text()
+    assert xmltv.scan(out)["radio.kink"]  # a complete XMLTV file that kia guide accepts
     assert 'channel="radio.kink"><title>KINK 1500</title><desc>Diane Kok</desc>' in text
     assert 'start="20261019210000 +0200"' in text
 

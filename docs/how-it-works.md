@@ -14,7 +14,11 @@ Each stream is marked:
 - flaky: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
 - dead: everything else.
 
-Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. Different playlists often list the same channel under different IDs, for example FOX Weather in iptv-org's USA list and in the Samsung TV Plus list. kia joins channels with exactly the same name from different playlists into one (`merge_duplicates`). The merged channel keeps the ID, logo, and number from the earliest playlist in your sources list and plays whichever copy's stream tested best. Its guide can come from any of the copies. A name one playlist uses for two channels, such as "FOX 5" for two cities, isn't merged. Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
+Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response.
+
+Different playlists often list the same channel under different IDs: CBS News 24/7 is in both iptv-org's USA list and the Samsung TV Plus list, for example. kia joins channels with exactly the same name from different playlists into one (`merge_duplicates`). The merged channel keeps the ID, logo, and number from the earliest playlist in your sources list, and plays whichever copy's stream tested best. Its guide can come from any of the copies. A name that one playlist uses for two channels, such as "FOX 5" for two cities, isn't merged.
+
+Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
 
 ### Radio
 
@@ -28,7 +32,7 @@ This is also why guides built by hand are often nearly empty: the channel lists 
 
 Guide sites also list many channels iptv-org hasn't linked to an ID, and channels get renamed. So when no site lists a channel's ID, kia looks for a site channel with exactly the same name in the same country. A wrong match would show another channel's programs, so a name counts only if it belongs to one channel. Looser matches, like "CBN News" and "CBN News Channel", are listed for you to check and never used. `mapping-report.html` lists the channels matched by ID, those matched by name, the possible matches, and the channels with no guide source. If a name match is wrong, add the channel's tvg-id to `ignore_name_matches` in `kia.toml`.
 
-Some playlists name their own guide in their first line (`x-tvg-url`), with channel IDs that match the playlist's. The Samsung TV Plus and Roku lists in `sources.txt` do, for example. For channels from those playlists, kia tries the playlist's own guide first, alongside any sites it found. Set `playlist_guides = false` under `[epg]` in `kia.toml` to leave them out.
+Some playlists name their own guide in their first line (`x-tvg-url`), with channel IDs that match the playlist's. The Samsung TV Plus list in `sources.txt` does, for example. kia adds that guide to the sources it compares for the playlist's channels, and prefers it when two sources cover the same hours. Set `playlist_guides = false` under `[epg]` in `kia.toml` to leave them out.
 
 ## 3. Download guide data (`kia grab`)
 
