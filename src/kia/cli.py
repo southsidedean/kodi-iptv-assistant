@@ -35,10 +35,19 @@ def log(msg: str) -> None:
 def fetch(url: str) -> str:
     path = Path(url)
     if path.exists():
-        return path.read_text()
+        return decode_text(path.read_bytes())
     req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
     with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+        return decode_text(resp.read())
+
+
+def decode_text(data: bytes) -> str:
+    """UTF-8 when the playlist is valid UTF-8, else Windows-1252: some playlists are saved
+    that way (apsattv.com's), and read as UTF-8 their accented names turn into "\ufffd"."""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("cp1252", errors="replace")
 
 
 def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:

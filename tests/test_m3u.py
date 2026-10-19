@@ -81,3 +81,14 @@ def test_playlist_carries_the_tested_user_agent():
     bare = m3u.Entry("Bare", "http://b/1")
     play_as_tested([bare], None)  # user_agent = "" in kia.toml: Kodi keeps its own
     assert "EXTVLCOPT" not in m3u.write([bare])
+
+
+def test_playlists_in_windows_1252_keep_their_accents(tmp_path):
+    from kia.cli import decode_text, fetch
+
+    assert decode_text("Español ✓".encode("utf-8")) == "Español ✓"
+    assert decode_text("AMC en Español, Pokémon".encode("cp1252")) == "AMC en Español, Pokémon"
+    f = tmp_path / "list.m3u"
+    f.write_bytes('#EXTM3U\n#EXTINF:-1,AMC en Español\nhttp://a/1\n'.encode("cp1252"))
+    (entry,) = m3u.parse(fetch(str(f)))
+    assert entry.name == "AMC en Español"
