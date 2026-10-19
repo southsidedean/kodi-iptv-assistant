@@ -89,7 +89,7 @@ docker compose pull --ignore-buildable
 docker compose up -d
 ```
 
-To stay on a version you've checked, pin it in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, and an exact image in `KIA_NODE_IMAGE` or `KIA_NGINX_IMAGE`, e.g. `node:22.23.3-alpine3.24` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). An image can also be pinned by digest, e.g. `nginx:alpine@sha256:...`. Pinned versions don't receive fixes until you change them.
+To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions into it. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, and an exact image in `KIA_NODE_IMAGE` or `KIA_NGINX_IMAGE`, e.g. `node:22.23.3-alpine3.24` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). An image can also be pinned by digest, e.g. `nginx:alpine@sha256:...`. Pinned versions don't receive fixes until you change them.
 
 Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, and `vendor/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, where it can't change kia itself, your settings, or anything else on the computer. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
 

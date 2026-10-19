@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+### Faster, steadier nightly runs
+
+- The stream check tests up to six streams at a time on jmp2.uk, which carries the Pluto TV, Samsung TV Plus, and Plex channels, instead of two (`per_host_limits` in `kia.toml`). In a test of 60 of its streams, that took 29 seconds instead of 98, with no extra failures.
+- Tests on the same server start at least 100 ms apart (`host_delay_ms`), so bursts don't set off a site's firewall.
+- A guide site that takes longer than 30 minutes is stopped, and its channels keep their previous guide (`site_time_limit`).
+- ontvtonight.com is skipped by default; it sends programs without titles.
+
+### Program guide
+
+- `accept_name_matches` in `kia.toml` turns on "possible matches" from the mapping report that you've checked.
+- Reports show times in your time zone, such as "Mon Oct 19, 15:55 CDT".
+
+### Versions
+
+- `scripts/pin-versions.sh` writes the exact versions you're running into `.env`, and `--unpin` goes back to the latest.
+
 ## 0.2.0 (2026-10-19)
 
 ### Upgrading from 0.1.1

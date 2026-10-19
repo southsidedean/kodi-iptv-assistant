@@ -13,6 +13,17 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def readable(iso: str | None) -> str:
+    """'2026-10-19T20:55:33+00:00' -> 'Mon Oct 19, 15:55 CDT', in this computer's time zone."""
+    if not iso:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(iso).astimezone()
+    except (TypeError, ValueError):
+        return iso
+    return f"{dt:%a %b} {dt.day}, {dt:%H:%M %Z}"
+
+
 class History:
     def __init__(self, path: Path):
         self.path = path

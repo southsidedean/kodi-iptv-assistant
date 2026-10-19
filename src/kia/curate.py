@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 
 from kia.epgmap import country, name_key
+from kia.history import readable
 from kia.m3u import Entry
 from kia.probe import ProbeResult
 
@@ -157,7 +158,7 @@ def render_markdown(
     lines = [
         "# Stream check report",
         "",
-        f"Generated {generated}",
+        f"Generated {readable(generated)}",
         "",
         "| | Count |",
         "|---|---:|",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import time
 from collections.abc import Callable
@@ -23,8 +24,9 @@ class GrabResult:
     output: Path
 
 
-def runner_prefix(cfg: EpgConfig) -> list[str]:
-    """Command prefix that runs a process inside the epg checkout."""
+def runner_prefix(cfg: EpgConfig, name: str | None = None) -> list[str]:
+    """Command prefix that runs a process inside the epg checkout. `name` names the Docker
+    container, so a download that runs too long can be stopped."""
     if cfg.runner == "local":
         return []
     if cfg.runner != "docker":
@@ -37,7 +39,7 @@ def runner_prefix(cfg: EpgConfig) -> list[str]:
     # exist on Windows).
     user = ["-u", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
     return [
-        "docker", "run", "--rm", *user,
+        "docker", "run", "--rm", *user, *(["--name", name] if name else []),
         "-e", "HOME=/tmp",
         "-v", f"{repo}:{repo}",
         "-v", f"{work}:{work}",
@@ -135,7 +137,8 @@ def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
 
 
 def _run_epg_grab(cfg: EpgConfig, channels_file: Path, staged: Path, log_path: Path) -> int:
-    cmd = runner_prefix(cfg) + [
+    container = f"kia-grab-{os.getpid()}-{channels_file.name.removesuffix('.channels.xml')}"[:63]
+    cmd = runner_prefix(cfg, container if cfg.runner == "docker" else None) + [
         "npm", "run", "grab", "--",
         f"--channels={channels_file.resolve()}",
         f"--output={staged}",
@@ -143,7 +146,28 @@ def _run_epg_grab(cfg: EpgConfig, channels_file: Path, staged: Path, log_path: P
         f"--maxConnections={cfg.max_connections}",
     ]  # fmt: skip
     with open(log_path, "w") as logf:
-        return subprocess.run(cmd, cwd=cfg.repo_dir, stdout=logf, stderr=subprocess.STDOUT).returncode
+        # Its own process group, so a stop reaches npm's Node.js children too.
+        proc = subprocess.Popen(cmd, cwd=cfg.repo_dir, stdout=logf, stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            return proc.wait(timeout=cfg.site_time_limit * 60 if cfg.site_time_limit else None)
+        except subprocess.TimeoutExpired:
+            stop(proc, container if cfg.runner == "docker" else None)
+            print(f"ERR: stopped after {cfg.site_time_limit} minutes (site_time_limit); kept the previous guide", file=logf)
+            return 124
+
+
+def stop(proc: subprocess.Popen, container: str | None) -> None:
+    """Stop a download and everything it started."""
+    if container:
+        subprocess.run(["docker", "kill", container], capture_output=True)
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+    except ProcessLookupError:
+        pass
 
 
 def grab_all(cfg: EpgConfig, sites: list[str] | None, log: Callable[[str], None]) -> list[GrabResult]:

@@ -217,3 +217,28 @@ def test_listings_that_run_out_are_followed_by_the_name(tmp_path: Path):
     out2 = tmp_path / "off.xml"
     xmltv.write_guide(out2, [Entry("Alpha", "u", {"tvg-id": "A.us"})], choices, {"short.tv": src}, False, 2, now, 4)
     assert "kia-placeholder" not in out2.read_text()  # placeholders = false: no name blocks at all
+
+
+def test_accepted_suggestions_are_used(tmp_path: Path, monkeypatch):
+    from kia import cli
+
+    repo = tmp_path / "epg"
+    path = repo / "sites" / "tvp" / "tvpassport.com.channels.xml"
+    path.parent.mkdir(parents=True)
+    path.write_text('<channels><channel site="tvpassport.com" site_id="c1" xmltv_id="X.us@SD">X</channel>'
+                    '<channel site="tvpassport.com" site_id="c2">CBN News Channel</channel></channels>')  # fmt: skip
+    (repo / ".git").mkdir()
+    out = tmp_path / "output"
+    out.mkdir()
+    (out / "curated.m3u").write_text('#EXTM3U\n#EXTINF:-1 tvg-id="CBNNews.us@SD",CBN News\nhttp://a/1\n')
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    cfg = tmp_path / "kia.toml"
+    cfg.write_text(f'[epg]\nrepo_dir = "{repo}"\nexclude_sites = []\n')
+    monkeypatch.delenv("KIA_EXCLUDE_SITES", raising=False)
+    assert cli.main(["map", "-c", str(cfg)]) == 0
+    assert "## Possible matches (not used)" in (out / "mapping-report.md").read_text()
+    cfg.write_text(f'[epg]\nrepo_dir = "{repo}"\nexclude_sites = []\naccept_name_matches = ["CBNNews.us@SD"]\n')
+    assert cli.main(["map", "-c", str(cfg)]) == 0
+    report = (out / "mapping-report.md").read_text()
+    assert "| CBN News | `CBNNews.us@SD` | tvpassport.com | CBN News Channel |" in report and "Possible matches" not in report
+    assert 'site_id="c2"' in (tmp_path / "work" / "channels" / "tvpassport.com.channels.xml").read_text()

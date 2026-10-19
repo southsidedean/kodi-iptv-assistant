@@ -16,6 +16,13 @@ concurrency = 20
 # Streams tested at the same time on any one server. Many servers, radio especially,
 # turn away more than a couple of connections from the same place.
 per_host = 2
+# Servers that allow more. jmp2.uk carries the Pluto TV, Samsung TV Plus, and Plex
+# channels (about 750 streams on a USA setup); at 6 its share of the check took a third
+# of the time, with no extra failures.
+per_host_limits = { "jmp2.uk" = 6 }
+# Milliseconds between starting two tests on the same server. Bursts of requests can set
+# off a site's firewall; other servers aren't held up.
+host_delay_ms = 100
 
 # Seconds to wait for a stream before giving up on it.
 timeout = 15
@@ -136,8 +143,13 @@ prefer_sites = []
 
 # Sites never to use. Sites marked broken by iptv-org are skipped anyway.
 # epg.iptvx.one needs more than 4 GB of memory, even for a few channels.
+# ontvtonight.com sends programs without titles (October 2026), so it adds nothing.
 # .env: KIA_EXCLUDE_SITES (adds to this list)
-exclude_sites = ["epg.iptvx.one"]
+exclude_sites = ["epg.iptvx.one", "ontvtonight.com"]
+
+# Minutes a guide site may take before kia stops it and keeps its previous guide, so one
+# site that hangs can't hold up the whole run. tvpassport.com can take 15. 0 = no limit.
+site_time_limit = 30
 
 # When a TV channel has no guide data, or its listings end early, fill the rest of its
 # row with blocks showing the channel's name, so the guide has no gaps. .env: KIA_PLACEHOLDERS
@@ -153,6 +165,9 @@ radio_placeholders = false
 # another channel's programs, add its tvg-id to ignore_name_matches, e.g. ["News12.us@SD"].
 name_matching = true
 ignore_name_matches = []
+# Looser matches listed under "Possible matches" in mapping-report.html aren't used. To
+# use one you've checked, add its tvg-id here, e.g. ["CBNNews.us@SD"].
+accept_name_matches = []
 
 # Use the guide a playlist names in its first line (x-tvg-url) for that playlist's
 # channels, e.g. the Samsung TV Plus list in sources.txt.

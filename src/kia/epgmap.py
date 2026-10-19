@@ -117,6 +117,7 @@ class Suggestion:
     name: str
     site: str
     site_name: str
+    channel: SiteChannel | None = None
 
 
 def find_candidates(
@@ -241,7 +242,7 @@ def suggest_by_name(
             continue
         rows = index.get((country(tid), loose_key(names[tid])), [])
         if rows and len({sc.xmltv_id or name_key(sc.name) for sc in rows}) == 1:
-            out.append(Suggestion(tid, names[tid], rows[0].site, rows[0].name))
+            out.append(Suggestion(tid, names[tid], rows[0].site, rows[0].name, rows[0]))
     return out
 
 
@@ -323,7 +324,8 @@ def render_report(
             "",
             "## Possible matches (not used)",
             "",
-            "Looser name matches, listed for a person to check. kia doesn't use them.",
+            "Looser name matches, listed for a person to check. kia doesn't use them unless you add the "
+            "tvg-id to `accept_name_matches` under `[epg]` in kia.toml.",
             "",
             "| Channel | tvg-id | Guide site | Name there |",
             "|---|---|---|---|",
