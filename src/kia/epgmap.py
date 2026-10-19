@@ -125,12 +125,14 @@ def find_candidates(
     cfg: EpgConfig,
     skip_sites: set[str] = frozenset(),
     names: dict[str, str] | None = None,
+    aliases: dict[str, list[str]] | None = None,
 ) -> dict[str, list[Candidate]]:
     """Up to cfg.max_sites_per_channel guide sources per tvg-id, best guesses first.
 
     Ids match first, ignoring case: the same feed, then another feed of the channel. With
     `names` (tvg-id -> channel name) and cfg.name_matching on, channels no id matches are
-    then matched by exact name (see name_key).
+    then matched by exact name (see name_key). `aliases` (tvg-id -> the ids the same
+    channel has in other playlists) are tried after the channel's own id.
     """
     usable = usable_channels(site_channels, cfg, skip_sites)
     by_id: dict[str, list[SiteChannel]] = defaultdict(list)
@@ -144,10 +146,13 @@ def find_candidates(
     for tid in tvg_ids:
         if not tid:
             continue
-        if by_id.get(tid.lower()):
-            matches = [Candidate(tid, sc, True) for sc in by_id[tid.lower()]]
+        ids = [tid, *(aliases or {}).get(tid, [])]
+        exact = next((i for i in ids if by_id.get(i.lower())), None)
+        if exact:
+            matches = [Candidate(tid, sc, True) for sc in by_id[exact.lower()]]
         else:
-            matches = [Candidate(tid, sc, False) for sc in by_base.get(base_id(tid).lower(), [])]
+            feed = next((i for i in ids if by_base.get(base_id(i).lower())), None)
+            matches = [Candidate(tid, sc, False) for sc in by_base.get(base_id(feed).lower(), [])] if feed else []
         if matches:
             raw[tid] = _one_per_site(matches)
 

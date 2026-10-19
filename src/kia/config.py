@@ -66,6 +66,7 @@ class Config:
     timeout: float = 15.0
     require_video: bool = True
     grace_failures: int = 2
+    merge_duplicates: bool = True
     user_agent: str | None = DEFAULT_USER_AGENT
     ffprobe: str = "ffprobe"
     exclude_groups: list[str] = field(default_factory=list)
@@ -163,6 +164,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         per_host=check.get("per_host", 2),
         require_video=check.get("require_video", True),
         grace_failures=check.get("grace_failures", 2),
+        merge_duplicates=check.get("merge_duplicates", True),
         user_agent=check.get("user_agent", DEFAULT_USER_AGENT) or None,
         ffprobe=check.get("ffprobe", "ffprobe"),
         exclude_groups=_merge_env_list("KIA_EXCLUDE_GROUPS", filters.get("exclude_groups", [])),

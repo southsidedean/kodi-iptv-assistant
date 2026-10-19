@@ -14,7 +14,7 @@ Each stream is marked:
 - flaky: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
 - dead: everything else.
 
-Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
+Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. Different playlists often list the same channel under different IDs, for example FOX Weather in iptv-org's USA list and in the Samsung TV Plus list. kia joins channels with exactly the same name from different playlists into one (`merge_duplicates`). The merged channel keeps the ID, logo, and number from the earliest playlist in your sources list and plays whichever copy's stream tested best. Its guide can come from any of the copies. A name one playlist uses for two channels, such as "FOX 5" for two cities, isn't merged. Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
 
 ### Radio
 

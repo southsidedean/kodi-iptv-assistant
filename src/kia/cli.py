@@ -174,6 +174,7 @@ def is_transient(error: str | None) -> bool:
 
 def write_atomic(path: Path, text: str) -> None:
     """Write via a temp file so a web server never serves a half-written file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(text)
     tmp.replace(path)
@@ -266,7 +267,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         r = results[e.url]
         rec = history.get(e.url)
         checked.append(Checked(e, r, classify(r, rec, cfg.grace_failures), r.height or rec.get("height")))
-    chosen = select(checked)
+    chosen = select(checked, {s.name: i for i, s in enumerate(cfg.sources)}, cfg.merge_duplicates)
 
     # A test run (part of the list) mustn't replace the playlist Kodi is using.
     partial = bool(args.limit or args.source or args.url)
@@ -290,8 +291,15 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     if not partial:
         history.prune(cfg.history_days)
-        # Which kept channels have a guide of their own, for `kia map` and `kia grab`.
-        playlistguide.save(cfg.epg.work_dir / "playlist-guides.json", playlistguide.plan([c.entry for c in chosen]))
+        # For `kia map` and `kia grab`: the ids a merged channel has in other playlists, and
+        # which kept channels have a guide of their own.
+        also = {c.entry.tvg_id: c.also for c in chosen if c.also and c.entry.tvg_id}
+        write_atomic(cfg.epg.work_dir / "aliases.json",
+                     json.dumps({tid: [e.tvg_id for e in es] for tid, es in also.items()}, indent=1))  # fmt: skip
+        aliases = {tid: [(e.source, e.tvg_id, e.guide_urls) for e in es] for tid, es in also.items()}
+        playlistguide.save(
+            cfg.epg.work_dir / "playlist-guides.json", playlistguide.plan([c.entry for c in chosen], aliases)
+        )
     history.save()
 
     drop_alert = False if partial else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
@@ -353,7 +361,9 @@ def cmd_map(args: argparse.Namespace) -> int:
 
     tvg_ids = [e.tvg_id for e in entries]
     names = {e.tvg_id: xmltv.display_name(e) for e in entries if not e.is_radio}
-    candidates = epgmap.find_candidates(tvg_ids, site_channels, epg, broken, names)
+    aliases_path = epg.work_dir / "aliases.json"
+    aliases = json.loads(aliases_path.read_text()) if aliases_path.exists() else {}
+    candidates = epgmap.find_candidates(tvg_ids, site_channels, epg, broken, names, aliases)
     suggestions = (
         epgmap.suggest_by_name(tvg_ids, names, epgmap.usable_channels(site_channels, epg, broken), set(candidates))
         if epg.name_matching

@@ -28,6 +28,11 @@ require_video = true
 # while and come back.
 grace_failures = 2
 
+# Join the same channel from different playlists into one, by exact name. It keeps the
+# id, logo, and channel number of its copy in the earliest playlist in your sources list,
+# and plays whichever copy's stream tested best.
+merge_duplicates = true
+
 # Forget the history of streams that haven't been in any playlist for this many days.
 history_days = 30
 
