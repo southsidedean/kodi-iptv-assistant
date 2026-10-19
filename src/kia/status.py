@@ -12,8 +12,8 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from kia import __version__
-from kia.htmlpage import page
+from kia import __version__, editor
+from kia.htmlpage import FILTER_ROWS, FILTER_SCRIPT, page
 from kia.history import readable
 from kia.m3u import parse
 
@@ -67,7 +67,7 @@ def update(output_dir: Path, state_dir: Path, public_url: str | None = None, **r
     _write(saved_path, json.dumps(saved, indent=1, sort_keys=True))
     status = collect(output_dir, state_dir, saved, public_url)
     _write(output_dir / "status.json", json.dumps(status, indent=1))
-    _write(output_dir / "index.html", render_html(status))
+    write_pages(output_dir, status)
     return status
 
 
@@ -185,34 +185,73 @@ def _banner(s: dict) -> str:
     )
 
 
-def _playlists_card(s: dict) -> str:
-    """Everything, plus one playlist per profile, each with its address and a Copy button."""
+def _playlists(s: dict) -> list[dict]:
+    """Everything, then each profile: title, files, counts, address, and its page."""
     ch = s["channels"]
-    rows = [("Everything", "curated.m3u", ch["tv"] or 0, ch["radio"] or 0, s["playlist_url"])]
-    rows += [(p["title"], p["file"], p["tv"], p["radio"], p.get("url")) for p in s.get("profiles", [])]
-    items = []
-    for i, (title, file, tv, radio, url) in enumerate(rows):
-        counts = f"{_n(tv)} TV channels" + (f", {_n(radio)} radio stations" if radio else "")
-        address = (
-            f'<div class="copy"><code id="playlist-{i}">{escape(url)}</code>'
-            f'<button type="button" data-copy="playlist-{i}">Copy</button></div>'
-            if url
-            else f'<a href="{escape(file)}">{escape(file)}</a>'
-        )
-        items.append(f'<div class="playlist"><div><strong>{escape(title)}</strong> <span class="muted">{counts}</span></div>{address}</div>')
-    error = (
-        f'<p class="bad-note">The profiles file has a mistake, so the profile playlists weren\'t updated: {escape(s["profiles_error"])}</p>'
-        if s.get("profiles_error")
-        else ""
-    )
+    base = s["playlist_url"].removesuffix("/curated.m3u") if s.get("playlist_url") else None
+    out = [{"name": None, "title": "Everything", "file": "curated.m3u", "guide": "guide.xml.gz",
+            "tv": ch["tv"] or 0, "radio": ch["radio"] or 0, "page": "playlists/curated.html"}]  # fmt: skip
+    for p in s.get("profiles", []):
+        out.append({"name": p["name"], "title": p["title"], "file": p["file"], "guide": p.get("guide") or "guide.xml.gz",
+                    "tv": p["tv"], "radio": p["radio"], "page": f"playlists/{p['name']}.html"})  # fmt: skip
+    for pl in out:
+        pl["url"] = f"{base}/{pl['file']}" if base else None
+        pl["guide_url"] = f"{base}/{pl['guide']}" if base else None
+    return out
+
+
+def _counts(pl: dict) -> str:
+    return f"{_n(pl['tv'])} TV channels" + (f", {_n(pl['radio'])} radio stations" if pl["radio"] else "")
+
+
+def _address(i: int | str, url: str | None, file: str, root: str = "") -> str:
+    if not url:
+        return f'<a href="{escape(root + file)}">{escape(file)}</a>'
     return (
-        '<section class="card"><h2>Playlists</h2>'
-        "<p>Use one of these as the <strong>M3U playlist URL</strong> in IPTV Simple Client or your player.</p>"
-        f'{error}<div class="playlists">{"".join(items)}</div></section>'
+        f'<div class="copy"><code id="copy-{i}">{escape(url)}</code>'
+        f'<button type="button" data-copy="copy-{i}">Copy</button></div>'
     )
+
+
+def _profiles_error(s: dict) -> str:
+    if not s.get("profiles_error"):
+        return ""
+    return (
+        "<p class=\"bad-note\">The profiles file has a mistake, so the profile playlists weren't updated: "
+        f"{escape(s['profiles_error'])}</p>"
+    )
+
+
+def _playlists_card(s: dict) -> str:
+    """Every playlist with its address, a Copy button, and a link to its page."""
+    items = []
+    for i, pl in enumerate(_playlists(s)):
+        items.append(
+            f'<div class="playlist"><div><a class="pl-title" href="{escape(pl["page"])}">{escape(pl["title"])}</a> '
+            f'<span class="muted">{_counts(pl)}</span></div>{_address(i, pl["url"], pl["file"])}</div>'
+        )
+    return (
+        '<section class="card" id="playlists" data-add><h2>Playlists</h2>'
+        "<p>Use one of these as the <strong>M3U playlist URL</strong> in IPTV Simple Client or your player. "
+        "Open one to see its channels.</p>"
+        f'{_profiles_error(s)}<div class="playlists">{"".join(items)}</div></section>'
+    )
+
+
+def _footer(s: dict, root: str = "") -> str:
+    return (
+        f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
+        f'<a href="{root}status.json">status.json</a>.'
+    )
+
+
+def _help_card() -> str:
+    links = "".join(f'<li><a href="{escape(url)}">{escape(name)}</a><span>{escape(what)}</span></li>' for url, name, what in HELP)
+    return f'<section class="card"><h2>Help</h2><ul class="links">{links}</ul></section>'
 
 
 def render_html(s: dict) -> str:
+    """The home page: is kia working, what it found, and the playlists."""
     ch = s["channels"]
     tv = ch["tv"] or 0
     guided = ch["with_guide"]
@@ -224,7 +263,22 @@ def render_html(s: dict) -> str:
         f'<div class="tile"><div class="n">{_n(guided)}</div><div class="l">Channels with guide data{share}</div></div>'
         "</section>"
     )
+    alerts = ""
+    if s["alerts"]:
+        items = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
+        alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
+    more = (
+        '<section class="card"><h2>Details</h2><ul class="links">'
+        '<li><a href="details.html">Guide coverage, streams, and reports</a>'
+        "<span>how much of the guide is filled in, which playlists' streams work, and the full reports</span></li>"
+        "</ul></section>"
+    )
+    body = f'<main>{_banner(s)}{tiles}{alerts}{_playlists_card(s)}<div class="pair">{more}{_help_card()}</div></main>'
+    return page("kia status", body, _footer(s), COPY_SCRIPT + editor.SCRIPT, editor.STYLE)
 
+
+def render_details(s: dict) -> str:
+    """Guide coverage, streams by playlist, and the reports."""
     cov = s.get("coverage") or {}
     guide = ""
     if cov:
@@ -237,7 +291,6 @@ def render_html(s: dict) -> str:
             f'<span><i style="background:var(--bar-none)"></i>Channel name only: {_n(cov["none"])}</span>'
             "</div></section>"
         )
-
     sources = ""
     if s.get("sources"):
         rows = "".join(
@@ -248,31 +301,66 @@ def render_html(s: dict) -> str:
         )
         sources = f'<section class="card"><h2>Streams by playlist</h2><div class="sources">{rows}</div></section>'
 
-    alerts = ""
-    if s["alerts"]:
-        items = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
-        alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
-
-    kodi = _playlists_card(s)
-
     def file_item(name: str, what: str) -> str:
         twin = markdown_twin(name)
         markdown = f' (<a href="{escape(twin)}">Markdown</a>)' if twin in s["files"] else ""
         return f'<li><a href="{escape(name)}">{escape(name)}</a>{markdown}<span>{escape(what)}</span></li>'
 
     files = "".join(file_item(name, what) for name, what in FILES if name in s["files"])
-    help_links = "".join(
-        f'<li><a href="{escape(url)}">{escape(name)}</a><span>{escape(what)}</span></li>' for url, name, what in HELP
+    reports = f'<section class="card"><h2>Files and reports</h2><ul class="links">{files}</ul></section>'
+    body = f'<main><h1>Details</h1>{guide}{sources}<div class="pair">{reports}{_help_card()}</div></main>'
+    return page("kia details", body, _footer(s))
+
+
+def render_playlist(s: dict, pl: dict, entries: list) -> str:
+    """One playlist's page: its addresses, its channels, and (for a profile) Edit."""
+    root = "../"
+    tag = f' data-profile="{escape(pl["name"])}"' if pl["name"] else ""
+    rows = "".join(
+        f'<tr><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td><td>{escape(e.name)}</td>'
+        f'<td>{escape(e.group.replace(";", ", "))}</td><td>{"Radio" if e.is_radio else "TV"}</td></tr>\n'
+        for e in entries
     )
-    pair = (
-        '<div class="pair">'
-        f'<section class="card"><h2>Files and reports</h2><ul class="links">{files}</ul></section>'
-        f'<section class="card"><h2>Help</h2><ul class="links">{help_links}</ul></section>'
-        "</div>"
+    filter_box = (
+        f'<input type="search" placeholder="Filter these {len(entries):,} channels" data-filter="channels">'
+        if len(entries) > FILTER_ROWS
+        else ""
     )
-    body = f"<main>{_banner(s)}{tiles}{guide}{sources}{alerts}{kodi}{pair}</main>"
-    footer = (
-        f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
-        '<a href="status.json">status.json</a>.'
+    guide_note = (
+        "Its own guide, with only these channels."
+        if pl["guide"] != "guide.xml.gz"
+        else "The program guide."
     )
-    return page("kia status", body, footer, COPY_SCRIPT)
+    body = (
+        f'<main><section class="card" id="playlists" data-root="{root}">'
+        f'<div class="playlist"{tag}><h1>{escape(pl["title"])}</h1><p class="muted">{_counts(pl)}</p></div>'
+        f"{_profiles_error(s) if pl['name'] else ''}"
+        "<h2>Playlist address</h2>"
+        "<p>Use this as the <strong>M3U playlist URL</strong> in IPTV Simple Client or your player.</p>"
+        f'{_address("playlist", pl["url"], pl["file"], root)}'
+        "<h2>Guide address</h2>"
+        f"<p>{guide_note} Kodi finds it through the playlist; some other players ask for it separately.</p>"
+        f'{_address("guide", pl["guide_url"], pl["guide"], root)}'
+        "</section>"
+        f'<section class="card"><h2>Channels</h2>{filter_box}<div class="wide"><table id="channels">'
+        '<thead><tr><th class="num">No.</th><th>Channel</th><th>Category</th><th>Type</th></tr></thead>'
+        f"<tbody>\n{rows}</tbody></table></div></section></main>"
+    )
+    return page(f"{pl['title']} - kia", body, _footer(s, root), COPY_SCRIPT + FILTER_SCRIPT + editor.SCRIPT, editor.STYLE, root=root)
+
+
+def write_pages(output_dir: Path, s: dict) -> None:
+    """index.html, details.html, and a page per playlist in playlists/."""
+    _write(output_dir / "index.html", render_html(s))
+    _write(output_dir / "details.html", render_details(s))
+    folder = output_dir / "playlists"
+    keep = set()
+    for pl in _playlists(s):
+        path = output_dir / pl["file"]
+        entries = parse(path.read_text()) if path.exists() else []
+        name = Path(pl["page"]).name
+        _write(folder / name, render_playlist(s, pl, entries))
+        keep.add(name)
+    for old in folder.glob("*.html"):
+        if old.name not in keep:
+            old.unlink()

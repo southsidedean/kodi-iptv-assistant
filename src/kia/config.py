@@ -183,7 +183,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         state_dir=base / output.get("state_dir", "state"),
         epg_url=output.get("epg_url") or _derive_epg_url(output),
         channel_numbers=output.get("channel_numbers", True),
-        profiles_file=base / (os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles.local.toml")),
+        profiles_file=base / (os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles/profiles.toml")),
         public_url=_public_url(output),
         alerts=_load_alerts(data.get("alerts", {})),
         history_days=check.get("history_days", 30),

@@ -8,10 +8,12 @@ output/*
 state/*
 vendor/*
 work/*
+# Your profiles (the status page writes them here), apart from the example.
+profiles/*
+!profiles/example.toml
 !*/.gitkeep
 .env
 sources.local.txt
-profiles.local.toml
 # Your own playlist files (see the end of sources.txt).
 playlists/
 *.tmp

@@ -73,9 +73,9 @@ ul { padding-left: 1.2rem; }
 footer { color: var(--muted); font-size: var(--step--1); margin-top: var(--space-5); }
 
 /* Brand mark at the top of every page */
-.brand { display: inline-flex; align-items: center; gap: var(--space-1); color: inherit; text-decoration: none;
-  font-weight: 650; font-size: var(--step-1); margin-bottom: var(--space-3); min-height: 44px; }
-.brand svg { width: 2rem; height: 2rem; }
+.brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none;
+  font-weight: 700; font-size: var(--step-3); line-height: 1; letter-spacing: -.01em; margin-bottom: var(--space-4); min-height: 44px; }
+.brand svg { width: 3.25rem; height: 3.25rem; }
 
 /* Tables (reports) */
 .wide { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -117,13 +117,15 @@ main h2 { margin: 0 0 var(--space-2); }
 .copy code { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-small); padding: .5rem .65rem; min-width: 0; }
 button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: var(--radius-small); border: 1px solid var(--line);
   background: var(--card); color: var(--fg); cursor: pointer; }
-.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); align-items: start; }
 .playlists { display: grid; gap: var(--space-3); }
 .playlist { display: grid; gap: .35rem; }
 .bad-note { background: var(--bad-bg); color: var(--fg); border-radius: var(--radius-small); padding: .6rem .8rem; }
 .links { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .links a { display: inline-block; padding-block: .1rem; }
 .links span { display: block; font-size: var(--step--1); }
+.pl-title { font-weight: 650; }
+.card h2 + p, .card h1 + p { margin-top: 0; }
 
 /* Phones */
 @media (max-width: 34rem) {
@@ -156,7 +158,8 @@ document.querySelectorAll("input[data-filter]").forEach(function (box) {
 """
 
 
-def page(title: str, body: str, footer: str = "", script: str = "", style: str = "") -> str:
+def page(title: str, body: str, footer: str = "", script: str = "", style: str = "", root: str = "") -> str:
+    """A kia page. root: the way back to the output folder from the page ("../" for playlists/)."""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -170,7 +173,7 @@ def page(title: str, body: str, footer: str = "", script: str = "", style: str =
 <style>{STYLE}{style}</style>
 </head>
 <body>
-<a class="brand" href="index.html">{MARK}<span>kia</span></a>
+<a class="brand" href="{root}index.html">{MARK}<span>kia</span></a>
 {body}
 <footer>{footer}</footer>
 {script}

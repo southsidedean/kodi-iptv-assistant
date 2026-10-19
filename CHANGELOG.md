@@ -4,8 +4,17 @@
 
 ### Playlists for people and devices
 
-- Profiles make smaller playlists from the full one, each with its own address, such as `http://<your address>:8780/kids.m3u` for the kids' tablet. A profile picks channels by category, playlist, name, or ID, and can leave out categories, names, TV, or radio. Every profile uses the same guide and channel numbers as the full list. Copy `profiles.example.toml` to `profiles.local.toml` to start; see [profiles](docs/profiles.md).
-- The status page lists every playlist with its channel count, its address, and a Copy button, and says when the profiles file has a mistake.
+- Profiles make smaller playlists from the full one, each with its own address, such as `http://<your address>:8780/kids.m3u` for the kids' tablet. A profile picks channels by category, playlist, name, or ID, and can leave out categories, names, TV, or radio. See [profiles](docs/profiles.md).
+- Make and change profiles on the status page: set `KIA_ADMIN_PASSWORD` in `.env` to turn editing on. The form shows how many channels a playlist would have as you change it. Profiles live in `profiles/profiles.toml`, which you can also edit by hand (start from `profiles/example.toml`).
+- Each profile gets its own guide with only its channels. In a test, a 90-channel kids profile's guide was 391 KB instead of 3 MB, which is much less for a slow device to load.
+- `renumber = true` numbers a profile's channels from 1. Otherwise a channel has the same number in every playlist.
+
+### Status page
+
+- The home page is shorter: the status, the channel counts, any alerts, and your playlists with their addresses and Copy buttons.
+- Each playlist has its own page with its addresses and a filterable list of its channels.
+- Guide coverage, streams by playlist, and the reports moved to a Details page.
+- The kia name and logo at the top are bigger.
 
 ### Faster, steadier nightly runs
 

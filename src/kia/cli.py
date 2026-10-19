@@ -197,32 +197,15 @@ def play_as_tested(entries: list[m3u.Entry], user_agent: str | None) -> None:
             e.vlcopts["http-user-agent"] = user_agent
 
 
-def write_profiles(cfg: Config, chosen: list[Checked]) -> None:
-    """Write each profile's playlist (see kia.profiles) and output/profiles.json for the
-    status page. A mistake in the profiles file leaves the previous playlists in place."""
-    out = cfg.output_dir
-    summary_path = out / "profiles.json"
-    try:
-        defined = profiles.load(cfg.profiles_file) if cfg.profiles_file else []
-    except (ValueError, OSError) as exc:  # tomllib.TOMLDecodeError is a ValueError
-        log(f"Profiles not updated: {exc}")
-        old = json.loads(summary_path.read_text()) if summary_path.exists() else {}
-        write_atomic(summary_path, json.dumps({**old, "error": str(exc)}, indent=1))
-        return
-    items = [(c.entry, {c.entry.source} | {e.source for e in c.also}) for c in chosen]
-    summary = []
-    for p in defined:
-        entries = profiles.select(p, items)
-        write_atomic(out / p.file, m3u.write(entries, cfg.epg_url))
-        radio_count = sum(1 for e in entries if e.is_radio)
-        summary.append({"name": p.name, "title": p.label, "file": p.file, "tv": len(entries) - radio_count, "radio": radio_count})
-        log(f"Profile {p.name}: {len(entries)} channels -> {out / p.file}")
-    # Playlists of profiles that were removed from the file.
-    keep = {"curated.m3u"} | {p.file for p in defined}
-    for old_file in out.glob("*.m3u"):
-        if old_file.name not in keep:
-            old_file.unlink()
-    write_atomic(summary_path, json.dumps({"profiles": summary}, indent=1))
+def write_profiles(cfg: Config, chosen: list[Checked] | None = None) -> None:
+    """Write the profile playlists and guides (kia.profiles). After a check, `chosen` notes
+    which playlists each kept channel came from; after a guide build it's left out."""
+    from kia import api
+
+    with api.LOCK:  # not while the status page is saving a profile
+        if chosen is not None:
+            profiles.save_sources(cfg.state_dir, [(c.entry, {c.entry.source} | {e.source for e in c.also}) for c in chosen])
+        profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, log)
 
 
 def is_transient(error: str | None) -> bool:
@@ -579,6 +562,7 @@ def build_guide(
         f"{with_data} of {len(entries)} channels have guide data "
         f"-> {out} (+ .gz), report in {cfg.output_dir / 'guide-report.md'}"
     )
+    write_profiles(cfg)  # the profiles' own guides, from the new one
     drop_alert = check_count_drop(cfg, "guide_channels", with_data, "guide_drop", "channels with guide data")
     update_status(cfg, guide_updated=now_iso(), coverage=xmltv.coverage(entries, choices))
     return EXIT_ALERT if drop_alert else 0
@@ -748,9 +732,23 @@ def wait_until(when: datetime, poll: float = 60.0) -> None:
         time.sleep(min(poll, remaining))
 
 
+def api_config(cfg: Config):
+    """The profile editor's settings (kia.api); editing needs KIA_ADMIN_PASSWORD."""
+    from kia import api
+
+    return api.ApiConfig(
+        output_dir=cfg.output_dir,
+        state_dir=cfg.state_dir,
+        profiles_file=cfg.profiles_file,
+        epg_url=cfg.epg_url,
+        password=os.environ.get("KIA_ADMIN_PASSWORD") or None,
+        on_change=lambda: update_status(cfg),
+    )
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     cfg = load_config(args)
-    server = serve.make_server(cfg.output_dir, args.bind, args.port)
+    server = serve.make_server(cfg.output_dir, args.bind, args.port, api_config(cfg))
     log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/ (Ctrl-C to stop)")
     try:
         server.serve_forever()
@@ -764,8 +762,12 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     next_run(datetime.now(), args.at)  # validate --at before sleeping
     cfg = load_config(args)
     if args.serve:
-        serve.serve_in_background(cfg.output_dir, args.bind, args.port)
+        serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg))
         log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/")
+    elif args.api_port:
+        # With Docker, nginx serves the files and forwards /api/ here (not published).
+        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg))
+        log(f"Profile editor API on port {args.api_port}")
     run_now = (
         args.run_now
         or env_bool("KIA_RUN_ON_START", False)
@@ -915,6 +917,8 @@ def main(argv: list[str] | None = None) -> int:
         help="hours between quick guide refreshes, 0 to turn off (default: KIA_GUIDE_REFRESH_HOURS or 4)",
     )
     p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
+    p.add_argument("--api-port", type=int, default=int(os.environ.get("KIA_API_PORT") or 0),
+                   help="serve the status page's profile editor API on this port (Docker sets 8781)")  # fmt: skip
     p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
     add_serve_args(p)
     p.set_defaults(func=cmd_daemon)

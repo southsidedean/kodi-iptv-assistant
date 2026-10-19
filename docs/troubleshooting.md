@@ -12,13 +12,13 @@ Open `http://<your address>:8780/curated.m3u` in a browser on the same network a
 
 - If it doesn't download, Kodi can't reach kia either. See [other devices can't connect](#other-devices-cant-connect).
 - If it downloads, check the add-on's **M3U playlist URL** in Kodi ([Kodi setup](kodi.md#3-point-it-at-the-playlist)), then restart Kodi.
-- If the status page says *Not run yet*, kia's first run is still going. It can take up to an hour.
+- If the status page says *Waiting for the first refresh*, kia's first run is still going. It can take up to an hour.
 
 ### Channels, but the guide is empty
 
 Give it a couple of minutes, then restart Kodi. If it's still empty, open the playlist URL in a browser. Its first line shows the guide address (`x-tvg-url`) that Kodi uses. That address comes from `KIA_PUBLIC_URL` in `.env`, so it must be one this Kodi device can reach. If it's wrong, fix `KIA_PUBLIC_URL`, run `docker compose up -d`, then [refresh now](configuration.md#when-changes-take-effect).
 
-Some channels have no guide data anywhere. They show their own name in the guide instead of programs. `guide-report.html`, linked from the status page, shows which channels have guide data and where it comes from.
+Some channels have no guide data anywhere. They show their own name in the guide instead of programs. `guide-report.html`, linked from the status page's Details page, shows which channels have guide data and where it comes from.
 
 ### A channel shows another channel's programs
 
