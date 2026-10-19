@@ -7,8 +7,10 @@ The setups below differ only in who can reach kia and how much work the machine 
 One always-on machine (a Linux box, NAS, or mini PC) serves every Kodi device in the house, including ones that can't run anything themselves, like Fire TV, Android TV, or Apple TV.
 
 ```ini
-KIA_PUBLIC_URL=http://192.168.1.20:8780   # this machine's address on your network
-KIA_BIND=0.0.0.0                          # reachable by other devices
+# This machine's address on your network
+KIA_PUBLIC_URL=http://192.168.1.20:8780
+# Reachable by other devices
+KIA_BIND=0.0.0.0
 ```
 
 Give the machine a fixed address (a DHCP reservation in your router) so the URL in Kodi keeps working.
@@ -20,10 +22,11 @@ A desktop, laptop, or Linux box that both runs kia and plays TV. Nothing is expo
 ```ini
 KIA_PUBLIC_URL=http://localhost:8780
 KIA_BIND=127.0.0.1
-KIA_RUN_ON_START=true      # computers that sleep at night refresh when kia starts
+# Computers that sleep at night refresh when kia starts
+KIA_RUN_ON_START=true
 ```
 
-The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking.
+The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking. In Kodi, set the refresh hour a little after it, or leave Kodi to load the new list when it next starts.
 
 ## Laptop that travels (with a home server)
 
@@ -33,8 +36,10 @@ The laptop tests streams itself, because what plays depends on where you are. It
 KIA_PUBLIC_URL=http://localhost:8780
 KIA_BIND=127.0.0.1
 KIA_RUN_ON_START=true
-KIA_UPSTREAM_URL=http://192.168.1.20:8780   # your home server
-KIA_UPSTREAM_FALLBACK=cached                # away from home: reuse the last guide (or "grab" a fresh one)
+# Your home server
+KIA_UPSTREAM_URL=http://192.168.1.20:8780
+# Away from home: reuse the last guide (or "grab" a fresh one)
+KIA_UPSTREAM_FALLBACK=cached
 ```
 
 Use the same playlist list as the home server, so its guide covers the same channels. Kodi on the laptop points at `http://localhost:8780/curated.m3u`.
@@ -53,14 +58,16 @@ Runs take longer. With one site at a time, memory use peaks around 0.7 GB. Use a
 
 ## Without Docker
 
-You can run kia directly. You need Python 3.11+, ffmpeg, git, and Node.js 22+ (for the guide grabber).
+You can run kia directly. You need Python 3.11+, ffmpeg, git, and Node.js 22+ (for the guide grabber). On Ubuntu and Debian, also install `python3-venv`.
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -e .
-.venv/bin/kia daemon --serve --run-now   # refresh daily at 04:00 and serve on 127.0.0.1:8780
+.venv/bin/kia daemon --serve --run-now
 ```
 
-Settings go in `kia.toml` (set `runner = "local"` under `[epg]`). Most `.env` settings also work as environment variables; the schedule is `--at HH:MM` instead of `KIA_RUN_AT`, and the memory limit and image settings only apply to Docker. Add `--bind 0.0.0.0` to serve other devices.
+That refreshes daily at 04:00 and serves the results on `127.0.0.1:8780`. Add `--at HH:MM` for another time, or `--bind 0.0.0.0` to serve other devices.
+
+Settings go in `kia.toml`. Under `[output]`, set `public_url` to the address Kodi uses (the job `KIA_PUBLIC_URL` does with Docker), and under `[epg]`, set `runner = "local"`. Most other `.env` settings also work as environment variables; the memory limit, the image settings, and the container lockdown apply only to Docker. kia stops when you close the terminal, so run it in `tmux` or `screen`, or start it at boot with your system's service manager.
 
 Install scripts for macOS and Linux are planned.

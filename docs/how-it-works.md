@@ -4,7 +4,7 @@ Every night (`KIA_RUN_AT`), kia runs four steps. You can also run them by hand, 
 
 ## 1. Check streams (`kia check`)
 
-Every stream in your playlists is opened with `ffprobe`. A TV stream counts as working if it opens and has video; a radio station needs only audio. Some servers turn away anything that isn't a media player, or more than a couple of connections from one place, so kia introduces itself as VLC (the player most widely accepted) and tests at most two streams per server at a time. Streams that fail a name lookup or time out get a second, slower try before they count as failed. Each stream is marked:
+Every stream in your playlists is opened with `ffprobe`. A TV stream counts as working if it opens and has video; a radio station needs only audio. Some servers turn away anything that isn't a media player, or more than a couple of connections from one place, so kia introduces itself as VLC (the player most widely accepted) and tests at most two streams per server at a time. Streams that fail a name lookup or time out get a second, slower try before they count as failed. Only network addresses (`http`, `https`, `rtmp`, `rtsp`) are tested; anything else in a playlist, such as a file on this computer, is marked dead. Each stream is marked:
 
 - ok: works now.
 - flaky: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
@@ -24,17 +24,17 @@ This is also why guides built by hand are often nearly empty: the channel lists 
 
 ## 3. Download guide data (`kia grab`)
 
-For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. If a site fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
+kia first updates its copy of iptv-org/epg to the latest version (or the one you've pinned; see [versions](configuration.md#versions)). If GitHub can't be reached, it uses the copy it has. For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. If a site fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
 
 ## 4. Build the guide (`kia guide`)
 
-For each channel, kia picks the site with the most programs in the next 24 hours and writes `guide.xml` and `guide.xml.gz`. Channels with no data get blocks showing the channel's name (`placeholders`). `guide-report.md` shows coverage by channel and site.
+For each channel, kia picks the site with the most programs in the next 24 hours and writes `guide.xml` and `guide.xml.gz`. A site with nothing in the next 24 hours (only old listings, for example) doesn't count. Channels with no data get blocks showing the channel's name (`placeholders`). A damaged guide file is skipped, and the other sites are still used. `guide-report.md` shows coverage by channel and site.
 
 With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downloads the upstream's guide and keeps the channels in its own list. If the upstream can't be reached, it falls back to steps 2 and 3 (or the last copy, with `KIA_UPSTREAM_FALLBACK=cached`).
 
 ## DNS checks and alerts
 
-When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) as well. If they can't find it either, the stream or site is gone, and kia just reports it. If they can, your network's DNS is the problem (an ad-blocker or the router, for example), and since that would affect Kodi too, kia raises an alert.
+When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) as well. If they can't find it either, the stream or site is gone, and kia just reports it. If they can, your network's DNS is the problem (an ad-blocker or the router, for example), and since that would affect Kodi too, kia raises an alert. Names are tried twice on your network first, so a single slow lookup doesn't raise one.
 
 Alerts also cover a failed nightly run, sharp drops in working channels or guide coverage, and a guide site that keeps failing. They can go to your phone through ntfy or to any command you choose: see [alerts](alerts.md).
 

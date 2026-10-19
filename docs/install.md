@@ -25,7 +25,7 @@ If you plan to run kia on a different computer from the one you watch on, do ste
 
 ### Linux (Ubuntu, Debian, Raspberry Pi OS, and most others)
 
-Docker's install script sets up Docker Engine and Docker Compose:
+Docker's install script sets up Docker Engine and Docker Compose. It's downloaded with `curl`; if `curl --version` says the command isn't found, install it first with `sudo apt install curl` (or your distribution's equivalent).
 
 ```sh
 curl -fsSL https://get.docker.com | sudo sh
@@ -86,7 +86,7 @@ KIA_PUBLIC_URL=http://192.168.1.20:8780
 TZ=America/New_York
 ```
 
-Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print.
+Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
 
 Then choose your playlists. Make your own copy of the list, so updating kia never touches your choices:
 
@@ -94,7 +94,7 @@ Then choose your playlists. Make your own copy of the list, so updating kia neve
 cp sources.txt sources.local.txt
 ```
 
-Add `KIA_SOURCES_FILE=sources.local.txt` to `.env`. Then open `sources.local.txt` and remove the `#` at the start of each playlist you want. The USA list is on already. Each line shows roughly how many streams it has; more streams make the nightly check longer. The same file can add radio stations, as its comments explain.
+In `.env`, set `KIA_SOURCES_FILE=sources.local.txt` (the line is already there, empty). Then open `sources.local.txt` and remove the `#` at the start of each playlist you want. The USA list is on already. Each line shows roughly how many streams it has; more streams make the nightly check longer. The same file can add radio stations, as its comments explain.
 
 ## 6. Start kia
 
@@ -111,11 +111,11 @@ If other devices can't connect:
 - Linux with a firewall (ufw): `sudo ufw allow 8780/tcp`.
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
 
-From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Docker restarts it after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in* setting).
+From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Kodi picks up each refresh at its own refresh hour, which you set in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in* setting).
 
 ## 7. Set up Kodi
 
-Follow [Kodi setup](kodi.md) on each device you watch on: install Kodi, add IPTV Simple Client, and enter `http://<your address>:8780/curated.m3u`.
+Follow [Kodi setup](kodi.md) on each device you watch on: install Kodi, add IPTV Simple Client, enter `http://<your address>:8780/curated.m3u`, and set the daily refresh.
 
 ## Next steps
 

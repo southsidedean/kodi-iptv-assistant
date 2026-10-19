@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.1.1 (unreleased)
+
+Fixes from an independent review of 0.1.0, locked-down containers, and versions that follow the latest releases by default.
+
+### Kodi
+
+- The Kodi setup now includes IPTV Simple Client's daily refresh (*Auto refresh mode: Once per day*). Without it, Kodi loads the list and guide only when it starts, so devices that sleep instead of shutting down kept old data.
+
+### Versions
+
+- kia now uses the latest Node.js LTS (`node:lts-alpine`), the latest nginx (`nginx:alpine`), and the latest iptv-org/epg (`KIA_EPG_GIT_REF=latest`, its default branch) unless you pin a version in `.env`. Updating kia now pulls the newest images too. Tested with Node.js 24.22.0 and nginx 1.31.7.
+
+### Security
+
+- Both containers run read-only, with no extra privileges. kia sees the project folder read-only and writes only to `output/`, `state/`, `work/`, and `vendor/`, so the third-party guide downloader can't change kia or its settings. The web server sees only `output/` and doesn't follow symbolic links.
+- Only network streams (http, https, rtmp, rtsp) are handed to ffprobe. Guide site names are checked before they're used as file names. Only the `#KODIPROP` lines that choose a stream's player are copied from playlists. Git hooks are turned off in kia's copy of iptv-org/epg.
+
+### Fixes
+
+- A dropped connection while copying the guide from an upstream server no longer crashes the run or leaves a partial guide.
+- A guide site with only old listings no longer beats the placeholder that shows the channel's name.
+- The guide is still built when no channel matches a guide site, when GitHub can't be reached, when installing the downloader fails, or when one site's guide file is damaged.
+- A mistyped `KIA_NTFY_URL` is logged instead of crashing the alert, and the run.
+- A single failed name lookup during a guide download no longer raises a DNS alert; names are tried again first.
+- The second try for slow streams keeps the limit of two tests per server.
+- Test runs (`kia check` with `--limit`, `-s`, or `-u`) write to `work/check-test/` and leave the live playlist alone.
+
+### Docs
+
+- New: when changes take effect and how to refresh right away, versions and how to pin them, and checking the guide address when the guide stays empty.
+- Fixed: the setup recipes no longer put comments on the same line as settings, which Docker read as part of the value. The quick start uses your own copy of `sources.txt`. Also corrected: the `grace_failures` wording, `PUID`/`PGID`, installing `curl` before Docker on Linux, IPTV Simple Client from Ubuntu and Debian packages, and running without Docker.
+
 ## 0.1.0 (2026-10-16)
 
 The first release. kia turns free IPTV playlists into a working channel list with a matching program guide for Kodi, refreshed every night and served on your network.

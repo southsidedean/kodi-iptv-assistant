@@ -85,4 +85,5 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # https://iptv-org.github.io/iptv/index.m3u                    # Everything iptv-org has: 11,346 (slow)
 
 # --- Your own ---------------------------------------------------------------------
-# /path/to/my-extras.m3u8   extras
+# With Docker, a playlist file must be inside the kia folder; give its path from there.
+# playlists/my-extras.m3u8   extras
