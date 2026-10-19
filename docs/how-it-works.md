@@ -18,7 +18,7 @@ Channels listed more than once (same `tvg-id`) are reduced to the best stream: w
 
 ### Radio
 
-Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices, such as a country, genre, language, or station name. Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `KIA_RADIO_PLACEHOLDERS`.
+Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices, such as a country, genre, language, or station name. Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `KIA_RADIO_PLACEHOLDERS`. The exception so far is KINK, from the Netherlands: kia reads the schedule on kink.nl for a station named exactly "KINK", so its shows and DJs appear in Kodi's radio guide. KINK's theme channels play non-stop and have no schedule.
 
 ## 2. Match channels to guide sources (`kia map`)
 

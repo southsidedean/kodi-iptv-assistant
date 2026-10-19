@@ -10,6 +10,10 @@
 - Channel IDs that differ only in capital letters now match (`SYFY.us@East` and `Syfy.us@East`).
 - Programs without a title no longer count as guide data. ontvtonight.com currently sends only times, which showed as empty blocks in Kodi; those channels now use another site or show their name.
 
+### Radio
+
+- KINK's program schedule, read from kink.nl, fills Kodi's radio guide with its shows and DJs, for a radio station named exactly "KINK".
+
 ### Fixes
 
 - Channels that passed kia's check but wouldn't play in Kodi now play. Kodi introduced itself as Kodi, and some servers refuse that: jmp2.uk, which carries the Pluto TV, Samsung TV Plus, and Plex channels in the iptv-org lists, answered with "403 Forbidden". The playlist now tells Kodi to introduce itself the way kia did when it tested each stream (`#EXTVLCOPT:http-user-agent`).

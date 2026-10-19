@@ -364,6 +364,9 @@ def cmd_map(args: argparse.Namespace) -> int:
     aliases_path = epg.work_dir / "aliases.json"
     aliases = json.loads(aliases_path.read_text()) if aliases_path.exists() else {}
     candidates = epgmap.find_candidates(tvg_ids, site_channels, epg, broken, names, aliases)
+    if epg.native_grabbers:
+        radio = {e.tvg_id: xmltv.display_name(e) for e in entries if e.is_radio}
+        candidates.update(epgmap.radio_schedule_candidates(radio, broken | set(epg.exclude_sites)))
     suggestions = (
         epgmap.suggest_by_name(tvg_ids, names, epgmap.usable_channels(site_channels, epg, broken), set(candidates))
         if epg.name_matching

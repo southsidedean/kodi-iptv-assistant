@@ -169,6 +169,18 @@ def find_candidates(
     return {tid: sorted(cands, key=rank)[: cfg.max_sites_per_channel] for tid, cands in raw.items()}
 
 
+def radio_schedule_candidates(radio: dict[str, str], skip_sites: set[str]) -> dict[str, list[Candidate]]:
+    """Radio stations (tvg-id -> name) with a schedule kia reads itself (native.RADIO_SCHEDULES)."""
+    from kia.native import RADIO_SCHEDULES
+
+    found = {}
+    for tid, name in radio.items():
+        site_id = RADIO_SCHEDULES.get(name_key(name))
+        if tid and site_id and site_id[0] not in skip_sites:
+            found[tid] = [Candidate(tid, SiteChannel(site_id[0], site_id[1], "", "", name), True, "schedule")]
+    return found
+
+
 def usable_channels(site_channels: list[SiteChannel], cfg: EpgConfig, skip_sites: set[str]) -> list[SiteChannel]:
     skip = set(skip_sites) | set(cfg.exclude_sites)
     return [sc for sc in site_channels if sc.site not in skip]
