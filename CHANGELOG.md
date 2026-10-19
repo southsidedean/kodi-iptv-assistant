@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-19)
 
 ### Upgrading from 0.1.1
 
