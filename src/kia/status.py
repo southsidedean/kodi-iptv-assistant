@@ -22,7 +22,7 @@ FILES = [
     ("guide.xml.gz", "Program guide (found through the playlist; no Kodi setting needed)"),
     ("report.html", "Stream check: working, flaky, and dead streams"),
     ("guide-report.html", "Guide coverage by channel and site"),
-    ("mapping-report.html", "Which guide sites were matched to which channels"),
+    ("mapping-report.html", "Which guide sites match which channels, including matches by name to check"),
 ]
 PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
 DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
