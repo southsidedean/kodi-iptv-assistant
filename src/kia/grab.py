@@ -137,13 +137,15 @@ def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
 
 
 def _run_epg_grab(cfg: EpgConfig, channels_file: Path, staged: Path, log_path: Path) -> int:
-    container = f"kia-grab-{os.getpid()}-{channels_file.name.removesuffix('.channels.xml')}"[:63]
+    site = channels_file.name.removesuffix(".channels.xml")
+    container = f"kia-grab-{os.getpid()}-{site}"[:63]
     cmd = runner_prefix(cfg, container if cfg.runner == "docker" else None) + [
         "npm", "run", "grab", "--",
         f"--channels={channels_file.resolve()}",
         f"--output={staged}",
         f"--days={cfg.days}",
-        f"--maxConnections={cfg.max_connections}",
+        f"--maxConnections={cfg.site_connections.get(site, cfg.max_connections)}",
+        *([f"--delay={cfg.site_delay_ms[site]}"] if cfg.site_delay_ms.get(site) else []),
     ]  # fmt: skip
     with open(log_path, "w") as logf:
         # Its own process group, so a stop reaches npm's Node.js children too.

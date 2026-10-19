@@ -132,8 +132,12 @@ days = 3
 # .env: KIA_PARALLEL_SITES
 parallel_sites = 4
 
-# Requests at the same time to any one guide site.
+# Requests at the same time to any one guide site. Some sites need their own number, and
+# a pause between requests (in milliseconds): tvpassport.com handles 100 at once, while
+# plex.tv turns requests away unless they come one at a time, slowly.
 max_connections = 5
+site_connections = { "tvpassport.com" = 100, "plex.tv" = 1 }
+site_delay_ms = { "tvpassport.com" = 100, "plex.tv" = 100 }
 
 # Guide sites to try for each channel. kia keeps whichever has the most listings.
 max_sites_per_channel = 3

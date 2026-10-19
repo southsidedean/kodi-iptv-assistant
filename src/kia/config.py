@@ -54,6 +54,8 @@ class EpgConfig:
     name_matching: bool = True
     playlist_guides: bool = True
     site_time_limit: int = 30  # minutes per guide site; 0 = no limit
+    site_connections: dict[str, int] = field(default_factory=dict)
+    site_delay_ms: dict[str, int] = field(default_factory=dict)
     accept_name_matches: list[str] = field(default_factory=list)
     ignore_name_matches: list[str] = field(default_factory=list)
     git_url: str = "https://github.com/iptv-org/epg.git"
@@ -293,6 +295,8 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         name_matching=epg.get("name_matching", d.name_matching),
         playlist_guides=epg.get("playlist_guides", d.playlist_guides),
         site_time_limit=epg.get("site_time_limit", d.site_time_limit),
+        site_connections=dict(epg.get("site_connections", {})),
+        site_delay_ms=dict(epg.get("site_delay_ms", {})),
         accept_name_matches=epg.get("accept_name_matches", []),
         ignore_name_matches=epg.get("ignore_name_matches", []),
     )
