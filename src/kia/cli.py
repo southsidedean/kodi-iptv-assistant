@@ -149,6 +149,20 @@ def is_stream_url(url: str) -> bool:
     return urlparse(url).scheme.lower() in STREAM_SCHEMES and bool(urlparse(url).netloc)
 
 
+def play_as_tested(entries: list[m3u.Entry], user_agent: str | None) -> None:
+    """Have Kodi introduce itself the way kia did when it tested each stream.
+
+    Kodi sends its own user agent unless the playlist names one, and some servers refuse
+    it: jmp2.uk (Pluto TV, Samsung TV Plus, Plex) answers Kodi with 403 but VLC with the
+    stream. IPTV Simple Client turns #EXTVLCOPT:http-user-agent into the header it sends.
+    """
+    if not user_agent:
+        return
+    for e in entries:
+        if not e.user_agent:
+            e.vlcopts["http-user-agent"] = user_agent
+
+
 def is_transient(error: str | None) -> bool:
     return dnscheck.is_resolve_failure(error) or "timed out" in (error or "").lower()
 
@@ -258,6 +272,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         numbers.assign([c.entry for c in chosen], generated, log)
         numbers.forget_older_than(cfg.history_days)
         numbers.save()
+    play_as_tested([c.entry for c in chosen], cfg.user_agent)
     write_atomic(out / "curated.m3u", m3u.write([c.entry for c in chosen], cfg.epg_url))
     write_atomic(
         out / "report.json",
