@@ -40,3 +40,23 @@ def test_env_example_has_no_inline_comments():
     # Docker Compose reads "KEY=   # note" as the value "# note".
     bad = [line for line in (ROOT / ".env.example").read_text().splitlines() if re.match(r"^[A-Z_]+=.*#", line)]
     assert not bad, bad
+
+
+def compose_service(name: str) -> str:
+    text = (ROOT / "compose.yaml").read_text()
+    match = re.search(rf"^  {name}:\n(.*?)(?=^  \S|\Z)", text, flags=re.M | re.S)
+    assert match, name
+    return match.group(1)
+
+
+def test_containers_stay_locked_down():
+    for name in ("kia", "web"):
+        service = compose_service(name)
+        assert "read_only: true" in service and "- ALL" in service and "no-new-privileges:true" in service, name
+    kia = compose_service("kia")
+    assert "- ./:/data:ro" in kia  # kia's own code and settings can't be changed from inside
+    web_mounts = re.findall(r"^\s+- (\./\S+)", compose_service("web"), flags=re.M)
+    assert all(m.startswith(("./output:", "./deploy/")) for m in web_mounts), web_mounts
+    for folder in ("output", "state", "work", "vendor"):
+        assert f"- ./{folder}:/data/{folder}" in kia
+        assert (ROOT / folder / ".gitkeep").exists(), f"{folder}/ must exist so Docker doesn't create it as root"

@@ -23,8 +23,9 @@ timeout = 15
 # Only keep TV streams that have video. Radio stations are always allowed audio only.
 require_video = true
 
-# A stream that has worked before stays in the list until it fails this many nightly
-# checks in a row, because free streams often drop out for a while and come back.
+# A stream that has worked before stays in the list through this many failed nightly
+# checks in a row, and is dropped after the next one. Free streams often drop out for a
+# while and come back.
 grace_failures = 2
 
 # Forget the history of streams that haven't been in any playlist for this many days.
@@ -52,7 +53,9 @@ exclude_name_patterns = []
 
 
 [output]
-# Where results go. output/ is what the web server shares with Kodi.
+# Where results go. output/ is what the web server shares with Kodi. With Docker, leave
+# these folder settings (and repo_dir and work_dir under [epg]) as they are: they're the
+# only folders kia is allowed to write to.
 dir = "output"
 state_dir = "state"
 
@@ -143,13 +146,17 @@ native_grabbers = true
 repo_dir = "vendor/epg"
 work_dir = "work"
 
-# Use a fork or a fixed version of iptv-org/epg. .env: KIA_EPG_GIT_URL, KIA_EPG_GIT_REF
+# Use a fork or a fixed version of iptv-org/epg. "latest" follows its main branch, which
+# is updated every few days with fixes for guide sites. A tag or commit pins a version you
+# have checked. .env: KIA_EPG_GIT_URL, KIA_EPG_GIT_REF
 # git_url = "https://github.com/iptv-org/epg.git"
-# git_ref = "master"
+# git_ref = "latest"
 
 # How the guide downloader runs: "docker", or "local" if Node.js 22+ is installed.
 # The Docker image always uses its own built-in Node.js.
 runner = "docker"
+# The image "docker" uses. The default follows the latest Node.js LTS release.
+# docker_image = "node:lts-alpine"
 
 
 [upstream]

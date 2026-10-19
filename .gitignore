@@ -2,10 +2,12 @@ __pycache__/
 *.egg-info/
 .venv/
 .pytest_cache/
-output/
-state/
-vendor/
-work/
+# Created by kia. The empty folders are kept so Docker doesn't create them as root.
+output/*
+state/*
+vendor/*
+work/*
+!*/.gitkeep
 .env
 sources.local.txt
 *.tmp

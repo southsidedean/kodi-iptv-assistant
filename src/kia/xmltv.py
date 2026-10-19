@@ -101,6 +101,8 @@ def choose_sources(
             if not slots:
                 continue
             hours = covered_hours(slots, now, window_end)
+            if hours <= 0:
+                continue  # only old or far-off listings: the channel's name shows instead
             if (hours, len(slots)) > (best.hours_24h, best.programmes):
                 best = Choice(tid, site, round(hours, 1), len(slots))
         choices[tid] = best

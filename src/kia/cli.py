@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import shutil
+import socket
 import sys
 import time
 import urllib.request
@@ -14,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+
+import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, m3u, radio, serve, upstream, xmltv
 from kia import alerts
@@ -74,8 +77,13 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
     total = len(unique)
     ok = 0
 
-    def test(e: m3u.Entry):
-        return probe(
+    def host_limit(e: m3u.Entry) -> asyncio.Semaphore:
+        return per_host.setdefault(urlparse(e.url).netloc, asyncio.Semaphore(cfg.per_host))
+
+    async def test(e: m3u.Entry) -> ProbeResult:
+        if not is_stream_url(e.url):
+            return ProbeResult(ok=False, error=f"not a network stream (only {', '.join(STREAM_SCHEMES)} are checked)")
+        return await probe(
             e.url,
             timeout=cfg.timeout,
             user_agent=e.user_agent or cfg.user_agent,
@@ -86,8 +94,7 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
 
     async def one(e: m3u.Entry) -> None:
         nonlocal ok
-        host = per_host.setdefault(urlparse(e.url).netloc, asyncio.Semaphore(cfg.per_host))
-        async with host, sem:
+        async with host_limit(e), sem:
             r = await test(e)
         results[e.url] = r
         ok += r.ok
@@ -109,12 +116,21 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
         slow = asyncio.Semaphore(4)
 
         async def again(e: m3u.Entry) -> None:
-            async with slow:
+            async with host_limit(e), slow:
                 results[e.url] = await test(e)
 
         await asyncio.gather(*(again(e) for e in retry))
         log(f"  {sum(results[e.url].ok for e in retry)} of {len(retry)} worked on the second try")
     return results
+
+
+# Playlists are third-party content. Anything else (file:, pipe:, a bare path, or a line
+# starting with "-" that ffprobe would read as an option) is never handed to ffprobe.
+STREAM_SCHEMES = ("http", "https", "rtmp", "rtmps", "rtsp", "rtsps")
+
+
+def is_stream_url(url: str) -> bool:
+    return urlparse(url).scheme.lower() in STREAM_SCHEMES and bool(urlparse(url).netloc)
 
 
 def is_transient(error: str | None) -> bool:
@@ -208,7 +224,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         checked.append(Checked(e, r, classify(r, rec, cfg.grace_failures), r.height or rec.get("height")))
     chosen = select(checked)
 
-    out = cfg.output_dir
+    # A test run (part of the list) mustn't replace the playlist Kodi is using.
+    partial = bool(args.limit or args.source or args.url)
+    out = cfg.epg.work_dir / "check-test" if partial else cfg.output_dir
     out.mkdir(parents=True, exist_ok=True)
     write_atomic(out / "curated.m3u", m3u.write([c.entry for c in chosen], cfg.epg_url))
     (out / "report.json").write_text(
@@ -219,12 +237,12 @@ def cmd_check(args: argparse.Namespace) -> int:
     )
     (out / "report.md").write_text(render_markdown(checked, chosen, generated, cfg.dns_resolvers))
 
-    if not args.limit:
+    if not partial:
         history.prune(cfg.history_days)
     history.save()
 
-    drop_alert = False if args.limit else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
-                                                             "working channels")  # fmt: skip
+    drop_alert = False if partial else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
+                                                          "working channels")  # fmt: skip
 
     n_ok = sum(c.status == "ok" for c in checked)
     n_flaky = sum(c.status == "flaky" for c in checked)
@@ -232,6 +250,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         f"\n{len(checked)} entries: {n_ok} ok, {n_flaky} flaky, {len(checked) - n_ok - n_flaky} dead "
         f"-> {len(chosen)} channels in {out / 'curated.m3u'}"
     )
+    if partial:
+        log(f"Test run: the live playlist in {cfg.output_dir} was left as it was.")
     return EXIT_ALERT if dns_alert or drop_alert else 0
 
 
@@ -300,6 +320,12 @@ def cmd_grab(args: argparse.Namespace) -> int:
         cfg.epg.days = args.days
     grab.ensure_repo(cfg.epg, args.update, log)
     results = grab.grab_all(cfg.epg, args.site, log)
+    if not results:
+        if args.site:
+            log(f"No channel lists for {', '.join(args.site)}; run `kia map` first, or check the names.")
+            return 2
+        log("No channel matched a guide site, so there's nothing to download.")
+        return 0
     failed = [r for r in results if r.returncode != 0 or not r.output.exists()]
     dns_alert = alert_on_local_dns(report_grab_dns(results, cfg.dns_resolvers), "grab", cfg)
     site_alert = track_site_failures(cfg, results)
@@ -337,12 +363,28 @@ def track_site_failures(cfg: Config, results: list[grab.GrabResult]) -> bool:
     )
 
 
+def resolves_locally(host: str) -> bool:
+    try:
+        socket.getaddrinfo(host, None)
+        return True
+    except (OSError, UnicodeError):
+        return False
+
+
 def report_grab_dns(
     results: list[grab.GrabResult], resolvers: tuple[str, ...]
 ) -> dict[str, dnscheck.PublicLookup]:
     """Double-check hostnames that sites' grabbers couldn't resolve against public DNS."""
     site_hosts = {r.site: dnscheck.hosts_in_log(r.log.read_text(errors="replace")) for r in results if r.log.exists()}
     hosts = sorted({h for hs in site_hosts.values() for h in hs})
+    # Grabbers don't retry a failed lookup the way the stream check does, so try each name
+    # once more here. Only names that still fail locally can point to a DNS problem.
+    with ThreadPoolExecutor(16) as pool:
+        still_failing = [h for h, ok in zip(hosts, pool.map(resolves_locally, hosts)) if not ok]
+    if len(still_failing) < len(hosts):
+        log(f"{len(hosts) - len(still_failing)} hostnames the grabbers couldn't look up resolve now; ignoring those")
+    hosts = still_failing
+    site_hosts = {site: hs & set(hosts) for site, hs in site_hosts.items()}
     if not hosts:
         return {}
     log(f"Double-checking {len(hosts)} hostnames the grabbers couldn't resolve against {', '.join(resolvers)}:")
@@ -360,7 +402,13 @@ def build_guide(
 ) -> int:
     """Pick the best source per channel from site_files and write guide.xml(.gz) + report."""
     log(f"Scanning {len(site_files)} guide files...")
-    site_slots = {site: xmltv.scan(path) for site, path in site_files.items()}
+    site_slots = {}
+    for site, path in list(site_files.items()):
+        try:
+            site_slots[site] = xmltv.scan(path)
+        except (ET.ParseError, OSError, EOFError) as exc:
+            log(f"  {site}: guide file is damaged ({exc}); skipping it until the next download")
+            del site_files[site]
     now = datetime.now(timezone.utc)
     choices = xmltv.choose_sources([e.tvg_id for e in entries], site_slots, site_order, now)
     epg = cfg.epg

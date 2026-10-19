@@ -39,7 +39,7 @@ class EpgConfig:
     prefer_sites: list[str] = field(default_factory=list)
     exclude_sites: list[str] = field(default_factory=list)
     runner: str = "docker"
-    docker_image: str = "node:22-alpine"
+    docker_image: str = "node:lts-alpine"
     parallel_sites: int = 4
     max_connections: int = 5
     placeholders: bool = True
@@ -47,7 +47,7 @@ class EpgConfig:
     radio_placeholders: bool = False
     native_grabbers: bool = True
     git_url: str = "https://github.com/iptv-org/epg.git"
-    git_ref: str = "master"
+    git_ref: str = "latest"  # the repo's default branch
 
 
 @dataclass

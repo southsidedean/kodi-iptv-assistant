@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import subprocess
@@ -98,11 +99,12 @@ def send_ntfy(url: str, event: str, title: str, message: str, log: Callable[[str
         "Tags": "white_check_mark" if event in NOTICES else "warning",
         "Priority": "high" if event in URGENT else "default",
     }
-    req = urllib.request.Request(url, data=message.encode(), headers=headers, method="POST")
     try:
+        # A mistyped address (no http://) raises ValueError; that must not stop the run.
+        req = urllib.request.Request(url, data=message.encode(), headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=15):
             pass
-    except (urllib.error.URLError, OSError) as exc:
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as exc:
         log(f"ntfy notification failed: {getattr(exc, 'reason', exc)}")
 
 

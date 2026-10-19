@@ -60,6 +60,15 @@ class Entry:
         return self.tvg_id or "name:" + normalize_name(self.name)
 
 
+# #KODIPROP lines tell Kodi how to play a stream (e.g. DASH through inputstream.adaptive).
+# Playlists are third-party content, so only these are copied into the curated list.
+_KODIPROP_RE = re.compile(r"^(inputstream|inputstreamaddon|mimetype|inputstream\.(adaptive|ffmpegdirect)\.[a-z_]+)=", re.I)
+
+
+def is_allowed_kodiprop(prop: str) -> bool:
+    return bool(_KODIPROP_RE.match(prop.strip()))
+
+
 def normalize_name(name: str) -> str:
     name = _QUALITY_RE.sub("", name)
     name = _LABEL_RE.sub("", name)
@@ -99,8 +108,9 @@ def parse(text: str, source: str = "") -> list[Entry]:
             if pending is not None:
                 pending.vlcopts[key.strip()] = value.strip()
         elif line.startswith("#KODIPROP:"):
-            if pending is not None:
-                pending.kodiprops.append(line[len("#KODIPROP:"):])
+            prop = line[len("#KODIPROP:"):]
+            if pending is not None and is_allowed_kodiprop(prop):
+                pending.kodiprops.append(prop)
         elif line.startswith("#"):
             continue
         else:

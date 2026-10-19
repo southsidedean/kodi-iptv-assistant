@@ -34,6 +34,14 @@ def base_id(xmltv_id: str) -> str:
     return xmltv_id.partition("@")[0]
 
 
+_SITE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def is_safe_site(name: str) -> bool:
+    """Site names look like domains (pluto.tv); anything else could be a path."""
+    return bool(_SITE_NAME_RE.match(name)) and ".." not in name
+
+
 def load_site_channels(repo_dir: Path) -> list[SiteChannel]:
     """Every channel in sites/*/*.channels.xml that has an xmltv_id."""
     found = []
@@ -46,6 +54,8 @@ def load_site_channels(repo_dir: Path) -> list[SiteChannel]:
             xmltv_id = (el.get("xmltv_id") or "").strip()
             if not xmltv_id or not el.get("site") or not el.get("site_id"):
                 continue
+            if not is_safe_site(el.get("site", "")):
+                continue  # used as a file name; never let one reach outside work/
             extra = {k: v for k, v in el.attrib.items() if k not in ("site", "site_id", "lang", "xmltv_id")}
             found.append(
                 SiteChannel(

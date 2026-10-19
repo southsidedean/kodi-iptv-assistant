@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import gzip
+import http.client
 import time
+import zlib
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -25,9 +27,13 @@ def download_guide(base_url: str, dest: Path, timeout: float = 30) -> None:
         with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as f:
             while chunk := resp.read(1 << 16):
                 f.write(chunk)
+        # Read the whole file: a connection that drops part way leaves a truncated gzip,
+        # which only shows at the end.
         with gzip.open(tmp, "rb") as g:
             head = g.read(512).lstrip()
-    except (urllib.error.URLError, OSError, EOFError) as exc:
+            while g.read(1 << 20):
+                pass
+    except (urllib.error.URLError, OSError, EOFError, zlib.error, http.client.HTTPException) as exc:
         tmp.unlink(missing_ok=True)
         raise UpstreamError(f"{url}: {getattr(exc, 'reason', exc)}") from exc
     if not (head.startswith(b"<?xml") or head.startswith(b"<tv")):

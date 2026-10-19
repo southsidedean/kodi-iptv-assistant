@@ -46,19 +46,33 @@ def runner_prefix(cfg: EpgConfig) -> list[str]:
 
 
 def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(repo), *args], check=True)
+    # The checkout runs third-party code (npm packages) that can write to it. Turning hooks
+    # off means nothing planted in .git/hooks runs when kia updates it.
+    subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-C", str(repo), *args], check=True)
 
 
 def ensure_repo(cfg: EpgConfig, update: bool, log: Callable[[str], None]) -> None:
     """Check out cfg.git_ref (branch, tag, or commit) of cfg.git_url into cfg.repo_dir.
 
     Fetches only on first use or when update is set; reinstalls npm dependencies only when
-    package-lock.json changed.
+    package-lock.json changed. If an update fails (GitHub or the network is down), the
+    existing checkout is used as it is.
     """
     repo = cfg.repo_dir
     fresh = not (repo / ".git").exists()
     if not fresh and not update:
         return
+    if fresh:
+        _update_repo(cfg, fresh, log)
+        return
+    try:
+        _update_repo(cfg, fresh, log)
+    except (subprocess.CalledProcessError, OSError) as exc:
+        log(f"Couldn't update the epg checkout ({exc}); using the copy from the last successful update")
+
+
+def _update_repo(cfg: EpgConfig, fresh: bool, log: Callable[[str], None]) -> None:
+    repo = cfg.repo_dir
     lock = repo / "package-lock.json"
     lock_before = lock.read_bytes() if lock.exists() else None
     if fresh:
@@ -70,7 +84,9 @@ def ensure_repo(cfg: EpgConfig, update: bool, log: Callable[[str], None]) -> Non
         log(f"Updating the epg checkout to {cfg.git_ref}...")
         _git(repo, "remote", "set-url", "origin", cfg.git_url)
     # Fetching by name works the same for branches, tags, and (on GitHub) commit hashes.
-    _git(repo, "fetch", "-q", "--depth", "1", "origin", cfg.git_ref)
+    # "latest" is the remote's HEAD: its default branch, whatever it's called.
+    ref = "HEAD" if cfg.git_ref in ("", "latest") else cfg.git_ref
+    _git(repo, "fetch", "-q", "--depth", "1", "origin", ref)
     _git(repo, "checkout", "-q", "--force", "--detach", "FETCH_HEAD")
     if fresh or lock_before != lock.read_bytes() or not (repo / "node_modules").exists():
         install_deps(cfg, log)
@@ -134,10 +150,14 @@ def grab_all(cfg: EpgConfig, sites: list[str] | None, log: Callable[[str], None]
     if sites:
         channel_files = {s: p for s, p in channel_files.items() if s in sites}
     if not channel_files:
-        raise FileNotFoundError(f"no channel lists in {cfg.work_dir / 'channels'}; run `kia map` first")
+        return []
     needs_node = any(not (cfg.native_grabbers and s in NATIVE_GRABBERS) for s in channel_files)
     if needs_node and not (cfg.repo_dir / "node_modules").exists():
-        install_deps(cfg, log)
+        try:
+            install_deps(cfg, log)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            # Those sites fail below and keep their previous guide; i.mjh.nz still works.
+            log(f"Couldn't install the epg dependencies ({exc})")
 
     log(f"Grabbing {cfg.days} days from {len(channel_files)} sites, {cfg.parallel_sites} at a time...")
     results = []
