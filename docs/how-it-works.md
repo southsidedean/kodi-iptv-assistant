@@ -32,6 +32,47 @@ For each channel, kia picks the site with the most programs in the next 24 hours
 
 With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downloads the upstream's guide and keeps the channels in its own list. If the upstream can't be reached, it falls back to steps 2 and 3 (or the last copy, with `KIA_UPSTREAM_FALLBACK=cached`).
 
+## The status page
+
+`http://<your address>:8780/` shows how kia is doing: the last refresh and whether it worked, the next one, how many channels it found, the alerts from the last run, and links to the playlist, the guide, the reports, and these docs. kia updates it when a run starts and when it ends.
+
+![kia's status page: the last refresh worked, the next is at 04:00, with channel counts, file links, and help links](../images/kia-status-screenshot.png)
+
+| Status | Meaning |
+|---|---|
+| Refreshing now | A run is going. The counts are from the last run until it finishes. |
+| Last refresh worked | Nothing needs you. |
+| Last refresh worked, with alerts | The playlist and guide were updated, but something needs a look. The alerts are listed below the table; [troubleshooting](troubleshooting.md#alerts) says what to do about each. |
+| Last refresh failed | The playlist or guide may not have been updated. See [the refresh failed](troubleshooting.md#the-status-page-says-the-refresh-failed). |
+| Not run yet | kia's first run hasn't finished. It can take up to an hour. |
+
+### `status.json`
+
+The same information, for scripts and monitoring tools such as Uptime Kuma or Home Assistant, is at `http://<your address>:8780/status.json`:
+
+| Field | Contents |
+|---|---|
+| `result` | `running`, `ok`, `alerts`, `failed`, or `never` |
+| `last_run` | `started` and `finished` (UTC times), `minutes`, and `exit_code` (0 worked, 3 worked with alerts, anything else failed) |
+| `next_run` | The next refresh, in local time with its UTC offset |
+| `channels` | `tv`, `radio`, and `with_guide` (channels with guide data) |
+| `alerts` | The last run's alerts: `time`, `event` (see [alerts](alerts.md)), and `title` |
+| `playlist_url` | The playlist address for Kodi |
+| `files` | The files in the output folder |
+| `version` | kia's version |
+
+A monitor should warn you when `result` is `failed`, and when `last_run.finished` is more than a day old, which means kia stopped running. For example, as a shell check that fails in either case:
+
+```sh
+curl -s http://192.168.1.20:8780/status.json | python3 -c '
+import json, sys
+from datetime import datetime, timedelta, timezone
+s = json.load(sys.stdin)
+done = s["last_run"]["finished"]
+stale = not done or datetime.now(timezone.utc) - datetime.fromisoformat(done) > timedelta(hours=26)
+sys.exit(1 if s["result"] == "failed" or (stale and s["result"] != "running") else 0)'
+```
+
 ## DNS checks and alerts
 
 When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) as well. If they can't find it either, the stream or site is gone, and kia just reports it. If they can, your network's DNS is the problem (an ad-blocker or the router, for example), and since that would affect Kodi too, kia raises an alert. Names are tried twice on your network first, so a single slow lookup doesn't raise one. Some sites' own DNS servers send broken IPv6 answers, which make the lookup fail everywhere; kia recognizes that and reports it as the site's problem, not yours.

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with kia's status page at `http://<your address>:8780/`. It shows whether the last refresh worked, when the next one is, the channel counts, and the alerts from the last run. Most of the problems below show up there first.
+Start with kia's [status page](how-it-works.md#the-status-page) at `http://<your address>:8780/`. It shows whether the last refresh worked, when the next one is, the channel counts, and the alerts from the last run. Most of the problems below show up there first.
 
 The commands on this page run in a terminal, in the kia folder, on the computer that runs kia.
 
