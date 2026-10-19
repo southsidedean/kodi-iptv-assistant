@@ -28,7 +28,8 @@ PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
 DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
 # Docs pages for someone looking at this page because something seems wrong.
 HELP = [
-    (f"{DOCS_URL}/kodi.md", "Setting up Kodi", "and troubleshooting: no channels, no guide, old channels"),
+    (f"{DOCS_URL}/troubleshooting.md", "Troubleshooting", "no channels, no guide, failed refreshes, alerts"),
+    (f"{DOCS_URL}/kodi.md", "Setting up Kodi", "the playlist, daily refresh, and channel numbers"),
     (f"{DOCS_URL}/configuration.md", "Settings", "playlists, refresh time, and when changes take effect"),
     (f"{DOCS_URL}/how-it-works.md", "How it works", "what each nightly step does, and the reports"),
     (f"{DOCS_URL}/alerts.md", "Alerts", "what each alert means, and getting them on your phone"),

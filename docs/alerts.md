@@ -15,7 +15,7 @@ Alerts are off until you choose where to send them. Until then they're written t
 | `site_failing` | yes | One guide site failed 3 runs in a row. You hear about it once per streak, not every night. |
 | `daily_summary` | no | A short "all done" message after each run, e.g. "1174 working channels, 541 with guide data". It's handy at first, to see that everything works. |
 
-If you remove playlists or exclude guide sites yourself, the next run may report a drop. That's expected, and the message says so.
+If you remove playlists or exclude guide sites yourself, the next run may report a drop. That's expected, and the message says so. What to do about each alert is in [troubleshooting](troubleshooting.md#alerts).
 
 ## Getting alerts on your phone (ntfy)
 

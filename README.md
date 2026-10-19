@@ -47,9 +47,9 @@ New to Docker or Git? [docs/install.md](docs/install.md) walks through installin
    - Add IPTV Simple Client: *Settings → Add-ons → Install from repository → PVR clients → IPTV Simple Client*.
    - In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`. Set **Auto refresh mode** to *Once per day* and **Refresh hour (24h)** to 6, so Kodi picks up kia's 4:00 refresh. Then restart Kodi.
 
-   Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV, Raspberry Pi, and troubleshooting: [docs/kodi.md](docs/kodi.md).
+   Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV and Raspberry Pi: [docs/kodi.md](docs/kodi.md).
 
-To check on kia, open `http://<your address>:8780/` in a browser. The status page there shows when it last refreshed, whether that worked, how many channels it found, and any alerts, with links to the detailed reports.
+To check on kia, open `http://<your address>:8780/` in a browser. The status page there shows when it last refreshed, whether that worked, how many channels it found, and any alerts, with links to the detailed reports. If something isn't working, [docs/troubleshooting.md](docs/troubleshooting.md) goes through the usual problems.
 
 ## Setups
 

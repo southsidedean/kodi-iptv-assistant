@@ -106,7 +106,7 @@ The first time, this downloads and builds kia (a few minutes), then starts the f
 
 When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's status page, with the channel counts and links to `curated.m3u` and the reports. If another device will use kia, open that address on it too.
 
-If other devices can't connect:
+If other devices can't connect (more in [troubleshooting](troubleshooting.md#other-devices-cant-connect)):
 
 - Linux with a firewall (ufw): `sudo ufw allow 8780/tcp`.
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
@@ -122,3 +122,4 @@ Follow [Kodi setup](kodi.md) on each device you watch on: install Kodi, add IPTV
 - [Setups](setups.md): laptops that travel, Raspberry Pi settings, running without Docker.
 - [Configuration](configuration.md): every setting.
 - [How it works](how-it-works.md): what happens each night, and the reports.
+- [Troubleshooting](troubleshooting.md): what to do when something isn't working.

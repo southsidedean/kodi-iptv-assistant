@@ -36,7 +36,7 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 
 ### Docs
 
-- New: when changes take effect and how to refresh right away, versions and how to pin them, and checking the guide address when the guide stays empty.
+- New: a troubleshooting page, organized by what you see, linked from the README and the status page. Also new: when changes take effect and how to refresh right away, versions and how to pin them, and checking the guide address when the guide stays empty.
 - Fixed: the setup recipes no longer put comments on the same line as settings, which Docker read as part of the value. The quick start uses your own copy of `sources.txt`. Also corrected: the `grace_failures` wording, `PUID`/`PGID`, installing `curl` before Docker on Linux, IPTV Simple Client from Ubuntu and Debian packages, and running without Docker.
 
 ## 0.1.0 (2026-10-16)

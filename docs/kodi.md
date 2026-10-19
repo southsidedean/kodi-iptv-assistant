@@ -63,10 +63,4 @@ TV and radio are numbered separately, each starting at 1. A new channel gets the
 
 ## Troubleshooting
 
-- No channels? Open the playlist URL in a browser on the same network. If it doesn't download, check `KIA_PUBLIC_URL` and `KIA_BIND=0.0.0.0` in `.env`, and that your firewall allows the port.
-- Channels but no guide? Give it a couple of minutes, then restart Kodi. If it's still empty, open the playlist URL in a browser: its first line shows the guide address (`x-tvg-url`) that Kodi uses. That address comes from `KIA_PUBLIC_URL`, so it must be one this Kodi device can reach. If it's wrong, fix `KIA_PUBLIC_URL` in `.env`, run `docker compose up -d`, then [refresh now](configuration.md#when-changes-take-effect). Some channels have no guide data anywhere and show their own name instead of programs. `http://<address>:8780/guide-report.html` lists coverage.
-- A channel won't play? Free streams come and go. The nightly check drops streams that stay broken.
-- Changed playlists or settings, but Kodi still shows the old list? kia applies changes at its next run, and Kodi picks them up at its refresh hour or when it restarts. To do both now, see [when changes take effect](configuration.md#when-changes-take-effect).
-- Old or mixed-up channels, for example after changing playlists? Clear Kodi's TV data: *Settings → PVR & Live TV → General → Clear data → All → OK*. Kodi reloads everything from kia within a minute or so.
-
-![Kodi's Clear data dialog with All selected](../images/kodi-iptv-clear-all-data.jpg)
+No channels, an empty guide, or old channels that won't go away? See [troubleshooting](troubleshooting.md), which starts with the problems you see in Kodi.

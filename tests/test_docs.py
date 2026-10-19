@@ -60,3 +60,22 @@ def test_containers_stay_locked_down():
     for folder in ("output", "state", "work", "vendor"):
         assert f"- ./{folder}:/data/{folder}" in kia
         assert (ROOT / folder / ".gitkeep").exists(), f"{folder}/ must exist so Docker doesn't create it as root"
+
+
+def github_anchor(heading: str) -> str:
+    """How GitHub turns a heading into a #link: lowercase, punctuation dropped, spaces to -."""
+    return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+
+
+def test_links_to_sections_exist():
+    broken = []
+    for doc in DOCS:
+        for target in LINK_RE.findall(doc.read_text()):
+            if re.match(r"[a-z]+:", target) or "#" not in target:
+                continue
+            path, anchor = target.split("#", 1)
+            page = (doc.parent / path) if path else doc
+            headings = re.findall(r"^#+ (.+)$", page.read_text(), flags=re.M)
+            if anchor not in {github_anchor(h) for h in headings}:
+                broken.append(f"{doc.relative_to(ROOT)} -> {target}")
+    assert not broken, "links to missing sections:\n" + "\n".join(broken)
