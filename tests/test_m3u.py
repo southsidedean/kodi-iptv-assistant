@@ -66,3 +66,18 @@ def test_byte_order_mark_is_ignored():
     (entry,) = m3u.parse("\ufeff#EXTM3U\n#EXTINF:-1,A\nhttp://a/1\n")
     assert entry.name == "A"
     assert [s.url for s in parse_sources("\ufeffhttps://x/us.m3u\n")] == ["https://x/us.m3u"]
+
+
+def test_playlist_carries_the_tested_user_agent():
+    from kia.cli import play_as_tested
+
+    own = m3u.Entry("Own", "http://a/1", vlcopts={"http-user-agent": "Custom/1"})
+    plain = m3u.Entry("Plain", "https://jmp2.uk/plu-1.m3u8")
+    play_as_tested([own, plain], "VLC/3.0.20 LibVLC/3.0.20")
+    text = m3u.write([own, plain])
+    assert "#EXTVLCOPT:http-user-agent=Custom/1\nhttp://a/1" in text
+    assert "#EXTVLCOPT:http-user-agent=VLC/3.0.20 LibVLC/3.0.20\nhttps://jmp2.uk/plu-1.m3u8" in text
+
+    bare = m3u.Entry("Bare", "http://b/1")
+    play_as_tested([bare], None)  # user_agent = "" in kia.toml: Kodi keeps its own
+    assert "EXTVLCOPT" not in m3u.write([bare])

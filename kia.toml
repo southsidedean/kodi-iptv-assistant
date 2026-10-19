@@ -32,8 +32,10 @@ grace_failures = 2
 history_days = 30
 
 # How kia identifies itself to stream servers. Some servers refuse certain players, and
-# VLC's identity is the one accepted most widely. A playlist entry's own setting always
-# wins. Set to "" to use ffmpeg's own identity.
+# VLC's identity is the one accepted most widely. kia also writes it into the playlist,
+# so Kodi plays each stream the way kia tested it (some servers refuse Kodi's own). A
+# playlist entry's own setting always wins. Set to "" to use ffmpeg's identity and leave
+# Kodi's alone.
 # user_agent = "VLC/3.0.20 LibVLC/3.0.20"
 
 
