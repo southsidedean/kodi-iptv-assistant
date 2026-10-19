@@ -15,6 +15,7 @@ profiles/*
 !profiles/example.toml
 !*/.gitkeep
 .env
+.env.bak*
 sources.local.txt
 # Your own playlist files (see the end of sources.txt).
 playlists/

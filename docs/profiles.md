@@ -31,6 +31,8 @@ You can make profiles on kia's status page or by editing a file. Both change the
 
 5. On the device, use that address as the **M3U playlist URL** in IPTV Simple Client (or your player), instead of `curated.m3u`. Kodi finds the playlist's own guide by itself. If another player asks for a guide address, it's on the same page.
 
+![A playlist's page on the status page: its playlist and guide addresses with Copy buttons, and its channels numbered from 1](../images/kia-playlist-screenshot.png)
+
 To change or delete a playlist later, open it from the secure status page and choose **Edit this playlist**. The browser tab remembers the password until you close it.
 
 ## In the file

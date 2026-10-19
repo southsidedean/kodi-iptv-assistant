@@ -52,7 +52,7 @@ With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downlo
 
 Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories. A profile's page also has **Edit this playlist**. The **Details** page has the guide coverage, how each source playlist's streams are doing, and the full reports.
 
-![kia's status page showing everything working, the channel counts, bars for guide coverage and each playlist, and the playlist address with a Copy button](../images/kia-status-screenshot.png)
+![kia's status page showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 
