@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/kia-logo-dark.svg">
+  <img src="images/kia-logo.svg" alt="kia logo: a screen showing program guide rows" width="88">
+</picture>
+
 # kodi-iptv-assistant
 
 Turn free internet TV into a tidy channel list with a working program guide in Kodi.

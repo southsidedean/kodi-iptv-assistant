@@ -20,6 +20,10 @@ In Kodi, on each device, change IPTV Simple Client's **Auto refresh mode** to *R
 
 - For a radio station named exactly "KINK", kia reads KINK's program schedule from kink.nl, so Kodi's radio guide lists its shows and DJs.
 
+### Status page and reports
+
+- kia has a logo: a screen showing program guide rows, with the current time marked in amber. It's the browser tab icon, and it sits at the top of the status page and every report, where clicking it returns to the status page.
+
 ### Fixes
 
 - Accented channel names now show correctly in playlists saved as Windows-1252 instead of UTF-8, such as apsattv.com's. "AMC en Español" appeared as "AMC en Espa�ol".

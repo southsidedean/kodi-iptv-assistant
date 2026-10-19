@@ -147,7 +147,7 @@ def render_html(s: dict) -> str:
     help_links = "".join(
         f'<li><a href="{escape(url)}">{escape(name)}</a> <span>{escape(what)}</span></li>' for url, name, what in HELP
     )
-    body = f"""<h1>kia status</h1>
+    body = f"""<h1>Status</h1>
 <table class="summary">
 {table}
 </table>

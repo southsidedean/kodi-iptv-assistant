@@ -10,11 +10,34 @@ from __future__ import annotations
 
 import re
 from html import escape
+from urllib.parse import quote
+
+# The kia logo: a screen showing program guide rows, with the "now" line in amber.
+LOGO_LIGHT = {"screen": "#1f2b4d", "rows": "#cfd8f0", "now": "#e5a52e"}
+LOGO_DARK = {"screen": "#33447a", "rows": "#e3e9fb", "now": "#f2b84b"}
+
+
+def logo_svg(screen: str, rows: str, now: str, standalone: bool = False) -> str:
+    """The logo as SVG markup, in the given colors (CSS var() references work inline)."""
+    bars = [(12, 16, 13, 0.9), (27, 16, 25, 0.55), (12, 26, 24, 0.55), (38, 26, 14, 0.9), (12, 36, 8, 0.9), (22, 36, 30, 0.55)]
+    parts = [f'<rect x="4" y="8" width="56" height="42" rx="9" fill="{screen}"/>']
+    parts += [f'<rect x="{x}" y="{y}" width="{w}" height="6" rx="3" fill="{rows}" opacity="{o}"/>' for x, y, w, o in bars]
+    parts += [f'<rect x="30" y="12.5" width="3" height="33" rx="1.5" fill="{now}"/>',
+              f'<rect x="24" y="53" width="16" height="4" rx="2" fill="{screen}"/>']  # fmt: skip
+    ns = ' xmlns="http://www.w3.org/2000/svg"' if standalone else ""
+    return f'<svg{ns} viewBox="0 0 64 64" role="img" aria-label="kia logo">{"".join(parts)}</svg>'
+
+
+# The browser tab icon, and the mark at the top of every page (it follows the theme).
+FAVICON = "data:image/svg+xml," + quote(logo_svg(**LOGO_LIGHT, standalone=True))
+MARK = logo_svg("var(--logo-screen)", "var(--logo-rows)", "var(--logo-now)")
 
 STYLE = """
-:root { --bg: #fafafa; --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --bad: #b3261e; --good: #1b7f3b; --note: #fff4e5; }
+:root { --bg: #fafafa; --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --bad: #b3261e; --good: #1b7f3b; --note: #fff4e5;
+  --logo-screen: #1f2b4d; --logo-rows: #cfd8f0; --logo-now: #e5a52e; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #161617; --fg: #f5f5f7; --muted: #a1a1a6; --line: #3a3a3c; --bad: #ff8a80; --good: #7ee2a0; --note: #3a2c14; }
+  :root { --bg: #161617; --fg: #f5f5f7; --muted: #a1a1a6; --line: #3a3a3c; --bad: #ff8a80; --good: #7ee2a0; --note: #3a2c14;
+    --logo-screen: #33447a; --logo-rows: #e3e9fb; --logo-now: #f2b84b; }
 }
 body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 60rem; padding: 1.5rem 1rem; }
 h1 { font-size: 1.4rem; margin: 0 0 1rem; }
@@ -32,6 +55,8 @@ code { word-break: break-all; }
 a { color: inherit; }
 input[type=search] { background: var(--bg); border: 1px solid var(--line); border-radius: .4rem; color: var(--fg); font: inherit; margin: .5rem 0; padding: .4rem .6rem; width: 100%; box-sizing: border-box; }
 footer { color: var(--muted); font-size: .85rem; margin-top: 2rem; }
+.brand { display: inline-flex; align-items: center; gap: .45rem; color: inherit; text-decoration: none; font-weight: 600; font-size: 1.05rem; margin-bottom: 1rem; }
+.brand svg { width: 1.9rem; height: 1.9rem; }
 """
 
 # Tables longer than this get a filter box.
@@ -58,9 +83,11 @@ def page(title: str, body: str, footer: str = "", script: str = "") -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escape(title)}</title>
+<link rel="icon" href="{FAVICON}">
 <style>{STYLE}</style>
 </head>
 <body>
+<a class="brand" href="index.html">{MARK}<span>kia</span></a>
 {body}
 <footer>{footer}</footer>
 {script}
