@@ -63,6 +63,11 @@ state_dir = "state"
 # kia writes the guide's address into the playlist from it, so Kodi finds the guide itself.
 # public_url = "http://my-server.lan:8780"
 
+# Give each channel a number (tvg-chno) that it keeps from night to night, instead of
+# its place in the list. Kodi shows them once "Use channel numbers from backend" is on
+# (see docs/kodi.md). To renumber everything, delete state/channel-numbers.json.
+channel_numbers = true
+
 # Only if your guide is served from somewhere else:
 # epg_url = "http://my-server.lan:8780/guide.xml.gz"
 

@@ -10,7 +10,7 @@ Every stream in your playlists is opened with `ffprobe`. A TV stream counts as w
 - flaky: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
 - dead: everything else.
 
-Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. The result is `curated.m3u`. `report.md` shows the counts, common failures, and every channel kept.
+Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.md` shows the counts, common failures, and every channel kept.
 
 ### Radio
 

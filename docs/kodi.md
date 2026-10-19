@@ -52,6 +52,15 @@ Restart Kodi (or disable and re-enable the add-on). Channels appear under TV, an
 
 ![The Kodi TV guide with program listings, and a few channels showing their own name](../images/kodi-iptv-guide.jpg)
 
+## 5. Keep channel numbers steady (optional)
+
+kia gives every channel a number that stays the same from night to night, even when other channels come and go. Kodi ignores those numbers until you turn them on. Otherwise it numbers channels 1, 2, 3 in list order, so a channel's number can change after any nightly refresh.
+
+1. Go to *Settings → PVR & Live TV*. If the menu on the left has no *Channels* page, change the settings level at the bottom left to *Advanced*.
+2. On the *Channels* page, turn on **Use channel numbers from backend**.
+
+TV and radio are numbered separately, each starting at 1. A new channel gets the next unused number, and a channel that drops out keeps its number for a month, in case it comes back.
+
 ## Troubleshooting
 
 - No channels? Open the playlist URL in a browser on the same network. If it doesn't download, check `KIA_PUBLIC_URL` and `KIA_BIND=0.0.0.0` in `.env`, and that your firewall allows the port.

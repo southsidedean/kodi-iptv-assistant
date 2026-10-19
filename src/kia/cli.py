@@ -24,6 +24,7 @@ from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
+from kia.numbers import ChannelNumbers
 from kia.probe import ProbeResult, probe
 
 
@@ -230,6 +231,11 @@ def cmd_check(args: argparse.Namespace) -> int:
     partial = bool(args.limit or args.source or args.url)
     out = cfg.epg.work_dir / "check-test" if partial else cfg.output_dir
     out.mkdir(parents=True, exist_ok=True)
+    if cfg.channel_numbers and not partial:
+        numbers = ChannelNumbers(cfg.state_dir / "channel-numbers.json")
+        numbers.assign([c.entry for c in chosen], generated)
+        numbers.forget_older_than(cfg.history_days)
+        numbers.save()
     write_atomic(out / "curated.m3u", m3u.write([c.entry for c in chosen], cfg.epg_url))
     write_atomic(
         out / "report.json",
