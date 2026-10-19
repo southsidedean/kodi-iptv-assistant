@@ -118,6 +118,9 @@ main h2 { margin: 0 0 var(--space-2); }
 button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: var(--radius-small); border: 1px solid var(--line);
   background: var(--card); color: var(--fg); cursor: pointer; }
 .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); }
+.playlists { display: grid; gap: var(--space-3); }
+.playlist { display: grid; gap: .35rem; }
+.bad-note { background: var(--bad-bg); color: var(--fg); border-radius: var(--radius-small); padding: .6rem .8rem; }
 .links { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .links a { display: inline-block; padding-block: .1rem; }
 .links span { display: block; font-size: var(--step--1); }

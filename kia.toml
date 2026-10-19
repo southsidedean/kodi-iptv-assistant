@@ -5,6 +5,10 @@
 # The playlists to check, one per line. See the comments in that file.
 sources_file = "sources.txt"
 
+# Playlists for people and devices, made from the full list. See docs/profiles.md.
+# .env: KIA_PROFILES_FILE
+profiles_file = "profiles.local.toml"
+
 
 [check]
 # How kia tests each stream.

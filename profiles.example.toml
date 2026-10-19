@@ -1,0 +1,30 @@
+# Playlists for people and devices ("profiles"). Copy this file to profiles.local.toml
+# and change it: git ignores that copy, so updating kia never touches it.
+#
+# Each [section] makes a playlist with that name, served next to the full one:
+#   http://<your address>:8780/kids.m3u
+# Every profile uses the same program guide and the same channel numbers as the full list.
+# Changes show up after the next nightly run (or `kia check`). See docs/profiles.md.
+#
+# What a profile can say. If it names nothing to include, it starts from every channel.
+#   groups          categories to include, e.g. ["Kids", "Animation"]
+#   sources         playlists to include, by the names in your sources list, e.g. ["samsung-us"]
+#   names           channel names to include, as patterns, e.g. ["news"]
+#   channels        channels to include by ID (tvg-id), whatever else the profile says
+#   exclude_groups  categories to leave out
+#   exclude_names   channel names to leave out, as patterns
+#   tv, radio       true or false: include TV channels, radio stations (both true unless set)
+#   title           the name shown on the status page, e.g. "The kids"
+
+[kids]
+title = "Kids"
+groups = ["Kids", "Animation", "Family"]
+radio = false
+
+[living-room]
+title = "Living room"
+exclude_groups = ["Shop", "Religious"]
+
+[radio]
+title = "Radio only"
+tv = false

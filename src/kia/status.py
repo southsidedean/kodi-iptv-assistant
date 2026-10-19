@@ -91,8 +91,18 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "sources": source_counts(output_dir / "report.json"),
         "alerts": recent_alerts(state_dir / "alerts.log", run.get("started")),
         "playlist_url": f"{public_url}/curated.m3u" if public_url else None,
+        "profiles": _profiles(output_dir, public_url),
+        "profiles_error": _load(output_dir / "profiles.json").get("error"),
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
+
+
+def _profiles(output_dir: Path, public_url: str | None) -> list[dict]:
+    """Each profile's playlist (see kia.profiles), with its address when kia knows it."""
+    found = _load(output_dir / "profiles.json").get("profiles", [])
+    for p in found:
+        p["url"] = f"{public_url}/{p['file']}" if public_url else None
+    return found
 
 
 def source_counts(report: Path) -> list[dict]:
@@ -175,6 +185,33 @@ def _banner(s: dict) -> str:
     )
 
 
+def _playlists_card(s: dict) -> str:
+    """Everything, plus one playlist per profile, each with its address and a Copy button."""
+    ch = s["channels"]
+    rows = [("Everything", "curated.m3u", ch["tv"] or 0, ch["radio"] or 0, s["playlist_url"])]
+    rows += [(p["title"], p["file"], p["tv"], p["radio"], p.get("url")) for p in s.get("profiles", [])]
+    items = []
+    for i, (title, file, tv, radio, url) in enumerate(rows):
+        counts = f"{_n(tv)} TV channels" + (f", {_n(radio)} radio stations" if radio else "")
+        address = (
+            f'<div class="copy"><code id="playlist-{i}">{escape(url)}</code>'
+            f'<button type="button" data-copy="playlist-{i}">Copy</button></div>'
+            if url
+            else f'<a href="{escape(file)}">{escape(file)}</a>'
+        )
+        items.append(f'<div class="playlist"><div><strong>{escape(title)}</strong> <span class="muted">{counts}</span></div>{address}</div>')
+    error = (
+        f'<p class="bad-note">The profiles file has a mistake, so the profile playlists weren\'t updated: {escape(s["profiles_error"])}</p>'
+        if s.get("profiles_error")
+        else ""
+    )
+    return (
+        '<section class="card"><h2>Playlists</h2>'
+        "<p>Use one of these as the <strong>M3U playlist URL</strong> in IPTV Simple Client or your player.</p>"
+        f'{error}<div class="playlists">{"".join(items)}</div></section>'
+    )
+
+
 def render_html(s: dict) -> str:
     ch = s["channels"]
     tv = ch["tv"] or 0
@@ -216,14 +253,7 @@ def render_html(s: dict) -> str:
         items = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
         alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
 
-    kodi = ""
-    if s["playlist_url"]:
-        kodi = (
-            '<section class="card"><h2>Add to Kodi</h2>'
-            "<p>In IPTV Simple Client, set the <strong>M3U playlist URL</strong> to:</p>"
-            f'<div class="copy"><code id="playlist-url">{escape(s["playlist_url"])}</code>'
-            '<button type="button" data-copy="playlist-url">Copy</button></div></section>'
-        )
+    kodi = _playlists_card(s)
 
     def file_item(name: str, what: str) -> str:
         twin = markdown_twin(name)
@@ -245,4 +275,4 @@ def render_html(s: dict) -> str:
         f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
         '<a href="status.json">status.json</a>.'
     )
-    return page("kia status", body, footer, COPY_SCRIPT if s["playlist_url"] else "")
+    return page("kia status", body, footer, COPY_SCRIPT)

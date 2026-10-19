@@ -4,6 +4,7 @@ Three files, from most to least often changed:
 
 - `sources.txt`: which playlists and radio stations to check. Remove `#` to turn a line on; add your own URLs or file paths, one per line. Radio lines (`radio-browser: country=US top=100`) are explained in the file. With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer. Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below.
 - `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
+- `profiles.local.toml`: smaller playlists for people and devices, made from the full list. See [profiles](profiles.md).
 - `kia.toml`: fine-tuning. The defaults suit most people.
 
 When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
@@ -20,6 +21,7 @@ When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" 
 | `TZ` | `UTC` | Your time zone, e.g. `America/New_York`. |
 | `PUID`, `PGID` | `1000` | The user and group that own the files kia writes. Use the numbers `id -u` and `id -g` print, so you can open and delete those files yourself. |
 | `KIA_SOURCES_FILE` | `sources.txt` | Use your own list instead, e.g. `sources.local.txt` (copy `sources.txt` to start). git ignores it, so updates never conflict with your choices. |
+| `KIA_PROFILES_FILE` | `profiles.local.toml` | Your playlists for people and devices; see [profiles](profiles.md). Copy `profiles.example.toml` to start. |
 | `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. |
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |

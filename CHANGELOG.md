@@ -2,6 +2,11 @@
 
 ## 0.3.0 (unreleased)
 
+### Playlists for people and devices
+
+- Profiles make smaller playlists from the full one, each with its own address, such as `http://<your address>:8780/kids.m3u` for the kids' tablet. A profile picks channels by category, playlist, name, or ID, and can leave out categories, names, TV, or radio. Every profile uses the same guide and channel numbers as the full list. Copy `profiles.example.toml` to `profiles.local.toml` to start; see [profiles](docs/profiles.md).
+- The status page lists every playlist with its channel count, its address, and a Copy button, and says when the profiles file has a mistake.
+
 ### Faster, steadier nightly runs
 
 - The stream check tests up to six streams at a time on jmp2.uk, which carries the Pluto TV, Samsung TV Plus, and Plex channels, instead of two (`per_host_limits` in `kia.toml`). In a test of 60 of its streams, that took 29 seconds instead of 98, with no extra failures.

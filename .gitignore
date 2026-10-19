@@ -11,6 +11,7 @@ work/*
 !*/.gitkeep
 .env
 sources.local.txt
+profiles.local.toml
 # Your own playlist files (see the end of sources.txt).
 playlists/
 *.tmp
