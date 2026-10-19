@@ -210,3 +210,17 @@ def test_report_names_configured_resolvers():
     c = Checked(entry("X", "u1"), ProbeResult(ok=False, error="LOCAL DNS FAILURE: hostname resolves on public DNS"), "dead")
     report = render_markdown([c], [], "now", ("9.9.9.9",))
     assert "backup resolvers (9.9.9.9)" in report and "8.8.8.8" not in report
+
+
+def test_radio_playlist(tmp_path: Path, monkeypatch):
+    from kia import cli
+    from kia.config import load, parse_sources
+
+    s = parse_sources("https://x/jazz.m3u jazz radio\nhttps://x/rock.m3u radio\nhttps://x/tv.m3u tv\n")
+    assert [(x.name, x.radio) for x in s] == [("jazz", True), ("rock", True), ("tv", False)]
+    (tmp_path / "jazz.m3u").write_text("#EXTM3U\n#EXTINF:-1,Cool Jazz\nhttp://a/1\n#EXTINF:-1 group-title=\"Smooth\",Smooth FM\nhttp://a/2\n")
+    (tmp_path / "sources.txt").write_text(f"{tmp_path / 'jazz.m3u'} jazz radio\n")
+    (tmp_path / "kia.toml").write_text("")
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    found = cli.load_entries(load(tmp_path / "kia.toml"), None)
+    assert [(e.name, e.is_radio, e.group) for e in found] == [("Cool Jazz", True, "jazz"), ("Smooth FM", True, "Smooth")]

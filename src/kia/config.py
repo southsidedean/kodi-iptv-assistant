@@ -17,6 +17,8 @@ class Source:
     name: str
     url: str
     params: dict[str, str] = field(default_factory=dict)
+    # Everything in the playlist is radio (for lists that don't mark their stations).
+    radio: bool = False
 
     @property
     def is_radio_browser(self) -> bool:
@@ -108,7 +110,8 @@ def source_name(url: str, taken: set[str]) -> str:
 
 
 def parse_sources(text: str) -> list[Source]:
-    """Parse a sources file: one playlist URL or path per line, optionally followed by a name.
+    """Parse a sources file: one playlist URL or path per line, optionally followed by a name
+    and the word `radio` (everything in that playlist is a radio station).
 
     Blank lines and anything after a ``#`` that starts a line or follows whitespace are ignored.
     """
@@ -122,8 +125,10 @@ def parse_sources(text: str) -> list[Source]:
         if line.startswith("radio-browser:"):
             source = _radio_source(line, taken)
         else:
-            url, _, name = line.partition(" ")
-            source = Source(name=name.strip() or source_name(url, taken), url=url)
+            url, *rest = line.split()
+            flags = {w for w in rest if w.lower() == "radio"}
+            name = next((w for w in rest if w not in flags), "")
+            source = Source(name=name or source_name(url, taken), url=url, radio=bool(flags))
         if source.name in taken:
             raise ValueError(f"duplicate source name {source.name!r}")
         taken.add(source.name)
