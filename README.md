@@ -45,7 +45,7 @@ New to Docker or Git? [docs/install.md](docs/install.md) walks through installin
 4. Set up Kodi on each device you watch on:
    - Install Kodi from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
    - Add IPTV Simple Client: *Settings → Add-ons → Install from repository → PVR clients → IPTV Simple Client*.
-   - In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`. Set **Auto refresh mode** to *Once per day* and **Refresh hour (24h)** to 6, so Kodi picks up kia's 4:00 refresh. Then restart Kodi.
+   - In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`. Set **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120, so Kodi picks up kia's updates. Then restart Kodi.
 
    Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV and Raspberry Pi: [docs/kodi.md](docs/kodi.md).
 
@@ -73,7 +73,7 @@ If something breaks that needs you, such as your network's DNS failing or the ni
 
 ## Updating and stopping
 
-kia refreshes every night at 4:00. To change the time, set `KIA_RUN_AT` in `.env`. Changes to your playlists or settings show up after the next run; to refresh right away, see [when changes take effect](docs/configuration.md#when-changes-take-effect).
+kia refreshes everything every night at 4:00, and the guide every 4 hours in between. To change those, set `KIA_RUN_AT` and `KIA_GUIDE_REFRESH_HOURS` in `.env`. Changes to your playlists or settings show up after the next run; to refresh right away, see [when changes take effect](docs/configuration.md#when-changes-take-effect).
 
 To update kia, run these in the kia folder:
 

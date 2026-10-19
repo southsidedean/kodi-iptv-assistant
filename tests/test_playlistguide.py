@@ -86,7 +86,10 @@ def test_check_map_grab_guide_use_the_playlists_guide(server, tmp_path: Path, mo
     assert cli.main(["grab", "-c", cfg]) == 0
     assert cli.main(["guide", "-c", cfg]) == 0
     text = (tmp_path / "output" / "guide.xml").read_text()
-    assert "<title>Show 12</title>" in text and 'channel="r1" kia-placeholder' not in text
+    assert "<title>Show 12</title>" in text
+    # Name blocks only after the real listings end.
+    first_fill = text.index('channel="r1" kia-placeholder')
+    assert text.rindex("<title>Show 23</title>") < first_fill
 
     (tmp_path / "kia.toml").write_text(f'[check]\nffprobe = "true"\n[epg]\nrepo_dir = "{repo}"\nplaylist_guides = false\n')
     assert cli.main(["check", "-c", cfg]) == 0

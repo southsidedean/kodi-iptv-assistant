@@ -15,7 +15,8 @@ When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" 
 | `KIA_PUBLIC_URL` | | How Kodi reaches this machine, e.g. `http://192.168.1.20:8780`. Written into the playlist so Kodi finds the guide. |
 | `KIA_BIND` | `0.0.0.0` | `0.0.0.0` = any device on your network; `127.0.0.1` = this machine only. |
 | `KIA_PORT` | `8780` | Port for the playlist and guide. |
-| `KIA_RUN_AT` | `04:00` | Daily refresh time (24-hour clock). A run takes up to an hour. Set Kodi's refresh hour to match ([Kodi setup](kodi.md#3-point-it-at-the-playlist)). |
+| `KIA_RUN_AT` | `04:00` | Daily refresh time (24-hour clock). A run takes up to an hour. |
+| `KIA_GUIDE_REFRESH_HOURS` | 4 | Hours between quick guide refreshes, which keep guides that list only the next few hours current. They download only the guides kia reads itself, in seconds. `0` turns them off. |
 | `TZ` | `UTC` | Your time zone, e.g. `America/New_York`. |
 | `PUID`, `PGID` | `1000` | The user and group that own the files kia writes. Use the numbers `id -u` and `id -g` print, so you can open and delete those files yourself. |
 | `KIA_SOURCES_FILE` | `sources.txt` | Use your own list instead, e.g. `sources.local.txt` (copy `sources.txt` to start). git ignores it, so updates never conflict with your choices. |
@@ -40,7 +41,7 @@ After changing `.env`, apply it with `docker compose up -d`. Add `--build` if yo
 
 ## When changes take effect
 
-kia reads `sources.txt` (or your own copy) and `kia.toml` at the start of each run, so changes to them show up after the next nightly run. Changes to `.env` need `docker compose up -d` first. Kodi then picks up the new list at its refresh hour, or when it restarts.
+kia reads `sources.txt` (or your own copy) and `kia.toml` at the start of each run, so changes to them show up after the next nightly run. Changes to `.env` need `docker compose up -d` first. Kodi then picks up the new list within two hours (its refresh interval), or when it restarts.
 
 To refresh now instead of waiting:
 

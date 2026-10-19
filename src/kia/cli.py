@@ -517,7 +517,7 @@ def build_guide(
         f"-> {out} (+ .gz), report in {cfg.output_dir / 'guide-report.md'}"
     )
     drop_alert = check_count_drop(cfg, "guide_channels", with_data, "guide_drop", "channels with guide data")
-    update_status(cfg)
+    update_status(cfg, guide_updated=now_iso())
     return EXIT_ALERT if drop_alert else 0
 
 
@@ -555,6 +555,33 @@ def cmd_sync(args: argparse.Namespace) -> int:
             return EXIT_UPSTREAM_UNAVAILABLE
     entries = load_curated(cfg)
     return build_guide(cfg, entries, {"upstream": cached}, {e.tvg_id: ["upstream"] for e in entries})
+
+
+def cmd_refresh_guide(args: argparse.Namespace) -> int:
+    """Refresh the guide between nightly runs, using only the quick sources.
+
+    Some guides reach only hours ahead (i.mjh.nz's Samsung TV Plus guide, about 11), so a
+    nightly refresh alone leaves evenings empty. This re-downloads the guides kia reads
+    itself (i.mjh.nz, kink.nl, the playlists' own guides), which takes seconds, and rebuilds
+    the guide from those and the sites downloaded last night. With an upstream server, it
+    copies that server's guide again instead. Streams aren't checked.
+    """
+    cfg = load_config(args)
+    if cfg.upstream_url:
+        rc = cmd_sync(args)
+        return 0 if rc == EXIT_UPSTREAM_UNAVAILABLE else rc  # the last copy stays in place
+    epg = cfg.epg
+    quick = sorted(
+        site
+        for p in (epg.work_dir / "channels").glob("*.channels.xml")
+        if epg.native_grabbers and (site := p.name.removesuffix(".channels.xml")) in grab.NATIVE_GRABBERS
+    )
+    results = grab.grab_all(epg, quick, log) if quick else []
+    if epg.playlist_guides:
+        results += grab.grab_playlist_guides(epg, playlist_guides(cfg), log)
+    ok = sum(1 for r in results if r.returncode == 0)
+    log(f"Refreshed {ok} of {len(results)} quick guide sources")
+    return cmd_guide(args)
 
 
 def run_pipeline(config: str, update_epg: bool) -> int:
@@ -681,17 +708,39 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         or env_bool("KIA_RUN_ON_START", False)
         or not (cfg.output_dir / "guide.xml.gz").exists()
     )
+    every = timedelta(hours=args.guide_every) if args.guide_every > 0 else None
     while True:
         if not run_now:
             nxt = next_run_local(args.at)
             log(f"Next run at {nxt:%Y-%m-%d %H:%M %Z}")
             update_status(cfg, next_run=nxt.isoformat(timespec="seconds"))
+            # Quick guide refreshes until the next full run (which rebuilds the guide anyway).
+            while every and (due := guide_age_due(cfg, every)) < nxt - timedelta(minutes=30):
+                wait_until(due)
+                try:
+                    main(["refresh-guide", "-c", args.config])
+                except Exception as exc:  # keep the daemon alive
+                    log(f"Guide refresh failed: {type(exc).__name__}: {exc}")
+                touch_guide(cfg)  # a failed refresh waits a full interval, too, instead of looping
             wait_until(nxt)
         run_now = False
         try:
             run_and_report(args.config, update_epg=True)
         except Exception as exc:  # e.g. the config became invalid; keep the daemon alive
             log(f"Run could not start: {type(exc).__name__}: {exc}")
+
+
+def guide_age_due(cfg: Config, every: timedelta) -> datetime:
+    """When the guide is next due a quick refresh: `every` after it was last built."""
+    path = cfg.output_dir / "guide.xml.gz"
+    built = datetime.fromtimestamp(path.stat().st_mtime).astimezone() if path.exists() else datetime.now().astimezone()
+    return built + every
+
+
+def touch_guide(cfg: Config) -> None:
+    path = cfg.output_dir / "guide.xml.gz"
+    if path.exists():
+        path.touch()
 
 
 def cmd_test_alert(args: argparse.Namespace) -> int:
@@ -780,6 +829,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_test_alert)
 
+    p = sub.add_parser("refresh-guide", help="refresh the guide from the quick sources only (between nightly runs)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_refresh_guide)
+
     p = sub.add_parser("sync", help="take the guide from another kia server (KIA_UPSTREAM_URL)")
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_sync)
@@ -792,6 +845,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("daemon", help="run the full pipeline every day at a set time")
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--at", default="04:00", help="local time of day, HH:MM (default 04:00)")
+    p.add_argument(
+        "--guide-every",
+        type=float,
+        default=float(os.environ.get("KIA_GUIDE_REFRESH_HOURS") or 4),
+        help="hours between quick guide refreshes, 0 to turn off (default: KIA_GUIDE_REFRESH_HOURS or 4)",
+    )
     p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
     p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
     add_serve_args(p)

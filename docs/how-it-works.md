@@ -42,11 +42,13 @@ kia first updates its copy of iptv-org/epg to the latest version (or the one you
 
 For each channel, kia picks the site with the most programs in the next 24 hours and writes `guide.xml` and `guide.xml.gz`. Programs without a title don't count, because some sites send only times, and neither does a site with nothing in the next 24 hours (only old listings, for example). Channels with no data get blocks showing the channel's name (`placeholders`). A damaged guide file is skipped, and the other sites are still used. `guide-report.html` shows coverage by channel and site.
 
+Some guides list only the next few hours; i.mjh.nz's Samsung TV Plus guide, for example, reaches about 11 hours ahead. So between nightly runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`): it downloads the guides it reads itself again (i.mjh.nz, kink.nl, and the playlists' own guides), which takes seconds, and rebuilds the guide with the sites from the night before. When a channel's listings still run out before the end of the guide, the rest of its row shows the channel's name.
+
 With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downloads the upstream's guide and keeps the channels in its own list. If the upstream can't be reached, it falls back to steps 2 and 3 (or the last copy, with `KIA_UPSTREAM_FALLBACK=cached`).
 
 ## The status page
 
-`http://<your address>:8780/` shows how kia is doing: the last refresh and whether it worked, the next one, how many channels it found, the alerts from the last run, and links to the playlist, the guide, the reports, and these docs. kia updates it when a run starts and when it ends.
+`http://<your address>:8780/` shows how kia is doing: the last refresh and whether it worked, the next one, when the guide was last updated, how many channels it found, the alerts from the last run, and links to the playlist, the guide, the reports, and these docs. kia updates it when a run starts and when it ends.
 
 ![kia's status page: the last refresh worked, the next is at 04:00, with channel counts, file links, and help links](../images/kia-status-screenshot.png)
 
@@ -67,6 +69,7 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `result` | `running`, `ok`, `alerts`, `failed`, or `never` |
 | `last_run` | `started` and `finished` (UTC times), `minutes`, and `exit_code` (0 worked, 3 worked with alerts, anything else failed) |
 | `next_run` | The next refresh, in local time with its UTC offset |
+| `guide_updated` | When the guide was last rebuilt, by a nightly run or a quick refresh (UTC) |
 | `channels` | `tv`, `radio`, and `with_guide` (channels with guide data) |
 | `alerts` | The last run's alerts: `time`, `event` (see [alerts](alerts.md)), and `title` |
 | `playlist_url` | The playlist address for Kodi |

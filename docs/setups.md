@@ -26,7 +26,7 @@ KIA_BIND=127.0.0.1
 KIA_RUN_ON_START=true
 ```
 
-The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking. In Kodi, set the refresh hour a little after it, or leave Kodi to load the new list when it next starts.
+The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking.
 
 ## Laptop that travels (with a home server)
 

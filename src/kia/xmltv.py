@@ -86,6 +86,7 @@ class Choice:
     site: str | None
     hours_24h: float
     programmes: int
+    ends: datetime | None = None  # when the chosen site's listings for the channel run out
 
 
 def choose_sources(
@@ -110,7 +111,7 @@ def choose_sources(
             if hours <= 0:
                 continue  # only old or far-off listings: the channel's name shows instead
             if (hours, len(slots)) > (best.hours_24h, best.programmes):
-                best = Choice(tid, site, round(hours, 1), len(slots))
+                best = Choice(tid, site, round(hours, 1), len(slots), max(b for _, b in slots))
         choices[tid] = best
     return choices
 
@@ -126,6 +127,24 @@ def _placeholders(tvg_id: str, title: str, start: datetime, days: int, hours: in
             f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
             f'channel={quoteattr(tvg_id)} {PLACEHOLDER_ATTR}="1"><title>{escape(title)}</title></programme>'
         )
+    return out
+
+
+def _fill(tvg_id: str, title: str, start: datetime, end: datetime, day_start: datetime, hours: int) -> list[str]:
+    """Name blocks from start to end, on the same block boundaries as _placeholders. Used
+    after a channel's listings run out, e.g. a guide that only reaches 11 hours ahead."""
+    out = []
+    step = timedelta(hours=hours)
+    boundary = day_start + step * (int((start - day_start) / step) + 1)
+    a = start
+    while a < end:
+        b = min(boundary, end)
+        if b - a >= timedelta(minutes=5):  # skip slivers
+            out.append(
+                f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
+                f'channel={quoteattr(tvg_id)} {PLACEHOLDER_ATTR}="1"><title>{escape(title)}</title></programme>'
+            )
+        a, boundary = b, boundary + step
     return out
 
 
@@ -169,11 +188,17 @@ def write_guide(
 
         if placeholders:
             day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            guide_end = day_start + timedelta(days=days)
             for e in entries:
                 if e.is_radio and not radio_placeholders:
                     continue
-                if not choices.get(e.tvg_id) or not choices[e.tvg_id].site:
+                c = choices.get(e.tvg_id)
+                if not c or not c.site:
                     f.write("\n".join(_placeholders(e.tvg_id, display_name(e), day_start, days, placeholder_hours)) + "\n")
+                elif c.ends and c.ends < guide_end:
+                    # Listings that run out early: show the name for the rest of the guide.
+                    blocks = _fill(e.tvg_id, display_name(e), c.ends, guide_end, day_start, placeholder_hours)
+                    f.write("".join(b + "\n" for b in blocks))
         f.write("</tv>\n")
     tmp.replace(out_path)
 

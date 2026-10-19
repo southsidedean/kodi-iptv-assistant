@@ -2,8 +2,14 @@
 
 ## 0.2.0 (unreleased)
 
+### Upgrading from 0.1.1
+
+In Kodi, on each device, change IPTV Simple Client's **Auto refresh mode** to *Repeated refresh* and set **Refresh interval** to 120. kia now refreshes the guide every few hours, and Kodi picks that up only if it reloads more than once a day ([Kodi setup](docs/kodi.md#3-point-it-at-the-playlist)).
+
 ### Program guide
 
+- Between nightly runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`, `0` turns it off). Only the guides kia reads itself are downloaded again (i.mjh.nz, kink.nl, and the playlists' own guides), which takes seconds. Some of those list only the next few hours: i.mjh.nz's Samsung TV Plus guide reaches about 11 hours ahead. `kia refresh-guide` does the same by hand.
+- When a channel's listings end before the guide does, the rest of its row shows the channel's name instead of nothing.
 - Channels that no guide site lists by ID are now matched by name: exactly the same name, in the same country, belonging to one channel only. On the test server this gave 86 more TV channels full listings (from 42% to 48%). The matches are listed in `mapping-report.html`, and `ignore_name_matches` in `kia.toml` turns off a wrong one. Looser matches appear there as suggestions only.
 - kia now uses the guide a playlist names in its first line (`x-tvg-url`) for that playlist's channels. It downloads the guide, keeps the channels in your list, and compares it with iptv-org's sites. `sources.txt` adds such a list, Samsung TV Plus (USA) from apsattv.com, off by default. `playlist_guides = false` in `kia.toml` turns this off.
 - The same channel listed by different playlists under different IDs now appears once. kia joins channels with exactly the same name from different playlists, keeps the ID, logo, and number from the earliest playlist in your sources list, and plays whichever copy's stream tested best. Its guide can come from any of the copies. `merge_duplicates = false` under `[check]` turns this off.
