@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1 (unreleased)
+## 0.1.1 (2026-10-19)
 
 Fixes from an independent review of 0.1.0, locked-down containers, and versions that follow the latest releases by default. New: steady channel numbers, a status page, and reports you can read in a browser.
 
