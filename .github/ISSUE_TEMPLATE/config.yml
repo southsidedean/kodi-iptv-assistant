@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Troubleshooting
+    url: https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/troubleshooting.md
+    about: Fixes for no channels, an empty guide, failed refreshes, and alerts.
+  - name: Report a security problem privately
+    url: https://github.com/southsidedean/kodi-iptv-assistant/security/advisories/new
+    about: Please don't open a public issue for security problems.

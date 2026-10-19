@@ -92,6 +92,10 @@ To stop kia, run `docker compose down`. While it's stopped, Kodi can't refresh t
 
 Playlists come from [iptv-org/iptv](https://github.com/iptv-org/iptv) and others; guide sources from [iptv-org/epg](https://github.com/iptv-org/epg) and [i.mjh.nz](https://github.com/matthuisman/i.mjh.nz). This project only tests and organizes publicly listed streams; it doesn't host any.
 
+## Contributing
+
+Bug reports, ideas, and fixes are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately, as [SECURITY.md](SECURITY.md) describes.
+
 ## License
 
 kia is free software under the [GNU Affero General Public License v3.0](LICENSE). You can use, change, and share it. If you share a modified version, or run one as a service for other people, you must make your source code available under the same license.

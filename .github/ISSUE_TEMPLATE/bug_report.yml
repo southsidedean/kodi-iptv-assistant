@@ -1,0 +1,51 @@
+name: Something isn't working
+description: kia, the playlist, or the guide isn't doing what the docs say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. [Troubleshooting](https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/troubleshooting.md) covers the most common problems, so it's worth a look first.
+
+        Please remove anything private before posting: addresses and host names, ntfy topic names, and paths that include your name.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      description: The steps, if you know them.
+  - type: input
+    id: version
+    attributes:
+      label: kia version
+      description: Shown at the bottom of the status page, or run `docker compose exec kia python3 -m kia --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Computer running kia
+      options:
+        - Linux
+        - macOS
+        - Raspberry Pi
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: kodi
+    attributes:
+      label: Kodi version and device, if it's about Kodi
+      placeholder: e.g. Kodi 21.2 on a Fire TV Stick 4K
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: The end of `docker compose logs --tail 100 kia`, with private details removed.
+      render: text
