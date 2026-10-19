@@ -101,7 +101,7 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
         ok += r.ok
         done = len(results)
         if verbose:
-            detail = f"{r.height}p {r.video_codec}" if r.ok else r.error
+            detail = (f"{r.height}p {r.video_codec}" if r.height else f"audio {r.audio_codec}") if r.ok else r.error
             log(f"[{done:>{len(str(total))}}/{total}] {'OK  ' if r.ok else 'FAIL'} {e.name}: {detail}")
         elif done % 50 == 0 or done == total:
             log(f"  probed {done}/{total} ({ok} ok)")

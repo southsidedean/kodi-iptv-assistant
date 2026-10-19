@@ -87,8 +87,13 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         },
         "alerts": recent_alerts(state_dir / "alerts.log", run.get("started")),
         "playlist_url": f"{public_url}/curated.m3u" if public_url else None,
-        "files": [name for name, _ in FILES if (output_dir / name).exists()],
+        "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
+
+
+def markdown_twin(name: str) -> str | None:
+    """report.html -> report.md: each HTML report is made from a Markdown one."""
+    return name.removesuffix(".html") + ".md" if name.endswith(".html") else None
 
 
 def recent_alerts(log: Path, since: str | None, limit: int = 20) -> list[dict]:
@@ -128,11 +133,12 @@ def render_html(s: dict) -> str:
     table += "\n".join(f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>" for k, v in rows)
     alerts = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
     alerts_html = f"<h2>Alerts from the last refresh</h2><ul>{alerts}</ul>" if alerts else ""
-    files = "".join(
-        f'<li><a href="{escape(name)}">{escape(name)}</a> <span>{escape(what)}</span></li>'
-        for name, what in FILES
-        if name in s["files"]
-    )
+    def file_item(name: str, what: str) -> str:
+        twin = markdown_twin(name)
+        markdown = f' (<a href="{escape(twin)}">Markdown</a>)' if twin in s["files"] else ""
+        return f'<li><a href="{escape(name)}">{escape(name)}</a>{markdown} <span>{escape(what)}</span></li>'
+
+    files = "".join(file_item(name, what) for name, what in FILES if name in s["files"])
     playlist = (
         f'<p>Playlist URL for Kodi: <code>{escape(s["playlist_url"])}</code></p>' if s["playlist_url"] else ""
     )
@@ -151,6 +157,6 @@ def render_html(s: dict) -> str:
 <ul>{help_links}</ul>"""
     footer = (
         f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
-        '<a href="status.json">status.json</a>. Each report is also available as Markdown (.md).'
+        '<a href="status.json">status.json</a>.'
     )
     return page("kia status", body, footer)

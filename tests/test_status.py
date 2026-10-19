@@ -72,3 +72,12 @@ def test_page_links_to_the_docs(tmp_path: Path):
     root = Path(__file__).resolve().parent.parent
     for url, _, _ in status.HELP:
         assert (root / "docs" / url.rsplit("/", 1)[1]).exists(), url
+
+
+def test_reports_link_html_and_markdown(tmp_path: Path):
+    (tmp_path / "report.html").write_text("x")
+    (tmp_path / "report.md").write_text("x")
+    (tmp_path / "guide-report.html").write_text("x")  # no Markdown twin: no link to one
+    page = status.render_html(status.collect(tmp_path, tmp_path, {}, None))
+    assert 'href="report.html"' in page and '(<a href="report.md">Markdown</a>)' in page
+    assert 'href="guide-report.md"' not in page

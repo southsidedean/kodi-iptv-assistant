@@ -85,5 +85,7 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # https://iptv-org.github.io/iptv/index.m3u                    # Everything iptv-org has: 11,346 (slow)
 
 # --- Your own ---------------------------------------------------------------------
-# With Docker, a playlist file must be inside the kia folder; give its path from there.
+# Put your own playlist files in the playlists/ folder, which git ignores. With Docker,
+# a playlist file must be inside the kia folder; give its path from there. A station
+# marked radio="true" in its #EXTINF line shows under Radio in Kodi.
 # playlists/my-extras.m3u8   extras

@@ -10,4 +10,6 @@ work/*
 !*/.gitkeep
 .env
 sources.local.txt
+# Your own playlist files (see the end of sources.txt).
+playlists/
 *.tmp
