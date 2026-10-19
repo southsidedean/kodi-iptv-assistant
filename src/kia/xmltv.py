@@ -41,12 +41,18 @@ def _open(path: Path):
     return gzip.open(path, "rb") if path.suffix == ".gz" else open(path, "rb")
 
 
+def has_title(el: ET.Element) -> bool:
+    """A programme without a title isn't guide data: Kodi would show an empty block.
+    (In October 2026, every programme from ontvtonight.com had none.)"""
+    return any((t.text or "").strip() for t in el.iter("title"))
+
+
 def scan(path: Path) -> dict[str, list[tuple[datetime, datetime]]]:
     """Programme time slots per channel id, without keeping the programmes in memory."""
     slots: dict[str, list[tuple[datetime, datetime]]] = defaultdict(list)
     with _open(path) as f:
         for _, el in ET.iterparse(f, events=("end",)):
-            if el.tag == "programme" and el.get(PLACEHOLDER_ATTR):
+            if el.tag == "programme" and (el.get(PLACEHOLDER_ATTR) or not has_title(el)):
                 el.clear()
             elif el.tag == "programme":
                 try:
@@ -156,7 +162,7 @@ def write_guide(
                 for _, el in ET.iterparse(src, events=("end",)):
                     if el.tag != "programme":
                         continue
-                    if el.get("channel") in ids and not el.get(PLACEHOLDER_ATTR):
+                    if el.get("channel") in ids and not el.get(PLACEHOLDER_ATTR) and has_title(el):
                         el.tail = None
                         f.write("  " + ET.tostring(el, encoding="unicode") + "\n")
                     el.clear()

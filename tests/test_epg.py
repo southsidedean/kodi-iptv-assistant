@@ -43,7 +43,7 @@ def fake_repo(tmp_path: Path) -> Path:
 def test_candidates_exact_feed_fallback_and_broken_sites(tmp_path: Path):
     repo = fake_repo(tmp_path)
     channels = epgmap.load_site_channels(repo)
-    assert len(channels) == 6  # the channel without an xmltv_id is ignored
+    assert len(channels) == 7 and sum(1 for c in channels if not c.xmltv_id) == 1  # kept for name matching
     broken = epgmap.broken_sites(repo)
     assert broken == {"broken.tv"}
 
@@ -124,3 +124,75 @@ def test_choose_and_write_guide(tmp_path: Path):
 
     report = xmltv.render_report(entries, choices, "now")
     assert "| Full guide (20+ of the next 24 hours) | 2 | 67% |" in report
+
+
+def name_repo(tmp_path: Path) -> list[epgmap.SiteChannel]:
+    sc = lambda site, sid, name, xid="": epgmap.SiteChannel(site, sid, "en", xid, name)  # noqa: E731
+    return [
+        sc("pluto.tv", "p1", "Battlestar Galactica"),  # no id on the site
+        sc("pluto.tv", "p0", "CNN", "CNN.us@East"),  # gives pluto.tv its country: us
+        sc("tvpassport.com", "t1", "News 12 Connecticut", "News12Connecticut.us@SD"),
+        sc("tvpassport.com", "t2", "Adult Swim - West"),
+        sc("tvpassport.com", "t3", "Syfy", "Syfy.us@East"),
+        sc("tvpassport.com", "t4", "Fun Roads", "FunRoads.us@SD"),
+        sc("mi.tv", "m1", "Fun Roads", "FunRoads.mx@SD"),  # another country
+        sc("tvpassport.com", "t5", "Two of Us", "TwoOfUs.us@SD"),
+        sc("other.tv", "o1", "Two of Us", "TwoOfUsAgain.us@SD"),  # one name, two channels
+        sc("tvpassport.com", "t6", "CBN News Channel"),
+    ]
+
+
+def test_name_matching_is_strict(tmp_path: Path):
+    channels = name_repo(tmp_path)
+    names = {
+        "BattlestarGalactica.us@SD": "Battlestar Galactica",
+        "AdultSwim.us@West": "Adult Swim West",
+        "News12PlusConnecticut.us@HD": "News12+ Connecticut",  # "+" matters
+        "SYFY.us@East": "SYFY",  # id differs only in capitals: an id match
+        "FunRoads.us@HD": "Fun Roads",
+        "TwoOfUsShow.us@HD": "Two of Us",  # two channels share the name: no match
+        "CBNNews.us@SD": "CBN News",  # only a loose match
+    }
+    cands = epgmap.find_candidates(list(names), channels, EpgConfig(), names=names)
+    how = {tid: (c[0].channel.site, c[0].how) for tid, c in cands.items()}
+    assert how == {
+        "BattlestarGalactica.us@SD": ("pluto.tv", "name"),
+        "AdultSwim.us@West": ("tvpassport.com", "name"),
+        "SYFY.us@East": ("tvpassport.com", "id"),
+        "FunRoads.us@HD": ("tvpassport.com", "id"),  # feed fallback by id wins over a name
+    }
+    suggestions = epgmap.suggest_by_name(list(names), names, channels, set(cands))
+    assert [(s.tvg_id, s.site_name) for s in suggestions] == [("CBNNews.us@SD", "CBN News Channel")]
+
+    off = epgmap.find_candidates(list(names), channels, EpgConfig(ignore_name_matches=["AdultSwim.us@West"]), names=names)
+    assert "AdultSwim.us@West" not in off and "BattlestarGalactica.us@SD" in off
+    assert set(epgmap.find_candidates(list(names), channels, EpgConfig(name_matching=False), names=names)) == {
+        "SYFY.us@East", "FunRoads.us@HD"}  # fmt: skip
+
+
+def test_report_lists_name_matches_and_suggestions(tmp_path: Path):
+    channels = name_repo(tmp_path)
+    names = {"BattlestarGalactica.us@SD": "Battlestar Galactica", "CBNNews.us@SD": "CBN News"}
+    cands = epgmap.find_candidates(list(names), channels, EpgConfig(), names=names)
+    sugg = epgmap.suggest_by_name(list(names), names, channels, set(cands))
+    report = epgmap.render_report(list(names.items()), cands, {"pluto.tv": 1}, set(), sugg)
+    assert "| Matched by name | 1 |" in report
+    assert "| Battlestar Galactica | `BattlestarGalactica.us@SD` | pluto.tv | Battlestar Galactica |" in report
+    assert "## Possible matches (not used)" in report and "CBN News Channel" in report
+
+
+def test_programmes_without_titles_are_not_guide_data(tmp_path: Path):
+    now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
+    t = lambda h: xmltv.format_time(now + timedelta(hours=h))  # noqa: E731
+    blank = tmp_path / "blank.xml"
+    blank.write_text("<tv>" + "".join(f'<programme start="{t(h)}" stop="{t(h + 1)}" channel="A.us"/>' for h in range(24)) + "</tv>")
+    titled = tmp_path / "titled.xml"
+    titled.write_text(f'<tv><programme start="{t(0)}" stop="{t(2)}" channel="A.us"><title>News</title></programme>'
+                      f'<programme start="{t(2)}" stop="{t(3)}" channel="A.us"><title> </title></programme></tv>')  # fmt: skip
+    assert xmltv.scan(blank) == {}
+    slots = {"blank.tv": xmltv.scan(blank), "titled.tv": xmltv.scan(titled)}
+    choice = xmltv.choose_sources(["A.us"], slots, {"A.us": ["blank.tv", "titled.tv"]}, now)["A.us"]
+    assert (choice.site, choice.programmes) == ("titled.tv", 1)
+    out = tmp_path / "guide.xml"
+    xmltv.write_guide(out, [Entry("A", "u", {"tvg-id": "A.us"})], {"A.us": choice}, {"titled.tv": titled}, False, 1, now)
+    assert out.read_text().count("<programme") == 1

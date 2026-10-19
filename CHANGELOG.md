@@ -2,6 +2,12 @@
 
 ## 0.2.0 (unreleased)
 
+### Program guide
+
+- Channels that no guide site lists by ID are now matched by name: exactly the same name, in the same country, belonging to one channel only. On the test server this gave 86 more TV channels full listings (from 42% to 48%). The matches are listed in `mapping-report.html`, and `ignore_name_matches` in `kia.toml` turns off a wrong one. Looser matches are listed there as suggestions, not used.
+- Channel IDs that differ only in capital letters now match (`SYFY.us@East` and `Syfy.us@East`).
+- Programs without a title no longer count as guide data. ontvtonight.com currently sends only times, which showed as empty blocks in Kodi; those channels now use another site or show their name.
+
 ### Fixes
 
 - Channels that passed kia's check but wouldn't play in Kodi now play. Kodi introduced itself as Kodi, and some servers refuse that: jmp2.uk, which carries the Pluto TV, Samsung TV Plus, and Plex channels in the iptv-org lists, answered with "403 Forbidden". The playlist now tells Kodi to introduce itself the way kia did when it tested each stream (`#EXTVLCOPT:http-user-agent`).

@@ -145,6 +145,12 @@ placeholder_hours = 2
 # turning it on fills Kodi's radio guide with station names. .env: KIA_RADIO_PLACEHOLDERS
 radio_placeholders = false
 
+# When no guide site lists a channel's id, look for a site channel with exactly the same
+# name in the same country. The matches are listed in mapping-report.html. If one shows
+# another channel's programs, add its tvg-id to ignore_name_matches, e.g. ["News12.us@SD"].
+name_matching = true
+ignore_name_matches = []
+
 # Read i.mjh.nz's guide files (Pluto TV, Plex, Samsung TV Plus, Roku) directly. It takes
 # seconds and little memory, compared with about 25 minutes and over 2 GB through
 # iptv-org's downloader.
