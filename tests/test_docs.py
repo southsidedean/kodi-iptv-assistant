@@ -56,8 +56,9 @@ def test_containers_stay_locked_down():
     kia = compose_service("kia")
     assert "- ./:/data:ro" in kia  # kia's own code and settings can't be changed from inside
     web_mounts = re.findall(r"^\s+- (\./\S+)", compose_service("web"), flags=re.M)
-    assert all(m.startswith(("./output:", "./deploy/")) for m in web_mounts), web_mounts
-    for folder in ("output", "state", "work", "vendor"):
+    # The web server reads only the results, its own settings, and the certificate.
+    assert all(m.startswith(("./output:", "./deploy/", "./tls:")) and m.endswith(":ro") for m in web_mounts), web_mounts
+    for folder in ("output", "state", "work", "vendor", "profiles", "tls"):
         assert f"- ./{folder}:/data/{folder}" in kia
         assert (ROOT / folder / ".gitkeep").exists(), f"{folder}/ must exist so Docker doesn't create it as root"
 

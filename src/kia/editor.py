@@ -74,15 +74,19 @@ SCRIPT = r"""
     data = d;
     var tools = el("div", { class: "tools" });
     var adding = card.hasAttribute("data-add");
-    if (d.editable) {
+    if (d.editable && !d.secure) {
+      // Changes go over HTTPS only; offer this page on the secure address.
+      var to = card.dataset.secureUrl ? new URL(location.pathname.replace(/^\//, ""), card.dataset.secureUrl).href : null;
+      if (to) tools.appendChild(el("p", {}, [el("a", { href: to, text: adding ? "Add or change playlists on the secure page" : "Change this playlist on the secure page" }),
+        el("span", { class: "muted", text: " (https://). Your browser may warn about kia's own certificate the first time." })]));
+    } else if (d.editable) {
       if (adding) tools.appendChild(el("button", { type: "button", text: "Add a playlist", on: { click: function () { open(null); } } }));
       document.querySelectorAll("#playlists [data-profile]").forEach(function (row) {
         tools.appendChild(el("button", { type: "button", text: "Edit this playlist",
           on: { click: function () { open(row.dataset.profile); } } }));
       });
-    } else if (!d.error && adding) {
-      tools.appendChild(el("p", { class: "muted", text:
-        "To add or change playlists here, set KIA_ADMIN_PASSWORD in kia's .env file and restart kia. See the profiles guide in Help." }));
+    } else if (!d.error && adding && d.password === "off") {
+      tools.appendChild(el("p", { class: "muted", text: "Changing playlists here is turned off (KIA_EDITING in kia's .env file)." }));
     }
     card.appendChild(tools);
   }).catch(function () {});
@@ -160,7 +164,7 @@ SCRIPT = r"""
         el("p", { class: "hint", text: "Specific channels, whatever the settings above say." }), search, found, chips]),
       preview,
       el("label", { class: "field", for: "ed-pass" }, [el("strong", { text: "Password" }),
-        el("span", { class: "hint", text: "The KIA_ADMIN_PASSWORD from kia's .env file. This browser tab remembers it until you close it." })]), pass,
+        el("span", { class: "hint", text: "kia's admin password. If you haven't changed it, it's in state/admin-password.txt in the kia folder. This browser tab remembers it until you close it." })]), pass,
       error,
       el("div", { class: "actions" }, [save,
         el("button", { type: "button", text: "Cancel", on: { click: function () { form.remove(); } } }),
@@ -257,6 +261,67 @@ SCRIPT = r"""
     var t;
     return function () { clearTimeout(t); t = setTimeout(fn, ms); };
   }
+})();
+</script>
+"""
+
+PASSWORD_SCRIPT = r"""
+<script>
+(function () {
+  var card = document.getElementById("editing");
+  if (!card) return;
+  var note = card.querySelector("p");
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === "text") e.textContent = attrs[k]; else if (attrs[k] !== false && attrs[k] != null) e.setAttribute(k, attrs[k] === true ? "" : attrs[k]);
+    });
+    (kids || []).forEach(function (c) { if (c) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return e;
+  }
+  function say(text) { note.className = "muted"; note.textContent = text; }
+  fetch("api/profiles").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    if (!d) { say("Editing isn't available from this server."); return; }
+    var where = { env: "The password is set by KIA_ADMIN_PASSWORD in kia's .env file. Change it there and restart kia.",
+      generated: "kia made the password. It's in state/admin-password.txt in the kia folder until you change it here.",
+      set: "The password was set on this page. If you forget it, run: docker compose exec kia python3 -m kia password --reset",
+      off: "Changes from the status page are turned off (KIA_EDITING=false in kia's .env file)." }[d.password] || "";
+    say(where);
+    if (d.password === "env" || d.password === "off") return;
+    if (!d.secure) {
+      if (card.dataset.secureUrl) card.appendChild(el("p", {}, [el("a", { href: new URL("details.html", card.dataset.secureUrl).href, text: "Change the password on the secure page" })]));
+      return;
+    }
+    var current = el("input", { type: "password", id: "pw-current", autocomplete: "current-password", class: "pw" });
+    var fresh = el("input", { type: "password", id: "pw-new", autocomplete: "new-password", minlength: "8", class: "pw" });
+    var again = el("input", { type: "password", id: "pw-again", autocomplete: "new-password", class: "pw" });
+    var msg = el("p", { role: "status", hidden: true });
+    var button = el("button", { type: "submit", class: "primary", text: "Change password" });
+    var form = el("form", { class: "editor" }, [
+      el("label", { class: "field", for: "pw-current" }, [el("strong", { text: "Current password" })]), current,
+      el("label", { class: "field", for: "pw-new" }, [el("strong", { text: "New password" }),
+        el("span", { class: "hint", text: "At least 8 characters. Everyone who changes playlists will need it." })]), fresh,
+      el("label", { class: "field", for: "pw-again" }, [el("strong", { text: "New password again" })]), again,
+      msg, el("div", { class: "actions" }, [button])]);
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      function show(text, bad) { msg.hidden = false; msg.className = bad ? "error" : "preview"; msg.textContent = text; }
+      if (fresh.value !== again.value) return show("The new passwords don't match.", true);
+      button.disabled = true;
+      fetch("api/password", { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": current.value },
+        body: JSON.stringify({ new: fresh.value }) })
+        .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); })
+        .then(function (res) {
+          button.disabled = false;
+          if (res[0] !== 200) return show(res[1].error || "Something went wrong.", true);
+          try { sessionStorage.removeItem("kia-password"); } catch (e) {}
+          current.value = fresh.value = again.value = "";
+          say("The password was set on this page.");
+          show("Password changed.", false);
+        }, function () { button.disabled = false; show("kia didn't answer. Is it running?", true); });
+    });
+    card.appendChild(form);
+  }).catch(function () { say("Editing isn't available from this server."); });
 })();
 </script>
 """

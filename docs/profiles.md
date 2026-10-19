@@ -8,15 +8,15 @@ You can make profiles on kia's status page or by editing a file. Both change the
 
 ## On the status page
 
-1. Pick a password for editing and put it in kia's `.env` file:
+1. Find kia's password. kia made one when it first started; in the kia folder, run:
 
    ```sh
-   KIA_ADMIN_PASSWORD=pick-something-long
+   cat state/admin-password.txt
    ```
 
-   Then restart kia with `docker compose up -d`. Anyone on your network can open the status page, so choose a password the people in the house won't guess. Without one, the page shows your playlists but can't change them.
+   You can change it later on the status page. [The secure status page](secure-page.md#the-password) has more about the password.
 
-2. Open the status page at `http://<your address>:8780/` and choose **Add a playlist**.
+2. Open the secure status page at `https://<your address>:8743/` and choose **Add a playlist**. (The plain `http://` page has a link to it.) The first time, your browser warns that the certificate isn't trusted, because kia made it itself; [here's how to continue](secure-page.md#the-browser-warning).
 
 3. Fill in the form:
    - **Short name**: becomes the playlist's address, so `kids` is `http://<your address>:8780/kids.m3u`.
@@ -31,7 +31,7 @@ You can make profiles on kia's status page or by editing a file. Both change the
 
 5. On the device, use that address as the **M3U playlist URL** in IPTV Simple Client (or your player), instead of `curated.m3u`. Kodi finds the playlist's own guide by itself. If another player asks for a guide address, it's on the same page.
 
-To change or delete a playlist later, open it from the status page and choose **Edit this playlist**. The browser tab remembers the password until you close it.
+To change or delete a playlist later, open it from the secure status page and choose **Edit this playlist**. The browser tab remembers the password until you close it.
 
 ## In the file
 
@@ -112,7 +112,7 @@ renumber = true
 
 ## If something goes wrong
 
-If the status page has no **Add a playlist** button, editing is off. Set `KIA_ADMIN_PASSWORD` in `.env` and restart kia.
+If the status page has no **Add a playlist** button, you're on the plain `http://` page (use its link to the secure page), or editing is turned off with `KIA_EDITING=false` in `.env`.
 
 If the profiles file has a mistake, such as a missing bracket or a misspelled setting, kia keeps the profile playlists it made last time and shows the problem on the status page. The full playlist updates as usual, and the page won't save changes over a file it can't read. Fix the file, and the next run picks it up. Each time the status page saves, it keeps the previous file as `profiles/profiles.toml.bak`.
 

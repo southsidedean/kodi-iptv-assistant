@@ -1,14 +1,17 @@
-"""A small built-in web server for installs without Docker/nginx."""
+"""A small built-in web server for installs without Docker/nginx, and the profile editor's
+API (with Docker, nginx serves the files and forwards /api/ here)."""
 
 from __future__ import annotations
 
 import json
+import ssl
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from kia import api as api_module
+from kia import tls
 
 
 class OutputHandler(SimpleHTTPRequestHandler):
@@ -39,6 +42,15 @@ class OutputHandler(SimpleHTTPRequestHandler):
     # The profile editor's API (kia.api), when the server was given one.
     api = None
     MAX_BODY = 64 * 1024
+    # Whether requests count as secure: this server's own TLS, or behind nginx, the
+    # X-Kia-Secure header nginx sets (it overwrites whatever the browser sent).
+    secure = False
+    trust_proxy = False
+
+    def _secure(self) -> bool:
+        if self.trust_proxy:
+            return self.headers.get("X-Kia-Secure") == "1"
+        return self.secure
 
     def _api(self, method: str) -> bool:
         if not self.api or not self.path.startswith("/api/"):
@@ -48,7 +60,7 @@ class OutputHandler(SimpleHTTPRequestHandler):
             status, data = 413, {"error": "Too much data."}
         else:
             body = self.rfile.read(length) if length else b""
-            status, data = api_module.handle(self.api, method, self.path, self.headers, body)
+            status, data = api_module.handle(self.api, method, self.path, self.headers, body, self._secure())
         payload = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -74,13 +86,43 @@ class OutputHandler(SimpleHTTPRequestHandler):
             self.send_error(405)
 
 
-def make_server(directory: Path, bind: str, port: int, api=None) -> ThreadingHTTPServer:
+class TlsServer(ThreadingHTTPServer):
+    """HTTPS with tls/fullchain.pem and tls/privkey.pem, reloaded when they change."""
+
+    def __init__(self, address, handler, tls_dir: Path):
+        self.tls_dir = tls_dir
+        self._loaded: tuple[float, ssl.SSLContext] | None = None
+        self._context()  # fail now, not on the first visitor, if the files are unusable
+        super().__init__(address, handler)
+
+    def _context(self) -> ssl.SSLContext:
+        cert = self.tls_dir / tls.CERT
+        stamp = max(cert.stat().st_mtime, (self.tls_dir / tls.KEY).stat().st_mtime)
+        if not self._loaded or self._loaded[0] != stamp:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(cert, self.tls_dir / tls.KEY)
+            self._loaded = (stamp, context)
+        return self._loaded[1]
+
+    def get_request(self):
+        sock, address = super().get_request()
+        # The handshake happens in the request's own thread, so a slow client can't stall others.
+        return self._context().wrap_socket(sock, server_side=True, do_handshake_on_connect=False), address
+
+
+def make_server(directory: Path, bind: str, port: int, api=None, tls_dir: Path | None = None,
+                trust_proxy: bool = False) -> ThreadingHTTPServer:  # fmt: skip
     directory.mkdir(parents=True, exist_ok=True)
-    return ThreadingHTTPServer((bind, port), partial(OutputHandler, directory=str(directory)) if api is None
-                               else partial(type("ApiHandler", (OutputHandler,), {"api": api}), directory=str(directory)))  # fmt: skip
+    handler = type("Handler", (OutputHandler,), {"api": api, "secure": tls_dir is not None, "trust_proxy": trust_proxy})
+    factory = partial(handler, directory=str(directory))
+    if tls_dir is not None:
+        return TlsServer((bind, port), factory, tls_dir)
+    return ThreadingHTTPServer((bind, port), factory)
 
 
-def serve_in_background(directory: Path, bind: str, port: int, api=None) -> ThreadingHTTPServer:
-    server = make_server(directory, bind, port, api)
+def serve_in_background(directory: Path, bind: str, port: int, api=None, tls_dir: Path | None = None,
+                        trust_proxy: bool = False) -> ThreadingHTTPServer:  # fmt: skip
+    server = make_server(directory, bind, port, api, tls_dir, trust_proxy)
     threading.Thread(target=server.serve_forever, daemon=True, name="kia-serve").start()
     return server

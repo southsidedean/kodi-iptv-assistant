@@ -6,7 +6,8 @@ ARG NODE_IMAGE=node:lts-alpine
 FROM ${NODE_IMAGE}
 
 # curl is for alert commands (e.g. ntfy notifications); see [alerts] in kia.toml.
-RUN apk add --no-cache python3 ffmpeg git tzdata curl
+# openssl makes the secure status page's self-signed certificate (kia.tls).
+RUN apk add --no-cache python3 ffmpeg git tzdata curl openssl
 
 COPY src /app/src
 # The container's own files are read-only (see compose.yaml), so npm keeps its cache in

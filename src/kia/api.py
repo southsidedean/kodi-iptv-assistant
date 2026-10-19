@@ -1,10 +1,11 @@
 """The status page's profile editor: a small API behind /api/.
 
-Reading is open to anyone who can open the status page. Changing profiles needs the
-password in KIA_ADMIN_PASSWORD (sent as the X-Kia-Password header); without one set,
-editing is off. Requests from other websites are refused: browsers send a custom header
-like X-Kia-Password only after asking the server first (a CORS preflight), which this
-API never allows, and any Origin header must match the page's own address.
+Reading is open to anyone who can open the status page. Changes (profiles, the password)
+need the admin password (kia.auth), sent as the X-Kia-Password header, and are accepted
+only over HTTPS, so the password never crosses the network in the clear. Requests from
+other websites are refused: browsers send a custom header like X-Kia-Password only after
+asking the server first (a CORS preflight), which this API never allows, and any Origin
+header must match the page's own address.
 
 The profiles stay in the profiles file. Saving rewrites that file, then rebuilds the
 profile playlists and the status page from the last check, which takes about a second.
@@ -12,7 +13,6 @@ profile playlists and the status page from the last check, which takes about a s
 
 from __future__ import annotations
 
-import hmac
 import json
 import threading
 import time
@@ -23,6 +23,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from kia import profiles
+from kia.auth import Auth
 from kia.m3u import parse
 
 # One change at a time, and none while kia check rebuilds the profiles.
@@ -35,7 +36,8 @@ class ApiConfig:
     state_dir: Path
     profiles_file: Path
     epg_url: str | None
-    password: str | None
+    auth: Auth
+    https_port: int | None = None  # the secure status page's port, for the "open it" link
     on_change: Callable[[], None] = lambda: None  # e.g. rewrite the status page
 
 
@@ -62,7 +64,7 @@ def _load(cfg: ApiConfig) -> list[profiles.Profile]:
         raise ApiError(409, f"The profiles file has a mistake, so it can't be edited here until it's fixed: {exc}")
 
 
-def get_profiles(cfg: ApiConfig) -> dict:
+def get_profiles(cfg: ApiConfig, secure: bool = False) -> dict:
     """The profiles and everything the editor offers: categories, playlists, counts."""
     items = _items(cfg)
     groups: Counter = Counter()
@@ -77,8 +79,12 @@ def get_profiles(cfg: ApiConfig) -> dict:
         defined = profiles.load(cfg.profiles_file)
     except ValueError as exc:
         defined, error = [], str(exc)
+    source = cfg.auth.source
     return {
-        "editable": bool(cfg.password) and error is None,
+        "editable": source != "off" and error is None,
+        "secure": secure,
+        "https_port": cfg.https_port,
+        "password": source,  # where it comes from: env, generated, set, or off
         "error": error,
         "profiles": [{"name": p.name, **profiles.rules(p)} for p in defined],
         "groups": [{"name": g, "count": n} for g, n in sorted(groups.items(), key=lambda kv: kv[0].casefold())],
@@ -138,16 +144,31 @@ def delete_profile(cfg: ApiConfig, name: str) -> dict:
     return result
 
 
-def check_password(cfg: ApiConfig, given: str | None) -> None:
-    if not cfg.password:
-        raise ApiError(403, "Editing is off. Set KIA_ADMIN_PASSWORD in .env to turn it on.")
-    if not given or not hmac.compare_digest(given.encode(), cfg.password.encode()):
+def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
+    if cfg.auth.source == "off":
+        raise ApiError(403, "Editing is off (KIA_EDITING=false in kia's .env file).")
+    if not secure:
+        raise ApiError(403, "Changes are accepted only on the secure (https://) status page.")
+    if not cfg.auth.check(given):
         time.sleep(1)  # slows down guessing
         raise ApiError(401, "Wrong password.")
 
 
-def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes) -> tuple[int, dict]:
-    """Route one /api/ request. Returns (HTTP status, JSON body)."""
+def change_password(cfg: ApiConfig, body: dict) -> dict:
+    new = body.get("new") if isinstance(body, dict) else None
+    if not isinstance(new, str):
+        raise ApiError(400, "Expected the new password.")
+    with LOCK:
+        try:
+            cfg.auth.change(new)
+        except ValueError as exc:
+            raise ApiError(400, str(exc))
+    cfg.on_change()
+    return {"password": cfg.auth.source}
+
+
+def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure: bool = False) -> tuple[int, dict]:
+    """Route one /api/ request. Returns (HTTP status, JSON body). secure: it came over HTTPS."""
     url = urlparse(path)
     parts = [p for p in url.path.split("/") if p][1:]  # after "api"
     origin = headers.get("Origin")
@@ -162,13 +183,16 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes) -> tupl
             except ValueError:
                 raise ApiError(400, "The request wasn't valid JSON.")
         if parts == ["profiles"] and method == "GET":
-            return 200, get_profiles(cfg)
+            return 200, get_profiles(cfg, secure)
         if parts == ["preview"] and method == "POST":
             return 200, preview(cfg, data)
         if parts == ["channels"] and method == "GET":
             return 200, search_channels(cfg, parse_qs(url.query).get("q", [""])[0])
+        if parts == ["password"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, change_password(cfg, data)
         if len(parts) == 2 and parts[0] == "profiles" and method in ("PUT", "DELETE"):
-            check_password(cfg, headers.get("X-Kia-Password"))
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
             if method == "PUT":
                 return 200, save_profile(cfg, parts[1], data)
             return 200, delete_profile(cfg, parts[1])
