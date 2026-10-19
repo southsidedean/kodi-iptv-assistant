@@ -22,6 +22,8 @@ class Entry:
     source: str = ""
     # A channel number you chose (tvg-chno in your own playlist file); see kia.numbers.
     pinned_number: int | None = None
+    # The guides the entry's playlist names in its header (x-tvg-url); see kia.playlistguide.
+    guide_urls: tuple[str, ...] = ()
 
     @property
     def tvg_id(self) -> str:
@@ -93,6 +95,18 @@ def _parse_extinf(line: str) -> tuple[str, dict[str, str], str]:
     else:
         name = name.partition(",")[2]
     return duration, attrs, name.strip()
+
+
+def header_guide_urls(text: str) -> list[str]:
+    """The guide addresses in a playlist's #EXTM3U line (x-tvg-url or url-tvg; can be a
+    comma-separated list). Only http(s) addresses are kept."""
+    first = text.removeprefix("\ufeff").lstrip().partition("\n")[0].strip()
+    if not first.startswith("#EXTM3U"):
+        return []
+    attrs = dict(_ATTR_RE.findall(first[len("#EXTM3U"):]))
+    value = attrs.get("x-tvg-url") or attrs.get("url-tvg") or ""
+    urls = [u.strip() for u in re.split(r"[,\s]+", value) if u.strip()]
+    return [u for u in urls if re.match(r"https?://", u, re.I)]
 
 
 def parse(text: str, source: str = "") -> list[Entry]:

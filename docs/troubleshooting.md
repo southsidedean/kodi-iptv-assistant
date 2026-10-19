@@ -30,7 +30,7 @@ Free streams come and go. The nightly check drops a stream once it has failed a 
 
 ### Changes don't show up
 
-kia applies changes to your playlists and settings at its next run, and Kodi picks them up at its refresh hour or when it restarts. To do both now, see [when changes take effect](configuration.md#when-changes-take-effect).
+kia applies changes to your playlists and settings at its next run, and Kodi picks them up within two hours (its refresh interval) or when it restarts. To do both now, see [when changes take effect](configuration.md#when-changes-take-effect).
 
 ### Old, missing, or mixed-up channels
 
@@ -44,7 +44,7 @@ Turn on **Use channel numbers from backend** in Kodi ([Kodi setup, step 5](kodi.
 
 ### The list doesn't update unless Kodi restarts
 
-Set IPTV Simple Client's **Auto refresh mode** to *Once per day* ([Kodi setup, step 3](kodi.md#3-point-it-at-the-playlist)).
+Set IPTV Simple Client's **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120 ([Kodi setup, step 3](kodi.md#3-point-it-at-the-playlist)).
 
 ## On the computer running kia
 

@@ -26,7 +26,7 @@ KIA_BIND=127.0.0.1
 KIA_RUN_ON_START=true
 ```
 
-The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking. In Kodi, set the refresh hour a little after it, or leave Kodi to load the new list when it next starts.
+The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking.
 
 ## Laptop that travels (with a home server)
 
@@ -66,7 +66,7 @@ python3 -m venv .venv
 .venv/bin/kia daemon --serve --run-now
 ```
 
-That refreshes daily at 04:00 and serves the results on `127.0.0.1:8780`. Add `--at HH:MM` for another time, or `--bind 0.0.0.0` to serve other devices.
+That refreshes everything daily at 04:00, refreshes the guide every 4 hours, and serves the results on `127.0.0.1:8780`. Add `--at HH:MM` for another time, `--guide-every HOURS` for another interval (`0` turns it off), or `--bind 0.0.0.0` to serve other devices.
 
 Settings go in `kia.toml`. Under `[output]`, set `public_url` to the address Kodi uses (the job `KIA_PUBLIC_URL` does with Docker), and under `[epg]`, set `runner = "local"`. Most other `.env` settings also work as environment variables; the memory limit, the image settings, and the container lockdown apply only to Docker. kia stops when you close the terminal, so run it in `tmux` or `screen`, or start it at boot with your system's service manager.
 

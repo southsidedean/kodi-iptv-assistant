@@ -80,6 +80,7 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "result": run.get("result", "never"),
         "last_run": {k: run.get(k) for k in ("started", "finished", "minutes", "exit_code")},
         "next_run": run.get("next_run"),
+        "guide_updated": run.get("guide_updated"),
         "channels": {
             "tv": len(entries) - radio,
             "radio": radio,
@@ -123,7 +124,8 @@ def render_html(s: dict) -> str:
     run, ch = s["last_run"], s["channels"]
     rows = [
         ("Last refresh", f"{_when(run['started'])}" + (f", took {run['minutes']} min" if run.get("minutes") is not None else "")),
-        ("Next refresh", _when(s["next_run"])),
+        ("Next nightly run", _when(s["next_run"])),
+        ("Guide updated", _when(s.get("guide_updated"))),
         ("TV channels", f"{ch['tv']}"),
         ("Radio stations", f"{ch['radio']}"),
         ("Channels with guide data", "-" if ch["with_guide"] is None else f"{ch['with_guide']}"),

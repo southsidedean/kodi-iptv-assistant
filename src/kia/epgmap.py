@@ -125,12 +125,14 @@ def find_candidates(
     cfg: EpgConfig,
     skip_sites: set[str] = frozenset(),
     names: dict[str, str] | None = None,
+    aliases: dict[str, list[str]] | None = None,
 ) -> dict[str, list[Candidate]]:
     """Up to cfg.max_sites_per_channel guide sources per tvg-id, best guesses first.
 
     Ids match first, ignoring case: the same feed, then another feed of the channel. With
     `names` (tvg-id -> channel name) and cfg.name_matching on, channels no id matches are
-    then matched by exact name (see name_key).
+    then matched by exact name (see name_key). `aliases` (tvg-id -> the ids the same
+    channel has in other playlists) are tried after the channel's own id.
     """
     usable = usable_channels(site_channels, cfg, skip_sites)
     by_id: dict[str, list[SiteChannel]] = defaultdict(list)
@@ -144,10 +146,13 @@ def find_candidates(
     for tid in tvg_ids:
         if not tid:
             continue
-        if by_id.get(tid.lower()):
-            matches = [Candidate(tid, sc, True) for sc in by_id[tid.lower()]]
+        ids = [tid, *(aliases or {}).get(tid, [])]
+        exact = next((i for i in ids if by_id.get(i.lower())), None)
+        if exact:
+            matches = [Candidate(tid, sc, True) for sc in by_id[exact.lower()]]
         else:
-            matches = [Candidate(tid, sc, False) for sc in by_base.get(base_id(tid).lower(), [])]
+            feed = next((i for i in ids if by_base.get(base_id(i).lower())), None)
+            matches = [Candidate(tid, sc, False) for sc in by_base.get(base_id(feed).lower(), [])] if feed else []
         if matches:
             raw[tid] = _one_per_site(matches)
 
@@ -162,6 +167,18 @@ def find_candidates(
         return (prefer.get(c.channel.site, len(prefer)), -popularity[c.channel.site], c.channel.site)
 
     return {tid: sorted(cands, key=rank)[: cfg.max_sites_per_channel] for tid, cands in raw.items()}
+
+
+def radio_schedule_candidates(radio: dict[str, str], skip_sites: set[str]) -> dict[str, list[Candidate]]:
+    """Radio stations (tvg-id -> name) with a schedule kia reads itself (native.RADIO_SCHEDULES)."""
+    from kia.native import RADIO_SCHEDULES
+
+    found = {}
+    for tid, name in radio.items():
+        site_id = RADIO_SCHEDULES.get(name_key(name))
+        if tid and site_id and site_id[0] not in skip_sites:
+            found[tid] = [Candidate(tid, SiteChannel(site_id[0], site_id[1], "", "", name), True, "schedule")]
+    return found
 
 
 def usable_channels(site_channels: list[SiteChannel], cfg: EpgConfig, skip_sites: set[str]) -> list[SiteChannel]:
@@ -259,11 +276,15 @@ def render_report(
     per_site: dict[str, int],
     skipped_sites: set[str],
     suggestions: list[Suggestion] = (),
+    own_guides: dict[str, list[str]] | None = None,
 ) -> str:
-    """curated: (tvg_id, name) pairs from the curated playlist."""
+    """curated: (tvg_id, name) pairs from the curated playlist. own_guides: tvg-id -> the
+    playlist guide sites that cover it (see kia.playlistguide)."""
+    own_guides = own_guides or {}
     by_name = {tid: c for tid, c in candidates.items() if c[0].how == "name"}
     exact = sum(1 for tid, c in candidates.items() if c[0].exact and tid not in by_name)
-    unmatched = [(tid, name) for tid, name in curated if tid not in candidates]
+    unmatched = [(tid, name) for tid, name in curated if tid not in candidates and tid not in own_guides]
+    own_per_site = Counter(site for sites in own_guides.values() for site in sites)
     names = dict(curated)
     lines = [
         "# Guide mapping report",
@@ -274,13 +295,15 @@ def render_report(
         f"| Matched to a guide site (same feed) | {exact} |",
         f"| Matched to a different feed of the channel | {len(candidates) - exact - len(by_name)} |",
         f"| Matched by name | {len(by_name)} |",
+        f"| Covered by their playlist's own guide | {len(own_guides)} |",
         f"| No guide source found | {len(unmatched)} |",
         "",
     ]
     if skipped_sites:
         lines += [f"Skipped sites marked broken or excluded: {', '.join(sorted(skipped_sites))}", ""]
     lines += ["## Sites to grab", "", "| Site | Channels |", "|---|---:|"]
-    lines += [f"| {site} | {n} |" for site, n in sorted(per_site.items(), key=lambda kv: -kv[1])]
+    all_sites = {**per_site, **own_per_site}
+    lines += [f"| {site} | {n} |" for site, n in sorted(all_sites.items(), key=lambda kv: -kv[1])]
     if by_name:
         lines += [
             "",

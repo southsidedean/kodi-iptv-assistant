@@ -196,3 +196,24 @@ def test_programmes_without_titles_are_not_guide_data(tmp_path: Path):
     out = tmp_path / "guide.xml"
     xmltv.write_guide(out, [Entry("A", "u", {"tvg-id": "A.us"})], {"A.us": choice}, {"titled.tv": titled}, False, 1, now)
     assert out.read_text().count("<programme") == 1
+
+
+def test_listings_that_run_out_are_followed_by_the_name(tmp_path: Path):
+    now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
+    t = lambda h, m=0: xmltv.format_time(now.replace(hour=0) + timedelta(hours=h, minutes=m))  # noqa: E731
+    src = tmp_path / "short.xml"
+    # Listings until 21:30 on day one only, like a guide that reaches 11 hours ahead.
+    src.write_text("<tv>" + "".join(f'<programme start="{t(h)}" stop="{t(h + 1)}" channel="A.us"><title>P{h}</title></programme>'
+                                    for h in range(12, 21)) + f'<programme start="{t(21)}" stop="{t(21, 30)}" channel="A.us"><title>Last</title></programme></tv>')  # fmt: skip
+    choices = xmltv.choose_sources(["A.us"], {"short.tv": xmltv.scan(src)}, {"A.us": ["short.tv"]}, now)
+    assert choices["A.us"].ends.hour == 21 and choices["A.us"].ends.minute == 30
+    out = tmp_path / "guide.xml"
+    xmltv.write_guide(out, [Entry("Alpha", "u", {"tvg-id": "A.us"})], choices, {"short.tv": src}, True, 2, now, 4)
+    fills = [p for p in ET.parse(out).getroot().findall("programme") if p.get("kia-placeholder")]
+    assert fills[0].get("start").startswith("20261019213000") and fills[0].get("stop").startswith("20261020000000")
+    assert fills[-1].get("stop").startswith("20261021000000")  # to the end of the 2-day guide
+    assert all(p.findtext("title") == "Alpha" for p in fills)
+
+    out2 = tmp_path / "off.xml"
+    xmltv.write_guide(out2, [Entry("Alpha", "u", {"tvg-id": "A.us"})], choices, {"short.tv": src}, False, 2, now, 4)
+    assert "kia-placeholder" not in out2.read_text()  # placeholders = false: no name blocks at all

@@ -2,14 +2,27 @@
 
 ## 0.2.0 (unreleased)
 
+### Upgrading from 0.1.1
+
+In Kodi, on each device, change IPTV Simple Client's **Auto refresh mode** to *Repeated refresh* and set **Refresh interval** to 120. kia now refreshes the guide every few hours, and Kodi picks that up only if it reloads more than once a day ([Kodi setup](docs/kodi.md#3-point-it-at-the-playlist)).
+
 ### Program guide
 
+- Between nightly runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`, `0` turns it off). Only the guides kia reads itself are downloaded again (i.mjh.nz, kink.nl, and the playlists' own guides), which takes seconds. Some of those list only the next few hours: i.mjh.nz's Samsung TV Plus guide reaches about 11 hours ahead. For a playlist that names many guides (Free-TV names about 100), a quick refresh downloads only the ones that had your channels the night before. `kia refresh-guide` does the same by hand. The status page shows when the guide was last updated.
+- When a channel's listings end before the guide does, the rest of its row shows the channel's name instead of nothing.
 - Channels that no guide site lists by ID are now matched by name: exactly the same name, in the same country, belonging to one channel only. On the test server this gave 86 more TV channels full listings (from 42% to 48%). The matches are listed in `mapping-report.html`, and `ignore_name_matches` in `kia.toml` turns off a wrong one. Looser matches appear there as suggestions only.
+- kia now uses the guide a playlist names in its first line (`x-tvg-url`) for that playlist's channels. It downloads the guide, keeps the channels in your list, and compares it with iptv-org's sites. `sources.txt` adds such a list, Samsung TV Plus (USA) from apsattv.com, off by default. `playlist_guides = false` in `kia.toml` turns this off.
+- The same channel listed by different playlists under different IDs now appears once. kia joins channels with exactly the same name from different playlists, keeps the ID, logo, and number from the earliest playlist in your sources list, and plays whichever copy's stream tested best. Its guide can come from any of the copies. `merge_duplicates = false` under `[check]` turns this off.
 - Channel IDs that differ only in capital letters now match (`SYFY.us@East` and `Syfy.us@East`).
 - Programs without a title no longer count as guide data. ontvtonight.com currently sends only times, which showed as empty blocks in Kodi; those channels now use another site or show their name.
 
+### Radio
+
+- For a radio station named exactly "KINK", kia reads KINK's program schedule from kink.nl, so Kodi's radio guide lists its shows and DJs.
+
 ### Fixes
 
+- Accented channel names now show correctly in playlists saved as Windows-1252 instead of UTF-8, such as apsattv.com's. "AMC en Español" appeared as "AMC en Espa�ol".
 - Channels that passed kia's check but wouldn't play in Kodi now play. Kodi introduced itself as Kodi, and some servers refuse that: jmp2.uk, which carries the Pluto TV, Samsung TV Plus, and Plex channels in the iptv-org lists, answered with "403 Forbidden". The playlist now tells Kodi to introduce itself the way kia did when it tested each stream (`#EXTVLCOPT:http-user-agent`).
 
 ## 0.1.1 (2026-10-19)

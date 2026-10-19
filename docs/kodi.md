@@ -35,10 +35,10 @@ The **Name** at the top is just a label for this setup; anything works.
 
 Further down the same tab, under **Refresh**, set:
 
-- **Auto refresh mode:** Once per day
-- **Refresh hour (24h):** a couple of hours after kia's nightly run. kia runs at 4:00 by default (`KIA_RUN_AT`), so 6 is a good choice.
+- **Auto refresh mode:** Repeated refresh
+- **Refresh interval:** 120 (minutes, the most it allows)
 
-Without this, Kodi loads the channel list and guide only when it starts. A TV box or streaming stick that sleeps instead of shutting down could go days without picking up kia's nightly refresh. If you change `KIA_RUN_AT`, change the refresh hour on each device to match. If a device is off at the refresh hour, it loads the latest list the next time Kodi starts.
+Without this, Kodi loads the channel list and guide only when it starts, and a TV box or streaming stick that sleeps instead of shutting down could go days without an update. kia refreshes the channel list every night and the guide every few hours, because some guides list only the next few hours. Every two hours, Kodi picks up whatever kia has.
 
 ![IPTV Simple Client settings, General tab, with Location set to Remote path and the playlist URL filled in](../images/kodi-iptv-general-configuration.jpg)
 

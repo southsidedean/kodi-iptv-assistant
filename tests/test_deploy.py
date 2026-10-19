@@ -104,7 +104,9 @@ def test_sync_from_upstream(server, monkeypatch):
     by_channel = {}
     for p in root.findall("programme"):
         by_channel.setdefault(p.get("channel"), []).append(p)
-    assert len(by_channel["Alpha.us@SD"]) == 24 and not by_channel["Alpha.us@SD"][0].get("kia-placeholder")
+    real = [p for p in by_channel["Alpha.us@SD"] if not p.get("kia-placeholder")]
+    filled = [p for p in by_channel["Alpha.us@SD"] if p.get("kia-placeholder")]
+    assert len(real) == 24 and filled and min(p.get("start") for p in filled) >= max(p.get("stop") for p in real)
     assert all(p.get("kia-placeholder") for p in by_channel["Local.us@SD"])  # not on the central server
     assert "Gone.us@SD" not in by_channel
 

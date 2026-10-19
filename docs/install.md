@@ -111,11 +111,11 @@ If other devices can't connect (more in [troubleshooting](troubleshooting.md#oth
 - Linux with a firewall (ufw): `sudo ufw allow 8780/tcp`.
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
 
-From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Kodi picks up each refresh at its own refresh hour, which you set in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in* setting).
+From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Between runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`). Kodi picks up each update within two hours, with the setting in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in* setting).
 
 ## 7. Set up Kodi
 
-Follow [Kodi setup](kodi.md) on each device you watch on: install Kodi, add IPTV Simple Client, enter `http://<your address>:8780/curated.m3u`, and set the daily refresh.
+Follow [Kodi setup](kodi.md) on each device you watch on: install Kodi, add IPTV Simple Client, enter `http://<your address>:8780/curated.m3u`, and turn on the repeated refresh.
 
 ## Next steps
 

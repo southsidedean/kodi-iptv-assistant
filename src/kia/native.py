@@ -9,6 +9,8 @@ it gives the same programmes in seconds with almost no memory.
 from __future__ import annotations
 
 import gzip
+import json
+import re
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -19,7 +21,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape, quoteattr
 
 from kia import __version__
-from kia.xmltv import parse_time
+from kia.xmltv import format_time, parse_time
 
 IMJH_BASE = "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master"
 
@@ -36,6 +38,7 @@ def filter_xmltv(
     start: datetime,
     end: datetime,
     write: Callable[[str], None],
+    suffix_fallback: bool = True,
 ) -> int:
     """Copy programmes for wanted source channel ids that start in [start, end).
 
@@ -44,7 +47,7 @@ def filter_xmltv(
     """
     # Plex ids are "<provider prefix>-<channel id>" and the prefix changes over time, while
     # the channel id doesn't; fall back to matching on the part after the last "-".
-    by_suffix = {sid.rpartition("-")[2]: tvg_ids for sid, tvg_ids in wanted.items() if "-" in sid}
+    by_suffix = {sid.rpartition("-")[2]: tvg_ids for sid, tvg_ids in wanted.items() if "-" in sid and suffix_fallback}
     written = 0
     for _, el in ET.iterparse(stream, events=("end",)):
         if el.tag != "programme":
@@ -115,5 +118,74 @@ def grab_imjh(
         raise RuntimeError("every i.mjh.nz file failed to download")
 
 
+KINK_SCHEDULE_URL = "https://kink.nl/programmering"
+
+
+def parse_kink_schedule(html: str) -> list[tuple[datetime, datetime, str, str]]:
+    """(start, end, show, DJ) for each time slot on kink.nl's schedule page.
+
+    The page is built with Next.js: its data sits in self.__next_f.push([1, "..."]) script
+    chunks, which are string literals. Decoded and joined, they hold JSON lists of time
+    slots after each "timeslots":{"data": .
+    """
+    chunks = re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', html)
+    text = "".join(json.loads(c) for c in chunks)
+    decoder = json.JSONDecoder()
+    slots: dict[str, tuple[datetime, datetime, str, str]] = {}
+    for m in re.finditer(r'"timeslots":\{"data":', text):
+        try:
+            found, _ = decoder.raw_decode(text, m.end())
+        except ValueError:
+            continue
+        for s in found if isinstance(found, list) else []:
+            try:
+                show = (s.get("program") or {}).get("data") or {}
+                title = (s.get("alt_title") or show.get("title") or "").strip()
+                if title and s["start"] not in slots:
+                    dj = (s.get("alt_dj") or show.get("alt_title") or "").strip()
+                    slots[s["start"]] = (datetime.fromisoformat(s["start"]), datetime.fromisoformat(s["end"]), title, dj)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                continue
+    return sorted(slots.values())
+
+
+def grab_kink(
+    channels_file: Path,
+    output: Path,
+    days: int,
+    log: Callable[[str], None],
+    url: str = KINK_SCHEDULE_URL,
+    now: datetime | None = None,
+) -> None:
+    """KINK's program schedule, for each channel in channels_file (the main KINK station)."""
+    tvg_ids = [tvg_id for _, tvg_id, _ in read_channel_list(channels_file) if tvg_id]
+    with fetch(url, timeout=60) as resp:
+        slots = parse_kink_schedule(resp.read().decode("utf-8", errors="replace"))
+    if not slots:
+        raise RuntimeError("no time slots found on the schedule page; kink.nl may have changed")
+    now = now or datetime.now(timezone.utc)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=days)
+    kept = [s for s in slots if s[1] > start and s[0] < end]
+    log(f"kink.nl: {len(slots)} time slots, {len(kept)} in the next {days} days, for {len(tvg_ids)} channel(s)")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with open(output, "w", encoding="utf-8") as out:
+        out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
+        for tid in tvg_ids:
+            out.write(f"  <channel id={quoteattr(tid)}><display-name>KINK</display-name></channel>\n")
+        for tid in tvg_ids:
+            for a, b, title, dj in kept:
+                desc = f"<desc>{escape(dj)}</desc>" if dj else ""
+                out.write(
+                    f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
+                    f"channel={quoteattr(tid)}><title>{escape(title)}</title>{desc}</programme>\n"
+                )
+        out.write("</tv>\n")
+
+
 # site name -> grabber(channels_file, output, days, log)
-NATIVE_GRABBERS: dict[str, Callable[..., None]] = {"i.mjh.nz": grab_imjh}
+NATIVE_GRABBERS: dict[str, Callable[..., None]] = {"i.mjh.nz": grab_imjh, "kink.nl": grab_kink}
+
+# Radio stations with a schedule kia can read itself: station name (see epgmap.name_key)
+# -> (site, site_id). Almost no radio station is on iptv-org's guide sites.
+RADIO_SCHEDULES: dict[str, tuple[str, str]] = {"kink": ("kink.nl", "kink")}

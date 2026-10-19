@@ -1,6 +1,6 @@
 # How it works
 
-Every night (`KIA_RUN_AT`), kia runs four steps. You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
+Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide every few hours in between ([details](#4-build-the-guide-kia-guide)). You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
 
 ## 1. Check streams (`kia check`)
 
@@ -14,11 +14,15 @@ Each stream is marked:
 - flaky: failed tonight but worked before, and hasn't failed more than `grace_failures` nights in a row. It stays in the list, because free streams often drop out for a while.
 - dead: everything else.
 
-Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response. Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
+Channels listed more than once (same `tvg-id`) are reduced to the best stream: working beats flaky, then higher resolution, then faster response.
+
+Different playlists often list the same channel under different IDs: CBS News 24/7 is in both iptv-org's USA list and the Samsung TV Plus list, for example. kia joins channels with exactly the same name from different playlists into one (`merge_duplicates`). The merged channel keeps the ID, logo, and number from the earliest playlist in your sources list, and plays whichever copy's stream tested best. Its guide can come from any of the copies. A name that one playlist uses for two channels, such as "FOX 5" for two cities, isn't merged.
+
+Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
 
 ### Radio
 
-Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices, such as a country, genre, language, or station name. Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `KIA_RADIO_PLACEHOLDERS`.
+Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices, such as a country, genre, language, or station name. Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `KIA_RADIO_PLACEHOLDERS`. The exception so far is KINK, from the Netherlands: kia reads the schedule on kink.nl for a station named exactly "KINK", so its shows and DJs appear in Kodi's radio guide. KINK's theme channels play non-stop and have no schedule.
 
 ## 2. Match channels to guide sources (`kia map`)
 
@@ -28,19 +32,23 @@ This is also why guides built by hand are often nearly empty: the channel lists 
 
 Guide sites also list many channels iptv-org hasn't linked to an ID, and channels get renamed. So when no site lists a channel's ID, kia looks for a site channel with exactly the same name in the same country. A wrong match would show another channel's programs, so a name counts only if it belongs to one channel. Looser matches, like "CBN News" and "CBN News Channel", are listed for you to check and never used. `mapping-report.html` lists the channels matched by ID, those matched by name, the possible matches, and the channels with no guide source. If a name match is wrong, add the channel's tvg-id to `ignore_name_matches` in `kia.toml`.
 
+Some playlists name their own guide in their first line (`x-tvg-url`), with channel IDs that match the playlist's. The Samsung TV Plus list in `sources.txt` does, for example. kia adds that guide to the sources it compares for the playlist's channels, and prefers it when two sources cover the same hours. Set `playlist_guides = false` under `[epg]` in `kia.toml` to leave them out.
+
 ## 3. Download guide data (`kia grab`)
 
-kia first updates its copy of iptv-org/epg to the latest version (or the one you've pinned; see [versions](configuration.md#versions)). If GitHub can't be reached, it uses the copy it has. For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. If a site fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
+kia first updates its copy of iptv-org/epg to the latest version (or the one you've pinned; see [versions](configuration.md#versions)). If GitHub can't be reached, it uses the copy it has. For each candidate site, kia runs iptv-org/epg's downloader, a few sites at a time. Guides named by playlists are downloaded too, keeping only the channels in your list. If a site or guide fails, its previous data is kept. i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku) publishes complete guide files, so kia reads those directly. That takes seconds and about 40 MB of memory, instead of about 25 minutes and over 2 GB.
 
 ## 4. Build the guide (`kia guide`)
 
 For each channel, kia picks the site with the most programs in the next 24 hours and writes `guide.xml` and `guide.xml.gz`. Programs without a title don't count, because some sites send only times, and neither does a site with nothing in the next 24 hours (only old listings, for example). Channels with no data get blocks showing the channel's name (`placeholders`). A damaged guide file is skipped, and the other sites are still used. `guide-report.html` shows coverage by channel and site.
 
+Some guides list only the next few hours; i.mjh.nz's Samsung TV Plus guide, for example, reaches about 11 hours ahead. So between nightly runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`): it downloads the guides it reads itself again (i.mjh.nz, kink.nl, and the playlists' own guides), which takes seconds, and rebuilds the guide with the sites from the night before. When a channel's listings still run out before the end of the guide, the rest of its row shows the channel's name.
+
 With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downloads the upstream's guide and keeps the channels in its own list. If the upstream can't be reached, it falls back to steps 2 and 3 (or the last copy, with `KIA_UPSTREAM_FALLBACK=cached`).
 
 ## The status page
 
-`http://<your address>:8780/` shows how kia is doing: the last refresh and whether it worked, the next one, how many channels it found, the alerts from the last run, and links to the playlist, the guide, the reports, and these docs. kia updates it when a run starts and when it ends.
+`http://<your address>:8780/` shows how kia is doing: the last refresh and whether it worked, the next nightly run, when the guide was last updated, how many channels it found, the alerts from the last run, and links to the playlist, the guide, the reports, and these docs. kia updates it when a run starts and when it ends.
 
 ![kia's status page: the last refresh worked, the next is at 04:00, with channel counts, file links, and help links](../images/kia-status-screenshot.png)
 
@@ -60,7 +68,8 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 |---|---|
 | `result` | `running`, `ok`, `alerts`, `failed`, or `never` |
 | `last_run` | `started` and `finished` (UTC times), `minutes`, and `exit_code` (0 worked, 3 worked with alerts, anything else failed) |
-| `next_run` | The next refresh, in local time with its UTC offset |
+| `next_run` | The next nightly run, in local time with its UTC offset |
+| `guide_updated` | When the guide was last rebuilt, by a nightly run or a quick refresh (UTC) |
 | `channels` | `tv`, `radio`, and `with_guide` (channels with guide data) |
 | `alerts` | The last run's alerts: `time`, `event` (see [alerts](alerts.md)), and `title` |
 | `playlist_url` | The playlist address for Kodi |

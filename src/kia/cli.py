@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import xml.etree.ElementTree as ET
 
-from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, radio, serve, status, upstream, xmltv
+from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, radio, serve, status, upstream, xmltv
 from kia import alerts
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -35,10 +35,19 @@ def log(msg: str) -> None:
 def fetch(url: str) -> str:
     path = Path(url)
     if path.exists():
-        return path.read_text()
+        return decode_text(path.read_bytes())
     req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
     with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+        return decode_text(resp.read())
+
+
+def decode_text(data: bytes) -> str:
+    """UTF-8 when the playlist is valid UTF-8, else Windows-1252: some playlists are saved
+    that way (apsattv.com's), and read as UTF-8 their accented names turn into "\ufffd"."""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("cp1252", errors="replace")
 
 
 def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
@@ -50,7 +59,12 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
             if src.is_radio_browser:
                 found = radio.load(src.params, src.name)
             else:
-                found = m3u.parse(fetch(src.url), source=src.name)
+                text = fetch(src.url)
+                found = m3u.parse(text, source=src.name)
+                if cfg.epg.playlist_guides:
+                    guides = tuple(m3u.header_guide_urls(text))
+                    for e in found:
+                        e.guide_urls = guides
         except (OSError, ValueError, radio.RadioError) as exc:
             # Skip it; if that loses many channels, the channels_drop alert says so.
             log(f"{src.name}: could not load ({exc}); skipping")
@@ -169,6 +183,7 @@ def is_transient(error: str | None) -> bool:
 
 def write_atomic(path: Path, text: str) -> None:
     """Write via a temp file so a web server never serves a half-written file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(text)
     tmp.replace(path)
@@ -261,7 +276,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         r = results[e.url]
         rec = history.get(e.url)
         checked.append(Checked(e, r, classify(r, rec, cfg.grace_failures), r.height or rec.get("height")))
-    chosen = select(checked)
+    chosen = select(checked, {s.name: i for i, s in enumerate(cfg.sources)}, cfg.merge_duplicates)
 
     # A test run (part of the list) mustn't replace the playlist Kodi is using.
     partial = bool(args.limit or args.source or args.url)
@@ -285,6 +300,15 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     if not partial:
         history.prune(cfg.history_days)
+        # For `kia map` and `kia grab`: the ids a merged channel has in other playlists, and
+        # which kept channels have a guide of their own.
+        also = {c.entry.tvg_id: c.also for c in chosen if c.also and c.entry.tvg_id}
+        write_atomic(cfg.epg.work_dir / "aliases.json",
+                     json.dumps({tid: [e.tvg_id for e in es] for tid, es in also.items()}, indent=1))  # fmt: skip
+        aliases = {tid: [(e.source, e.tvg_id, e.guide_urls) for e in es] for tid, es in also.items()}
+        playlistguide.save(
+            cfg.epg.work_dir / "playlist-guides.json", playlistguide.plan([c.entry for c in chosen], aliases)
+        )
     history.save()
 
     drop_alert = False if partial else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
@@ -346,33 +370,47 @@ def cmd_map(args: argparse.Namespace) -> int:
 
     tvg_ids = [e.tvg_id for e in entries]
     names = {e.tvg_id: xmltv.display_name(e) for e in entries if not e.is_radio}
-    candidates = epgmap.find_candidates(tvg_ids, site_channels, epg, broken, names)
+    aliases_path = epg.work_dir / "aliases.json"
+    aliases = json.loads(aliases_path.read_text()) if aliases_path.exists() else {}
+    candidates = epgmap.find_candidates(tvg_ids, site_channels, epg, broken, names, aliases)
+    if epg.native_grabbers:
+        radio = {e.tvg_id: xmltv.display_name(e) for e in entries if e.is_radio}
+        candidates.update(epgmap.radio_schedule_candidates(radio, broken | set(epg.exclude_sites)))
     suggestions = (
         epgmap.suggest_by_name(tvg_ids, names, epgmap.usable_channels(site_channels, epg, broken), set(candidates))
         if epg.name_matching
         else []
     )
     per_site = epgmap.write_channel_files(candidates, epg.work_dir / "channels")
-    write_atomic(
-        epg.work_dir / "mapping.json",
-        json.dumps({tid: [c.channel.site for c in cands] for tid, cands in candidates.items()}, indent=1),
-    )
+    # A playlist's own guide goes first for its channels; kia guide still keeps whichever
+    # source has the most listings.
+    own = playlistguide.sites_by_channel(playlist_guides(cfg)) if epg.playlist_guides else {}
+    order = {tid: [c.channel.site for c in cands] for tid, cands in candidates.items()}
+    for tid, sites in own.items():
+        order[tid] = sites + order.get(tid, [])
+    write_atomic(epg.work_dir / "mapping.json", json.dumps(order, indent=1))
     report = epgmap.render_report(
         [(e.tvg_id, xmltv.display_name(e)) for e in entries],
         candidates,
         per_site,
         broken | set(epg.exclude_sites),
         suggestions,
+        own,
     )
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
     write_report(cfg.output_dir / "mapping-report.md", report)
     by_name = sum(1 for c in candidates.values() if c[0].how == "name")
     log(
-        f"{len(candidates)} of {len(entries)} channels have guide candidates, {by_name} of them matched by name "
+        f"{len(order)} of {len(entries)} channels have guide candidates, {by_name} of them matched by name "
+        f"and {len(own)} with their playlist's own guide "
         f"({sum(per_site.values())} site channels across {len(per_site)} sites) "
         f"-> {epg.work_dir / 'channels'}, report in {cfg.output_dir / 'mapping-report.md'}"
     )
     return 0
+
+
+def playlist_guides(cfg: Config) -> dict:
+    return playlistguide.load(cfg.epg.work_dir / "playlist-guides.json")
 
 
 def cmd_grab(args: argparse.Namespace) -> int:
@@ -381,6 +419,9 @@ def cmd_grab(args: argparse.Namespace) -> int:
         cfg.epg.days = args.days
     grab.ensure_repo(cfg.epg, args.update, log)
     results = grab.grab_all(cfg.epg, args.site, log)
+    if cfg.epg.playlist_guides:
+        spec = {s: info for s, info in playlist_guides(cfg).items() if not args.site or s in args.site}
+        results += grab.grab_playlist_guides(cfg.epg, spec, log)
     if not results:
         if args.site:
             log(f"No channel lists for {', '.join(args.site)}; run `kia map` first, or check the names.")
@@ -485,7 +526,7 @@ def build_guide(
         f"-> {out} (+ .gz), report in {cfg.output_dir / 'guide-report.md'}"
     )
     drop_alert = check_count_drop(cfg, "guide_channels", with_data, "guide_drop", "channels with guide data")
-    update_status(cfg)
+    update_status(cfg, guide_updated=now_iso())
     return EXIT_ALERT if drop_alert else 0
 
 
@@ -523,6 +564,33 @@ def cmd_sync(args: argparse.Namespace) -> int:
             return EXIT_UPSTREAM_UNAVAILABLE
     entries = load_curated(cfg)
     return build_guide(cfg, entries, {"upstream": cached}, {e.tvg_id: ["upstream"] for e in entries})
+
+
+def cmd_refresh_guide(args: argparse.Namespace) -> int:
+    """Refresh the guide between nightly runs, using only the quick sources.
+
+    Some guides reach only hours ahead (i.mjh.nz's Samsung TV Plus guide, about 11), so a
+    nightly refresh alone leaves evenings empty. This re-downloads the guides kia reads
+    itself (i.mjh.nz, kink.nl, the playlists' own guides), which takes seconds, and rebuilds
+    the guide from those and the sites downloaded last night. With an upstream server, it
+    copies that server's guide again instead. Streams aren't checked.
+    """
+    cfg = load_config(args)
+    if cfg.upstream_url:
+        rc = cmd_sync(args)
+        return 0 if rc == EXIT_UPSTREAM_UNAVAILABLE else rc  # the last copy stays in place
+    epg = cfg.epg
+    quick = sorted(
+        site
+        for p in (epg.work_dir / "channels").glob("*.channels.xml")
+        if epg.native_grabbers and (site := p.name.removesuffix(".channels.xml")) in grab.NATIVE_GRABBERS
+    )
+    results = grab.grab_all(epg, quick, log) if quick else []
+    if epg.playlist_guides:
+        results += grab.grab_playlist_guides(epg, playlist_guides(cfg), log, quick=True)
+    ok = sum(1 for r in results if r.returncode == 0)
+    log(f"Refreshed {ok} of {len(results)} quick guide sources")
+    return cmd_guide(args)
 
 
 def run_pipeline(config: str, update_epg: bool) -> int:
@@ -649,17 +717,39 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         or env_bool("KIA_RUN_ON_START", False)
         or not (cfg.output_dir / "guide.xml.gz").exists()
     )
+    every = timedelta(hours=args.guide_every) if args.guide_every > 0 else None
     while True:
         if not run_now:
             nxt = next_run_local(args.at)
             log(f"Next run at {nxt:%Y-%m-%d %H:%M %Z}")
             update_status(cfg, next_run=nxt.isoformat(timespec="seconds"))
+            # Quick guide refreshes until the next full run (which rebuilds the guide anyway).
+            while every and (due := guide_age_due(cfg, every)) < nxt - timedelta(minutes=30):
+                wait_until(due)
+                try:
+                    main(["refresh-guide", "-c", args.config])
+                except Exception as exc:  # keep the daemon alive
+                    log(f"Guide refresh failed: {type(exc).__name__}: {exc}")
+                touch_guide(cfg)  # a failed refresh waits a full interval, too, instead of looping
             wait_until(nxt)
         run_now = False
         try:
             run_and_report(args.config, update_epg=True)
         except Exception as exc:  # e.g. the config became invalid; keep the daemon alive
             log(f"Run could not start: {type(exc).__name__}: {exc}")
+
+
+def guide_age_due(cfg: Config, every: timedelta) -> datetime:
+    """When the guide is next due a quick refresh: `every` after it was last built."""
+    path = cfg.output_dir / "guide.xml.gz"
+    built = datetime.fromtimestamp(path.stat().st_mtime).astimezone() if path.exists() else datetime.now().astimezone()
+    return built + every
+
+
+def touch_guide(cfg: Config) -> None:
+    path = cfg.output_dir / "guide.xml.gz"
+    if path.exists():
+        path.touch()
 
 
 def cmd_test_alert(args: argparse.Namespace) -> int:
@@ -748,6 +838,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_test_alert)
 
+    p = sub.add_parser("refresh-guide", help="refresh the guide from the quick sources only (between nightly runs)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_refresh_guide)
+
     p = sub.add_parser("sync", help="take the guide from another kia server (KIA_UPSTREAM_URL)")
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_sync)
@@ -760,6 +854,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("daemon", help="run the full pipeline every day at a set time")
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--at", default="04:00", help="local time of day, HH:MM (default 04:00)")
+    p.add_argument(
+        "--guide-every",
+        type=float,
+        default=float(os.environ.get("KIA_GUIDE_REFRESH_HOURS") or 4),
+        help="hours between quick guide refreshes, 0 to turn off (default: KIA_GUIDE_REFRESH_HOURS or 4)",
+    )
     p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
     p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
     add_serve_args(p)
