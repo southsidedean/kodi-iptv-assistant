@@ -22,6 +22,8 @@ In Kodi, on each device, change IPTV Simple Client's **Auto refresh mode** to *R
 
 ### Status page and reports
 
+- The status page is easier to read at a glance: a colored banner with the state of the last refresh, big numbers for channels and guide data, bars for guide coverage and for each playlist's working streams, and a Copy button for the playlist address.
+- The status page and reports share one look that works on phones as well as computers. Light and dark follow the device's setting, and each system uses its own fonts, so nothing loads from the internet.
 - kia has a logo: a screen showing program guide rows, with the current time marked in amber. It's the browser tab icon, and it sits at the top of the status page and every report, where clicking it returns to the status page.
 
 ### Fixes
