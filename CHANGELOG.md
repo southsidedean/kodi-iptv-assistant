@@ -2,7 +2,24 @@
 
 ## 0.1.1 (unreleased)
 
-Fixes from an independent review of 0.1.0, locked-down containers, and versions that follow the latest releases by default.
+Fixes from an independent review of 0.1.0, locked-down containers, and versions that follow the latest releases by default. New: steady channel numbers, a status page, and reports you can read in a browser.
+
+### Upgrading from 0.1.0
+
+1. In the kia folder, run:
+
+   ```sh
+   git pull
+   docker compose build --pull
+   docker compose pull --ignore-buildable
+   docker compose up -d
+   ```
+
+   If `git pull` stops because you edited `sources.txt` or `kia.toml`, move your playlist choices to your own copy first ([configuration](docs/configuration.md)), then run `git checkout sources.txt kia.toml` and pull again.
+2. If you changed the folder settings in `kia.toml` (`dir`, `state_dir`, `repo_dir`, `work_dir`), set them back. kia can now write only to its standard folders.
+3. In Kodi, on each device, turn on IPTV Simple Client's daily refresh and Kodi's *Use channel numbers from backend* ([Kodi setup](docs/kodi.md), steps 3 and 5).
+
+The first run after upgrading numbers every channel, in alphabetical order, so channel numbers change once. After that they stay put. `http://<your address>:8780/` shows the new status page; links straight to `curated.m3u` and `guide.xml.gz` work as before.
 
 ### Kodi
 
@@ -11,6 +28,7 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 
 ### Radio
 
+- Your own playlist files can live in a `playlists/` folder, which git ignores. A station marked `radio="true"` there shows under Radio, so you can add stations radio-browser.info lists badly, such as KINK's theme channels.
 - `KIA_RADIO_PLACEHOLDERS=true` in `.env` fills Kodi's radio guide with each station's name, as TV channels without guide data already do.
 
 ### Status page
@@ -34,7 +52,11 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 - The guide is still built when no channel matches a guide site, when GitHub can't be reached, when installing the downloader fails, or when one site's guide file is damaged.
 - A mistyped `KIA_NTFY_URL` is logged instead of crashing the alert, and the run.
 - A single failed name lookup during a guide download no longer raises a DNS alert; names are tried again first.
-- A site whose own DNS servers send broken IPv6 answers is no longer reported as a problem with your network's DNS. kia's public double-check now looks up IPv6 as well as IPv4.
+- A site whose own DNS servers send broken IPv6 answers is no longer reported as a problem with your network's DNS. When this computer's DNS answers the site's IPv4 lookup, kia knows your DNS works.
+- On the night clocks change for daylight saving time, the refresh runs at `KIA_RUN_AT` instead of an hour early or late.
+- DNS double-checks handle international names (such as `bücher.de`), and names that can't exist are reported as invalid instead of blaming the public DNS servers.
+- Playlists and sources files that start with a byte-order mark (some Windows editors add one) are read correctly.
+- Reports are replaced in one step, so a browser never shows a half-written one.
 - The second try for slow streams keeps the limit of two tests per server.
 - Test runs (`kia check` with `--limit`, `-s`, or `-u`) write to `work/check-test/` and leave the live playlist alone.
 

@@ -68,13 +68,13 @@ Common causes:
 
 ### File permission errors
 
-kia writes its files as the user in `PUID` and `PGID`. If those don't match your user, or the folders were created by another user, give the folders back to yourself and set the numbers that `id -u` and `id -g` print:
+kia writes its files as the user in `PUID` and `PGID`. If those don't match your user, or another user created the folders, give the folders back to yourself:
 
 ```sh
 sudo chown -R "$(id -u):$(id -g)" output state work vendor
 ```
 
-Then set `PUID` and `PGID` in `.env` and run `docker compose up -d`.
+Then set `PUID` and `PGID` in `.env` to the numbers that `id -u` and `id -g` print, and run `docker compose up -d`.
 
 ### The nightly run takes too long
 
