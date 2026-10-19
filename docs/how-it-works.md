@@ -50,7 +50,7 @@ With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downlo
 
 `http://<your address>:8780/` shows how kia is doing: whether the last refresh worked and when the next one is, how many channels have a guide, how each playlist's streams are doing, and the last run's alerts. It also links to the playlist, the reports, and these docs, with a Copy button for the playlist address. kia updates it when a run starts and when it ends.
 
-![kia's status page: the last refresh worked, the next is at 04:00, with channel counts, file links, and help links](../images/kia-status-screenshot.png)
+![kia's status page showing everything working, the channel counts, bars for guide coverage and each playlist, and the playlist address with a Copy button](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 
