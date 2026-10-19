@@ -31,6 +31,8 @@ On the **General** tab, set:
 - **Location:** Remote path (Internet address)
 - **M3U playlist URL:** your kia address followed by `/curated.m3u`, e.g. `http://192.168.1.20:8780/curated.m3u`
 
+To give this device a smaller playlist, such as one for the kids, use its [profile](profiles.md) address instead of `curated.m3u`, for example `http://192.168.1.20:8780/kids.m3u`.
+
 The **Name** at the top is just a label for this setup; anything works.
 
 Further down the same tab, under **Refresh**, set:

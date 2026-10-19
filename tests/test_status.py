@@ -61,7 +61,7 @@ def test_old_alert_lines_and_escaping(tmp_path: Path):
     s = status.collect(tmp_path, tmp_path, {"result": "ok", "started": "2026-10-16T00:00:00+00:00"}, None)
     s["alerts"] = found
     page = status.render_html(s)
-    assert "<script>" not in page and "&lt;script&gt;" in page
+    assert "<script>x</script>" not in page and "&lt;script&gt;x&lt;/script&gt;" in page
 
 
 def test_page_links_to_the_docs(tmp_path: Path):
@@ -93,4 +93,4 @@ def test_coverage_and_playlist_counts(tmp_path: Path):
     assert s["sources"] == [{"name": "us", "ok": 2, "flaky": 0, "dead": 1}, {"name": "samsung-us", "ok": 0, "flaky": 1, "dead": 0}]
     page = status.render_html(s)
     assert "Full guide: 5" in page and "Working, with alerts" in page and "2 working, 0 flaky, 1 dead" in page
-    assert 'data-copy="playlist-url"' in page and "http://tv.lan:8780/curated.m3u" in page
+    assert 'data-copy="playlist-0"' in page and "http://tv.lan:8780/curated.m3u" in page

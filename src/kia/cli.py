@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import xml.etree.ElementTree as ET
 
-from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, radio, serve, status, upstream, xmltv
+from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, profiles, radio, serve, status, upstream, xmltv
 from kia import alerts
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -197,6 +197,34 @@ def play_as_tested(entries: list[m3u.Entry], user_agent: str | None) -> None:
             e.vlcopts["http-user-agent"] = user_agent
 
 
+def write_profiles(cfg: Config, chosen: list[Checked]) -> None:
+    """Write each profile's playlist (see kia.profiles) and output/profiles.json for the
+    status page. A mistake in the profiles file leaves the previous playlists in place."""
+    out = cfg.output_dir
+    summary_path = out / "profiles.json"
+    try:
+        defined = profiles.load(cfg.profiles_file) if cfg.profiles_file else []
+    except (ValueError, OSError) as exc:  # tomllib.TOMLDecodeError is a ValueError
+        log(f"Profiles not updated: {exc}")
+        old = json.loads(summary_path.read_text()) if summary_path.exists() else {}
+        write_atomic(summary_path, json.dumps({**old, "error": str(exc)}, indent=1))
+        return
+    items = [(c.entry, {c.entry.source} | {e.source for e in c.also}) for c in chosen]
+    summary = []
+    for p in defined:
+        entries = profiles.select(p, items)
+        write_atomic(out / p.file, m3u.write(entries, cfg.epg_url))
+        radio_count = sum(1 for e in entries if e.is_radio)
+        summary.append({"name": p.name, "title": p.label, "file": p.file, "tv": len(entries) - radio_count, "radio": radio_count})
+        log(f"Profile {p.name}: {len(entries)} channels -> {out / p.file}")
+    # Playlists of profiles that were removed from the file.
+    keep = {"curated.m3u"} | {p.file for p in defined}
+    for old_file in out.glob("*.m3u"):
+        if old_file.name not in keep:
+            old_file.unlink()
+    write_atomic(summary_path, json.dumps({"profiles": summary}, indent=1))
+
+
 def is_transient(error: str | None) -> bool:
     return dnscheck.is_resolve_failure(error) or "timed out" in (error or "").lower()
 
@@ -309,6 +337,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         numbers.save()
     play_as_tested([c.entry for c in chosen], cfg.user_agent)
     write_atomic(out / "curated.m3u", m3u.write([c.entry for c in chosen], cfg.epg_url))
+    if not partial:
+        write_profiles(cfg, chosen)
     write_atomic(
         out / "report.json",
         json.dumps(

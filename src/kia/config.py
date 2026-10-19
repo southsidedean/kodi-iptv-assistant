@@ -82,6 +82,7 @@ class Config:
     state_dir: Path = Path("state")
     epg_url: str | None = None
     channel_numbers: bool = True
+    profiles_file: Path | None = None
     public_url: str | None = None
     dns_resolvers: tuple[str, ...] = ("8.8.8.8", "1.1.1.1")
     alerts: AlertConfig = field(default_factory=AlertConfig)
@@ -182,6 +183,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         state_dir=base / output.get("state_dir", "state"),
         epg_url=output.get("epg_url") or _derive_epg_url(output),
         channel_numbers=output.get("channel_numbers", True),
+        profiles_file=base / (os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles.local.toml")),
         public_url=_public_url(output),
         alerts=_load_alerts(data.get("alerts", {})),
         history_days=check.get("history_days", 30),

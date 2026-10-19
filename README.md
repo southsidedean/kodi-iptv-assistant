@@ -58,7 +58,7 @@ To check on kia, open `http://<your address>:8780/` in a browser. The [status pa
 
 ## Setups
 
-By default, one machine serves every Kodi device in the house. kia can also run on the same computer you watch on, on a Raspberry Pi with lower settings, or on a laptop that travels: the laptop tests streams wherever you are, copies the guide from your home server when it can reach it, and builds its own when it can't. Recipes for each are in [docs/setups.md](docs/setups.md).
+By default, one machine serves every Kodi device in the house. kia can also run on the same computer you watch on, on a Raspberry Pi with lower settings, or on a laptop that travels: the laptop tests streams wherever you are, copies the guide from your home server when it can reach it, and builds its own when it can't. Recipes for each are in [docs/setups.md](docs/setups.md). Different people and devices can also get their own, smaller playlists, such as one for the kids: see [docs/profiles.md](docs/profiles.md).
 
 ## Configuration
 

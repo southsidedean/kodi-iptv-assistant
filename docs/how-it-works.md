@@ -79,6 +79,8 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `sources` | For each playlist: its `name`, and how many of its streams are `ok`, `flaky`, and `dead` |
 | `alerts` | The last run's alerts: `time`, `event` (see [alerts](alerts.md)), and `title` |
 | `playlist_url` | The playlist address for Kodi |
+| `profiles` | Each [profile](profiles.md) playlist: `name`, `title`, `file`, `tv` and `radio` counts, and its `url` |
+| `profiles_error` | The mistake in the profiles file, if it has one |
 | `files` | The files in the output folder |
 | `version` | kia's version |
 
