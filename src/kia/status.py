@@ -14,6 +14,7 @@ from pathlib import Path
 
 from kia import __version__
 from kia.htmlpage import page
+from kia.history import readable
 from kia.m3u import parse
 
 # Files in output/ the page links to, with what each one is for.
@@ -124,13 +125,7 @@ def recent_alerts(log: Path, since: str | None, limit: int = 20) -> list[dict]:
 
 
 def _when(iso: str | None) -> str:
-    if not iso:
-        return "-"
-    try:
-        dt = datetime.fromisoformat(iso).astimezone()
-    except (TypeError, ValueError):
-        return iso
-    return f"{dt:%a %b} {dt.day}, {dt:%H:%M %Z}"
+    return readable(iso)
 
 
 COPY_SCRIPT = """

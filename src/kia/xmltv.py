@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from xml.sax.saxutils import escape, quoteattr
 
+from kia.history import readable
 from kia.m3u import Entry
 
 # Marks programmes kia generated for channels without guide data. Kodi ignores unknown
@@ -234,7 +235,7 @@ def render_report(entries: list[Entry], choices: dict[str, Choice], generated: s
     lines = [
         "# Guide coverage report",
         "",
-        f"Generated {generated}",
+        f"Generated {readable(generated)}",
         "",
         "| | Channels | Share |",
         "|---|---:|---:|",

@@ -108,11 +108,31 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
     ok = 0
 
     def host_limit(e: m3u.Entry) -> asyncio.Semaphore:
-        return per_host.setdefault(urlparse(e.url).netloc, asyncio.Semaphore(cfg.per_host))
+        url = urlparse(e.url)
+        limit = cfg.per_host_limits.get(url.hostname or "", cfg.per_host)
+        return per_host.setdefault(url.netloc, asyncio.Semaphore(limit))
+
+    # Tests on one server start at least host_delay_ms apart: a burst of requests can set
+    # off a site's firewall even within the per-server limit. Other servers aren't held up.
+    gap = cfg.host_delay_ms / 1000
+    last_start: dict[str, float] = {}
+    host_locks: dict[str, asyncio.Lock] = {}
+
+    async def spaced(e: m3u.Entry) -> None:
+        if gap <= 0:
+            return
+        host = urlparse(e.url).netloc
+        async with host_locks.setdefault(host, asyncio.Lock()):
+            loop = asyncio.get_running_loop()
+            wait = last_start.get(host, -gap) + gap - loop.time()
+            if wait > 0:
+                await asyncio.sleep(wait)
+            last_start[host] = loop.time()
 
     async def test(e: m3u.Entry) -> ProbeResult:
         if not is_stream_url(e.url):
             return ProbeResult(ok=False, error=f"not a network stream (only {', '.join(STREAM_SCHEMES)} are checked)")
+        await spaced(e)
         return await probe(
             e.url,
             timeout=cfg.timeout,
@@ -381,6 +401,10 @@ def cmd_map(args: argparse.Namespace) -> int:
         if epg.name_matching
         else []
     )
+    # Looser matches you've checked and accepted are used like name matches.
+    for s in [s for s in suggestions if s.tvg_id in epg.accept_name_matches and s.channel]:
+        candidates[s.tvg_id] = [epgmap.Candidate(s.tvg_id, s.channel, True, "name")]
+    suggestions = [s for s in suggestions if s.tvg_id not in candidates]
     per_site = epgmap.write_channel_files(candidates, epg.work_dir / "channels")
     # A playlist's own guide goes first for its channels; kia guide still keeps whichever
     # source has the most listings.

@@ -82,7 +82,7 @@ Then set `PUID` and `PGID` in `.env` to the numbers that `id -u` and `id -g` pri
 
 ### The nightly run takes too long
 
-A run usually takes 15 minutes to an hour, depending on how many playlists you've turned on and how many guide sites they need. To speed it up, turn off playlists you don't watch, raise `KIA_CHECK_CONCURRENCY` (streams tested at once) if your connection can take it, or exclude slow guide sites with `KIA_EXCLUDE_SITES`. `mapping-report.html` shows how many channels each site covers.
+A run usually takes 15 minutes to an hour, depending on how many playlists you've turned on and how many guide sites they need. To speed it up, turn off playlists you don't watch, raise `KIA_CHECK_CONCURRENCY` (streams tested at once) if your connection can take it, or exclude slow guide sites with `KIA_EXCLUDE_SITES`. A guide site that runs past `site_time_limit` in `kia.toml` (30 minutes) is stopped, and its channels keep their previous guide. `mapping-report.html` shows how many channels each site covers.
 
 ## Alerts
 

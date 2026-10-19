@@ -167,7 +167,7 @@ def test_probes_are_limited_per_server(monkeypatch):
     monkeypatch.setattr(cli, "probe", fake_probe)
     entries = [Entry(f"S{i}", f"http://busy.example/{i}", {"tvg-id": f"S{i}"}) for i in range(8)]
     entries += [Entry(f"T{i}", f"http://other{i}.example/x", {"tvg-id": f"T{i}"}) for i in range(8)]
-    cfg = Config(sources=[Source("s", "u")], concurrency=20, per_host=2)
+    cfg = Config(sources=[Source("s", "u")], concurrency=20, per_host=2, host_delay_ms=0)  # the limit alone
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
     assert peak["busy.example"] == 2
     assert all(peak[f"other{i}.example"] == 1 for i in range(8))

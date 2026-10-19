@@ -53,6 +53,8 @@ class EpgConfig:
     native_grabbers: bool = True
     name_matching: bool = True
     playlist_guides: bool = True
+    site_time_limit: int = 30  # minutes per guide site; 0 = no limit
+    accept_name_matches: list[str] = field(default_factory=list)
     ignore_name_matches: list[str] = field(default_factory=list)
     git_url: str = "https://github.com/iptv-org/epg.git"
     git_ref: str = "latest"  # the repo's default branch
@@ -63,6 +65,8 @@ class Config:
     sources: list[Source]
     concurrency: int = 20
     per_host: int = 2
+    per_host_limits: dict[str, int] = field(default_factory=dict)
+    host_delay_ms: int = 100
     timeout: float = 15.0
     require_video: bool = True
     grace_failures: int = 2
@@ -162,6 +166,8 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         concurrency=_env_int("KIA_CHECK_CONCURRENCY", check.get("concurrency", 20)),
         timeout=check.get("timeout", 15.0),
         per_host=check.get("per_host", 2),
+        per_host_limits=dict(check.get("per_host_limits", {})),
+        host_delay_ms=check.get("host_delay_ms", 100),
         require_video=check.get("require_video", True),
         grace_failures=check.get("grace_failures", 2),
         merge_duplicates=check.get("merge_duplicates", True),
@@ -286,5 +292,7 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         native_grabbers=epg.get("native_grabbers", d.native_grabbers),
         name_matching=epg.get("name_matching", d.name_matching),
         playlist_guides=epg.get("playlist_guides", d.playlist_guides),
+        site_time_limit=epg.get("site_time_limit", d.site_time_limit),
+        accept_name_matches=epg.get("accept_name_matches", []),
         ignore_name_matches=epg.get("ignore_name_matches", []),
     )

@@ -189,3 +189,48 @@ def test_latest_follows_the_default_branch_and_survives_outages(tmp_path: Path, 
     grab.ensure_repo(cfg, update=True, log=messages.append)
     assert (repo / "package-lock.json").read_text() == "v1"
     assert any("Couldn't update" in m for m in messages)
+
+
+def test_a_site_that_runs_too_long_is_stopped(tmp_path: Path, monkeypatch):
+    import time as _time
+
+    marker = tmp_path / "child-alive"
+    # Like npm: a parent that starts a child, both of which would run for a minute.
+    monkeypatch.setattr(grab, "runner_prefix", lambda cfg, name=None: ["sh", "-c", f"(sleep 60; touch {marker}) & sleep 60", "sh"])
+    cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=tmp_path, runner="local", native_grabbers=False, site_time_limit=0.02)
+    previous = tmp_path / "work" / "guides" / "slow.tv.xml"
+    previous.parent.mkdir(parents=True)
+    previous.write_text("<tv>yesterday</tv>")
+    channels = tmp_path / "slow.tv.channels.xml"
+    channels.write_text("<channels/>")
+    start = _time.monotonic()
+    r = grab.grab_site(cfg, "slow.tv", channels)
+    assert r.returncode == 124 and _time.monotonic() - start < 15
+    assert previous.read_text() == "<tv>yesterday</tv>"
+    assert "stopped after" in r.log.read_text()
+    _time.sleep(0.5)
+    assert subprocess.run(["pgrep", "-f", str(marker)], capture_output=True).returncode == 1  # child gone too
+
+
+def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):
+    starts = {"jmp2.uk": [], "other.tv": []}
+    now = {"jmp2.uk": 0, "other.tv": 0}
+    peak = {"jmp2.uk": 0, "other.tv": 0}
+
+    async def fake_probe(url, **kw):
+        host = url.split("/")[2]
+        starts[host].append(asyncio.get_running_loop().time())
+        now[host] += 1
+        peak[host] = max(peak[host], now[host])
+        await asyncio.sleep(0.6)
+        now[host] -= 1
+        return ProbeResult(ok=True, height=720)
+
+    monkeypatch.setattr(cli, "probe", fake_probe)
+    cfg = load(make_cfg(tmp_path, ""))
+    cfg.per_host_limits, cfg.host_delay_ms = {"jmp2.uk": 6}, 50
+    entries = [m3u.Entry(str(i), f"http://jmp2.uk/{i}") for i in range(12)] + [m3u.Entry(f"o{i}", f"http://other.tv/{i}") for i in range(4)]
+    asyncio.run(cli.probe_all(entries, cfg, verbose=False))
+    assert peak == {"jmp2.uk": 6, "other.tv": cfg.per_host}
+    gaps = [b - a for a, b in zip(starts["jmp2.uk"], starts["jmp2.uk"][1:])]
+    assert min(gaps) >= 0.045  # starts at least host_delay_ms apart

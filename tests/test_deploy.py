@@ -225,3 +225,30 @@ def test_serve_shows_the_status_page(server):
     (www / "index.html").write_text("<!doctype html><title>kia status</title>")
     ctype, _, body = get(f"{base}/")
     assert ctype == "text/html" and b"kia status" in body
+
+
+def test_pin_versions_script(tmp_path: Path):
+    import shutil
+
+    root = Path(__file__).resolve().parent.parent
+    proj = tmp_path / "kia"
+    (proj / "scripts").mkdir(parents=True)
+    shutil.copy(root / "scripts" / "pin-versions.sh", proj / "scripts")
+    (proj / ".env").write_text("KIA_PUBLIC_URL=http://tv.lan:8780\nKIA_NODE_IMAGE=\nKIA_NGINX_IMAGE=\nKIA_EPG_GIT_REF=\n")
+    (proj / "vendor" / "epg").mkdir(parents=True)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "docker").write_text('#!/bin/sh\necho "${5%%:*}@sha256:abc123"\n')  # docker image inspect --format X IMAGE
+    (bin_dir / "git").write_text("#!/bin/sh\necho 0123456789abcdef\n")
+    for f in bin_dir.iterdir():
+        f.chmod(0o755)
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin"}
+    run = lambda *a: subprocess.run(["sh", "scripts/pin-versions.sh", *a], cwd=proj, env=env, capture_output=True, text=True)  # noqa: E731
+    assert run().returncode == 0
+    text = (proj / ".env").read_text()
+    assert "KIA_NODE_IMAGE=node@sha256:abc123" in text and "KIA_NGINX_IMAGE=nginx@sha256:abc123" in text
+    assert "KIA_EPG_GIT_REF=0123456789abcdef" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text
+    assert list(proj.glob(".env.bak-*"))
+    assert run("--unpin").returncode == 0
+    text = (proj / ".env").read_text()
+    assert "KIA_NODE_IMAGE=\n" in text and "KIA_EPG_GIT_REF=\n" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text
