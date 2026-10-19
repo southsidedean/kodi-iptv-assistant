@@ -6,7 +6,7 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 
 ### Kodi
 
-- Channels keep the same number from night to night (`tvg-chno`), instead of being renumbered whenever a stream drops out or a playlist is added. A channel that comes back within a month gets its old number. Turn on Kodi's *Use channel numbers from backend* to see them ([Kodi setup](docs/kodi.md)). TV and radio are numbered separately.
+- Channels keep the same number from night to night (`tvg-chno`), instead of being renumbered whenever a stream drops out or a playlist is added. A channel that comes back within a month gets its old number. Turn on Kodi's *Use channel numbers from backend* to see them ([Kodi setup](docs/kodi.md)). TV and radio are numbered separately. To choose numbers yourself, give channels a `tvg-chno` in a playlist file of your own ([how](docs/configuration.md#your-own-channel-numbers)); numbers from internet playlists are ignored.
 - The Kodi setup now includes IPTV Simple Client's daily refresh (*Auto refresh mode: Once per day*). Without it, Kodi loads the list and guide only when it starts, so devices that sleep instead of shutting down kept old data.
 
 ### Radio

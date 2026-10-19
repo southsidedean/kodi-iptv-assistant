@@ -59,3 +59,60 @@ def test_check_writes_numbers_to_the_playlist(tmp_path: Path, monkeypatch):
     (tmp_path / "kia.toml").write_text('[check]\nffprobe = "true"\n[output]\nchannel_numbers = false\n')
     assert cli.main(["check", "-c", str(tmp_path / "kia.toml")]) == 0
     assert "tvg-chno" not in (tmp_path / "output" / "curated.m3u").read_text()
+
+
+def pinned(e: Entry, n: int) -> Entry:
+    e.pinned_number = n
+    return e
+
+
+def test_pinned_numbers_win_and_others_move(tmp_path: Path):
+    path = tmp_path / "channel-numbers.json"
+    n = ChannelNumbers(path)
+    first = [radio(x) for x in ("Alpha", "Bravo", "KINK")]
+    n.assign(first, "2026-10-19T09:00:00+00:00")
+    n.save()
+    assert numbers(first) == {"Alpha": "1", "Bravo": "2", "KINK": "3"}
+
+    # KINK pinned to 1 and its sister station to 2: Alpha and Bravo move to new numbers.
+    logs = []
+    second = [radio("Alpha"), radio("Bravo"), pinned(radio("KINK"), 1), pinned(radio("KINK DNA"), 2)]
+    n = ChannelNumbers(path)
+    n.assign(second, "2026-10-20T09:00:00+00:00", logs.append)
+    n.save()
+    assert numbers(second) == {"Alpha": "4", "Bravo": "5", "KINK": "1", "KINK DNA": "2"}
+    assert len(logs) == 2  # each move is logged
+
+    # Removing a pin keeps the number; the next new channel skips every number in use.
+    third = [radio("Alpha"), radio("Bravo"), radio("KINK"), pinned(radio("KINK DNA"), 2), radio("New")]
+    ChannelNumbers(path).assign(third, "2026-10-21T09:00:00+00:00")
+    assert numbers(third) == {"Alpha": "4", "Bravo": "5", "KINK": "1", "KINK DNA": "2", "New": "6"}
+
+
+def test_duplicate_pins_number_the_second_automatically(tmp_path: Path):
+    logs = []
+    entries = [pinned(tv("A"), 7), pinned(tv("B"), 7)]
+    ChannelNumbers(tmp_path / "n.json").assign(entries, "2026-10-19T09:00:00+00:00", logs.append)
+    assert numbers(entries) == {"A": "7", "B": "1"} and "both" in logs[0]
+
+
+def test_only_your_own_files_pin_numbers(tmp_path: Path, monkeypatch):
+    async def fake_probe(url, **kw):
+        return ProbeResult(ok=True, height=720)
+
+    monkeypatch.setattr(cli, "probe", fake_probe)
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    mine = tmp_path / "mine.m3u"
+    mine.write_text('#EXTM3U\n#EXTINF:-1 tvg-id="Mine.us" tvg-chno="50",Mine\nhttp://m/1\n')
+    (tmp_path / "kia.toml").write_text('[check]\nffprobe = "true"\n')
+    (tmp_path / "sources.txt").write_text(f"{mine} mine\n")
+    cfg = cli.load(tmp_path / "kia.toml")
+    remote = cfg.sources[0].__class__("web", "https://example.com/list.m3u")
+    assert cfg.sources[0].is_local_file and not remote.is_local_file
+
+    monkeypatch.setattr(cli, "fetch", lambda url: '#EXTM3U\n#EXTINF:-1 tvg-id="Web.us" tvg-chno="50",Web\nhttp://w/1\n'
+                        if url.startswith("https") else mine.read_text())  # fmt: skip
+    cfg.sources.append(remote)
+    entries = cli.load_entries(cfg, None)
+    assert {e.name: e.pinned_number for e in entries} == {"Mine": 50, "Web": None}
+    assert "tvg-chno" not in entries[1].attrs

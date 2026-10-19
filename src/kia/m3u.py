@@ -20,6 +20,8 @@ class Entry:
     kodiprops: list[str] = field(default_factory=list)
     duration: str = "-1"
     source: str = ""
+    # A channel number you chose (tvg-chno in your own playlist file); see kia.numbers.
+    pinned_number: int | None = None
 
     @property
     def tvg_id(self) -> str:

@@ -60,9 +60,24 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
             for e in found
             if not is_excluded(e, cfg.exclude_groups, cfg.exclude_labels, cfg.exclude_name_patterns)
         ]
+        for e in kept:
+            if src.is_local_file:
+                e.pinned_number = channel_number(e.attrs.get("tvg-chno"))
+            elif cfg.channel_numbers:
+                # Only your own files choose channel numbers; a list from the internet could
+                # otherwise take numbers you've set or reshuffle the ones kia keeps steady.
+                e.attrs.pop("tvg-chno", None)
         log(f"{src.name}: {len(found)} entries, {len(found) - len(kept)} excluded by filters")
         entries.extend(kept)
     return entries
+
+
+def channel_number(value: str | None) -> int | None:
+    try:
+        n = int(value or "")
+    except ValueError:
+        return None
+    return n if n > 0 else None
 
 
 async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dict[str, ProbeResult]:
@@ -240,7 +255,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     out.mkdir(parents=True, exist_ok=True)
     if cfg.channel_numbers and not partial:
         numbers = ChannelNumbers(cfg.state_dir / "channel-numbers.json")
-        numbers.assign([c.entry for c in chosen], generated)
+        numbers.assign([c.entry for c in chosen], generated, log)
         numbers.forget_older_than(cfg.history_days)
         numbers.save()
     write_atomic(out / "curated.m3u", m3u.write([c.entry for c in chosen], cfg.epg_url))

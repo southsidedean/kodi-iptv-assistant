@@ -49,6 +49,26 @@ To refresh now instead of waiting:
 
 To try out a change first, `docker compose exec kia python3 -m kia check --limit 50` tests the first 50 streams. Test runs like this one (also with `-s` or `-u`) write their results to `work/check-test/` and leave the playlist Kodi uses alone.
 
+## Your own channel numbers
+
+kia numbers channels automatically and keeps each number steady. To choose a channel's number yourself, list the channel in a playlist file of your own in the `playlists/` folder, add `tvg-chno="<number>"` to its `#EXTINF` line, and add the file to your sources list. For example, `playlists/favorites.m3u` with two radio stations at the top of the radio list:
+
+```text
+#EXTM3U
+#EXTINF:-1 tvg-chno="1" radio="true",KINK
+https://playerservices.streamtheworld.com/api/livestream-redirect/KINK.mp3
+#EXTINF:-1 tvg-chno="2" radio="true",KINK DNA
+https://playerservices.streamtheworld.com/api/livestream-redirect/KINK_DNA.mp3
+```
+
+and in your sources list:
+
+```text
+playlists/favorites.m3u   favorites
+```
+
+Channels that already had those numbers move to the next free ones, and the log says which. Numbers in playlists from the internet are ignored, so they can't take yours. If you remove a `tvg-chno` later, the channel keeps the number it has.
+
 ## Versions
 
 By default kia uses the latest version of each thing it depends on:

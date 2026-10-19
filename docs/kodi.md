@@ -61,6 +61,8 @@ kia gives every channel a number that stays the same from night to night, even w
 
 TV and radio are numbered separately, each starting at 1. A new channel gets the next unused number, and a channel that drops out keeps its number for a month, in case it comes back.
 
+To choose numbers yourself, for example to put favorite stations at the top, put the channels in a playlist file of your own and give each one a `tvg-chno`; see [your own channel numbers](configuration.md#your-own-channel-numbers).
+
 ## Troubleshooting
 
 No channels, an empty guide, or old channels that won't go away? See [troubleshooting](troubleshooting.md), which starts with the problems you see in Kodi.

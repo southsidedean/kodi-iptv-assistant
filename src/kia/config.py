@@ -22,6 +22,11 @@ class Source:
     def is_radio_browser(self) -> bool:
         return self.url.startswith("radio-browser:")
 
+    @property
+    def is_local_file(self) -> bool:
+        """A playlist file on this computer (yours), rather than one from the internet."""
+        return not self.is_radio_browser and not re.match(r"[a-z][a-z0-9+.-]*://", self.url, re.I)
+
 
 # How kia identifies itself to stream servers. Servers differ in which players they turn
 # away: jmp2.uk (Pluto, Samsung, Plex) refuses Kodi's identity, and some radio servers
