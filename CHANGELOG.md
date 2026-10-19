@@ -24,7 +24,7 @@ Update as usual (`git pull`, then `docker compose up -d --build`). Both containe
 - kia makes an admin password on first start (in `state/admin-password.txt`), which you can change on the status page. A password in `.env` (`KIA_ADMIN_PASSWORD`) still wins. `kia password --reset` makes a new one, and `KIA_EDITING=false` turns editing off.
 - The [API guide](docs/api.md) covers reading kia's status and changing profiles from scripts and other apps.
 - The home page is shorter: the status, the channel counts, any alerts, and your playlists with their addresses and Copy buttons.
-- Each playlist has its own page with its addresses and a filterable list of its channels.
+- Each playlist has its own page with its addresses and a filterable list of its channels, showing what's on now and next. **Next 6 hours** shows the same as a timeline.
 - Guide coverage, streams by playlist, and the reports moved to a Details page.
 - The kia name and logo at the top are bigger.
 

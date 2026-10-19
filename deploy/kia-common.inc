@@ -6,6 +6,10 @@ server_tokens off;
 # Serve only real files in output/, never what a link inside it points to.
 disable_symlinks on;
 
+# Compress the status page's data (guide-preview.json is about 700 KB, 130 KB compressed).
+gzip on;
+gzip_types application/json text/css application/javascript;
+
 # Clients should always re-check; the guide changes several times a day.
 add_header Cache-Control "no-cache";
 

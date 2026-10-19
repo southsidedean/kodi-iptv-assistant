@@ -123,3 +123,32 @@ def test_a_page_per_playlist(tmp_path: Path):
     profiles.rebuild(out, tmp_path / "state", pfile, None, lambda m: None)
     status.update(out, tmp_path / "state", "http://tv.lan:8780")
     assert not (out / "playlists" / "old.html").exists()
+
+
+def test_guide_preview(tmp_path: Path):
+    from datetime import datetime, timezone
+
+    from kia import xmltv
+
+    guide = tmp_path / "guide.xml"
+    guide.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n'
+        '<programme channel="A.us" start="20261019100000 +0000" stop="20261019110000 +0000"><title>Over</title></programme>\n'
+        '<programme channel="A.us" start="20261019113000 +0000" stop="20261019130000 +0000"><title>Now &amp; then</title></programme>\n'
+        '<programme channel="A.us" start="20261019130000 +0000" stop="20261019140000 +0000"><title>Next</title></programme>\n'
+        '<programme channel="A.us" start="20261020050000 +0000" stop="20261020060000 +0000"><title>Too late</title></programme>\n'
+        '<programme channel="B.us" start="20261019120000 +0000" stop="20261019140000 +0000" kia-placeholder="1"><title>B</title></programme>\n'
+        "</tv>\n"
+    )
+    out = tmp_path / "guide-preview.json"
+    assert xmltv.write_preview(guide, out, datetime(2026, 10, 19, 12, tzinfo=timezone.utc)) == 2
+    data = json.loads(out.read_text())
+    titles = [t for _, _, t in data["channels"]["A.us"]]
+    assert titles == ["Now & then", "Next"] and "B.us" not in data["channels"]  # name blocks aren't listings
+    assert data["channels"]["A.us"][0][:2] == [int(datetime(2026, 10, 19, 11, 30, tzinfo=timezone.utc).timestamp()),
+                                               int(datetime(2026, 10, 19, 13, tzinfo=timezone.utc).timestamp())]  # fmt: skip
+    from kia.m3u import Entry
+
+    page = status.render_playlist(status.collect(tmp_path, tmp_path, {}, None), status._playlists(
+        status.collect(tmp_path, tmp_path, {}, None))[0], [Entry("A", "http://a", {"tvg-id": "A.us", "tvg-chno": "1"})])
+    assert 'data-id="A.us"' in page and "guide-preview.json" in page and 'data-view="timeline"' in page

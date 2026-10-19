@@ -14,6 +14,7 @@ The examples use `192.168.1.20` for the kia machine; use yours.
 | `http://192.168.1.20:8780/<name>.m3u` | A profile's playlist |
 | `http://192.168.1.20:8780/guide.xml.gz` | The full guide (XMLTV, gzipped) |
 | `http://192.168.1.20:8780/<name>.guide.xml.gz` | A profile's guide, with only its channels |
+| `http://192.168.1.20:8780/guide-preview.json` | The next 14 hours of listings, for "On now": `generated` (when), and `channels`, each channel's ID with a list of `[start, stop, title]` (start and stop in Unix time). Channels without listings are left out. |
 | `http://192.168.1.20:8780/report.json` | Every stream from the last check, with its result |
 
 A file changes only when kia finishes writing it, so a script never reads half of one.

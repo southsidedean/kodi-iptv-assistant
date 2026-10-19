@@ -12,7 +12,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from kia import __version__, editor
+from kia import __version__, editor, guideview
 from kia.htmlpage import FILTER_ROWS, FILTER_SCRIPT, page
 from kia.history import readable
 from kia.m3u import parse
@@ -368,7 +368,8 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
     root = "../"
     tag = f' data-profile="{escape(pl["name"])}"' if pl["name"] else ""
     rows = "".join(
-        f'<tr><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td><td>{escape(e.name)}</td>'
+        f'<tr data-id="{escape(e.tvg_id or "")}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td><td>{escape(e.name)}</td>'
+        '<td class="now" hidden></td><td class="next" hidden></td>'
         f'<td>{escape(e.group.replace(";", ", "))}</td><td>{"Radio" if e.is_radio else "TV"}</td></tr>\n'
         for e in entries
     )
@@ -393,11 +394,17 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         f"<p>{guide_note} Kodi finds it through the playlist; some other players ask for it separately.</p>"
         f'{_address("guide", pl["guide_url"], pl["guide"], root)}'
         "</section>"
-        f'<section class="card"><h2>Channels</h2>{filter_box}<div class="wide"><table id="channels">'
-        '<thead><tr><th class="num">No.</th><th>Channel</th><th>Category</th><th>Type</th></tr></thead>'
+        f'<section class="card" id="whats-on" data-root="{root}"><h2>Channels</h2>{filter_box}'
+        '<div class="view" hidden><button type="button" data-view="list" aria-pressed="true">On now</button>'
+        '<button type="button" data-view="timeline" aria-pressed="false">Next 6 hours</button></div>'
+        '<p class="guide-age bad-note" hidden></p>'
+        '<div class="wide"><table id="channels">'
+        '<thead><tr><th class="num">No.</th><th>Channel</th><th class="now" hidden>On now</th><th class="next" hidden>Next</th>'
+        "<th>Category</th><th>Type</th></tr></thead>"
         f"<tbody>\n{rows}</tbody></table></div></section></main>"
     )
-    return page(f"{pl['title']} - kia", body, _footer(s, root), COPY_SCRIPT + FILTER_SCRIPT + editor.SCRIPT, editor.STYLE, root=root)
+    script = COPY_SCRIPT + FILTER_SCRIPT + editor.SCRIPT + guideview.SCRIPT
+    return page(f"{pl['title']} - kia", body, _footer(s, root), script, editor.STYLE + guideview.STYLE, root=root)
 
 
 def write_pages(output_dir: Path, s: dict) -> None:

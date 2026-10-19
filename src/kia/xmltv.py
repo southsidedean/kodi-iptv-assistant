@@ -255,3 +255,36 @@ def render_report(entries: list[Entry], choices: dict[str, Choice], generated: s
         for c in sorted(partial, key=lambda c: c.hours_24h):
             lines.append(f"| {names.get(c.tvg_id, c.tvg_id)} | {c.site} | {c.hours_24h} |")
     return "\n".join(lines) + "\n"
+
+
+PREVIEW_HOURS = 14
+
+
+def write_preview(guide: Path, out_path: Path, now: datetime, hours: int = PREVIEW_HOURS) -> int:
+    """guide-preview.json for the status page's "On now" and "Next": each channel's real
+    listings (not name blocks) from now to `hours` ahead, as [start, stop, title] with Unix
+    times. Small enough for a browser; the page works out "now" itself. Returns the count."""
+    import json
+
+    since, until = now.timestamp(), (now + timedelta(hours=hours)).timestamp()
+    channels: dict[str, list] = defaultdict(list)
+    count = 0
+    for _, el in ET.iterparse(guide, events=("end",)):
+        if el.tag != "programme":
+            continue
+        if not el.get(PLACEHOLDER_ATTR) and has_title(el):
+            try:
+                start, stop = parse_time(el.get("start")).timestamp(), parse_time(el.get("stop")).timestamp()
+            except (TypeError, ValueError):
+                start = stop = 0
+            if stop > since and start < until:
+                channels[el.get("channel", "")].append([int(start), int(stop), (el.findtext("title") or "").strip()])
+                count += 1
+        el.clear()
+    for slots in channels.values():
+        slots.sort()
+    data = {"generated": now.isoformat(timespec="seconds"), "until": int(until), "channels": channels}
+    tmp = out_path.with_name(out_path.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    tmp.replace(out_path)
+    return count
