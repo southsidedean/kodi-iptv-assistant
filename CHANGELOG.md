@@ -9,6 +9,10 @@ Fixes from an independent review of 0.1.0, locked-down containers, and versions 
 - Channels keep the same number from night to night (`tvg-chno`), instead of being renumbered whenever a stream drops out or a playlist is added. A channel that comes back within a month gets its old number. Turn on Kodi's *Use channel numbers from backend* to see them ([Kodi setup](docs/kodi.md)). TV and radio are numbered separately.
 - The Kodi setup now includes IPTV Simple Client's daily refresh (*Auto refresh mode: Once per day*). Without it, Kodi loads the list and guide only when it starts, so devices that sleep instead of shutting down kept old data.
 
+### Radio
+
+- `KIA_RADIO_PLACEHOLDERS=true` in `.env` fills Kodi's radio guide with each station's name, as TV channels without guide data already do.
+
 ### Status page
 
 - `http://<your address>:8780/` now shows a status page instead of a file list: when kia last refreshed, whether it worked, the next refresh, TV, radio, and guide counts, the last run's alerts, links to the reports, and links to the documentation for setup and troubleshooting. `status.json` has the same information for scripts and monitoring tools.

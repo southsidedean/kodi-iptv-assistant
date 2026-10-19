@@ -32,6 +32,7 @@ When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" 
 | `KIA_EXCLUDE_SITES` | | Guide sites to skip, comma-separated. Site names are listed in `mapping-report.html`. |
 | `KIA_EXCLUDE_GROUPS` | | Channel categories to leave out, e.g. `Religious,Shop`. |
 | `KIA_PLACEHOLDERS` | true | Show the channel's name in the guide when there's no guide data. |
+| `KIA_RADIO_PLACEHOLDERS` | false | The same for radio stations, so Kodi's radio guide lists each station's name. Almost no station has guide data, so this fills the radio guide with name blocks. |
 | `KIA_EPG_GIT_URL`, `KIA_EPG_GIT_REF` | iptv-org/epg, `latest` | Use a fork of iptv-org/epg, or pin a branch, tag, or commit. See [versions](#versions). |
 | `KIA_NODE_IMAGE`, `KIA_NGINX_IMAGE` | `node:lts-alpine`, `nginx:alpine` | Docker images for kia and the web server. See [versions](#versions). |
 

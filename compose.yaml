@@ -38,6 +38,7 @@ services:
       KIA_EXCLUDE_SITES: ${KIA_EXCLUDE_SITES:-}
       KIA_EXCLUDE_GROUPS: ${KIA_EXCLUDE_GROUPS:-}
       KIA_PLACEHOLDERS: ${KIA_PLACEHOLDERS:-}
+      KIA_RADIO_PLACEHOLDERS: ${KIA_RADIO_PLACEHOLDERS:-}
       KIA_EPG_GIT_URL: ${KIA_EPG_GIT_URL:-}
       KIA_EPG_GIT_REF: ${KIA_EPG_GIT_REF:-}
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.

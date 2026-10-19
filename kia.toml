@@ -139,7 +139,8 @@ exclude_sites = ["epg.iptvx.one"]
 placeholders = true
 # Block length in hours: 1, 2, 3, 4, 6, 8, 12, or 24.
 placeholder_hours = 2
-# Do the same for radio stations. Off by default; almost no station has guide data.
+# Do the same for radio stations. Off by default; almost no station has guide data, so
+# turning it on fills Kodi's radio guide with station names. .env: KIA_RADIO_PLACEHOLDERS
 radio_placeholders = false
 
 # Read i.mjh.nz's guide files (Pluto TV, Plex, Samsung TV Plus, Roku) directly. It takes

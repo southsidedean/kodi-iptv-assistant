@@ -270,7 +270,7 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         max_connections=epg.get("max_connections", d.max_connections),
         placeholders=env_bool("KIA_PLACEHOLDERS", epg.get("placeholders", d.placeholders)),
         placeholder_hours=_placeholder_hours(epg.get("placeholder_hours", d.placeholder_hours)),
-        radio_placeholders=epg.get("radio_placeholders", d.radio_placeholders),
+        radio_placeholders=env_bool("KIA_RADIO_PLACEHOLDERS", epg.get("radio_placeholders", d.radio_placeholders)),
         git_url=os.environ.get("KIA_EPG_GIT_URL") or epg.get("git_url", d.git_url),
         git_ref=os.environ.get("KIA_EPG_GIT_REF") or epg.get("git_ref", d.git_ref),
         native_grabbers=epg.get("native_grabbers", d.native_grabbers),

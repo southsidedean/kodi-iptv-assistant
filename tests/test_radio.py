@@ -212,3 +212,14 @@ def test_local_sources_file(tmp_path: Path, monkeypatch):
     assert [s.name for s in load(tmp_path / "kia.toml").sources] == ["shipped"]
     monkeypatch.setenv("KIA_SOURCES_FILE", "sources.local.txt")
     assert [s.name for s in load(tmp_path / "kia.toml").sources] == ["mine", "radio-english"]
+
+
+def test_radio_placeholders_from_env(tmp_path, monkeypatch):
+    from kia.config import load
+
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    (tmp_path / "kia.toml").write_text("")
+    monkeypatch.delenv("KIA_RADIO_PLACEHOLDERS", raising=False)
+    assert load(tmp_path / "kia.toml").epg.radio_placeholders is False
+    monkeypatch.setenv("KIA_RADIO_PLACEHOLDERS", "true")
+    assert load(tmp_path / "kia.toml").epg.radio_placeholders is True
