@@ -105,8 +105,8 @@ class PublicLookup:
             return f"{self.host} resolves on public DNS ({self.addresses[0]}), so the local DNS is the problem"
         if self.verdict == "broken-ipv6":
             return (
-                f"{self.host}: its own DNS servers send broken IPv6 (AAAA) answers, which public DNS can't "
-                "resolve either; the site's problem, not your network's"
+                f"{self.host}: only its IPv6 (AAAA) lookup fails; its IPv4 address resolves here. Usually the "
+                "site's own DNS servers send broken IPv6 answers, so it's not a problem with your network"
             )
         if self.verdict == "nxdomain":
             return f"{self.host} does not exist on public DNS either"
@@ -154,9 +154,30 @@ def ipv6_fails_publicly(host: str, resolvers: tuple[str, ...]) -> bool:
     """
     for resolver in resolvers:
         try:
-            rcode, _ = query(host, resolver, AAAA)
+            # A resolver can take a few seconds to give up on a broken nameserver.
+            rcode, _ = query(host, resolver, AAAA, timeout=8.0)
         except _QUERY_ERRORS:
             continue
         if rcode == SERVFAIL:
             return True
     return False
+
+
+def ipv4_resolves_locally(host: str) -> bool:
+    """True if this machine's DNS can look up host's IPv4 address on its own."""
+    try:
+        return bool(socket.getaddrinfo(host, None, socket.AF_INET))
+    except (OSError, UnicodeError):
+        return False
+
+
+def blame_local_dns_carefully(lookups: dict[str, PublicLookup]) -> None:
+    """Change "resolves" to "broken-ipv6" for hosts whose IPv4 address resolves here.
+
+    If local DNS answers the IPv4 lookup, it's working; only the IPv6 half failed, which
+    is how a site with a broken IPv6 nameserver shows up. Public resolvers don't always
+    catch that in time (Google takes seconds to give up), so this is the reliable check.
+    """
+    for host, lookup in lookups.items():
+        if lookup.verdict == "resolves" and ipv4_resolves_locally(host):
+            lookups[host] = PublicLookup(host, "broken-ipv6", lookup.addresses)

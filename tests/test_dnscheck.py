@@ -76,3 +76,13 @@ def test_international_and_invalid_names():
     assert dnscheck.encode_name("münchen.de") == b"\x0exn--mnchen-3ya\x02de\x00"
     for bad in ("a..b", "x" * 64 + ".com"):
         assert dnscheck.check_public(bad).verdict == "invalid"  # no query sent, nobody blamed
+
+
+def test_local_ipv4_answer_clears_local_dns(monkeypatch):
+    # Public resolvers can miss the broken IPv6 answer (Google was too slow); if this
+    # machine's DNS answers the IPv4 lookup, local DNS isn't what's failing.
+    lookups = {h: dnscheck.PublicLookup(h, "resolves", ["1.2.3.4"]) for h in ("v6broken.example", "down.example")}
+    monkeypatch.setattr(dnscheck, "ipv4_resolves_locally", lambda h: h == "v6broken.example")
+    dnscheck.blame_local_dns_carefully(lookups)
+    assert lookups["v6broken.example"].verdict == "broken-ipv6"
+    assert lookups["down.example"].verdict == "resolves"  # still a local DNS problem

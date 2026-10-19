@@ -166,6 +166,7 @@ def double_check_dns(
         return {}
     log(f"Double-checking {len(hosts)} unresolvable hostnames against {', '.join(resolvers)}...")
     lookups = lookup_all(hosts, resolvers)
+    dnscheck.blame_local_dns_carefully(lookups)
     for url, host in failed.items():
         lookup = lookups.get(host)
         if lookup and lookup.verdict == "resolves":
@@ -407,6 +408,7 @@ def report_grab_dns(
         return {}
     log(f"Double-checking {len(hosts)} hostnames the grabbers couldn't resolve against {', '.join(resolvers)}:")
     lookups = lookup_all(hosts, resolvers)
+    dnscheck.blame_local_dns_carefully(lookups)
     for site, hs in sorted(site_hosts.items()):
         for h in sorted(hs):
             lk = lookups[h]
