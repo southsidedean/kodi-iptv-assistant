@@ -12,6 +12,10 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 - The playlist points Pluto channels at kia (`/pluto/<id>.m3u8`). `KIA_PLUTO_RELAY=false` in `.env` (or `relay = false` under `[pluto]` in `kia.toml`) goes back to Pluto's own links.
 - The Details page shows the Pluto channels playing right now, with their sessions and recent problems, and `pluto.json` has the same for scripts. The home page warns you if Pluto channels are playing without kia's fix, and the new `pluto_fallback` alert (off by default) can tell you too.
 
+### TV-only playlist
+
+- When your list has radio stations, kia also makes a TV-only playlist, `tv.m3u`, with its own guide. Jellyfin and some other players show radio stations as TV channels, so [Jellyfin's guide](docs/jellyfin.md) now uses it instead of asking you to make a profile. A profile of your own named `tv` replaces it.
+
 ### Choosing playlists on the status page
 
 - The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-playlists-on-the-status-page).

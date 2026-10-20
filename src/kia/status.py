@@ -211,7 +211,8 @@ def _playlists(s: dict) -> list[dict]:
             "tv": ch["tv"] or 0, "radio": ch["radio"] or 0, "page": "playlists/curated.html"}]  # fmt: skip
     for p in s.get("profiles", []):
         out.append({"name": p["name"], "title": p["title"], "file": p["file"], "guide": p.get("guide") or "guide.xml.gz",
-                    "tv": p["tv"], "radio": p["radio"], "page": f"playlists/{p['name']}.html"})  # fmt: skip
+                    "tv": p["tv"], "radio": p["radio"], "page": f"playlists/{p['name']}.html",
+                    "builtin": bool(p.get("builtin"))})  # fmt: skip
     for pl in out:
         pl["url"] = f"{base}/{pl['file']}" if base else None
         pl["guide_url"] = f"{base}/{pl['guide']}" if base else None
@@ -477,7 +478,8 @@ def render_details(s: dict) -> str:
 def render_playlist(s: dict, pl: dict, entries: list) -> str:
     """One playlist's page: its addresses, its channels, and (for a profile) Edit."""
     root = "../"
-    tag = f' data-profile="{escape(pl["name"])}"' if pl["name"] else ""
+    # kia's own TV-only playlist has no settings to edit.
+    tag = f' data-profile="{escape(pl["name"])}"' if pl["name"] and not pl.get("builtin") else ""
     def row(e) -> str:
         return (
             f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td>'

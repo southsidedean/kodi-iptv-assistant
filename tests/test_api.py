@@ -72,7 +72,7 @@ def test_other_websites_are_refused(cfg):
 
 def test_save_writes_the_file_and_playlists(cfg):
     status, data = call(cfg, "PUT", "/api/profiles/kids", {"title": "The kids", "groups": ["Kids"], "radio": False}, password="secret")
-    assert status == 200 and data["profiles"][0] == {"name": "kids", "title": "The kids", "file": "kids.m3u", "tv": 1, "radio": 0, "guide": None}
+    assert status == 200 and data["profiles"][0] == {"name": "kids", "title": "The kids", "file": "kids.m3u", "tv": 1, "radio": 0, "guide": None, "builtin": False}
     assert (cfg.output_dir / "kids.m3u").exists() and cfg.changes == [1]
     assert profiles.load(cfg.profiles_file)[0].groups == ["Kids"]
     call(cfg, "PUT", "/api/profiles/radio", {"tv": False}, password="secret")
@@ -84,6 +84,18 @@ def test_save_writes_the_file_and_playlists(cfg):
     assert call(cfg, "DELETE", "/api/profiles/kids", password="secret")[0] == 200
     assert not (cfg.output_dir / "kids.m3u").exists() and [p.name for p in profiles.load(cfg.profiles_file)] == ["radio"]
     assert call(cfg, "DELETE", "/api/profiles/kids", password="secret")[0] == 404
+
+
+def test_tv_only_playlist_comes_with_radio(cfg):
+    data = call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]}, password="secret")[1]
+    tv = next(p for p in data["profiles"] if p["name"] == "tv")
+    assert tv == {**tv, "title": "TV only", "builtin": True, "tv": 2, "radio": 0}
+    assert "KINK" not in (cfg.output_dir / "tv.m3u").read_text()
+    assert [p.name for p in profiles.load(cfg.profiles_file)] == ["kids"]  # never written to your file
+    # A profile of your own named "tv" replaces it.
+    data = call(cfg, "PUT", "/api/profiles/tv", {"groups": ["News"]}, password="secret")[1]
+    mine = next(p for p in data["profiles"] if p["name"] == "tv")
+    assert not mine["builtin"] and mine["tv"] == 1
 
 
 def test_a_broken_file_is_not_overwritten(cfg):
