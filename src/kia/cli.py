@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, pluto, settings, tls
+from kia import alerts, auth, channels, pluto, settings, tls
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
@@ -318,6 +318,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         rec = history.get(e.url)
         checked.append(Checked(e, r, classify(r, rec, cfg.grace_failures), r.height or rec.get("height")))
     chosen = select(checked, {s.name: i for i, s in enumerate(cfg.sources)}, cfg.merge_duplicates)
+    # Favorites and numbers chosen on the status page (kia.channels).
+    place = {id(e): i for i, e in enumerate(channels.apply([c.entry for c in chosen], channels.load(cfg.state_dir)))}
+    chosen.sort(key=lambda c: place[id(c.entry)])
 
     # A test run (part of the list) mustn't replace the playlist Kodi is using.
     partial = bool(args.limit or args.source or args.url)

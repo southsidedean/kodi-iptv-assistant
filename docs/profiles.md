@@ -88,6 +88,14 @@ Categories are the ones in the full playlist, such as "News", "Kids", or "Sports
 
 ## More examples
 
+Just your favorites (the channels you've starred on the status page; see [favorites](configuration.md#favorites-and-your-own-channel-numbers)):
+
+```toml
+[favorites]
+groups = ["Favorites"]
+renumber = true
+```
+
 A news and weather playlist for the kitchen:
 
 ```toml
@@ -104,10 +112,10 @@ sources = ["samsung-us"]
 exclude_groups = ["Shop"]
 ```
 
-A short list of favorites, picked by ID and numbered 1 to 2:
+A short list picked by ID and numbered 1 to 2:
 
 ```toml
-[favorites]
+[picks]
 channels = ["CNN.us@SD", "PBSKids.us@SD"]
 renumber = true
 ```

@@ -18,7 +18,7 @@ Channels listed more than once (same `tvg-id`) are reduced to the best stream: w
 
 Different playlists often list the same channel under different IDs: CBS News 24/7 is in both iptv-org's USA list and the Samsung TV Plus list, for example. kia joins channels with exactly the same name from different playlists into one (`merge_duplicates`). The merged channel keeps the ID, logo, and number from the earliest playlist in your sources list, and plays whichever copy's stream tested best. Its guide can come from any of the copies. A name that one playlist uses for two channels, such as "FOX 5" for two cities, isn't merged.
 
-Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
+Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so numbers don't shift when other channels come and go. The list is in alphabetical order, with your [favorites](configuration.md#favorites-and-your-own-channel-numbers) first. The result is `curated.m3u`. `report.html` shows the counts, common failures, and every channel kept.
 
 ### Radio
 
@@ -68,7 +68,7 @@ The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every d
 
 `http://<your address>:8780/` shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button, and links to these docs. kia updates the page when a run starts and ends, and when you save a profile.
 
-Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide. The times are in your device's time zone. A profile's page also has **Edit this playlist**. The **Details** page has the guide coverage, how each source playlist's streams are doing, the full reports, the [Pluto TV](#pluto-tv) channels playing right now, the playlists kia checks (on the secure page, where you can [choose them](configuration.md#choosing-playlists-on-the-status-page)), and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
+Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide. The times are in your device's time zone. A profile's page also has **Edit this playlist**. On the secure page, each channel has a star for [favorites](configuration.md#favorites-and-your-own-channel-numbers), and on Everything you can change its number. The **Details** page has the guide coverage, how each source playlist's streams are doing, the full reports, the [Pluto TV](#pluto-tv) channels playing right now, the playlists kia checks (on the secure page, where you can [choose them](configuration.md#choosing-playlists-on-the-status-page)), and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
 ![kia's status page showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
@@ -141,7 +141,7 @@ Alerts also cover a failed nightly run, sharp drops in working channels or guide
 | Folder | Contents |
 |---|---|
 | `output/` | What gets served: the playlist, guide, reports (each as `.html` for browsers and `.md`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), and the status pages (`index.html`, `details.html`, one per playlist in `playlists/`, and `status.json` for scripts), and `pluto.json` while Pluto TV channels play |
-| `state/` | Stream history, the alert log, and the playlists chosen on the status page (`sources.json`) |
+| `state/` | Stream history, channel numbers, the alert log, and the choices made on the status page: playlists (`sources.json`), favorites and numbers (`channels.json`) |
 | `work/` | Intermediate files: per-site channel lists, downloaded guides, logs |
 | `vendor/epg/` | kia's copy of iptv-org/epg, updated nightly |
 
