@@ -27,7 +27,9 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 - Star channels on the secure status page to make them favorites. Favorites come first in every playlist and get a Favorites category, which Kodi and most players show as a group, and which a profile can pick for a playlist of just your favorites.
 - Change a channel's number on the Everything page. It works like a `tvg-chno` in your own playlist file: a channel that had the number moves to the next free one, and a number in your own file still wins.
 - Playlists list TV channels first, then radio stations, each with favorites at the top. A playlist's page shows TV and radio under their own headings, in the list and in the **Next 6 hours** view.
-- Both apply straight away, without waiting for a refresh. kia keeps them in `state/channels.json`. The API has `GET /api/channel-choices` and `PUT /api/channel`.
+- **Renumber everything** (on the Everything page, or `kia renumber`) numbers every channel 1, 2, 3 down the list once, keeping the numbers you chose. Clear Kodi's TV data afterwards.
+- `recycle_numbers_after_days` under `[output]` in `kia.toml` lets a new channel reuse the number of one that's been gone that long (60 days or more; off by default), so numbers stop climbing. See [gaps in the numbers](docs/configuration.md#gaps-in-the-numbers-and-renumbering).
+- Stars, numbers, and renumbering apply straight away, without waiting for a refresh. kia keeps your stars and numbers in `state/channels.json`. The API has `GET /api/channel-choices` and `PUT /api/channel`.
 
 ### Fixes
 

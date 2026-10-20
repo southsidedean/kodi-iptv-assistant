@@ -72,6 +72,8 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Left-out categories", _list(cfg.exclude_groups), ENV + "KIA_EXCLUDE_GROUPS"),
             ("Left-out name tags", _list(cfg.exclude_labels), TOML + "[filters] exclude_labels"),
             ("Channel numbers", _yes(cfg.channel_numbers), TOML + "[output] channel_numbers"),
+            ("Reuse numbers of channels gone for", f"{cfg.recycle_numbers_after_days} days" if cfg.recycle_numbers_after_days
+             else "never", TOML + "[output] recycle_numbers_after_days"),
             ("Join duplicate channels", _yes(cfg.merge_duplicates), TOML + "[check] merge_duplicates"),
             ("Pluto TV through kia", _yes(cfg.pluto_relay), ENV + "KIA_PLUTO_RELAY"),
         ]),

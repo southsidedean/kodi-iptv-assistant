@@ -7,7 +7,11 @@ channel keeps its number, and one that comes back after a few bad nights gets it
 TV and radio are numbered separately, as Kodi shows them separately.
 
 A tvg-chno in one of your own playlist files pins that channel's number; the automatic
-numbering works around pinned numbers. cli.load_entries marks those pins; numbers in
+numbering works around pinned numbers.
+
+Numbers aren't reused, unless recycling is on (recycle_after_days): then a new channel
+takes the lowest number whose channel was last seen at least that many days ago. renumber()
+numbers everything 1, 2, 3 in playlist order, once, keeping pins. cli.load_entries marks those pins; numbers in
 playlists from the internet are ignored, so they can't reshuffle yours.
 """
 
@@ -26,8 +30,9 @@ def pinned_number(entry: Entry) -> int | None:
 
 
 class ChannelNumbers:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, recycle_after_days: int = 0):
         self.path = path
+        self.recycle_after_days = recycle_after_days
         data = {}
         if path.exists():
             data = json.loads(path.read_text())
@@ -36,6 +41,8 @@ class ChannelNumbers:
         # Automatic numbers are never reused, even after a channel is forgotten, so an old
         # number never points at a different channel.
         self.next: dict[str, int] = data.get("next", {"tv": 1, "radio": 1})
+        # Numbers of forgotten channels, with when each channel was last seen, for recycling.
+        self.retired: dict[str, dict[str, str]] = data.get("retired", {"tv": {}, "radio": {}})
 
     def assign(self, entries: list[Entry], when: str, log: Callable[[str], None] = lambda m: None) -> None:
         """Set tvg-chno on each entry: its pinned number, its remembered one, or the next free one."""
@@ -64,25 +71,49 @@ class ChannelNumbers:
                 if rec is not None and rec.get("pinned") and pinned_number(e) is None:
                     rec.pop("pinned")  # pin removed: the channel keeps the number it has
                 if rec is None:
-                    n = self.next.get(kind, 1)
-                    while n in taken:
-                        n += 1
+                    n = self._recycled(kind, taken, when)
+                    if n is None:
+                        n = self.next.get(kind, 1)
+                        while n in taken:
+                            n += 1
+                        self.next[kind] = n + 1
+                    else:
+                        log(f"Channel {e.key!r} gets number {n} again (its last channel left long ago)")
+                    self.retired.get(kind, {}).pop(str(n), None)
                     rec = known[e.key] = {"number": n}
                     taken.add(n)
-                    self.next[kind] = n + 1
                 rec["last_seen"] = when
                 e.attrs["tvg-chno"] = str(rec["number"])
 
+    def _recycled(self, kind: str, taken: set[int], when: str) -> int | None:
+        """The lowest number free for reuse, or None (recycling off, or nothing old enough)."""
+        if not self.recycle_after_days:
+            return None
+        cutoff = datetime.fromisoformat(when) - timedelta(days=self.recycle_after_days)
+        free = [int(n) for n, seen in self.retired.get(kind, {}).items()
+                if int(n) not in taken and datetime.fromisoformat(seen) <= cutoff]  # fmt: skip
+        return min(free) if free else None
+
     def forget_older_than(self, days: int) -> None:
-        """Drop channels not kept for `days`; their numbers stay retired."""
+        """Drop channels not kept for `days`; their numbers stay retired (see _recycled)."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         for kind, known in self.numbers.items():
-            self.numbers[kind] = {
-                key: rec for key, rec in known.items() if datetime.fromisoformat(rec["last_seen"]) >= cutoff
-            }
+            retired = self.retired.setdefault(kind, {})
+            for key, rec in list(known.items()):
+                if "last_seen" in rec and datetime.fromisoformat(rec["last_seen"]) < cutoff:
+                    retired[str(rec["number"])] = rec["last_seen"]
+                    del known[key]
+
+    def renumber(self, entries: list[Entry], when: str, log: Callable[[str], None] = lambda m: None) -> None:
+        """Number every channel 1, 2, 3... in the order given (TV and radio apart), once,
+        keeping pinned numbers. Forgotten channels' numbers are forgotten too."""
+        self.numbers = {"tv": {}, "radio": {}}
+        self.next = {"tv": 1, "radio": 1}
+        self.retired = {"tv": {}, "radio": {}}
+        self.assign(entries, when, log)
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_name(self.path.name + ".tmp")
-        tmp.write_text(json.dumps({"next": self.next, "numbers": self.numbers}, indent=1, sort_keys=True))
+        tmp.write_text(json.dumps({"next": self.next, "numbers": self.numbers, "retired": self.retired}, indent=1, sort_keys=True))
         tmp.replace(self.path)

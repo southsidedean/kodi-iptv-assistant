@@ -49,6 +49,7 @@ class ApiConfig:
     catalog_file: Path | None = None
     config_file: Path | None = None
     test_report: Path | None = None
+    recycle_numbers_after_days: int = 0
 
 
 class ApiError(Exception):
@@ -179,12 +180,24 @@ def set_channel(cfg: ApiConfig, body: dict) -> dict:
             raise ApiError(400, str(exc))
         channels.save(cfg.state_dir, choices)
         notes: list[str] = []
-        entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, notes.append)
+        entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, notes.append,
+                                   recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
     cfg.on_change()
     now = next((e for e in entries if e.key == entry.key), entry)
     return {**choices, "channel": {"key": now.key, "number": now.attrs.get("tvg-chno"),
                                    "favorite": now.key in choices["favorites"]}, "notes": notes}  # fmt: skip
+
+
+def renumber(cfg: ApiConfig) -> dict:
+    """Number every channel 1, 2, 3 in playlist order, once (kia renumber)."""
+    with LOCK:
+        entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, lambda m: None, renumber=True,
+                                   recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
+        profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
+    cfg.on_change()
+    radio = sum(1 for e in entries if e.is_radio)
+    return {"tv": len(entries) - radio, "radio": radio}
 
 
 # Choosing playlists
@@ -367,6 +380,9 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             return 200, search_channels(cfg, parse_qs(url.query).get("q", [""])[0])
         if parts == ["channel-choices"] and method == "GET":
             return 200, get_choices(cfg)
+        if parts == ["renumber"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, renumber(cfg)
         if parts == ["channel"] and method == "PUT":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, set_channel(cfg, data)

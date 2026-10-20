@@ -66,12 +66,14 @@ def apply(entries: list[Entry], choices: dict) -> list[Entry]:
     return sorted(entries, key=lambda e: (e.is_radio, e.key not in favorites, e.name.casefold()))
 
 
-def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m: None) -> list[Entry]:
+def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m: None,
+            renumber: bool = False, recycle_after_days: int = 0) -> list[Entry]:  # fmt: skip
     """Apply the choices to the playlist from the last check, now, and write it again.
-    The caller rebuilds the profiles."""
+    renumber: number everything 1, 2, 3 in playlist order first (kia renumber). The caller
+    rebuilds the profiles."""
     curated = output_dir / "curated.m3u"
     entries = m3u.parse(curated.read_text()) if curated.exists() else []
-    numbers = ChannelNumbers(state_dir / "channel-numbers.json")
+    numbers = ChannelNumbers(state_dir / "channel-numbers.json", recycle_after_days)
     for e in entries:
         # Pins from your playlist files stay pins (the playlist only has the number).
         rec = numbers.numbers.get("radio" if e.is_radio else "tv", {}).get(e.key)
@@ -79,7 +81,14 @@ def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m
             e.pinned_number = rec["number"]
     choices = load(state_dir)
     entries = apply(entries, choices)
-    numbers.assign(entries, datetime.now(timezone.utc).isoformat(timespec="seconds"), log)
+    when = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    if renumber:
+        # Playlist order: TV, then radio, each with favorites first and the rest by name.
+        favorites = set(choices["favorites"])
+        entries.sort(key=lambda e: (e.is_radio, e.key not in favorites, e.name.casefold()))
+        numbers.renumber(entries, when, log)
+    else:
+        numbers.assign(entries, when, log)
     numbers.save()
     tmp = curated.with_name(curated.name + ".tmp")
     tmp.write_text(m3u.write(entries, epg_url))

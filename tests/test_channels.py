@@ -94,3 +94,25 @@ def test_api_stars_and_numbers_rewrite_the_playlists_now(cfg):
     assert call(cfg, {"key": "Charlie.us", "number": 0})[0] == 400
     get = api.handle(cfg, "GET", "/api/channel-choices", {"Host": "tv.lan:8780"}, b"", False)
     assert get == (200, {"favorites": ["Charlie.us"], "numbers": {"tv": {"Charlie.us": 1}, "radio": {}}})
+
+
+def test_api_renumber(cfg):
+    call(cfg, {"key": "Charlie.us", "number": 7})
+    status, data = api.handle(cfg, "POST", "/api/renumber", {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}, b"", True)
+    assert status == 200 and data == {"tv": 3, "radio": 1}
+    listed = {e.name: e.attrs["tvg-chno"] for e in m3u.parse((cfg.output_dir / "curated.m3u").read_text())}
+    assert listed == {"Alpha": "1", "Bravo": "2", "Charlie": "7", "KINK": "1"}  # the chosen number stays
+    assert api.handle(cfg, "POST", "/api/renumber", {"Host": "tv.lan:8743"}, b"", True)[0] == 401
+
+
+def test_recycle_setting_is_checked(tmp_path: Path, monkeypatch):
+    from kia.config import load
+
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    for bad in ("30", "-1", "true"):
+        (tmp_path / "kia.toml").write_text(f"[output]\nrecycle_numbers_after_days = {bad}\n")
+        with pytest.raises(ValueError, match="recycle_numbers_after_days"):
+            load(tmp_path / "kia.toml")
+    (tmp_path / "kia.toml").write_text("[output]\nrecycle_numbers_after_days = 90\n")
+    assert load(tmp_path / "kia.toml").recycle_numbers_after_days == 90

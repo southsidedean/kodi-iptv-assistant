@@ -78,6 +78,13 @@ kia numbers channels automatically and keeps each number steady. Both favorites 
 
 The playlists change straight away, and Kodi picks them up within two hours or when it restarts. kia keeps these choices in `state/channels.json`. Stars also work on a profile's page; numbers only on Everything, so they're the same everywhere.
 
+### Gaps in the numbers, and renumbering
+
+A channel that drops out keeps its number for 30 days in case it comes back, and its number isn't given to another channel, so that anything Kodi linked to it (recording timers, Kodi's own favorites) never ends up on the wrong channel. Over months that leaves gaps, and new channels get ever higher numbers. Two things tidy that up:
+
+- **Renumber everything**, on the secure page's Everything list (or `docker compose exec kia python3 -m kia renumber`), numbers every channel 1, 2, 3 down the list once: TV and radio apart, favorites first, then by name. Numbers you chose keep theirs. From then on the numbers stay fixed again. Afterwards, clear Kodi's TV data on each device (*Settings → PVR & Live TV → General → Clear data*), so Kodi doesn't mix up old and new numbers.
+- **Reusing old numbers**: set `recycle_numbers_after_days` under `[output]` in `kia.toml`, for example to `90`. A new channel then takes the lowest number whose channel was last seen at least that many days ago, instead of a new one. It's off by default, and must be 60 or more, so Kodi has long forgotten the old channel.
+
 You can also choose a channel's number in a playlist file of your own: list the channel in a playlist file of your own in the `playlists/` folder, add `tvg-chno="<number>"` to its `#EXTINF` line, and add the file to your sources list. For example, `playlists/favorites.m3u` with two radio stations at the top of the radio list:
 
 ```text
@@ -125,7 +132,7 @@ Each setting is explained by a comment in the file. The sections:
 
 - `[check]`: stream testing: `merge_duplicates` (join the same channel from different playlists), `concurrency`, `per_host` (tests at once per server), `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many failed nightly checks in a row a stream that used to work survives; it's dropped after the next one), `history_days`, `user_agent` (kia introduces itself as VLC by default).
 - `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
-- `[output]`: where files go, `channel_numbers` (steady channel numbers; delete `state/channel-numbers.json` to renumber everything), and `public_url` / `epg_url` for setups without Docker.
+- `[output]`: where files go, `channel_numbers` (steady channel numbers), `recycle_numbers_after_days` ([reusing old numbers](#gaps-in-the-numbers-and-renumbering)), and `public_url` / `epg_url` for setups without Docker.
 - `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.
 - `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`. See [alerts](alerts.md).
 - `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `site_connections`, `site_delay_ms`, `site_time_limit`, `accept_name_matches`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `playlist_guides`, `git_url`, `git_ref`, `runner`.

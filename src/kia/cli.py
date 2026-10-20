@@ -327,7 +327,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     out = cfg.epg.work_dir / "check-test" if partial else cfg.output_dir
     out.mkdir(parents=True, exist_ok=True)
     if cfg.channel_numbers and not partial:
-        numbers = ChannelNumbers(cfg.state_dir / "channel-numbers.json")
+        numbers = ChannelNumbers(cfg.state_dir / "channel-numbers.json", cfg.recycle_numbers_after_days)
         numbers.assign([c.entry for c in chosen], generated, log)
         numbers.forget_older_than(cfg.history_days)
         numbers.save()
@@ -765,6 +765,7 @@ def api_config(cfg: Config):
         catalog_file=cfg.sources_file.parent / "sources.txt" if cfg.sources_file else None,
         config_file=cfg.config_file,
         test_report=cfg.epg.work_dir / "check-test" / "report.json",
+        recycle_numbers_after_days=cfg.recycle_numbers_after_days,
     )
 
 
@@ -860,6 +861,26 @@ def cmd_tls(args: argparse.Namespace) -> int:
     print(f"  Key:       {'matches' if info['key_matches'] else 'MISSING OR DOES NOT MATCH ' + str(cfg.tls_dir / tls.KEY)}")
     print(f"  Open:      https://{names[0]}:{cfg.https_port}/")
     return 0 if info["key_matches"] else 1
+
+
+def cmd_renumber(args: argparse.Namespace) -> int:
+    """Number every channel 1, 2, 3 in playlist order, once, keeping chosen numbers."""
+    cfg = load_config(args)
+    if not (cfg.output_dir / "curated.m3u").exists():
+        log("There's no playlist yet; wait for the first refresh.")
+        return 1
+    from kia import api
+
+    with api.LOCK:
+        entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, log, renumber=True,
+                                   recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
+    write_profiles(cfg)
+    update_status(cfg)
+    radio = sum(1 for e in entries if e.is_radio)
+    log(f"Renumbered {len(entries) - radio} TV channels and {radio} radio stations from 1. "
+        "In Kodi, clear the TV data on each device so it picks up the new numbers "
+        "(Settings > PVR & Live TV > General > Clear data).")  # fmt: skip
+    return 0
 
 
 def cmd_password(args: argparse.Namespace) -> int:
@@ -1045,6 +1066,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--reset", action="store_true", help="replace the password with a new one and print it")
     p.set_defaults(func=cmd_password)
+
+    p = sub.add_parser("renumber", help="number every channel 1, 2, 3 in list order, once, keeping chosen numbers")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_renumber)
 
     p = sub.add_parser("settings", help="show the settings kia is running with, and where each is changed")
     p.add_argument("-c", "--config", default="kia.toml")

@@ -82,8 +82,14 @@ state_dir = "state"
 
 # Give each channel a number (tvg-chno) that it keeps from night to night, instead of
 # its place in the list. Kodi shows them once "Use channel numbers from backend" is on
-# (see docs/kodi.md). To renumber everything, delete state/channel-numbers.json.
+# (see docs/kodi.md). To number everything 1, 2, 3 again, once: kia renumber, or
+# "Renumber" on the secure status page.
 channel_numbers = true
+
+# A channel that's gone keeps its number, which isn't reused, so numbers climb and the
+# list gets gaps. Set this to reuse the number of a channel last seen this many days ago
+# (60 or more; 90 is a good choice). 0 never reuses numbers.
+recycle_numbers_after_days = 0
 
 # Only if your guide is served from somewhere else:
 # epg_url = "http://my-server.lan:8780/guide.xml.gz"
