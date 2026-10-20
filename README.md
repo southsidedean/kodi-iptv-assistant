@@ -15,15 +15,15 @@ Turn free internet TV into a tidy channel list with a working program guide in K
 
 Kodi and free IPTV make a great pair, but turning a raw playlist into something you'd want to watch is a mess. Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live. Guide data exists for many of those channels, but it's spread across dozens of sites whose channel IDs rarely match your playlist's, so Kodi can't connect them and the guide stays mostly empty. And streams change daily, so a list that works this week is half broken next month.
 
-kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in the playlists you pick and keeps one working stream per channel. It finds guide data for those channels and builds a single guide file that lines up with the list. Then it serves both on your network, so you set up each Kodi device once and it stays current.
+kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in the playlists you pick and keeps one working stream per channel. It finds guide data for those channels and builds a single guide file that lines up with the list. Then it serves both on your network, so you set up each device once and it stays current.
 
-Channels with no guide data anywhere (small local stations, for example) show their name in the guide instead of a blank row. kia can also add internet radio stations, which appear under Radio in Kodi.
+Channels with no guide data anywhere (small local stations, for example) show their name in the guide instead of a blank row. kia can also add internet radio stations, which appear under Radio in Kodi and most other players.
 
 ## What you need
 
 - A computer to run kia: macOS, Linux, or a Raspberry Pi 4/5. It can be the one you watch on or one that stays on for the house.
 - [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on macOS) and Git.
-- [Kodi](https://kodi.tv/download/) on the devices you watch on: Windows, macOS, Linux, Android TV, Fire TV, and others all work (setup below).
+- A player on the devices you watch on. [Kodi](https://kodi.tv/download/) is the usual choice, on Windows, macOS, Linux, Android TV, Fire TV, and others (setup below). Plex, Jellyfin, Emby, TiviMate, VLC, and phone apps work too: see [players](#players).
 
 ## Quick start
 
@@ -55,16 +55,31 @@ Or by hand:
 
    The first run takes up to an hour. Watch it with `docker compose logs -f kia`.
 
-4. Set up Kodi on each device you watch on:
+4. Set up a player on each device you watch on. For Kodi:
    - Install Kodi from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
    - Add IPTV Simple Client: *Settings → Add-ons → Install from repository → PVR clients → IPTV Simple Client*.
    - In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`. Set **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120, so Kodi picks up kia's updates. Then restart Kodi.
 
    Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV and Raspberry Pi: [docs/kodi.md](docs/kodi.md).
 
-   Not using Kodi? kia also works with Plex, Jellyfin, Emby, TiviMate, VLC, and apps for phones and tablets: [choosing a player](docs/players.md).
+   Using something else? See [players](#players) below.
 
 To check on kia, open `http://<your address>:8780/` in a browser. The [status page](docs/how-it-works.md#the-status-page) there shows when it last refreshed, whether that worked, how many channels it found, and any alerts. It lists your playlists with their addresses, and links to the detailed reports. To make playlists for people and devices, or to connect other apps, use the [secure status page](docs/secure-page.md) and the [API](docs/api.md). If something isn't working, [docs/troubleshooting.md](docs/troubleshooting.md) goes through the usual problems.
+
+## Players
+
+kia works with any app that opens an M3U playlist, and most of them show its guide too. Each guide below gives the setting names step by step:
+
+| Device | App | Setup |
+|---|---|---|
+| TV box, Fire TV, Android TV, Raspberry Pi, computer | Kodi | [docs/kodi.md](docs/kodi.md) |
+| Android TV, Google TV, Nvidia Shield | TiviMate | [docs/tivimate.md](docs/tivimate.md) |
+| Any TV or phone with Plex | Plex, through Threadfin | [docs/plex.md](docs/plex.md) |
+| Any TV or phone with Jellyfin or Emby | Jellyfin or Emby | [docs/jellyfin.md](docs/jellyfin.md) |
+| iPhone, iPad, Apple TV, Android phone or tablet | UHF, Televizo | [docs/phones.md](docs/phones.md) |
+| Computer, phone, or tablet, for a quick look (no guide) | VLC | [docs/vlc.md](docs/vlc.md) |
+
+Costs, which apps show the guide, and watching away from home are covered in [choosing a player](docs/players.md).
 
 ## Setups
 
@@ -101,7 +116,7 @@ docker compose up -d
 
 This also brings the latest Node.js and nginx images; to stay on fixed versions, see [versions](docs/configuration.md#versions). Your `.env`, your own playlist list, and the stream history are kept. If you edited `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
 
-To stop kia, run `docker compose down`. While it's stopped, Kodi can't refresh the channel list or guide.
+To stop kia, run `docker compose down`. While it's stopped, your players can't refresh the channel list or guide.
 
 ## Credits
 
