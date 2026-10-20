@@ -7,8 +7,9 @@ move. Elsewhere the script only marks favorites.
 """
 
 STYLE = """
-/* Favorites and numbers */
-#channels .fav { width: 2.6rem; text-align: center; }
+/* Favorites and numbers; TV and radio under their own headings */
+#channels tr.group-head th { font-size: var(--step-0); font-weight: 600; color: var(--fg); text-align: left; padding-top: var(--space-3); }
+#channels .fav { width: 2rem; text-align: center; padding-right: 0; }
 #channels .fav button { min-height: 32px; min-width: 32px; padding: 0; border: none; background: none; font-size: 1.15rem;
   color: var(--muted); cursor: pointer; line-height: 1; }
 #channels .fav button[aria-pressed=true] { color: var(--warn); }
@@ -65,7 +66,7 @@ SCRIPT = r"""
     choices.favorites.forEach(function (k) { favorites[k] = true; });
     var can = info && info.editable && info.secure;
     var head = table.querySelector("thead tr");
-    head.appendChild(el("th", { class: "fav", text: "★", title: "Favorite" }));  // last: the guide view reads cells by position
+    head.insertBefore(el("th", { class: "fav", "aria-label": "Favorite" }), head.querySelector("th.name"));
     if (can) {
       pass = el("input", { type: "password", id: "ch-pass", autocomplete: "current-password", value: getPassword() });
       msg = el("p", { role: "status", hidden: true });
@@ -75,12 +76,12 @@ SCRIPT = r"""
         el("label", { for: "ch-pass" }, [el("strong", { text: "Password" }), pass]), msg]);
       table.closest(".wide").before(tools);
     }
-    table.querySelectorAll("tbody tr").forEach(function (row) {
+    table.querySelectorAll("tbody tr:not(.group-head)").forEach(function (row) {
       var key = row.dataset.key, cell = el("td", { class: "fav" });
-      row.appendChild(cell);
+      row.insertBefore(cell, row.querySelector("td.name"));
       if (!can) { if (favorites[key]) cell.appendChild(el("span", { text: "★", title: "Favorite" })); return; }
       var star = el("button", { type: "button", "aria-pressed": favorites[key] ? "true" : "false", text: favorites[key] ? "★" : "☆",
-        "aria-label": "Favorite: " + row.cells[1].textContent, on: { click: function () {
+        "aria-label": "Favorite: " + row.querySelector("td.name").textContent, on: { click: function () {
           var on = star.getAttribute("aria-pressed") !== "true";
           star.disabled = true;
           send({ key: key, favorite: on }).then(function (r) {

@@ -157,12 +157,18 @@ FILTER_ROWS = 25
 FILTER_SCRIPT = """
 <script>
 document.querySelectorAll("input[data-filter]").forEach(function (box) {
-  var rows = document.getElementById(box.dataset.filter).tBodies[0].rows;
+  var table = document.getElementById(box.dataset.filter);
   box.addEventListener("input", function () {
     var q = box.value.toLowerCase();
-    for (var i = 0; i < rows.length; i++) {
-      rows[i].hidden = q && rows[i].textContent.toLowerCase().indexOf(q) < 0;
-    }
+    Array.prototype.forEach.call(table.tBodies, function (body) {
+      var shown = 0, head = body.querySelector("tr.group-head");
+      Array.prototype.forEach.call(body.rows, function (row) {
+        if (row === head) return;
+        row.hidden = q && row.textContent.toLowerCase().indexOf(q) < 0;
+        if (!row.hidden) shown++;
+      });
+      if (head) head.hidden = !shown;
+    });
   });
 });
 </script>

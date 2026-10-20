@@ -48,8 +48,8 @@ def _groups(e: Entry) -> list[str]:
 
 
 def apply(entries: list[Entry], choices: dict) -> list[Entry]:
-    """Pin chosen numbers, tag favorites, and put favorites first, then the rest by name
-    (the check's order). Returns the entries in their new order."""
+    """Pin chosen numbers and tag favorites. Returns the entries in playlist order: TV,
+    then radio, each with favorites first and the rest by name."""
     favorites = set(choices["favorites"])
     for e in entries:
         kind = "radio" if e.is_radio else "tv"
@@ -63,7 +63,7 @@ def apply(entries: list[Entry], choices: dict) -> list[Entry]:
             e.attrs["group-title"] = ";".join(groups)
         else:
             e.attrs.pop("group-title", None)
-    return sorted(entries, key=lambda e: (e.key not in favorites, e.name.casefold()))
+    return sorted(entries, key=lambda e: (e.is_radio, e.key not in favorites, e.name.casefold()))
 
 
 def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m: None) -> list[Entry]:
