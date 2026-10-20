@@ -73,7 +73,7 @@ command -v git >/dev/null 2>&1 || die "Git isn't installed. macOS: run  git --ve
 say "Docker and Git are ready."
 
 step "Getting kia"
-here=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || true)
+here=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || here=""
 if [ -z "$DIR" ] && [ -n "$here" ] && [ -f "$here/compose.yaml" ] && [ -f "$here/src/kia/cli.py" ]; then
     DIR=$here
 fi
