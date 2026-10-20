@@ -36,6 +36,12 @@ Update as usual (`git pull`, then `docker compose up -d --build`). Both containe
 - A guide site that takes longer than 30 minutes is stopped, and its channels keep their previous guide (`site_time_limit`).
 - ontvtonight.com is skipped by default; it sends programs without titles.
 
+### Docs
+
+- [Start here](docs/start-here.md) explains what kia gives you, the three steps to get there, and the words you'll see. A [docs index](docs/README.md) lists every guide by task.
+- The install guide and README make choosing playlists optional (the USA list is enough to start), and the troubleshooting guide covers the status page: the browser warning, the password, and refused changes.
+- Fuller credits for the iptv-org community and the other playlist and guide sources, and a link to the Kodi Wiki.
+
 ### Guides for other players
 
 - New setup guides for [Plex](docs/plex.md) (through Threadfin), [Jellyfin and Emby](docs/jellyfin.md), [TiviMate](docs/tivimate.md), [VLC](docs/vlc.md), and [phones and tablets](docs/phones.md), with a page to help [choose a player](docs/players.md). The Jellyfin and Threadfin steps were tested against kia.

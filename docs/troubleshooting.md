@@ -46,12 +46,38 @@ Turn on **Use channel numbers from backend** in Kodi ([Kodi setup, step 5](kodi.
 
 Set IPTV Simple Client's **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120 ([Kodi setup, step 3](kodi.md#3-point-it-at-the-playlist)).
 
+## On the status page
+
+### The browser warns the connection isn't private
+
+That's the secure page (`https://…:8743`) and kia's own certificate. The connection is encrypted; your browser just doesn't know kia. [The browser warning](secure-page.md#the-browser-warning) shows how to continue, and how to use a certificate your browser trusts.
+
+### There's no Add a playlist or Edit button
+
+Those are on the secure page. On the plain `http://` page, use the link to it. If neither page has them, editing is turned off with `KIA_EDITING=false` in `.env`.
+
+### It says the password is wrong, or I've forgotten it
+
+If you haven't changed it, it's in `state/admin-password.txt` in the kia folder. If `KIA_ADMIN_PASSWORD` is set in `.env`, that's the password. Otherwise make a new one:
+
+```sh
+docker compose exec kia python3 -m kia password --reset
+```
+
+### Changes are refused "only on the secure page"
+
+The page you're on is the plain `http://` one. Open the `https://…:8743` address instead; the plain page links to it.
+
+## In other players
+
+Each [player's guide](players.md) ends with its own common problems. If a channel won't play in any app, it's the stream itself; see [a channel won't play](#a-channel-wont-play).
+
 ## On the computer running kia
 
 ### Other devices can't connect
 
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d`.
-- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp`.
+- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and, for the secure status page, `sudo ufw allow 8743/tcp`.
 - Check that kia is running: `docker compose ps` should list `kia` and `web` as running. If not, run `docker compose up -d`.
 - If the computer's address changed (after a restart, for example), update `KIA_PUBLIC_URL` and the playlist URL in Kodi. A DHCP reservation in your router keeps the address fixed.
 
@@ -67,7 +93,7 @@ Common causes:
 
 - Many guide sites `FAILED`, or the log stops suddenly while downloading guides: kia probably ran out of memory. Lower `KIA_PARALLEL_SITES` (each guide site uses up to about 0.7 GB), or raise `KIA_MEMORY_LIMIT` if the computer has memory to spare.
 - `Permission denied`: see [file permission errors](#file-permission-errors).
-- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `work/`, and `vendor/`, so keep those settings as they are ([why](configuration.md#versions)).
+- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, and `tls/`, so keep those settings as they are ([why](configuration.md#versions)).
 - An error about `.env` or `kia.toml`: the message names the setting. Fix it, run `docker compose up -d`, and [refresh now](configuration.md#when-changes-take-effect).
 
 ### File permission errors
@@ -75,7 +101,7 @@ Common causes:
 kia writes its files as the user in `PUID` and `PGID`. If those don't match your user, or another user created the folders, give the folders back to yourself:
 
 ```sh
-sudo chown -R "$(id -u):$(id -g)" output state work vendor
+sudo chown -R "$(id -u):$(id -g)" output state work vendor profiles tls
 ```
 
 Then set `PUID` and `PGID` in `.env` to the numbers that `id -u` and `id -g` print, and run `docker compose up -d`.

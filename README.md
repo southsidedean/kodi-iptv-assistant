@@ -5,7 +5,9 @@
 
 # kodi-iptv-assistant
 
-Turn free internet TV into a tidy channel list with a working program guide in Kodi.
+Turn free internet TV into a tidy channel list with a working program guide in Kodi and other players.
+
+**New here?** [Start here](docs/start-here.md) explains what you'll end up with and the three steps to get there. Every guide is listed in the [docs index](docs/README.md).
 
 ![Kodi's TV guide filled in from kia](images/kodi-iptv-guide.jpg)
 
@@ -37,7 +39,7 @@ New to Docker or Git? [docs/install.md](docs/install.md) walks through installin
 
    Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`) and `TZ` to your time zone.
 
-2. Pick your playlists. Copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the playlists you want in `sources.local.txt`. The USA list is on by default. Updating kia never touches your copy.
+2. Optional: pick your playlists. The USA list is on by default, which is enough to start. To choose others, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the playlists you want in `sources.local.txt`. Updating kia never touches your copy.
 
 3. Start it:
 
@@ -60,7 +62,7 @@ To check on kia, open `http://<your address>:8780/` in a browser. The [status pa
 
 ## Setups
 
-By default, one machine serves every Kodi device in the house. kia can also run on the same computer you watch on, on a Raspberry Pi with lower settings, or on a laptop that travels: the laptop tests streams wherever you are, copies the guide from your home server when it can reach it, and builds its own when it can't. Recipes for each are in [docs/setups.md](docs/setups.md). Different people and devices can also get their own, smaller playlists, such as one for the kids: see [docs/profiles.md](docs/profiles.md).
+By default, one machine serves every TV, phone, and computer in the house. kia can also run on the same computer you watch on, on a Raspberry Pi with lower settings, or on a laptop that travels: the laptop tests streams wherever you are, copies the guide from your home server when it can reach it, and builds its own when it can't. Recipes for each are in [docs/setups.md](docs/setups.md). Different people and devices can also get their own, smaller playlists, such as one for the kids: see [docs/profiles.md](docs/profiles.md).
 
 ## Configuration
 
@@ -97,7 +99,14 @@ To stop kia, run `docker compose down`. While it's stopped, Kodi can't refresh t
 
 ## Credits
 
-Playlists come from [iptv-org/iptv](https://github.com/iptv-org/iptv) and others; guide sources from [iptv-org/epg](https://github.com/iptv-org/epg) and [i.mjh.nz](https://github.com/matthuisman/i.mjh.nz). This project only tests and organizes publicly listed streams; it doesn't host any.
+Most of what kia does depends on the [iptv-org](https://github.com/iptv-org) community. Its volunteers track thousands of free channels around the world:
+
+- [iptv-org/iptv](https://github.com/iptv-org/iptv) maintains the public playlists kia checks by default.
+- [iptv-org/epg](https://github.com/iptv-org/epg) provides the guide downloaders for hundreds of sites, and the table that links channels to their guides. kia runs it every night.
+
+Other playlists come from [apsattv.com](https://www.apsattv.com/), [Free-TV](https://github.com/Free-TV/IPTV), and [junguler's radio lists](https://github.com/junguler/m3u-radio-music-playlists); radio stations from [radio-browser.info](https://www.radio-browser.info/); and ready-made guides from [i.mjh.nz](https://github.com/matthuisman/i.mjh.nz). Thank you to all of them.
+
+This project only tests and organizes publicly listed streams; it doesn't host any.
 
 ## Contributing
 
