@@ -12,6 +12,10 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 - The playlist points Pluto channels at kia (`/pluto/<id>.m3u8`). `KIA_PLUTO_RELAY=false` in `.env` (or `relay = false` under `[pluto]` in `kia.toml`) goes back to Pluto's own links.
 - The Details page shows the Pluto channels playing right now, with their sessions and recent problems, and `pluto.json` has the same for scripts. The home page warns you if Pluto channels are playing without kia's fix, and the new `pluto_fallback` alert (off by default) can tell you too.
 
+### Docker healthchecks
+
+- Both containers have healthchecks: kia's own server and the web server must answer every minute. `docker compose ps` shows `(healthy)` or `(unhealthy)`, and tools that watch Docker can use it.
+
 ### Testing a channel that won't play
 
 - Each channel on a playlist's page (secure page) has a **Test** button that tries its stream now. If it doesn't play, **Remove it until it works** takes it out of every playlist straight away; the nightly check puts it back when the stream works again, and the Everything page lists removed channels with **Put back**. See [a channel won't play](docs/troubleshooting.md#a-channel-wont-play).
