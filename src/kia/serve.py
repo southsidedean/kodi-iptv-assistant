@@ -1,5 +1,6 @@
-"""A small built-in web server for installs without Docker/nginx, and the profile editor's
-API (with Docker, nginx serves the files and forwards /api/ here)."""
+"""A small built-in web server for installs without Docker/nginx, the profile editor's
+API, and the Pluto TV relay (with Docker, nginx serves the files and forwards /api/ and
+/pluto/ here)."""
 
 from __future__ import annotations
 
@@ -69,8 +70,29 @@ class OutputHandler(SimpleHTTPRequestHandler):
         self.wfile.write(payload)
         return True
 
+    # Pluto TV channels (kia.pluto), when the server was given the relay.
+    relay = None
+
+    def _viewer(self) -> str:
+        """Who's asking, to count viewers (behind nginx, the address nginx passes on)."""
+        return (self.trust_proxy and self.headers.get("X-Real-IP")) or self.client_address[0]
+
+    def _pluto(self) -> bool:
+        if not self.relay or not self.path.startswith("/pluto/"):
+            return False
+        status, kind, body = self.relay.handle(self.path, self._viewer())
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", kind)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # the player moved on
+        return True
+
     def do_GET(self):
-        if not self._api("GET"):
+        if not self._pluto() and not self._api("GET"):
             super().do_GET()
 
     def do_POST(self):
@@ -112,9 +134,10 @@ class TlsServer(ThreadingHTTPServer):
 
 
 def make_server(directory: Path, bind: str, port: int, api=None, tls_dir: Path | None = None,
-                trust_proxy: bool = False) -> ThreadingHTTPServer:  # fmt: skip
+                trust_proxy: bool = False, relay=None) -> ThreadingHTTPServer:  # fmt: skip
     directory.mkdir(parents=True, exist_ok=True)
-    handler = type("Handler", (OutputHandler,), {"api": api, "secure": tls_dir is not None, "trust_proxy": trust_proxy})
+    handler = type("Handler", (OutputHandler,),
+                   {"api": api, "secure": tls_dir is not None, "trust_proxy": trust_proxy, "relay": relay})  # fmt: skip
     factory = partial(handler, directory=str(directory))
     if tls_dir is not None:
         return TlsServer((bind, port), factory, tls_dir)
@@ -122,7 +145,7 @@ def make_server(directory: Path, bind: str, port: int, api=None, tls_dir: Path |
 
 
 def serve_in_background(directory: Path, bind: str, port: int, api=None, tls_dir: Path | None = None,
-                        trust_proxy: bool = False) -> ThreadingHTTPServer:  # fmt: skip
-    server = make_server(directory, bind, port, api, tls_dir, trust_proxy)
+                        trust_proxy: bool = False, relay=None) -> ThreadingHTTPServer:  # fmt: skip
+    server = make_server(directory, bind, port, api, tls_dir, trust_proxy, relay)
     threading.Thread(target=server.serve_forever, daemon=True, name="kia-serve").start()
     return server

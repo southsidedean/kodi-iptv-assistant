@@ -8,7 +8,7 @@ You need the address of the machine running kia, e.g. `http://192.168.1.20:8780`
 
 Get it from [kodi.tv/download](https://kodi.tv/download/), which has instructions for each platform:
 
-- Windows, macOS, Linux: download the installer (on Linux, often from your distribution's package manager or Flathub). Kodi from Ubuntu's or Debian's own packages needs IPTV Simple Client installed separately: `sudo apt install kodi-pvr-iptvsimple`, then turn it on under *Settings → Add-ons → My add-ons → PVR clients*.
+- Windows, macOS, Linux: download the installer (on Linux, often from your distribution's package manager or Flathub). Kodi from Ubuntu's or Debian's own packages needs IPTV Simple Client installed separately: `sudo apt install kodi-pvr-iptvsimple`, then turn it on in the add-on browser (see step 2) under *My add-ons → PVR clients*.
 - Android phones, tablets, Android TV, Google TV, Nvidia Shield: Google Play Store.
 - Amazon Fire TV: Kodi isn't in Amazon's store. Install it with the free *Downloader* app; kodi.tv's Android page and the [Kodi Wiki](https://kodi.wiki/view/Main_Page) walk through it.
 - Raspberry Pi or a dedicated TV box: [LibreELEC](https://libreelec.tv/) is a ready-made system that boots straight into Kodi.
@@ -18,13 +18,13 @@ To learn more about Kodi itself, such as installing it on other devices, using a
 
 ## 2. Install IPTV Simple Client
 
-*Settings → Add-ons → Install from repository → PVR clients → IPTV Simple Client → Install.*
+On the home screen, choose **Add-ons** in the menu on the left, then **Enter add-on browser**. If you already have add-ons, that button isn't there: choose the box icon at the top left instead. Then choose *Install from repository → PVR clients → IPTV Simple Client → Install*.
 
 ![The PVR clients list in Kodi, with IPTV Simple Client selected](../images/kodi-iptv-addon-configuration.jpg)
 
 ## 3. Point it at the playlist
 
-Open the add-on (*Settings → Add-ons → My add-ons → PVR clients → IPTV Simple Client*) and choose **Configure**.
+Open the add-on (in the add-on browser, *My add-ons → PVR clients → IPTV Simple Client*) and choose **Configure**.
 
 ![The IPTV Simple Client add-on page, with the Configure button highlighted](../images/kodi-iptv-iptv-configure.jpg)
 

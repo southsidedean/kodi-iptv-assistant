@@ -6,7 +6,7 @@ Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide ever
 
 Every stream in your playlists is opened with `ffprobe`. A TV stream counts as working if it opens and has video; a radio station needs only audio. Some servers turn away anything that isn't a media player, or more than a couple of connections from one place, so kia introduces itself as VLC (the player most widely accepted), tests at most two streams per server at a time, and starts tests on the same server at least a tenth of a second apart. jmp2.uk, which carries about 750 Pluto TV, Samsung TV Plus, and Plex streams, allows six at a time (`per_host_limits`). Streams that fail a name lookup or time out get a second, slower try before they count as failed. Only network addresses (`http`, `https`, `rtmp`, `rtsp`) are tested; anything else in a playlist, such as a file on this computer, is marked dead.
 
-kia writes the same identity into the playlist, so Kodi plays each stream the way kia tested it. Some servers turn Kodi's own identity away, including the one that carries the Pluto TV, Samsung TV Plus, and Plex channels.
+kia writes the same identity into the playlist, so Kodi plays each stream the way kia tested it. Some servers turn Kodi's own identity away, including the one that carries the Pluto TV, Samsung TV Plus, and Plex channels. Pluto TV channels are the exception: kia plays those itself ([Pluto TV](#pluto-tv)).
 
 Each stream is marked:
 
@@ -46,11 +46,29 @@ Some guides list only the next few hours; i.mjh.nz's Samsung TV Plus guide, for 
 
 With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downloads the upstream's guide and keeps the channels in its own list. If the upstream can't be reached, it falls back to steps 2 and 3 (or the last copy, with `KIA_UPSTREAM_FALLBACK=cached`).
 
+## Pluto TV
+
+Pluto TV's live streams break most players at ad breaks. The picture goes black or freezes and comes back only when you start the channel again, or the show jumps back a few minutes, sometimes into the ads you just watched. kia found three causes:
+
+- The usual Pluto links (`jmp2.uk/plu-…`) open sessions that leave the ads to the player. Players don't put in ads, and in kia's tests these sessions drifted away from Pluto's schedule, then jumped back minutes at a time.
+- At ad breaks, Pluto's playlist sometimes repeats pieces, sends them out of order, or moves to the next ad without marking the change. Its numbering jumps around too.
+- Every ad, and every part of a show, starts its own clock. Many players lose the picture or the sound when the clock starts over.
+
+So kia plays Pluto channels itself. The playlist points each Pluto channel at kia (`http://<your address>:8780/pluto/<id>.m3u8`), and when a player opens one, kia:
+
+- opens its own session with Pluto, with Pluto putting in the ads, and gets a fresh one about every 8 hours, as Pluto asks, at an ad break so the switch doesn't show;
+- keeps its own list of the channel's pieces in time order, leaves out repeats and pieces Pluto already sent, and opens a new session if Pluto goes back;
+- copies each piece onto one steady clock, so players never see it start over. ffmpeg only copies (it doesn't re-encode), so this is light work.
+
+kia fetches each piece from Pluto when a player first asks for it, so it uses about as much of your internet connection as watching Pluto directly. Everyone watching a channel shares its session and its pieces, and kia lets a channel go two minutes after the last player stops. When Pluto goes back to pieces kia already sent, kia waits for new ones instead of playing them again, so the picture can pause for up to half a minute. If Pluto won't open a session, kia plays Pluto's plain link instead, which may freeze at breaks, and tries again every five minutes. Timeshift (pausing and rewinding live TV) keeps working, because it happens in the player.
+
+The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every device that plays them must be able to reach it; when it isn't set, Pluto channels keep their own links. `KIA_PLUTO_RELAY=false` in `.env` turns this off, and the playlist then has Pluto's own links. While Pluto channels play, the status page's Details page shows each one, its session, and any recent problems. The same is in `pluto.json` for scripts.
+
 ## The status page
 
 `http://<your address>:8780/` shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button, and links to these docs. kia updates the page when a run starts and ends, and when you save a profile.
 
-Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide. The times are in your device's time zone. A profile's page also has **Edit this playlist**. The **Details** page has the guide coverage, how each source playlist's streams are doing, the full reports, and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
+Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide. The times are in your device's time zone. A profile's page also has **Edit this playlist**. The **Details** page has the guide coverage, how each source playlist's streams are doing, the full reports, the [Pluto TV](#pluto-tv) channels playing right now, and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
 ![kia's status page showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
@@ -85,8 +103,20 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `profiles_error` | The mistake in the profiles file, if it has one |
 | `secure` | The [secure status page](secure-page.md): its `url`, and its certificate (`tls`: `names`, `expires`, `issuer`, whether kia `generated` it, and whether its key matches) |
 | `settings` | The settings kia is running with, in sections (`title`, `rows`), each row with its `name`, `value`, and where to `change` it. Secrets show only `set` or `not set`. |
+| `pluto_channels` | The Pluto TV channels in the playlist that play through kia, by Pluto channel ID, with their names |
 | `files` | The files in the output folder |
 | `version` | kia's version |
+
+### `pluto.json`
+
+The [Pluto TV](#pluto-tv) channels playing through kia right now, at `http://<your address>:8780/pluto.json`. kia rewrites it every minute while it runs, and whenever a player asks for a channel (at most every 15 seconds).
+
+| Field | Contents |
+|---|---|
+| `updated` | When kia wrote it (UTC) |
+| `channels` | Each channel playing: its Pluto `id`, `viewers` (devices that asked for it in the last 30 seconds), `own_session` (false when kia is on Pluto's plain link), `session_started`, `session_hours`, `next_refresh_hours`, `suspicious` (Pluto flagged the session), `fallback_minutes` (how long on the plain link), and counts since the channel started playing: `rewinds` (times kia caught Pluto going back), `sessions`, `errors`, `fallbacks`. `problems` lists the last few, each with its `time` and `text`. |
+| `suspicious` | Pluto has flagged one of kia's sessions |
+| `fallback` | A channel has been on Pluto's plain link for 5 minutes or more |
 
 A monitor should warn you when `result` is `failed`, and when `last_run.finished` is more than a day old, which means kia stopped running. For example, as a shell check that fails in either case:
 
@@ -110,7 +140,7 @@ Alerts also cover a failed nightly run, sharp drops in working channels or guide
 
 | Folder | Contents |
 |---|---|
-| `output/` | What gets served: the playlist, guide, reports (each as `.html` for browsers and `.md`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), and the status pages (`index.html`, `details.html`, one per playlist in `playlists/`, and `status.json` for scripts) |
+| `output/` | What gets served: the playlist, guide, reports (each as `.html` for browsers and `.md`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), and the status pages (`index.html`, `details.html`, one per playlist in `playlists/`, and `status.json` for scripts), and `pluto.json` while Pluto TV channels play |
 | `state/` | Stream history and the alert log |
 | `work/` | Intermediate files: per-site channel lists, downloaded guides, logs |
 | `vendor/epg/` | kia's copy of iptv-org/epg, updated nightly |

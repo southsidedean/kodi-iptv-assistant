@@ -31,6 +31,6 @@ VLC plays the first channel; swipe or open the playlist to pick another.
 
 ## Away from home
 
-These apps reach kia only on your home Wi-Fi. To watch elsewhere, install [Tailscale](https://tailscale.com) on the phone and on the kia machine, and use the kia machine's Tailscale name or address in place of `<your address>`. Don't open a port for kia on your router.
+These apps reach kia only on your home Wi-Fi. To watch elsewhere, install [Tailscale](https://tailscale.com) on the phone and on the kia machine, and use the kia machine's Tailscale name or address in place of `<your address>`. The guide and Pluto TV channels use the address in `KIA_PUBLIC_URL`; [away from home](players.md#away-from-home) explains how to make that work too. Don't open a port for kia on your router.
 
 Streams on mobile data use a lot of it: an hour of HD TV can be a gigabyte or more.

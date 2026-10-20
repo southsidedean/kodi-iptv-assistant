@@ -71,6 +71,7 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Left-out name tags", _list(cfg.exclude_labels), TOML + "[filters] exclude_labels"),
             ("Channel numbers", _yes(cfg.channel_numbers), TOML + "[output] channel_numbers"),
             ("Join duplicate channels", _yes(cfg.merge_duplicates), TOML + "[check] merge_duplicates"),
+            ("Pluto TV through kia", _yes(cfg.pluto_relay), ENV + "KIA_PLUTO_RELAY"),
         ]),
         ("Stream check", [
             ("Streams tested at once", str(cfg.concurrency), ENV + "KIA_CHECK_CONCURRENCY"),

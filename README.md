@@ -57,7 +57,7 @@ Or by hand:
 
 4. Set up a player on each device you watch on. For Kodi:
    - Install Kodi from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
-   - Add IPTV Simple Client: *Settings → Add-ons → Install from repository → PVR clients → IPTV Simple Client*.
+   - Add IPTV Simple Client: on the home screen choose *Add-ons*, then *Enter add-on browser* (or the box icon at the top left) → *Install from repository → PVR clients → IPTV Simple Client*.
    - In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`. Set **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120, so Kodi picks up kia's updates. Then restart Kodi.
 
    Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV and Raspberry Pi: [docs/kodi.md](docs/kodi.md).

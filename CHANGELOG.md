@@ -2,6 +2,16 @@
 
 ## 0.4.0 (unreleased)
 
+### Upgrading from 0.3.0
+
+Update as usual (`git pull`, then `docker compose up -d --build`), then run `docker compose up -d --force-recreate web`. The web server has a new setting for Pluto TV channels, and it runs with its old settings until it's recreated.
+
+### Pluto TV keeps playing through ad breaks
+
+- Pluto TV channels used to freeze, go black, or jump back minutes at ad breaks in most players, and came back only when started again. They now play through kia, which opens its own Pluto session with Pluto putting in the ads, leaves out pieces Pluto repeats or sends again, and puts every piece on one steady clock. It works the same for every player, and timeshift keeps working. See [Pluto TV](docs/how-it-works.md#pluto-tv).
+- The playlist points Pluto channels at kia (`/pluto/<id>.m3u8`). `KIA_PLUTO_RELAY=false` in `.env` (or `relay = false` under `[pluto]` in `kia.toml`) goes back to Pluto's own links.
+- The Details page shows the Pluto channels playing right now, with their sessions and recent problems, and `pluto.json` has the same for scripts. The home page warns you if Pluto channels are playing without kia's fix, and the new `pluto_fallback` alert (off by default) can tell you too.
+
 ### Status page
 
 - The Details page lists the settings kia is running with, and where to change each one (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set. `kia settings` shows the same in a terminal, and `status.json` has it under `settings`.

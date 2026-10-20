@@ -24,6 +24,7 @@ EVENTS = {
     "channels_drop": "working channels dropped sharply since the last run",
     "guide_drop": "channels with guide data dropped sharply since the last run",
     "site_failing": "a guide site failed several runs in a row",
+    "pluto_fallback": "a Pluto TV channel has been playing without kia's fix for a while",
     "daily_summary": "a short summary after every successful run (not an alert)",
 }
 DEFAULT_EVENTS = ("dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing")
