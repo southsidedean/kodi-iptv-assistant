@@ -5,7 +5,7 @@ kia's status page is on two ports:
 | Address | What it's for |
 |---|---|
 | `http://<your address>:8780/` | Playlists and guides for Kodi and other players, and the status page to look at |
-| `https://<your address>:8743/` | The same status page, where you add and change playlists and change the password |
+| `https://<your address>:8743/` | The same status page, where you add and change playlists, choose the playlists kia checks, and change the password |
 
 Changes are accepted only on the secure (`https://`) page, so the password never crosses your network in the clear. Playlists and guides stay on plain HTTP because Kodi and most players refuse a certificate they don't trust, and kia's own certificate is one of those.
 

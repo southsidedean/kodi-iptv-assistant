@@ -1,0 +1,151 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from kia import api, auth, sources
+from kia.config import load
+
+CATALOG = """\
+# --- Countries (iptv-org) ---------------------------------------------- streams ---
+https://iptv-org.github.io/iptv/countries/us.m3u               # USA            1,483
+# https://iptv-org.github.io/iptv/countries/ca.m3u             # Canada           264
+
+# --- Radio (radio-browser.info) ---------------------------------------------------
+# Internet radio stations from a free community directory.
+# radio-browser: country=US tag=jazz top=25
+# https://example.com/jazz.m3u   jazz   radio   # 403 stations
+
+# --- Your own ---------------------------------------------------------------------
+# playlists/my-extras.m3u8   extras
+"""
+
+
+def instance(tmp_path: Path, own: str | None = None) -> Path:
+    (tmp_path / "sources.txt").write_text(CATALOG)
+    if own is not None:
+        (tmp_path / "sources.local.txt").write_text(own)
+        (tmp_path / "kia.toml").write_text('sources_file = "sources.local.txt"\n')
+    else:
+        (tmp_path / "kia.toml").write_text("")
+    return tmp_path / "kia.toml"
+
+
+def test_offered_lists_playlists_on_and_off():
+    found = sources.offered(CATALOG)
+    assert [(o.name, o.on, o.section) for o in found] == [
+        ("us", True, "Countries (iptv-org)"),
+        ("ca", False, "Countries (iptv-org)"),
+        ("radio-us-jazz", False, "Radio (radio-browser.info)"),
+        ("jazz", False, "Radio (radio-browser.info)"),
+    ]  # comments and turned-off file paths aren't offered
+    assert found[1].label == "Canada  264"
+    assert found[2].radio and found[3].radio
+
+
+def test_choices_apply_on_top_of_the_file(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    cfg = instance(tmp_path)
+    assert [s.name for s in load(cfg).sources] == ["us"]
+    state = sources.load_state(tmp_path / "state")
+    sources.set_on(state, "https://iptv-org.github.io/iptv/countries/ca.m3u", True, in_file=False, known=True)
+    sources.set_on(state, "https://iptv-org.github.io/iptv/countries/us.m3u", False, in_file=True, known=True)
+    sources.add(state, "https://example.org/extra.m3u", "extra", radio=False)
+    sources.set_on(state, "radio-browser: country=US tag=jazz top=25", True, in_file=False, known=True)
+    sources.save_state(tmp_path / "state", state)
+    got = load(cfg).sources
+    assert [s.name for s in got] == ["ca", "radio-us-jazz", "extra"]
+    assert got[1].is_radio_browser and got[1].params["tag"] == "jazz"
+
+
+def test_your_own_copy_still_offers_sources_txt(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    cfg = instance(tmp_path, own="https://example.org/mine.m3u  mine\n")
+    state = {"on": ["https://iptv-org.github.io/iptv/countries/ca.m3u"], "off": [], "added": []}
+    sources.save_state(tmp_path / "state", state)
+    assert [s.name for s in load(cfg).sources] == ["mine", "ca"]
+    rows = sources.listing((tmp_path / "sources.local.txt").read_text(), CATALOG, state, {})
+    us = next(r for r in rows if r["name"] == "us")
+    assert not us["on"]  # on in sources.txt, but your copy leaves it out
+
+
+def test_names_and_addresses_are_checked():
+    with pytest.raises(ValueError, match="http"):
+        sources.check_new("file:///etc/passwd", "", set())
+    with pytest.raises(ValueError, match="http"):
+        sources.check_new("/data/kia.toml", "", set())
+    with pytest.raises(ValueError, match="lowercase"):
+        sources.check_new("https://example.org/a.m3u", "Bad Name", set())
+    with pytest.raises(ValueError, match="already"):
+        sources.check_new("https://example.org/us.m3u", "", {"us"})
+    assert sources.check_new(" https://example.org/a.m3u ", "", set()) == ("https://example.org/a.m3u", "a")
+
+
+@pytest.fixture
+def cfg(tmp_path: Path, monkeypatch) -> api.ApiConfig:
+    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    instance(tmp_path)
+    out, state = tmp_path / "output", tmp_path / "state"
+    out.mkdir()
+    (out / "report.json").write_text(json.dumps({"streams": [
+        {"source": "us", "name": "A", "status": "ok"}, {"source": "us", "name": "B", "status": "dead"}]}))  # fmt: skip
+    return api.ApiConfig(out, state, tmp_path / "profiles.toml", None, auth.Auth(state, "secret"), 8743,
+                         sources_file=tmp_path / "sources.txt", catalog_file=tmp_path / "sources.txt",
+                         config_file=tmp_path / "kia.toml", test_report=tmp_path / "work" / "check-test" / "report.json")  # fmt: skip
+
+
+def call(cfg, method, path, body=None, password="secret", secure=True):
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": password} if password else {"Host": "tv.lan:8743"}
+    return api.handle(cfg, method, path, headers, json.dumps(body).encode() if body is not None else b"", secure)
+
+
+def test_api_lists_and_changes_playlists(cfg):
+    status, data = call(cfg, "GET", "/api/sources", password=None, secure=False)
+    assert status == 200 and data["file"] == "sources.txt" and not data["secure"]
+    us = data["playlists"][0]
+    assert us["on"] and us["streams"] == {"ok": 1, "flaky": 0, "dead": 1}
+    ca = "https://iptv-org.github.io/iptv/countries/ca.m3u"
+    assert call(cfg, "PUT", "/api/sources", {"url": ca, "on": True}, secure=False)[0] == 403
+    assert call(cfg, "PUT", "/api/sources", {"url": ca, "on": True}, password="nope")[0] == 401
+    rows = call(cfg, "PUT", "/api/sources", {"url": ca, "on": True})[1]["playlists"]
+    assert next(r for r in rows if r["name"] == "ca")["on"]
+    status, data = call(cfg, "POST", "/api/sources", {"url": "https://example.org/x.m3u", "name": "x", "radio": True})
+    assert status == 200 and data["playlists"][-1] == {**data["playlists"][-1], "name": "x", "origin": "added", "radio": True}
+    assert call(cfg, "POST", "/api/sources", {"url": "https://example.org/x.m3u"})[0] == 409  # already there
+    assert call(cfg, "DELETE", "/api/sources?url=" + ca)[0] == 404  # only added ones can go
+    assert call(cfg, "DELETE", "/api/sources?url=https%3A%2F%2Fexample.org%2Fx.m3u")[0] == 200
+    assert call(cfg, "PUT", "/api/sources", {"url": "https://nowhere.example/z.m3u", "on": True})[0] == 404
+
+
+def test_the_last_playlist_stays_on(cfg):
+    us = "https://iptv-org.github.io/iptv/countries/us.m3u"
+    status, data = call(cfg, "PUT", "/api/sources", {"url": us, "on": False})
+    assert status == 409 and "last playlist" in data["error"]
+
+
+def test_check_now_runs_one_playlist(cfg, monkeypatch):
+    ran = []
+
+    class Done:
+        stdout, stderr = "", ""
+
+    def fake_run(cmd, **kw):
+        ran.append(cmd)
+        cfg.test_report.parent.mkdir(parents=True)
+        cfg.test_report.write_text(json.dumps({"streams": [{"name": "Rock", "status": "ok"}, {"name": "Gone", "status": "dead"}]}))
+        return Done()
+
+    monkeypatch.setattr(api.subprocess, "run", fake_run)
+    monkeypatch.setattr(api.threading, "Thread", lambda target, args, **kw: type("T", (), {"start": lambda self: target(*args)})())
+    status, data = call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})
+    assert status == 200
+    assert ran[0][-2:] == ["-u", "https://example.com/jazz.m3u jazz radio"]
+    check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]
+    assert not check["running"] and check["result"] == {"total": 2, "ok": 1, "flaky": 0, "dead": 1, "sample": ["Rock"]}
+    assert call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"}, secure=False)[0] == 403
+
+
+def test_no_check_during_a_refresh(cfg):
+    (cfg.output_dir / "status.json").write_text(json.dumps({"result": "running"}))
+    status, data = call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})
+    assert status == 409 and "refreshing" in data["error"]

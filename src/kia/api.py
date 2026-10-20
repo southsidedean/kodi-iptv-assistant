@@ -22,7 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import subprocess
+import sys
+
 from kia import profiles
+from kia import sources as web_sources
 from kia.auth import Auth
 from kia.m3u import parse
 
@@ -39,6 +43,12 @@ class ApiConfig:
     auth: Auth
     https_port: int | None = None  # the secure status page's port, for the "open it" link
     on_change: Callable[[], None] = lambda: None  # e.g. rewrite the status page
+    # Choosing playlists (kia.sources): the sources file in use, sources.txt (the list to
+    # choose from), kia.toml (for "check now"), and where a test check writes its report.
+    sources_file: Path | None = None
+    catalog_file: Path | None = None
+    config_file: Path | None = None
+    test_report: Path | None = None
 
 
 class ApiError(Exception):
@@ -144,6 +154,140 @@ def delete_profile(cfg: ApiConfig, name: str) -> dict:
     return result
 
 
+# Choosing playlists
+
+
+def _sources_texts(cfg: ApiConfig) -> tuple[str, str | None]:
+    if not cfg.sources_file or not cfg.sources_file.exists():
+        raise ApiError(409, "kia was started with playlists given on the command line, so they can't be chosen here.")
+    text = cfg.sources_file.read_text()
+    catalog = None
+    if cfg.catalog_file and cfg.catalog_file.exists() and cfg.catalog_file.resolve() != cfg.sources_file.resolve():
+        catalog = cfg.catalog_file.read_text()
+    return text, catalog
+
+
+def _counts(cfg: ApiConfig) -> dict[str, dict]:
+    from kia.status import source_counts
+
+    return {c["name"]: {k: c[k] for k in ("ok", "flaky", "dead")} for c in source_counts(cfg.output_dir / "report.json")}
+
+
+def get_sources(cfg: ApiConfig, secure: bool = False) -> dict:
+    text, catalog = _sources_texts(cfg)
+    rows = web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), _counts(cfg))
+    return {
+        "editable": cfg.auth.source != "off",
+        "secure": secure,
+        "file": cfg.sources_file.name,
+        "playlists": rows,
+        "check": dict(CHECK),
+    }
+
+
+def set_source(cfg: ApiConfig, body: dict) -> dict:
+    url, on = body.get("url") if isinstance(body, dict) else None, body.get("on") if isinstance(body, dict) else None
+    if not isinstance(url, str) or not isinstance(on, bool):
+        raise ApiError(400, "Expected the playlist's url and on (true or false).")
+    with LOCK:
+        text, catalog = _sources_texts(cfg)
+        state = web_sources.load_state(cfg.state_dir)
+        rows = {r["url"]: r for r in web_sources.listing(text, catalog, state, {})}
+        if not on and sum(r["on"] for r in rows.values()) == 1 and rows.get(url, {}).get("on"):
+            raise ApiError(409, "That's the last playlist kia uses. Turn another one on first.")
+        in_file = any(o.on and o.url == url for o in web_sources.offered(text))
+        try:
+            web_sources.set_on(state, url, on, in_file, url in rows)
+        except ValueError as exc:
+            raise ApiError(404, str(exc))
+        web_sources.save_state(cfg.state_dir, state)
+    return get_sources(cfg, True)
+
+
+def add_source(cfg: ApiConfig, body: dict) -> dict:
+    if not isinstance(body, dict) or not isinstance(body.get("url"), str):
+        raise ApiError(400, "Expected the playlist's url.")
+    with LOCK:
+        text, catalog = _sources_texts(cfg)
+        state = web_sources.load_state(cfg.state_dir)
+        rows = web_sources.listing(text, catalog, state, {})
+        if any(r["url"] == body["url"].strip() for r in rows):
+            raise ApiError(409, "kia already has that playlist. Turn it on in the list instead.")
+        try:
+            url, name = web_sources.check_new(body["url"], str(body.get("name") or ""), {r["name"] for r in rows})
+        except ValueError as exc:
+            raise ApiError(400, str(exc))
+        web_sources.add(state, url, name, bool(body.get("radio")))
+        web_sources.save_state(cfg.state_dir, state)
+    return get_sources(cfg, True)
+
+
+def remove_source(cfg: ApiConfig, url: str) -> dict:
+    with LOCK:
+        state = web_sources.load_state(cfg.state_dir)
+        try:
+            web_sources.remove(state, url)
+        except ValueError as exc:
+            raise ApiError(404, str(exc))
+        web_sources.save_state(cfg.state_dir, state)
+    return get_sources(cfg, True)
+
+
+# "Check now": a test check of one playlist, one at a time. It writes to work/check-test/
+# and leaves the playlists players use alone.
+CHECK: dict = {"running": False}
+
+
+def _summary(report: Path) -> dict:
+    streams = json.loads(report.read_text()).get("streams", [])
+    by = Counter(s["status"] for s in streams)
+    working = [s["name"] for s in streams if s["status"] == "ok"]
+    return {"total": len(streams), "ok": by["ok"], "flaky": by["flaky"], "dead": by["dead"], "sample": working[:8]}
+
+
+def start_check(cfg: ApiConfig, body: dict) -> dict:
+    url = body.get("url") if isinstance(body, dict) else None
+    if not isinstance(url, str):
+        raise ApiError(400, "Expected the playlist's url.")
+    text, catalog = _sources_texts(cfg)
+    row = next((r for r in web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), {}) if r["url"] == url),
+               None)  # fmt: skip
+    if row is None:
+        raise ApiError(404, "kia doesn't know that playlist.")
+    try:
+        if json.loads((cfg.output_dir / "status.json").read_text()).get("result") == "running":
+            raise ApiError(409, "kia is refreshing everything right now. Try again when it's done.")
+    except (OSError, ValueError):
+        pass
+    with LOCK:
+        if CHECK.get("running"):
+            raise ApiError(409, f"kia is already checking {CHECK.get('name')}. Wait for it to finish.")
+        CHECK.clear()
+        CHECK.update({"running": True, "url": url, "name": row["name"], "started": time.time()})
+    line = f"{url} name={row['name']}" if url.startswith("radio-browser:") else f"{url} {row['name']}"
+    if row["radio"] and not url.startswith("radio-browser:"):
+        line += " radio"
+    threading.Thread(target=_run_check, args=(cfg, line), daemon=True, name="kia-check-now").start()
+    return {"check": dict(CHECK)}
+
+
+def _run_check(cfg: ApiConfig, line: str) -> None:
+    cmd = [sys.executable, "-m", "kia", "check", "-c", str(cfg.config_file), "-u", line]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        if cfg.test_report and cfg.test_report.exists() and cfg.test_report.stat().st_mtime >= CHECK["started"]:
+            CHECK["result"] = _summary(cfg.test_report)
+        else:
+            last = (proc.stdout + proc.stderr).strip().splitlines()[-1:] or ["no report"]
+            CHECK["error"] = f"The check didn't finish: {last[0][:200]}"
+    except subprocess.TimeoutExpired:
+        CHECK["error"] = "The check took more than 30 minutes and was stopped."
+    except Exception as exc:  # report, never crash the server
+        CHECK["error"] = f"The check couldn't run: {exc}"
+    CHECK["running"] = False
+    CHECK["finished"] = time.time()
+
+
 def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
     if cfg.auth.source == "off":
         raise ApiError(403, "Editing is off (KIA_EDITING=false in kia's .env file).")
@@ -188,6 +332,20 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             return 200, preview(cfg, data)
         if parts == ["channels"] and method == "GET":
             return 200, search_channels(cfg, parse_qs(url.query).get("q", [""])[0])
+        if parts == ["sources"] and method == "GET":
+            return 200, get_sources(cfg, secure)
+        if parts == ["sources", "check"] and method == "GET":
+            return 200, {"check": dict(CHECK)}
+        if parts and parts[0] == "sources" and method in ("PUT", "POST", "DELETE"):
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            if parts == ["sources"] and method == "PUT":
+                return 200, set_source(cfg, data)
+            if parts == ["sources"] and method == "POST":
+                return 200, add_source(cfg, data)
+            if parts == ["sources"] and method == "DELETE":
+                return 200, remove_source(cfg, parse_qs(url.query).get("url", [""])[0])
+            if parts == ["sources", "check"] and method == "POST":
+                return 200, start_check(cfg, data)
         if parts == ["password"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, change_password(cfg, data)

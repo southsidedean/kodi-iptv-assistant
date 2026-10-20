@@ -35,7 +35,7 @@ From then on kia updates the channels every night and the guide every few hours,
 | You want to | Read |
 |---|---|
 | Make a playlist for the kids or a room | [Playlists for people and devices](profiles.md) |
-| Add channels from other countries, or radio | The comments in `sources.txt`, and [configuration](configuration.md) |
+| Add channels from other countries, or radio | [Choosing playlists on the status page](configuration.md#choosing-playlists-on-the-status-page), or the comments in `sources.txt` |
 | Get a message when something breaks | [Alerts](alerts.md) |
 | Watch away from home | [Away from home](players.md#away-from-home) |
 | Fix something that isn't working | [Troubleshooting](troubleshooting.md) |

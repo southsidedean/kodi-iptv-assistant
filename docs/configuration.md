@@ -2,14 +2,14 @@
 
 Three files, from most to least often changed:
 
-- `sources.txt`: which playlists and radio stations to check. Remove `#` to turn a line on; add your own URLs or file paths, one per line. Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio. With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer. Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below.
+- `sources.txt`: which playlists and radio stations to check. Remove `#` to turn a line on; add your own URLs or file paths, one per line. Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio. With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer. Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below. You can also choose playlists on the status page; see [choosing playlists on the status page](#choosing-playlists-on-the-status-page).
 - `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
 - `profiles/profiles.toml`: smaller playlists for people and devices, made from the full list. The status page writes it for you; you can also edit it by hand. See [profiles](profiles.md).
 - `kia.toml`: fine-tuning. The defaults suit most people.
 
 When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
 
-To see the settings kia is running with, open **Details** on the status page, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Settings can't be changed from the status page.
+To see the settings kia is running with, open **Details** on the status page, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-playlists-on-the-status-page)), settings can't be changed from the status page.
 
 ## `.env`
 
@@ -48,9 +48,17 @@ To see the settings kia is running with, open **Details** on the status page, or
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.
 
+## Choosing playlists on the status page
+
+The secure status page's **Details** page has a **Choose playlists** card. It lists every playlist kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a playlist** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
+
+**Check now** tests every stream in one playlist straight away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing.
+
+kia doesn't change your sources file (with Docker, it can't), so it keeps the choices made on the page in `state/sources.json` and applies them on top of the file at every run. The file stays yours to edit by hand. If you use your own copy (`KIA_SOURCES_FILE`), the page still offers everything in `sources.txt`. Like changes to the file, choices made on the page take effect at the next refresh.
+
 ## When changes take effect
 
-kia reads `sources.txt` (or your own copy) and `kia.toml` at the start of each run, so changes to them show up after the next nightly run. Changes to `.env` need `docker compose up -d` first. Kodi then picks up the new list within two hours (its refresh interval), or when it restarts.
+kia reads `sources.txt` (or your own copy), the playlists chosen on the status page, and `kia.toml` at the start of each run, so changes to them show up after the next nightly run. Changes to `.env` need `docker compose up -d` first. Kodi then picks up the new list within two hours (its refresh interval), or when it restarts.
 
 To refresh now instead of waiting:
 

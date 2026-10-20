@@ -67,6 +67,9 @@ class EpgConfig:
 @dataclass
 class Config:
     sources: list[Source]
+    # The sources file in use, and sources.txt (the list of playlists to choose from).
+    sources_file: Path | None = None
+    config_file: Path | None = None
     concurrency: int = 20
     per_host: int = 2
     per_host_limits: dict[str, int] = field(default_factory=dict)
@@ -173,12 +176,25 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         # ignores) so updating kia never conflicts with your choices.
         named = os.environ.get("KIA_SOURCES_FILE") or data.get("sources_file", "sources.txt")
         sources_file = sources_file or base / named
-        sources = parse_sources(sources_file.read_text())
+        text = sources_file.read_text()
+        sources = parse_sources(text)
         origin = str(sources_file)
+        # Choices made on the status page (kia.sources), on top of the file.
+        from kia import sources as web_sources
+
+        state = web_sources.load_state(base / output.get("state_dir", "state"))
+        if any(state.values()):
+            catalog = base / "sources.txt"
+            offers = web_sources.offered(text)
+            if catalog.exists() and catalog.resolve() != sources_file.resolve():
+                offers += web_sources.offered(catalog.read_text())
+            sources = web_sources.apply(sources, offers, state)
     if not sources:
         raise ValueError(f"{origin}: no playlist sources listed")
     return Config(
         sources=sources,
+        sources_file=None if urls else sources_file,
+        config_file=path.resolve(),
         concurrency=_env_int("KIA_CHECK_CONCURRENCY", check.get("concurrency", 20)),
         timeout=check.get("timeout", 15.0),
         per_host=check.get("per_host", 2),

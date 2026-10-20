@@ -258,10 +258,16 @@ def double_check_dns(
 
 
 def alert_on_local_dns(lookups: dict[str, dnscheck.PublicLookup], context: str, cfg: Config) -> bool:
-    """Alert when hostnames failed locally but the backup resolvers can resolve them (or can't be reached)."""
+    """Alert when hostnames failed locally but the backup resolvers can resolve them.
+
+    When the backup resolvers couldn't be reached either, nothing shows that this machine's
+    DNS is at fault (it's usually a moment without internet), so those are only logged."""
     local = sorted(h for h, lk in lookups.items() if lk.verdict == "resolves")
     unverified = sorted(h for h, lk in lookups.items() if lk.verdict == "unreachable")
-    if not local and not unverified:
+    if not local:
+        if unverified:
+            log(f"{len(unverified)} hostnames failed to look up, and the public DNS servers couldn't be reached "
+                "to double-check (a moment without internet?): " + ", ".join(unverified[:10]))  # fmt: skip
         return False
     lines = []
     if local:
@@ -752,6 +758,10 @@ def api_config(cfg: Config):
         auth=auth.from_env(cfg.state_dir),
         https_port=cfg.https_port,
         on_change=lambda: update_status(cfg),
+        sources_file=cfg.sources_file,
+        catalog_file=cfg.sources_file.parent / "sources.txt" if cfg.sources_file else None,
+        config_file=cfg.config_file,
+        test_report=cfg.epg.work_dir / "check-test" / "report.json",
     )
 
 
