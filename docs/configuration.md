@@ -107,6 +107,26 @@ playlists/favorites.m3u   favorites
 
 Channels that already had those numbers move to the next free ones, and the log says which. Numbers in playlists from the internet are ignored, so they can't take yours. If you remove a `tvg-chno` later, the channel keeps the number it has. A number in your own playlist file wins over one chosen on the status page.
 
+## Backing up, and moving to another computer
+
+One command saves everything you've set up in one file: `.env`, `kia.toml`, your sources file, your own playlists, profiles, and `state/` (the password, channel numbers, favorites, the playlists chosen on the status page, and stream history), plus the secure page's certificate. Channel lists and guides aren't in it; kia rebuilds them at its next refresh.
+
+```sh
+docker compose exec kia python3 -m kia backup
+```
+
+The file goes in `work/backups/` in the kia folder, named with the date, such as `kia-backup-20261020-221500.tar.gz`. It holds your password and the certificate's private key, so keep copies somewhere private. Without Docker, run `PYTHONPATH=src python3 -m kia backup` in the kia folder.
+
+To restore, for example on a new computer after [installing kia](install.md): copy the file into the kia folder, then run
+
+```sh
+docker compose down
+docker compose run --rm --no-deps -v "$PWD:/restore" kia restore /restore/kia-backup-20261020-221500.tar.gz --to /restore
+docker compose up -d
+```
+
+A restore first saves the settings that are there now, in `work/backups/before-restore-<date>.tar.gz`, so you can undo it the same way. If the new computer has a different address, check `KIA_PUBLIC_URL` in `.env` afterwards.
+
 ## Versions
 
 By default kia uses the latest version of each thing it depends on:

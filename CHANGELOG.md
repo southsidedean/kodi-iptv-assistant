@@ -12,6 +12,10 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 - The playlist points Pluto channels at kia (`/pluto/<id>.m3u8`). `KIA_PLUTO_RELAY=false` in `.env` (or `relay = false` under `[pluto]` in `kia.toml`) goes back to Pluto's own links.
 - The Details page shows the Pluto channels playing right now, with their sessions and recent problems, and `pluto.json` has the same for scripts. The home page warns you if Pluto channels are playing without kia's fix, and the new `pluto_fallback` alert (off by default) can tell you too.
 
+### Backup and restore
+
+- `kia backup` saves your settings, sources file, own playlists, profiles, `state/` (password, numbers, favorites, playlist choices, history), and the certificate in one file in `work/backups/`. `kia restore` puts them back, after saving the current ones so it can be undone. See [backing up](docs/configuration.md#backing-up-and-moving-to-another-computer).
+
 ### Published images
 
 - kia's Docker image is published for amd64 and arm64 at `ghcr.io/southsidedean/kodi-iptv-assistant`: each release as its version and `latest`, and `main` for what's merged. Set `KIA_IMAGE` in `.env` to use it instead of building kia yourself, which helps most on a Raspberry Pi. See [the published image](docs/configuration.md#the-published-image).

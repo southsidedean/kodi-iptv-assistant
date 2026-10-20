@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import shutil
+import tarfile
 import socket
 import sys
 import time
@@ -863,6 +864,39 @@ def cmd_tls(args: argparse.Namespace) -> int:
     return 0 if info["key_matches"] else 1
 
 
+def cmd_backup(args: argparse.Namespace) -> int:
+    from kia import backup
+
+    cfg_path = Path(args.config).resolve()
+    base = cfg_path.parent
+    sources_file = None
+    try:
+        sources_file = load_config(args).sources_file
+    except (OSError, ValueError) as exc:
+        log(f"(kia.toml or the sources file has a problem, {exc}; backing up the files anyway)")
+    out = Path(args.output) if args.output else backup.default_name(base / "work" / "backups")
+    names = backup.make(base, out, sources_file)
+    log(f"Backed up {len(names)} files to {out}")
+    log("It holds your password and the secure page's certificate key, so keep it somewhere private.")
+    return 0
+
+
+def cmd_restore(args: argparse.Namespace) -> int:
+    from kia import backup
+
+    base = Path(args.to).resolve() if args.to else Path(args.config).resolve().parent
+    try:
+        restored, _ = backup.restore(Path(args.archive), base, base / "work" / "backups", log)
+    except (OSError, ValueError, tarfile.TarError) as exc:
+        log(f"error: {exc}")
+        return 1
+    if not restored:
+        log("The backup had nothing to restore.")
+        return 1
+    log("Start kia again to use them (docker compose up -d).")
+    return 0
+
+
 def cmd_renumber(args: argparse.Namespace) -> int:
     """Number every channel 1, 2, 3 in playlist order, once, keeping chosen numbers."""
     cfg = load_config(args)
@@ -1068,6 +1102,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--reset", action="store_true", help="replace the password with a new one and print it")
     p.set_defaults(func=cmd_password)
+
+    p = sub.add_parser("backup", help="save your settings, playlists, profiles, and choices in one file")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("-o", "--output", help="where to write it (default: work/backups/kia-backup-<date>.tar.gz)")
+    p.set_defaults(func=cmd_backup)
+
+    p = sub.add_parser("restore", help="put a backup's files back (it backs up the current ones first)")
+    p.add_argument("archive", help="the backup file (.tar.gz)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("--to", help="the kia folder to restore into (default: the one kia.toml is in)")
+    p.set_defaults(func=cmd_restore)
 
     p = sub.add_parser("renumber", help="number every channel 1, 2, 3 in list order, once, keeping chosen numbers")
     p.add_argument("-c", "--config", default="kia.toml")
