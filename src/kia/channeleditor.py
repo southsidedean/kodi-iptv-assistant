@@ -14,6 +14,9 @@ STYLE = """
   color: var(--muted); cursor: pointer; line-height: 1; }
 #channels .fav button[aria-pressed=true] { color: var(--warn); }
 #channels .fav span { color: var(--warn); }
+#channels td.test button { min-height: 32px; padding: .1rem .6rem; font-size: var(--step--1); }
+#channels tr.test-result td { padding-top: 0; }
+#channels tr.test-result p { margin: 0 0 var(--space-1); }
 #channels td.num button { min-height: 32px; padding: 0 .4rem; border: 1px dashed var(--line); background: none; color: var(--fg);
   font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
 #channels td.num input { width: 5.5rem; min-height: 32px; font: inherit; padding: 0 .3rem; }
@@ -51,6 +54,33 @@ SCRIPT = r"""
     return fetch(root + "api/channel", { method: "PUT", headers: { "Content-Type": "application/json", "X-Kia-Password": pass.value },
       body: JSON.stringify(body) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; }); });
   }
+  function post(path, body) {
+    return fetch(root + "api/" + path, { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": pass.value },
+      body: JSON.stringify(body) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; }); });
+  }
+  function testRow(row, key, button) {
+    var old = row.nextElementSibling;
+    if (old && old.classList.contains("test-result")) old.remove();
+    var line = el("tr", { class: "test-result" }, [el("td", { colspan: "9" }, [el("p", { class: "muted", text: "Testing… this takes up to 20 seconds." })])]);
+    row.after(line);
+    button.disabled = true;
+    post("channel/test", { key: key }).then(function (r) {
+      button.disabled = false;
+      var cell = line.firstChild;
+      cell.textContent = "";
+      if (r._status !== 200) { cell.appendChild(el("p", { class: "error", text: r.error || "Something went wrong." })); if (r._status === 401) { setPassword(""); pass.focus(); } return; }
+      setPassword(pass.value);
+      if (r.ok) {
+        cell.appendChild(el("p", { class: "preview", text: "It plays from here (" + (r.height ? r.height + "p, " : "") + r.seconds + " s). If it won't play on a device, " +
+          "the problem may be that device or the app; try it in another player." }));
+        return;
+      }
+      cell.appendChild(el("p", { class: "error", text: "It didn't play: " + (r.error || "no picture or sound") + "." }));
+      cell.appendChild(el("button", { type: "button", text: "Remove it until it works", on: { click: function () {
+        post("channel/remove", { key: key }).then(function (res) { if (res._status !== 200) return failed(res); location.reload(); });
+      } } }));
+    }, function () { button.disabled = false; line.firstChild.textContent = "kia didn't answer. Is it running?"; });
+  }
   function failed(r) {
     say(r.error || "Something went wrong.", true);
     if (r._status === 401) { setPassword(""); pass.focus(); }
@@ -83,7 +113,21 @@ SCRIPT = r"""
             .then(function (r) { if (r._status !== 200) return failed(r); setPassword(pass.value); location.reload(); },
               function () { say("kia didn't answer. Is it running?", true); });
         } } })]));
+      var removed = Object.keys(choices.removed || {});
+      if (everything && removed.length) {
+        var list = el("ul", { class: "links" });
+        removed.forEach(function (k) {
+          var r = choices.removed[k];
+          list.appendChild(el("li", {}, [el("strong", { text: r.name }), el("span", { text: " removed " + new Date(r.when).toLocaleDateString() + " " }),
+            el("button", { type: "button", text: "Put back", on: { click: function () {
+              post("channel/restore", { key: k }).then(function (res) { if (res._status !== 200) return failed(res); setPassword(pass.value); location.reload(); });
+            } } })]));
+        });
+        tools.appendChild(el("div", {}, [el("h3", { text: "Removed because they didn't play" }),
+          el("p", { class: "muted", text: "The nightly check puts each one back when its stream works again." }), list]));
+      }
       table.closest(".wide").before(tools);
+      head.appendChild(el("th", { class: "test", "aria-label": "Test" }));
     }
     table.querySelectorAll("tbody tr:not(.group-head)").forEach(function (row) {
       var key = row.dataset.key, cell = el("td", { class: "fav" });
@@ -103,6 +147,9 @@ SCRIPT = r"""
           }, function () { star.disabled = false; say("kia didn't answer. Is it running?", true); });
         } } });
       cell.appendChild(star);
+      var test = el("button", { type: "button", class: "test", text: "Test", "aria-label": "Test " + row.querySelector("td.name").textContent,
+        on: { click: function () { testRow(row, key, test); } } });
+      row.appendChild(el("td", { class: "test" }, [test]));
       if (!everything) return;
       var num = row.querySelector("td.num"), current = num.textContent;
       var edit = el("button", { type: "button", text: current || "–", title: "Change this channel's number", on: { click: function () {

@@ -93,7 +93,7 @@ def test_api_stars_and_numbers_rewrite_the_playlists_now(cfg):
     assert call(cfg, {"key": "Nobody.us", "favorite": True})[0] == 404
     assert call(cfg, {"key": "Charlie.us", "number": 0})[0] == 400
     get = api.handle(cfg, "GET", "/api/channel-choices", {"Host": "tv.lan:8780"}, b"", False)
-    assert get == (200, {"favorites": ["Charlie.us"], "numbers": {"tv": {"Charlie.us": 1}, "radio": {}}})
+    assert get == (200, {"favorites": ["Charlie.us"], "removed": {}, "numbers": {"tv": {"Charlie.us": 1}, "radio": {}}})
 
 
 def test_api_renumber(cfg):
@@ -116,3 +116,63 @@ def test_recycle_setting_is_checked(tmp_path: Path, monkeypatch):
             load(tmp_path / "kia.toml")
     (tmp_path / "kia.toml").write_text("[output]\nrecycle_numbers_after_days = 90\n")
     assert load(tmp_path / "kia.toml").recycle_numbers_after_days == 90
+
+
+def test_test_remove_and_put_back(cfg, monkeypatch):
+    from kia.probe import ProbeResult
+
+    async def fake_probe(url, **kw):
+        return ProbeResult(ok=False, error="HTTP error 404 Not Found", elapsed=0.4)
+
+    monkeypatch.setattr("kia.probe.probe", fake_probe)
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}
+
+    def post(path, body):
+        return api.handle(cfg, "POST", path, headers, json.dumps(body).encode(), True)
+
+    status, r = post("/api/channel/test", {"key": "Bravo.us"})
+    assert status == 200 and not r["ok"] and "404" in r["error"]
+    status, choices = post("/api/channel/remove", {"key": "Bravo.us"})
+    assert status == 200 and choices["removed"]["Bravo.us"]["name"] == "Bravo"
+    names = [e.name for e in m3u.parse((cfg.output_dir / "curated.m3u").read_text())]
+    assert "Bravo" not in names
+    status, choices = post("/api/channel/restore", {"key": "Bravo.us"})
+    assert status == 200 and choices["removed"] == {}
+    back = {e.name: e for e in m3u.parse((cfg.output_dir / "curated.m3u").read_text())}
+    assert "Bravo" in back and back["Bravo"].group == "Kids"
+    assert post("/api/channel/restore", {"key": "Bravo.us"})[0] == 404
+    assert api.handle(cfg, "POST", "/api/channel/test", {"Host": "tv.lan:8743"}, b'{"key": "Bravo.us"}', True)[0] == 401
+
+
+def test_pluto_channels_are_tested_at_pluto():
+    assert api.stream_url("http://192.168.1.20:8780/pluto/66ba495ffe11e5000881f049.m3u8") == \
+        "https://jmp2.uk/plu-66ba495ffe11e5000881f049.m3u8"
+    assert api.stream_url("https://example.org/a.m3u8") == "https://example.org/a.m3u8"
+
+
+def test_nightly_check_puts_back_what_works(tmp_path: Path, monkeypatch):
+    from kia import cli
+    from kia.probe import ProbeResult
+
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    monkeypatch.delenv("KIA_PUBLIC_URL", raising=False)
+    (tmp_path / "list.m3u").write_text(write(entries()[:3]))
+    (tmp_path / "sources.txt").write_text(f"{tmp_path / 'list.m3u'} mine\n")
+    (tmp_path / "kia.toml").write_text("")
+    choices = channels.load(tmp_path / "state")
+    for name in ("Alpha", "Bravo"):
+        e = next(x for x in entries() if x.name == name)
+        choices["removed"][e.key] = channels.removal(e)
+    channels.save(tmp_path / "state", choices)
+    working = {"http://a/1": True, "http://a/2": False, "http://a/3": True}
+
+    async def fake_probe_all(es, cfg, verbose):
+        return {e.url: ProbeResult(ok=working[e.url], error=None if working[e.url] else "gone", height=720) for e in es}
+
+    monkeypatch.setattr(cli, "probe_all", fake_probe_all)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(cli, "double_check_dns", lambda results, resolvers: {})
+    assert cli.main(["check", "-c", str(tmp_path / "kia.toml")]) == 0
+    names = [e.name for e in m3u.parse((tmp_path / "output" / "curated.m3u").read_text())]
+    assert names == ["Alpha", "Charlie"]  # Alpha works again; Bravo still doesn't, so it stays out
+    assert list(channels.load(tmp_path / "state")["removed"]) == ["Bravo.us"]
