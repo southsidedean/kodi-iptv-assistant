@@ -127,3 +127,7 @@ If the status page has no **Add a playlist** button, you're on the plain `http:/
 If the profiles file has a mistake, such as a missing bracket or a misspelled setting, kia keeps the profile playlists it made last time and shows the problem on the status page. The full playlist updates as usual, and the page won't save changes over a file it can't read. Fix the file, and the next run picks it up. Each time the status page saves, it keeps the previous file as `profiles/profiles.toml.bak`.
 
 When you delete a profile, kia removes its playlist, guide, and page from the server.
+
+## The TV-only playlist
+
+When your list has radio stations, kia also makes **TV only** (`tv.m3u`, with its own guide `tv.guide.xml.gz`), for players such as Jellyfin that show radio stations as TV channels. It works like a profile with `radio = false`, but there's nothing to set up or edit. To change it, make a profile of your own named `tv`; yours replaces kia's.

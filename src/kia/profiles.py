@@ -55,6 +55,10 @@ class Profile:
         return f"{self.name}.guide.xml.gz"
 
 
+# A playlist kia always makes when there's radio: TV only, for players such as Jellyfin
+# that list radio stations as TV channels. A profile of your own named "tv" replaces it.
+TV_ONLY = Profile("tv", title="TV only", radio=False)
+
 LISTS = ("groups", "sources", "names", "channels", "exclude_groups", "exclude_names")
 FLAGS = ("tv", "radio")  # on unless set to false
 SWITCHES = ("renumber",)  # off unless set to true
@@ -267,6 +271,10 @@ def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_u
     except (OSError, ValueError):
         sources = {}
     items = [(e, set(sources.get(e.key, [e.source] if e.source else []))) for e in entries]
+    builtin = set()
+    if any(e.is_radio for e in entries) and TV_ONLY.name not in {p.name for p in defined}:
+        defined = [*defined, TV_ONLY]
+        builtin.add(TV_ONLY.name)
     picks = {p.name: numbered(p, select(p, items)) for p in defined}
     guides = write_guides(output_dir, {name: {e.tvg_id for e in picked if e.tvg_id} for name, picked in picks.items()})
     summary = []
@@ -275,7 +283,8 @@ def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_u
         _write(output_dir / p.file, write(picked, profile_epg_url(epg_url, p) if p.name in guides else epg_url))
         radio_count = sum(1 for e in picked if e.is_radio)
         summary.append({"name": p.name, "title": p.label, "file": p.file, "tv": len(picked) - radio_count,
-                        "radio": radio_count, "guide": p.guide if p.name in guides else None})  # fmt: skip
+                        "radio": radio_count, "guide": p.guide if p.name in guides else None,
+                        "builtin": p.name in builtin})  # fmt: skip
         log(f"Profile {p.name}: {len(picked)} channels -> {output_dir / p.file}")
     keep = {"curated.m3u"} | {p.file for p in defined} | {p.guide for p in defined}
     for old_file in [*output_dir.glob("*.m3u"), *output_dir.glob("*.guide.xml.gz")]:

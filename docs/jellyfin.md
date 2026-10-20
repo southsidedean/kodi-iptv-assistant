@@ -2,14 +2,14 @@
 
 Jellyfin and Emby can use kia's playlist and guide directly, and then show live TV in their apps on TVs, phones, and browsers. These steps were tested with Jellyfin 12.2. Emby's screens are similar, but Emby needs an [Emby Premiere](https://emby.media/premiere.html) subscription for live TV.
 
-## Before you start: a TV-only playlist
+## Before you start: the TV-only playlist
 
-Jellyfin lists kia's radio stations as TV channels. kia numbers radio separately from TV, both starting at 1, so you'd see two channel 1s. Make a [profile](profiles.md) for Jellyfin with radio left out, for example on kia's secure status page: **Add a playlist**, name it `jellyfin`, untick **Radio stations**, and save. Then use its two addresses below:
+Jellyfin lists kia's radio stations as TV channels. kia numbers radio separately from TV, both starting at 1, so you'd see two channel 1s. Use kia's TV-only playlist instead, which kia makes whenever your list has radio stations. It's on the status page as **TV only**, with these two addresses:
 
-- Playlist: `http://<your address>:8780/jellyfin.m3u`
-- Guide: `http://<your address>:8780/jellyfin.guide.xml.gz`
+- Playlist: `http://<your address>:8780/tv.m3u`
+- Guide: `http://<your address>:8780/tv.guide.xml.gz`
 
-The full list works too (`curated.m3u` and `guide.xml.gz`), with the radio stations mixed in.
+For a smaller list, make a [profile](profiles.md) with radio left out and the categories you watch, and use its addresses. The full list works too (`curated.m3u` and `guide.xml.gz`), with the radio stations mixed in.
 
 ## Jellyfin
 

@@ -99,7 +99,7 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `sources` | For each playlist: its `name`, and how many of its streams are `ok`, `flaky`, and `dead` |
 | `alerts` | The last run's alerts: `time`, `event` (see [alerts](alerts.md)), and `title` |
 | `playlist_url` | The playlist address for Kodi |
-| `profiles` | Each [profile](profiles.md) playlist: `name`, `title`, `file`, `tv` and `radio` counts, its `url`, and its own `guide` file |
+| `profiles` | Each [profile](profiles.md) playlist, and kia's [TV-only playlist](profiles.md#the-tv-only-playlist): `name`, `title`, `file`, `tv` and `radio` counts, its `url`, its own `guide` file, and `builtin` (true for TV only) |
 | `profiles_error` | The mistake in the profiles file, if it has one |
 | `secure` | The [secure status page](secure-page.md): its `url`, and its certificate (`tls`: `names`, `expires`, `issuer`, whether kia `generated` it, and whether its key matches) |
 | `settings` | The settings kia is running with, in sections (`title`, `rows`), each row with its `name`, `value`, and where to `change` it. Secrets show only `set` or `not set`. |
