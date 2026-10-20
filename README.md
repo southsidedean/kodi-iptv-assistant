@@ -27,7 +27,13 @@ Channels with no guide data anywhere (small local stations, for example) show th
 
 ## Quick start
 
-New to Docker or Git? [docs/install.md](docs/install.md) walks through installing everything, step by step. If you already have Docker and Git:
+New to Docker or Git? [docs/install.md](docs/install.md) walks through installing everything, step by step. With Docker and Git installed, one command does the rest on macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
+```
+
+Or by hand:
 
 1. Download and configure:
 

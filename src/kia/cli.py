@@ -1002,7 +1002,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("daemon", help="run the full pipeline every day at a set time")
     p.add_argument("-c", "--config", default="kia.toml")
-    p.add_argument("--at", default="04:00", help="local time of day, HH:MM (default 04:00)")
+    p.add_argument("--at", default=os.environ.get("KIA_RUN_AT") or "04:00",
+                   help="local time of day, HH:MM (default: KIA_RUN_AT or 04:00)")  # fmt: skip
     p.add_argument(
         "--guide-every",
         type=float,

@@ -1,0 +1,24 @@
+# kia as a systemd user service, for installs without Docker (scripts/install-service.sh
+# fills in the paths). Settings come from the kia folder's .env and kia.toml.
+#   systemctl --user status kia        is it running?
+#   journalctl --user -u kia -f        its log
+[Unit]
+Description=kia (kodi-iptv-assistant): checks streams, builds the guide, serves both
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@DIR@
+EnvironmentFile=-@DIR@/.env
+Environment=KIA_EPG_RUNNER=local
+Environment=PATH=@PATH@
+Environment=PYTHONPATH=@DIR@/src
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@PYTHON@ -m kia daemon --serve
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

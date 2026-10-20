@@ -58,16 +58,20 @@ Runs take longer. With one site at a time, memory use peaks around 0.7 GB. Use a
 
 ## Without Docker
 
-You can run kia directly. You need Python 3.11+, ffmpeg, git, and Node.js 22+ (for the guide grabber). On Ubuntu and Debian, also install `python3-venv`.
+You can run kia directly, as a service that starts with the computer. You need Python 3.11 or newer (kia needs nothing else from Python), ffmpeg, git, openssl, and Node.js 22 or newer for guide downloads from websites. On macOS: `brew install python ffmpeg git openssl node`. On Ubuntu or Debian: `sudo apt install python3 ffmpeg git openssl`, plus Node.js from [nodejs.org](https://nodejs.org/).
+
+In the kia folder, run:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -e .
-.venv/bin/kia daemon --serve --run-now
+scripts/install-service.sh
 ```
 
-That refreshes everything daily at 04:00, refreshes the guide every 4 hours, and serves the results on `127.0.0.1:8780`. Add `--at HH:MM` for another time, `--guide-every HOURS` for another interval (`0` turns it off), or `--bind 0.0.0.0` to serve other devices.
+On Linux it installs a systemd user service (`deploy/kia.service`); on macOS, a launchd agent (`deploy/kia.plist`). It makes `.env` with this computer's address and time zone if there isn't one, starts kia, and prints the status page's address and the password. Settings work as with Docker: `.env` and `kia.toml`. kia serves the playlists, the status page, and the secure page itself.
 
-Settings go in `kia.toml`. Under `[output]`, set `public_url` to the address Kodi uses (the job `KIA_PUBLIC_URL` does with Docker), and under `[epg]`, set `runner = "local"`. Most other `.env` settings also work as environment variables; the memory limit, the image settings, and the container lockdown apply only to Docker. kia stops when you close the terminal, so run it in `tmux` or `screen`, or start it at boot with your system's service manager.
+- After changing `.env`, run the script again (on macOS it copies the settings into the agent).
+- After `git pull`, restart kia: `systemctl --user restart kia` on Linux, or run the script again on macOS.
+- On Linux, a user service runs only while you're logged in, unless you run `sudo loginctl enable-linger $USER` once; the script reminds you.
+- The log: `journalctl --user -u kia -f` on Linux, `work/logs/kia.log` on macOS.
+- `scripts/install-service.sh --uninstall` removes the service and keeps your settings and data.
 
-Install scripts for macOS and Linux are planned.
+To run kia in a terminal instead, for a quick try: `PYTHONPATH=src KIA_EPG_RUNNER=local python3 -m kia daemon --serve --run-now`. It refreshes daily at `KIA_RUN_AT` (04:00), refreshes the guide every 4 hours, and stops when you close the terminal. The memory limit and the container lockdown apply only to Docker.

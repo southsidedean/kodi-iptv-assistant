@@ -16,6 +16,18 @@ Kodi itself can run on almost anything, including Windows, Android TV, and Fire 
 
 If you plan to run kia on a different computer from the one you watch on, do steps 1 to 6 on that computer.
 
+## The quick way
+
+Once Docker and Git are installed (steps 1 and 2 below), one command does steps 3 to 6: it downloads kia to a `kodi-iptv-assistant` folder in your home folder, finds this computer's address and time zone, makes `.env`, opens the firewall ports if it can, and starts kia. Open a terminal and run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
+```
+
+It asks you to confirm the address and time zone, and at the end prints the status page's address and the password for making changes. Running it again is safe; it keeps your settings. Then go on to [step 7](#7-set-up-kodi).
+
+To do it by hand instead, or to see what it does, follow the steps below.
+
 ## 1. Install Docker
 
 ### macOS
