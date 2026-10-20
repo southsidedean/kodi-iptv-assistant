@@ -80,3 +80,12 @@ def test_links_to_sections_exist():
             if anchor not in {github_anchor(h) for h in headings}:
                 broken.append(f"{doc.relative_to(ROOT)} -> {target}")
     assert not broken, "links to missing sections:\n" + "\n".join(broken)
+
+
+def test_env_example_leaves_settings_to_their_defaults():
+    """A new install copies .env.example; only the few it must set have values."""
+    allowed = {"KIA_PUBLIC_URL", "KIA_BIND", "KIA_PORT", "KIA_HTTPS_PORT", "KIA_RUN_AT", "TZ", "PUID", "PGID"}
+    for line in (ROOT / ".env.example").read_text().splitlines():
+        if line and not line.startswith("#") and "=" in line:
+            name, value = line.split("=", 1)
+            assert not value or name in allowed, f".env.example sets {name}={value}"
