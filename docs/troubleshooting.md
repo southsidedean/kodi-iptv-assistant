@@ -28,6 +28,21 @@ Most likely kia matched it to a guide by name, and the name belongs to a differe
 
 Free streams come and go. The nightly check drops a stream once it has failed a few nights in a row, so a stream that has just broken can stay in the list for a couple of days. `report.html` shows each stream's last result.
 
+### Pluto TV channels freeze or jump at ad breaks
+
+Pluto TV's streams break most players at ad breaks: the picture goes black or freezes, or the show jumps back a few minutes. kia fixes this by playing Pluto channels itself and handing your players a steady stream ([how](how-it-works.md#pluto-tv)). It's on unless `KIA_PLUTO_RELAY=false` is in `.env`.
+
+If a Pluto channel still misbehaves:
+
+- Open the playlist URL in a browser and look for the channel. Its address should be `http://<your address>:8780/pluto/<id>.m3u8`. If it still starts with `https://jmp2.uk/`, the relay is off, or the playlist was made before you turned it on; it changes at the next refresh.
+- Look at **Pluto TV** on the status page's Details page while the channel plays. It shows each channel playing through kia and any recent problems, such as Pluto's servers not answering.
+- If the home page says Pluto channels are playing without kia's fix, kia couldn't open a Pluto session of its own, so it's using Pluto's plain link for now. kia tries again every five minutes. Turn on the `pluto_fallback` [alert](alerts.md) to hear about it.
+- If you updated kia from 0.3.0 or earlier and Pluto channels don't play at all, run `docker compose up -d --force-recreate web` so the web server picks up its new settings.
+
+### Sound is choppy on some channels
+
+Most streams, Pluto TV's included, have 48 kHz sound. If the device's sound output is set to another rate, such as 44.1 kHz, Kodi converts it as it plays, and on some devices that comes out choppy. Set the output to 48 kHz, in Kodi's audio settings (*Settings → System → Audio*) or in the device's own sound settings.
+
 ### Changes don't show up
 
 kia applies changes to your playlists and settings at its next run, and Kodi picks them up within two hours (its refresh interval) or when it restarts. To do both now, see [when changes take effect](configuration.md#when-changes-take-effect).
@@ -118,6 +133,7 @@ A run usually takes 15 minutes to an hour, depending on how many playlists you'v
 - `run_failed`: see [the refresh failed](#the-status-page-says-the-refresh-failed).
 - `channels_drop`: open `report.html`. If one playlist accounts for most of the drop, it probably broke upstream; it often comes back within days. If streams from every playlist failed, the internet connection probably had trouble during the run.
 - `guide_drop`: open `guide-report.html` to see which site lost channels. A site that stays broken can be skipped with `KIA_EXCLUDE_SITES`.
+- `pluto_fallback`: kia couldn't open a Pluto session of its own for a while, so Pluto channels are playing without kia's fix and may freeze at ad breaks. kia tries again every five minutes and goes back to its own session when Pluto lets it. The Pluto TV section on the Details page shows the errors.
 - `site_failing`: the alert names the site and its log file under `work/logs/`. If the site stays broken, add it to `KIA_EXCLUDE_SITES`; its channels use other sites where they can.
 
 ## Still stuck?

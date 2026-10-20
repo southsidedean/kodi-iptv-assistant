@@ -9,6 +9,7 @@ The examples use `192.168.1.20` for the kia machine; use yours.
 | Address | What it is |
 |---|---|
 | `http://192.168.1.20:8780/status.json` | Whether kia is working, the channel counts, alerts, playlists, the certificate, and the settings. Its fields are listed in [how it works](how-it-works.md#statusjson). |
+| `http://192.168.1.20:8780/pluto.json` | The Pluto TV channels playing through kia right now, with their sessions and recent problems. Its fields are listed in [how it works](how-it-works.md#plutojson). |
 | `http://192.168.1.20:8780/profiles.json` | Each profile's `name`, `title`, playlist `file`, its own `guide` file, and `tv` and `radio` counts, plus `error` when the profiles file has a mistake |
 | `http://192.168.1.20:8780/curated.m3u` | The full playlist |
 | `http://192.168.1.20:8780/<name>.m3u` | A profile's playlist |
@@ -16,6 +17,7 @@ The examples use `192.168.1.20` for the kia machine; use yours.
 | `http://192.168.1.20:8780/<name>.guide.xml.gz` | A profile's guide, with only its channels |
 | `http://192.168.1.20:8780/guide-preview.json` | The next 14 hours of listings, for "On now": `generated` (when), and `channels`, each channel's ID with a list of `[start, stop, title]` (start and stop in Unix time). Channels without listings are left out. |
 | `http://192.168.1.20:8780/report.json` | Every stream from the last check, with its result |
+| `http://192.168.1.20:8780/pluto/<id>.m3u8` | A Pluto TV channel, played through kia ([Pluto TV](how-it-works.md#pluto-tv)). This is for players; the playlist has these addresses. |
 
 A file changes only when kia finishes writing it, so a script never reads half of one.
 

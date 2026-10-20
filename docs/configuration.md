@@ -28,6 +28,7 @@ To see the settings kia is running with, open **Details** on the status page, or
 | `KIA_TLS_NAMES` | the host in `KIA_PUBLIC_URL` | Names and addresses the certificate covers, comma-separated, e.g. `kia.home.lan,192.168.1.20`. The status page links to the first. |
 | `KIA_ADMIN_PASSWORD` | made by kia | The password for making changes on the status page. When it's empty, kia makes one and saves it in `state/admin-password.txt`, and you can change it on the status page. |
 | `KIA_EDITING` | true | `false` turns off changes from the status page. |
+| `KIA_PLUTO_RELAY` | true | Pluto TV channels play through kia, so they keep going across ad breaks. `false` gives players Pluto's own links, which freeze or jump back at breaks in most players. See [Pluto TV](how-it-works.md#pluto-tv). |
 | `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. |
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |
@@ -99,7 +100,7 @@ docker compose up -d
 
 To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions into it. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, and an exact image in `KIA_NODE_IMAGE` or `KIA_NGINX_IMAGE`, e.g. `node:22.23.3-alpine3.24` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). An image can also be pinned by digest, e.g. `nginx:alpine@sha256:...`. Pinned versions don't receive fixes until you change them.
 
-Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, and `vendor/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, where it can't change kia itself, your settings, or anything else on the computer. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
+Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, and `tls/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, where it can't change kia itself, your settings, or anything else on the computer. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
 
 ## `kia.toml`
 
@@ -112,3 +113,4 @@ Each setting is explained by a comment in the file. The sections:
 - `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`. See [alerts](alerts.md).
 - `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `site_connections`, `site_delay_ms`, `site_time_limit`, `accept_name_matches`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `playlist_guides`, `git_url`, `git_ref`, `runner`.
 - `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.
+- `[pluto]`: `relay`, the same as `KIA_PLUTO_RELAY` above.

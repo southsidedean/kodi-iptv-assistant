@@ -33,6 +33,7 @@ services:
       KIA_NTFY_URL: ${KIA_NTFY_URL:-}
       KIA_ALERT_COMMAND: ${KIA_ALERT_COMMAND:-}
       KIA_ALERT_EVENTS: ${KIA_ALERT_EVENTS:-}
+      KIA_PLUTO_RELAY: ${KIA_PLUTO_RELAY:-}
       # Optional; empty means use the setting in kia.toml.
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
@@ -49,7 +50,7 @@ services:
       KIA_EDITING: ${KIA_EDITING:-}
       KIA_HTTPS_PORT: ${KIA_HTTPS_PORT:-8743}
       KIA_TLS_NAMES: ${KIA_TLS_NAMES:-}
-      # nginx forwards /api/ to this port (not published).
+      # nginx forwards /api/ and /pluto/ to this port (not published).
       KIA_API_PORT: "8781"
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}

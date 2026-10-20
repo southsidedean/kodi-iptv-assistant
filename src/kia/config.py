@@ -97,6 +97,8 @@ class Config:
     history_days: int = 30
     upstream_url: str | None = None
     upstream_fallback: str = "grab"
+    # Pluto TV channels play through kia (kia.pluto), so they keep going across ad breaks.
+    pluto_relay: bool = True
     epg: EpgConfig = field(default_factory=EpgConfig)
 
 
@@ -203,6 +205,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         history_days=check.get("history_days", 30),
         upstream_url=_upstream_url(data.get("upstream", {})),
         upstream_fallback=_upstream_fallback(data.get("upstream", {})),
+        pluto_relay=env_bool("KIA_PLUTO_RELAY", data.get("pluto", {}).get("relay", True)),
         dns_resolvers=tuple(data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
         epg=_load_epg(data.get("epg", {}), base),
     )

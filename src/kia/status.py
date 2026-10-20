@@ -8,6 +8,7 @@ run starts or ends and whenever the playlist or guide changes.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -24,6 +25,7 @@ FILES = [
     ("report.html", "Stream check: working, flaky, and dead streams"),
     ("guide-report.html", "Guide coverage by channel and site"),
     ("mapping-report.html", "Which guide sites match which channels, including matches by name to check"),
+    ("pluto.json", "Pluto TV channels playing through kia right now"),
 ]
 PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
 DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
@@ -98,8 +100,19 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "profiles_error": _load(output_dir / "profiles.json").get("error"),
         "secure": _load(state_dir / "secure.json"),
         "settings": _load(state_dir / "settings.json").get("sections", []),
+        "pluto_channels": _pluto_channels(entries),
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
+
+
+def _pluto_channels(entries: list) -> dict[str, str]:
+    """Pluto channel id -> name, for channels the playlist plays through kia."""
+    out = {}
+    for e in entries:
+        m = re.search(r"/pluto/([0-9a-f]{24})\.m3u8$", e.url)
+        if m:
+            out[m.group(1)] = e.name
+    return out
 
 
 def _profiles(output_dir: Path, public_url: str | None) -> list[dict]:
@@ -307,6 +320,71 @@ def _settings_card(s: dict) -> str:
     )
 
 
+def _pluto_card(s: dict) -> str:
+    """Pluto TV channels playing through kia right now (kia.pluto); filled in from pluto.json."""
+    names = s.get("pluto_channels") or {}
+    if not names:
+        return ""
+    return (
+        f'<section class="card" id="pluto" data-names="{escape(json.dumps(names))}"><h2>Pluto TV</h2>'
+        f"<p>Your playlists have {len(names):,} Pluto TV channels. They play through kia, which keeps them going "
+        "across ad breaks. Channels show up here while someone's watching them. "
+        f'<a href="{escape(DOCS_URL)}/troubleshooting.md#pluto-tv-channels-freeze-or-jump-at-ad-breaks">More about this</a>.</p>'
+        '<p class="pluto-note bad-note" hidden></p>'
+        '<p class="pluto-idle muted">Nothing playing right now.</p>'
+        '<div class="wide"><table class="settings pluto-table" hidden><thead><tr><th>Channel</th><th>Session</th>'
+        "<th>Today</th></tr></thead><tbody></tbody></table></div>"
+        '<h3 class="pluto-problems-title" hidden>Recent problems</h3><ul class="alerts pluto-problems" hidden></ul>'
+        "</section>"
+    )
+
+
+def _pluto_warning(s: dict) -> str:
+    """A line on the home page, shown (by PLUTO_SCRIPT) only when kia's fix isn't working."""
+    if not s.get("pluto_channels"):
+        return ""
+    return (
+        '<section class="card" id="pluto-warning" hidden><p class="bad-note"></p></section>'
+    )
+
+
+PLUTO_SCRIPT = """
+<script>
+(function () {
+  var card = document.getElementById("pluto"), warn = document.getElementById("pluto-warning");
+  if (!card && !warn) return;
+  var names = card ? JSON.parse(card.dataset.names || "{}") : {};
+  function el(tag, text) { var e = document.createElement(tag); e.textContent = text; return e; }
+  function when(iso) { var d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"}); }
+  fetch("pluto.json", { cache: "no-cache" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (p) {
+    if (!p) return;
+    var trouble = p.suspicious ? "Pluto has flagged kia's sessions as suspicious, so Pluto channels may misbehave."
+      : p.fallback ? "Pluto channels are playing without kia's fix, so they may freeze at ad breaks. kia keeps trying."
+      : "";
+    if (warn && trouble) { warn.querySelector("p").textContent = trouble + " See Details."; warn.hidden = false; }
+    if (!card) return;
+    var note = card.querySelector(".pluto-note");
+    if (trouble) { note.textContent = trouble; note.hidden = false; }
+    var rows = card.querySelector("tbody"), problems = card.querySelector(".pluto-problems");
+    (p.channels || []).forEach(function (c) {
+      var tr = document.createElement("tr");
+      var who = c.viewers === 1 ? "1 viewer" : c.viewers + " viewers";
+      tr.appendChild(el("td", (names[c.id] || c.id) + " (" + who + ")"));
+      var session = !c.own_session ? "plain jmp2.uk link for " + c.fallback_minutes + " min"
+        : "kia's own, " + c.session_hours + " h old" + (c.next_refresh_hours !== null ? ", fresh one in " + c.next_refresh_hours + " h" : "");
+      tr.appendChild(el("td", session + (c.suspicious ? ", flagged by Pluto" : "")));
+      tr.appendChild(el("td", c.rewinds + " rewinds caught, " + c.sessions + " sessions, " + c.errors + " errors, " + c.fallbacks + " fallbacks"));
+      rows.appendChild(tr);
+      (c.problems || []).forEach(function (x) { problems.appendChild(el("li", when(x.time) + ", " + (names[c.id] || c.id) + ": " + x.text)); });
+    });
+    if (rows.children.length) { card.querySelector(".pluto-table").hidden = false; card.querySelector(".pluto-idle").hidden = true; }
+    if (problems.children.length) { problems.hidden = false; card.querySelector(".pluto-problems-title").hidden = false; }
+  });
+})();
+</script>
+"""
+
+
 def _footer(s: dict, root: str = "") -> str:
     return (
         f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
@@ -342,8 +420,11 @@ def render_html(s: dict) -> str:
         "<span>how much of the guide is filled in, which playlists' streams work, and the full reports</span></li>"
         "</ul></section>"
     )
-    body = f'<main>{_banner(s)}{tiles}{alerts}{_playlists_card(s)}<div class="pair">{more}{_help_card()}</div></main>'
-    return page("kia status", body, _footer(s), COPY_SCRIPT + editor.SCRIPT, editor.STYLE)
+    body = (
+        f'<main>{_banner(s)}{_pluto_warning(s)}{tiles}{alerts}{_playlists_card(s)}'
+        f'<div class="pair">{more}{_help_card()}</div></main>'
+    )
+    return page("kia status", body, _footer(s), COPY_SCRIPT + editor.SCRIPT + PLUTO_SCRIPT, editor.STYLE)
 
 
 def render_details(s: dict) -> str:
@@ -383,9 +464,9 @@ def render_details(s: dict) -> str:
     )
     body = (
         f'<main><h1>Details</h1>{guide}{sources}<div class="pair">{_secure_card(s)}{editing}</div>'
-        f'<div class="pair">{reports}{_help_card()}</div>{_settings_card(s)}</main>'
+        f'<div class="pair">{reports}{_help_card()}</div>{_pluto_card(s)}{_settings_card(s)}</main>'
     )
-    return page("kia details", body, _footer(s), editor.PASSWORD_SCRIPT, editor.STYLE)
+    return page("kia details", body, _footer(s), editor.PASSWORD_SCRIPT + PLUTO_SCRIPT, editor.STYLE)
 
 
 def render_playlist(s: dict, pl: dict, entries: list) -> str:

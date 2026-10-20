@@ -13,6 +13,7 @@ Alerts are off until you choose where to send them. Until then they're written t
 | `channels_drop` | yes | Working channels fell sharply since the last run (25% by default). Usually a playlist that broke upstream or a bad internet connection during the run. |
 | `guide_drop` | yes | Channels with guide data fell sharply. A major guide source probably broke. |
 | `site_failing` | yes | One guide site failed 3 runs in a row. You hear about it once per streak, not every night. |
+| `pluto_fallback` | no | kia couldn't open a session of its own with Pluto TV for 5 minutes, so a Pluto channel is playing without kia's fix and may freeze at ad breaks. You hear about each channel at most once an hour. |
 | `daily_summary` | no | A short "all done" message after each run, e.g. "1174 working channels, 541 with guide data". It's handy at first, to see that everything works. |
 
 If you remove playlists or exclude guide sites yourself, the next run may report a drop. That's expected, and the message says so. What to do about each alert is in [troubleshooting](troubleshooting.md#alerts).
@@ -32,7 +33,7 @@ If you remove playlists or exclude guide sites yourself, the next run may report
 
 The test notification should arrive on your phone within a few seconds. DNS and failed-run alerts arrive as high priority.
 
-Alert messages contain only host names and counts. If you'd rather not use the public ntfy server, you can [run your own](https://docs.ntfy.sh/install/) and point `KIA_NTFY_URL` at it.
+Alert messages contain only host names, channel IDs, and counts. If you'd rather not use the public ntfy server, you can [run your own](https://docs.ntfy.sh/install/) and point `KIA_NTFY_URL` at it.
 
 ## Other ways to be notified
 

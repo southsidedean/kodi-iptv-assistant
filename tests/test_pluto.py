@@ -1,0 +1,248 @@
+import json
+import shutil
+import subprocess
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+
+from kia import pluto, serve
+from kia.m3u import Entry
+
+CID = "66ba495ffe11e5000881f049"
+T0 = datetime(2026, 10, 20, 18, 0, tzinfo=timezone.utc)
+SHOW = "https://siloh.pluto.tv/clip/63d1a7cb662ef90014db1315_x/1080p/{part}/hls/video/seg_{n:05d}.ts"
+AD = "https://siloh.pluto.tv/v1/p(2_ad/creative/6abec2e1ac612a761b08e646_ad/video.mp4)/frag({n})/sign/v1/{sig}=/1.ts"
+KEY = "https://siloh.pluto.tv/clip/63d1a7cb662ef90014db1315_x/1080p/{part}/hls/seg_keyfile_0.key"
+
+
+def media(pieces: list[tuple[float, str]], seq: int = 0, key: str | None = None) -> str:
+    """A Pluto media playlist: (seconds after T0, address) for each piece, 5 s each."""
+    lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:5", f"#EXT-X-MEDIA-SEQUENCE:{seq}"]
+    for at, uri in pieces:
+        pdt = (T0 + timedelta(seconds=at)).isoformat().replace("+00:00", "Z")
+        lines.append(f"#EXT-X-PROGRAM-DATE-TIME:{pdt}")
+        if key:
+            lines.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{key}",IV=0x00000000000000000000000000000063')
+        lines += ["#EXTINF:5,", uri]
+    return "\n".join(lines) + "\n"
+
+
+class FakePluto:
+    """Answers kia's requests the way Pluto does; `playlists` is what the stream sends next."""
+
+    def __init__(self, playlists: list[str], boot_works: bool = True):
+        self.playlists = list(playlists)
+        self.boot_works = boot_works
+        self.boots = 0
+        self.asked: list[str] = []
+
+    def __call__(self, url: str):
+        self.asked.append(url)
+        if url.startswith("https://boot.pluto.tv/"):
+            if not self.boot_works:
+                raise urllib.error.URLError("boot is down")
+            self.boots += 1
+            body = {"servers": {"stitcher": "https://stitcher.pluto.tv"}, "stitcherParams": "a=1",
+                    "sessionToken": f"token{self.boots}", "refreshInSec": 28800, "isSuspicious": False}  # fmt: skip
+            return url, json.dumps(body).encode()
+        if url.endswith("high.m3u8"):
+            text = self.playlists.pop(0) if len(self.playlists) > 1 else self.playlists[0]
+            return url, text.encode()
+        if "master.m3u8" in url or url.startswith("https://jmp2.uk/"):
+            return url, b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=300\nlow.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2400\nhigh.m3u8\n"
+        if url.endswith(".key"):
+            return url, bytes(range(16))
+        return url, b"piece:" + url.encode()
+
+
+def relay(fake: FakePluto, tmp_path: Path | None = None):
+    calls = []
+
+    def fake_remux(body, key, iv, dur, t0):
+        calls.append({"body": body, "key": key, "iv": iv, "dur": dur, "t0": t0})
+        return b"TS" + body
+
+    r = pluto.Relay(tmp_path / "pluto.json" if tmp_path else None, log=lambda m: None, fetcher=fake, remux_fn=fake_remux)
+    return r, calls
+
+
+def look(r: pluto.Relay) -> str:
+    ch = r.channel(CID)
+    ch.last_fetch = 0.0  # don't wait between looks
+    return ch.playlist()
+
+
+def numbers(playlist: str) -> list[str]:
+    return [line for line in playlist.splitlines() if line.endswith(".ts")]
+
+
+def test_pluto_channels_point_at_kia():
+    entries = [
+        Entry("Frasier", f"https://jmp2.uk/plu-{CID}.m3u8", {"tvg-id": "Frasier.us"}, vlcopts={"http-user-agent": "x"}),
+        Entry("Other", "https://example.com/live.m3u8"),
+        Entry("Stitcher", f"https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/{CID}/master.m3u8"),
+    ]
+    out = pluto.for_players(entries, "http://192.168.1.20:8780")
+    assert out[0].url == f"http://192.168.1.20:8780/pluto/{CID}.m3u8" and out[0].vlcopts == {}
+    assert out[0].attrs == {"tvg-id": "Frasier.us"}
+    assert out[1].url == "https://example.com/live.m3u8"
+    assert out[2].url.endswith(f"/pluto/{CID}.m3u8")
+    assert entries[0].url.startswith("https://jmp2.uk/")  # the originals are left alone
+    assert pluto.for_players(entries, None) == entries  # no address to point at
+
+
+def test_steady_numbers_and_one_clock_when_pluto_jumps():
+    part = "162136-698541"
+    fake = FakePluto([
+        media([(0, SHOW.format(part=part, n=0)), (5, SHOW.format(part=part, n=1))], seq=40),
+        media([(5, SHOW.format(part=part, n=1)), (10, SHOW.format(part=part, n=2))], seq=1234),  # garbage
+        media([(10, SHOW.format(part=part, n=2)), (15, AD.format(n=960, sig="a"))], seq=7),
+    ])  # fmt: skip
+    r, calls = relay(fake)
+    first = look(r)
+    assert "#EXT-X-MEDIA-SEQUENCE:0" in first and numbers(first) == [f"{CID}/0.ts", f"{CID}/1.ts"]
+    look(r)
+    last = look(r)
+    assert numbers(last) == [f"{CID}/{n}.ts" for n in range(4)]
+    assert "#EXT-X-KEY" not in last and "#EXT-X-DISCONTINUITY" not in last
+    ch = r.channel(CID)
+    assert [p.t0 for p in ch.pieces] == [10.0, 15.0, 20.0, 25.0]
+    assert ch.pieces[3].clip != ch.pieces[2].clip  # the ad is its own clip
+
+
+def test_repeats_and_rewinds_are_held_back_but_new_parts_play(monkeypatch):
+    monkeypatch.setattr(pluto, "SESSION_GAP", -1)
+    a, b = "162136-698541", "698541-901233"
+    fake = FakePluto([
+        media([(0, SHOW.format(part=a, n=60)), (5, SHOW.format(part=a, n=61))]),
+        # Pluto goes back into the part it already sent...
+        media([(10, SHOW.format(part=a, n=3)), (15, SHOW.format(part=a, n=4))]),
+        # ...then the next part of the show, which starts again from 0.
+        media([(20, SHOW.format(part=b, n=0)), (25, SHOW.format(part=b, n=1))]),
+    ])  # fmt: skip
+    r, _ = relay(fake)
+    look(r)
+    assert len(numbers(look(r))) == 2  # nothing from the rewind
+    ch = r.channel(CID)
+    assert ch.stats.rewinds == 1 and fake.boots == 2  # and kia asked for a fresh session
+    assert len(numbers(look(r))) == 4
+    assert [p.pos for p in ch.pieces] == [60, 61, 0, 1]
+
+
+def test_the_same_piece_twice_is_dropped():
+    fake = FakePluto([media([(0, AD.format(n=960, sig="a")), (3, AD.format(n=960, sig="b")), (5, AD.format(n=1383, sig="c"))])])
+    r, _ = relay(fake)
+    assert len(numbers(look(r))) == 2
+
+
+def test_long_rewind_plays_after_the_hold(monkeypatch):
+    a = "162136-698541"
+    fake = FakePluto([
+        media([(0, SHOW.format(part=a, n=60))]),
+        media([(5, SHOW.format(part=a, n=3))]),
+        media([(10, SHOW.format(part=a, n=4))]),
+    ])  # fmt: skip
+    r, _ = relay(fake)
+    look(r)
+    look(r)
+    monkeypatch.setattr(pluto, "HOLD_LIMIT", -1)  # held long enough
+    assert len(numbers(look(r))) == 2
+    assert any("kept going back" in p["text"] for p in r.channel(CID).stats.problems)
+
+
+def test_pieces_are_decrypted_once_for_every_viewer():
+    part = "162136-698541"
+    fake = FakePluto([media([(0, SHOW.format(part=part, n=0))], seq=99, key=KEY.format(part=part))])
+    r, calls = relay(fake)
+    look(r)
+    status, kind, body = r.handle(f"/pluto/{CID}/0.ts", "192.168.1.30")
+    assert status == 200 and kind == "video/mp2t" and body.startswith(b"TSpiece:")
+    r.handle(f"/pluto/{CID}/0.ts", "192.168.1.31")
+    assert len(calls) == 1
+    assert calls[0]["key"] == bytes(range(16)).hex() and calls[0]["iv"] == "0" * 30 + "63"
+    assert calls[0]["t0"] == pluto.START and calls[0]["dur"] == 5.0
+    assert r.status()["channels"][0]["viewers"] == 2
+
+
+def test_no_iv_means_the_sequence_number():
+    lines = media([(0, SHOW.format(part="p", n=0))], seq=0x2A, key="k.key").replace(",IV=0x00000000000000000000000000000063", "")
+    fake = FakePluto([lines])
+    r, calls = relay(fake)
+    look(r)
+    r.handle(f"/pluto/{CID}/0.ts", "x")
+    assert calls[0]["iv"] == f"{0x2A:032x}"
+
+
+def test_not_a_playlist_means_a_new_session():
+    good = media([(0, SHOW.format(part="p", n=0))])
+    fake = FakePluto(["<html>session expired</html>", good])
+    r, _ = relay(fake)
+    assert len(numbers(look(r))) == 1
+    assert fake.boots == 2
+
+
+def test_falls_back_to_jmp2_when_pluto_wont_open_a_session(tmp_path: Path):
+    fake = FakePluto([media([(0, SHOW.format(part="p", n=0))])], boot_works=False)
+    r, _ = relay(fake, tmp_path)
+    status, _, _ = r.handle(f"/pluto/{CID}.m3u8", "x")
+    assert status == 200
+    ch = r.channel(CID)
+    assert not ch.session.own and ch.stats.fallbacks == 1
+    assert any(u.startswith(f"https://jmp2.uk/plu-{CID}") for u in fake.asked)
+    r.save_status(force=True)
+    saved = json.loads((tmp_path / "pluto.json").read_text())
+    assert saved["channels"][0]["own_session"] is False
+    assert "jmp2.uk" in saved["channels"][0]["problems"][0]["text"]
+
+
+def test_bad_addresses_and_pluto_down():
+    r, _ = relay(FakePluto([""], boot_works=False))
+    assert r.handle("/pluto/nope.m3u8", "x")[0] == 404
+    assert r.handle(f"/pluto/{CID}/5.ts", "x")[0] == 404  # nothing to play yet
+    r2, _ = relay(FakePluto([""], boot_works=False))
+    r2.fetcher = lambda url: (_ for _ in ()).throw(urllib.error.URLError("down"))
+    assert r2.handle(f"/pluto/{CID}.m3u8", "x")[0] == 502
+
+
+def test_idle_channels_are_let_go(monkeypatch):
+    r, _ = relay(FakePluto([media([(0, SHOW.format(part="p", n=0))])]))
+    look(r)
+    monkeypatch.setattr(pluto, "IDLE_AFTER", -1)
+    assert r.status()["channels"] == []
+
+
+def test_server_answers_pluto_addresses(tmp_path: Path):
+    r, _ = relay(FakePluto([media([(0, SHOW.format(part="p", n=0))])]))
+    srv = serve.serve_in_background(tmp_path / "www", "127.0.0.1", 0, relay=r)
+    try:
+        url = f"http://127.0.0.1:{srv.server_address[1]}/pluto/{CID}.m3u8"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            assert resp.headers.get_content_type() == "application/vnd.apple.mpegurl"
+            assert f"{CID}/0.ts" in resp.read().decode()
+    finally:
+        srv.shutdown()
+
+
+needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe") and shutil.which("openssl")),
+                                  reason="needs ffmpeg, ffprobe and openssl")  # fmt: skip
+
+
+@needs_ffmpeg
+def test_remux_decrypts_and_moves_the_clock(tmp_path: Path):
+    clip = tmp_path / "clip.ts"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=30", "-f", "lavfi",
+                    "-i", "sine=frequency=440", "-t", "3", "-c:v", "libx264", "-c:a", "aac", "-output_ts_offset", "40",
+                    "-f", "mpegts", str(clip)], check=True)  # fmt: skip
+    key, iv = "000102030405060708090a0b0c0d0e0f", "0" * 30 + "63"
+    enc = subprocess.run(["openssl", "enc", "-aes-128-cbc", "-K", key, "-iv", iv, "-in", str(clip)],
+                         check=True, capture_output=True).stdout  # fmt: skip
+    out = tmp_path / "out.ts"
+    out.write_bytes(pluto.remux(enc, key, iv, 2.0, 100.0))
+    v, a = pluto.probe_start(str(out), None, iv)
+    assert abs(v - 100.0) < 0.05 and abs(a - 100.0) < 0.1
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
+                           capture_output=True, text=True).stdout  # fmt: skip
+    assert float(probe) < 2.5  # cut back to the listed length

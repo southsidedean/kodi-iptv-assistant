@@ -212,3 +212,11 @@ runner = "docker"
 
 # If the home server can't be reached: "grab" the guide here, or reuse the "cached" copy.
 fallback = "grab"
+
+
+[pluto]
+# Pluto TV channels play through kia, which keeps them going across ad breaks; without
+# it, most players freeze or jump back at a break. kia opens its own Pluto session for
+# each channel being watched and hands players a steady stream. See docs/how-it-works.md.
+# .env: KIA_PLUTO_RELAY
+relay = true

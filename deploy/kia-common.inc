@@ -27,3 +27,14 @@ location ~ \.md$ {
     types { }
     default_type "text/plain; charset=utf-8";
 }
+
+# Pluto TV channels play through kia (kia.pluto), so they keep going across ad breaks.
+# ^~ so the .m3u8 rule above doesn't take these addresses. Port 8781 isn't published.
+location ^~ /pluto/ {
+    resolver 127.0.0.11 valid=10s;
+    set $kia http://kia:8781;
+    proxy_pass $kia;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_read_timeout 60s;
+}
