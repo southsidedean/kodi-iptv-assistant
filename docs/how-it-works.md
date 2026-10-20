@@ -50,7 +50,7 @@ With an upstream server (`KIA_UPSTREAM_URL`), kia skips steps 2 and 3: it downlo
 
 `http://<your address>:8780/` shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button, and links to these docs. kia updates the page when a run starts and ends, and when you save a profile.
 
-Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide. The times are in your device's time zone. A profile's page also has **Edit this playlist**. The **Details** page has the guide coverage, how each source playlist's streams are doing, and the full reports.
+Each playlist has its own page with its playlist and guide addresses and a list of its channels, with their numbers and categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide. The times are in your device's time zone. A profile's page also has **Edit this playlist**. The **Details** page has the guide coverage, how each source playlist's streams are doing, the full reports, and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
 ![kia's status page showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
@@ -84,6 +84,7 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `profiles` | Each [profile](profiles.md) playlist: `name`, `title`, `file`, `tv` and `radio` counts, its `url`, and its own `guide` file |
 | `profiles_error` | The mistake in the profiles file, if it has one |
 | `secure` | The [secure status page](secure-page.md): its `url`, and its certificate (`tls`: `names`, `expires`, `issuer`, whether kia `generated` it, and whether its key matches) |
+| `settings` | The settings kia is running with, in sections (`title`, `rows`), each row with its `name`, `value`, and where to `change` it. Secrets show only `set` or `not set`. |
 | `files` | The files in the output folder |
 | `version` | kia's version |
 

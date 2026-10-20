@@ -97,6 +97,7 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "profiles": _profiles(output_dir, public_url),
         "profiles_error": _load(output_dir / "profiles.json").get("error"),
         "secure": _load(state_dir / "secure.json"),
+        "settings": _load(state_dir / "settings.json").get("sections", []),
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
 
@@ -283,6 +284,29 @@ def _secure_card(s: dict) -> str:
     )
 
 
+def _settings_card(s: dict) -> str:
+    """The settings kia is running with (kia.settings), read only."""
+    if not s.get("settings"):
+        return ""
+    groups = "".join(
+        f"<h3>{escape(sec['title'])}</h3><table class=\"settings\"><tbody>"
+        + "".join(
+            f"<tr><td>{escape(r['name'])}</td><td>{escape(r['value'])}</td><td class=\"muted\">{escape(r['change'])}</td></tr>"
+            for r in sec["rows"]
+        )
+        + "</tbody></table>"
+        for sec in s["settings"]
+    )
+    return (
+        '<section class="card" id="settings"><h2>Settings</h2>'
+        "<p>What kia is running with, and where to change each setting: in <code>.env</code> or "
+        "<code>kia.toml</code> in the kia folder, then restart kia. "
+        f'<a href="{escape(DOCS_URL)}/configuration.md">Configuration</a> explains them all. '
+        "Passwords and alert addresses only show whether they're set.</p>"
+        f'<div class="wide">{groups}</div></section>'
+    )
+
+
 def _footer(s: dict, root: str = "") -> str:
     return (
         f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
@@ -359,7 +383,7 @@ def render_details(s: dict) -> str:
     )
     body = (
         f'<main><h1>Details</h1>{guide}{sources}<div class="pair">{_secure_card(s)}{editing}</div>'
-        f'<div class="pair">{reports}{_help_card()}</div></main>'
+        f'<div class="pair">{reports}{_help_card()}</div>{_settings_card(s)}</main>'
     )
     return page("kia details", body, _footer(s), editor.PASSWORD_SCRIPT, editor.STYLE)
 

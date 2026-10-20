@@ -1,0 +1,127 @@
+"""The settings kia is running with, for the status page's Details and `kia settings`.
+
+Read only: settings are changed in .env and kia.toml, never from the web. Anything
+secret (the password, the ntfy address, the alert command) shows only whether it's set.
+"""
+
+from __future__ import annotations
+
+import os
+from datetime import datetime
+
+from kia import auth
+from kia.config import Config
+
+# Where each setting is changed: its .env name if it has one, else its place in kia.toml.
+ENV = ".env: "
+TOML = "kia.toml: "
+
+
+def _yes(value: bool) -> str:
+    return "on" if value else "off"
+
+
+def _list(items: list[str] | tuple[str, ...]) -> str:
+    return ", ".join(items) if items else "none"
+
+
+def _set(value: object) -> str:
+    return "set" if value else "not set"
+
+
+def _password(cfg: Config) -> str:
+    source = auth.from_env(cfg.state_dir).source
+    return {
+        "off": "editing is off",
+        "env": "your own, from .env",
+        "generated": "made by kia, in state/admin-password.txt",
+        "set": "changed on the status page",
+    }.get(source, source)
+
+
+def _time_zone() -> str:
+    name = os.environ.get("TZ") or ""
+    abbr = datetime.now().astimezone().tzname() or ""
+    return f"{name} ({abbr})" if name and abbr and name != abbr else name or abbr or "unknown"
+
+
+def describe(cfg: Config, run_at: str | None = None, guide_every: float | None = None) -> list[dict]:
+    """Sections of {name, value, change} rows. run_at and guide_every come from the
+    daemon (None when kia isn't running as one)."""
+    e = cfg.epg
+    a = cfg.alerts
+    every = "off" if guide_every == 0 else f"every {guide_every:g} hours" if guide_every else None
+    sections = [
+        ("Schedule", [
+            ("Nightly refresh", run_at or "not running on a schedule", ENV + "KIA_RUN_AT"),
+            ("Quick guide refresh", every or "-", ENV + "KIA_GUIDE_REFRESH_HOURS"),
+            ("Time zone", _time_zone(), ENV + "TZ"),
+        ]),
+        ("Addresses", [
+            ("Status page and playlists", cfg.public_url or "not set", ENV + "KIA_PUBLIC_URL"),
+            ("Secure page port", str(cfg.https_port), ENV + "KIA_HTTPS_PORT"),
+            ("Certificate names", _list(cfg.tls_names) if cfg.tls_names else "the host in KIA_PUBLIC_URL",
+             ENV + "KIA_TLS_NAMES"),
+            ("Password for changes", _password(cfg), ENV + "KIA_ADMIN_PASSWORD"),
+        ]),
+        ("Playlists", [
+            ("Sources", f"{len(cfg.sources)}: {_list([s.name for s in cfg.sources])}", ENV + "KIA_SOURCES_FILE"),
+            ("Profiles file", _relative(cfg, cfg.profiles_file), ENV + "KIA_PROFILES_FILE"),
+            ("Left-out categories", _list(cfg.exclude_groups), ENV + "KIA_EXCLUDE_GROUPS"),
+            ("Left-out name tags", _list(cfg.exclude_labels), TOML + "[filters] exclude_labels"),
+            ("Channel numbers", _yes(cfg.channel_numbers), TOML + "[output] channel_numbers"),
+            ("Join duplicate channels", _yes(cfg.merge_duplicates), TOML + "[check] merge_duplicates"),
+        ]),
+        ("Stream check", [
+            ("Streams tested at once", str(cfg.concurrency), ENV + "KIA_CHECK_CONCURRENCY"),
+            ("Seconds per stream", f"{cfg.timeout:g}", TOML + "[check] timeout"),
+            ("TV needs video", _yes(cfg.require_video), TOML + "[check] require_video"),
+            ("Failed checks before a stream is dropped", str(cfg.grace_failures + 1), TOML + "[check] grace_failures"),
+            ("Identifies as", cfg.user_agent or "ffmpeg", TOML + "[check] user_agent"),
+        ]),
+        ("Guide", [
+            ("Days of guide", str(e.days), ENV + "KIA_EPG_DAYS"),
+            ("Sites downloaded at once", str(e.parallel_sites), ENV + "KIA_PARALLEL_SITES"),
+            ("Skipped sites", _list(e.exclude_sites), ENV + "KIA_EXCLUDE_SITES"),
+            ("Preferred sites", _list(e.prefer_sites), TOML + "[epg] prefer_sites"),
+            ("Channel name where there's no guide", _yes(e.placeholders), ENV + "KIA_PLACEHOLDERS"),
+            ("The same for radio", _yes(e.radio_placeholders), ENV + "KIA_RADIO_PLACEHOLDERS"),
+            ("Match channels by name", _yes(e.name_matching), TOML + "[epg] name_matching"),
+            ("Use playlists' own guides", _yes(e.playlist_guides), TOML + "[epg] playlist_guides"),
+            ("Time limit per site", f"{e.site_time_limit} min" if e.site_time_limit else "none",
+             TOML + "[epg] site_time_limit"),
+            ("Guide from another kia server", cfg.upstream_url or "no", ENV + "KIA_UPSTREAM_URL"),
+            ("iptv-org/epg version", e.git_ref, ENV + "KIA_EPG_GIT_REF"),
+        ]),
+        ("Alerts", [
+            ("ntfy address", _set(a.ntfy_url), ENV + "KIA_NTFY_URL"),
+            ("Alert command", _set(a.command), ENV + "KIA_ALERT_COMMAND"),
+            ("Events", _list(a.events), ENV + "KIA_ALERT_EVENTS"),
+        ]),
+    ]  # fmt: skip
+    if cfg.upstream_url:
+        sections[4][1].append(("If that server is unreachable", cfg.upstream_fallback, ENV + "KIA_UPSTREAM_FALLBACK"))
+    return [
+        {"title": title, "rows": [{"name": n, "value": v, "change": c} for n, v, c in rows]}
+        for title, rows in sections
+    ]
+
+
+def _relative(cfg: Config, path) -> str:
+    if path is None:
+        return "none"
+    try:
+        return str(path.relative_to(cfg.output_dir.parent))
+    except ValueError:
+        return str(path)
+
+
+def as_text(sections: list[dict]) -> str:
+    """`kia settings`: the same, for a terminal."""
+    width = max(len(r["name"]) for s in sections for r in s["rows"])
+    lines = []
+    for s in sections:
+        lines.append(s["title"])
+        lines += [f"  {r['name']:<{width}}  {r['value']}   ({r['change']})" for r in s["rows"]]
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
