@@ -152,3 +152,34 @@ def test_guide_preview(tmp_path: Path):
     page = status.render_playlist(status.collect(tmp_path, tmp_path, {}, None), status._playlists(
         status.collect(tmp_path, tmp_path, {}, None))[0], [Entry("A", "http://a", {"tvg-id": "A.us", "tvg-chno": "1"})])
     assert 'data-id="A.us"' in page and "guide-preview.json" in page and 'data-view="timeline"' in page
+
+
+def test_settings_on_details_hide_secrets(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.setenv("KIA_NTFY_URL", "https://ntfy.sh/very-secret-topic")
+    monkeypatch.setenv("KIA_ALERT_COMMAND", "curl https://hooks.example/secret-token")
+    monkeypatch.setenv("KIA_ADMIN_PASSWORD", "hunter2-secret")
+    monkeypatch.setenv("KIA_EXCLUDE_GROUPS", "Shop")
+    cfg = cli.load(make_instance(tmp_path))
+    cli.write_settings(cfg, "03:30", 0)
+    status.update(cfg.output_dir, cfg.state_dir, cfg.public_url)
+    rows = {r["name"]: r for sec in json.loads((tmp_path / "output" / "status.json").read_text())["settings"]
+            for r in sec["rows"]}  # fmt: skip
+    assert rows["Nightly refresh"]["value"] == "03:30" and rows["Quick guide refresh"]["value"] == "off"
+    assert rows["Left-out categories"]["value"] == "Shop"
+    assert rows["Left-out categories"]["change"] == ".env: KIA_EXCLUDE_GROUPS"
+    assert rows["ntfy address"]["value"] == "set" and rows["Alert command"]["value"] == "set"
+    assert rows["Password for changes"]["value"] == "your own, from .env"
+    details = (tmp_path / "output" / "details.html").read_text()
+    assert 'id="settings"' in details and "03:30" in details
+    assert cli.main(["settings", "-c", str(tmp_path / "kia.toml")]) == 0
+    shown = capsys.readouterr().out
+    assert "03:30" in shown and "KIA_RUN_AT" in shown
+    for where in (details, shown, (tmp_path / "output" / "status.json").read_text(),
+                  (tmp_path / "state" / "settings.json").read_text()):  # fmt: skip
+        assert "secret" not in where
+
+
+def test_details_without_settings(tmp_path: Path):
+    cfg = cli.load(make_instance(tmp_path))
+    status.update(cfg.output_dir, cfg.state_dir, cfg.public_url)
+    assert 'id="settings"' not in (tmp_path / "output" / "details.html").read_text()

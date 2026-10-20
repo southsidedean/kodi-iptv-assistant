@@ -9,6 +9,8 @@ Three files, from most to least often changed:
 
 When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
 
+To see the settings kia is running with, open **Details** on the status page, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Settings can't be changed from the status page.
+
 ## `.env`
 
 | Setting | Default | What it does |

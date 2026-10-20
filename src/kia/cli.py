@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, tls
+from kia import alerts, auth, settings, tls
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
@@ -763,6 +763,27 @@ def secure_setup(cfg: Config) -> dict | None:
     return info
 
 
+def write_settings(cfg: Config, run_at: str | None, guide_every: float | None) -> None:
+    """The settings kia is running with, for the status page's Details (kia.settings)."""
+    shown = {"run_at": run_at, "guide_every": guide_every, "sections": settings.describe(cfg, run_at, guide_every)}
+    try:
+        write_atomic(cfg.state_dir / "settings.json", json.dumps(shown, indent=1))
+    except OSError as exc:
+        log(f"Couldn't save the settings for the status page: {exc}")
+
+
+def cmd_settings(args: argparse.Namespace) -> int:
+    cfg = load_config(args)
+    try:  # the schedule is the running daemon's, which this command can't see otherwise
+        saved = json.loads((cfg.state_dir / "settings.json").read_text())
+    except (OSError, ValueError):
+        saved = {}
+    run_at = saved.get("run_at") or os.environ.get("KIA_RUN_AT")
+    every = saved.get("guide_every")
+    print(settings.as_text(settings.describe(cfg, run_at, every)), end="")
+    return 0
+
+
 def serve_secure(cfg: Config, bind: str, port: int | None):
     """kia's own HTTPS server (installs without Docker), when there's a certificate."""
     if not port:
@@ -839,6 +860,8 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     next_run(datetime.now(), args.at)  # validate --at before sleeping
     cfg = load_config(args)
     secure_setup(cfg)
+    write_settings(cfg, args.at, args.guide_every)
+    update_status(cfg)
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
         serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg))
@@ -871,6 +894,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         run_now = False
         try:
             secure_setup(cfg)  # renews kia's own certificate before it expires
+            write_settings(load_config(args), args.at, args.guide_every)  # kia.toml may have changed
             run_and_report(args.config, update_epg=True)
         except Exception as exc:  # e.g. the config became invalid; keep the daemon alive
             log(f"Run could not start: {type(exc).__name__}: {exc}")
@@ -982,6 +1006,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--reset", action="store_true", help="replace the password with a new one and print it")
     p.set_defaults(func=cmd_password)
+
+    p = sub.add_parser("settings", help="show the settings kia is running with, and where each is changed")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_settings)
 
     p = sub.add_parser("test-alert", help="send a test notification (ntfy and/or your alert command)")
     p.add_argument("-c", "--config", default="kia.toml")

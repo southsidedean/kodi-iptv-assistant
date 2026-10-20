@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+### Status page
+
+- The Details page lists the settings kia is running with, and where to change each one (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set. `kia settings` shows the same in a terminal, and `status.json` has it under `settings`.
+
 ## 0.3.0 (2026-10-20)
 
 ### Upgrading from 0.2.0
