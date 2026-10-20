@@ -54,6 +54,8 @@ New to Docker or Git? [docs/install.md](docs/install.md) walks through installin
 
    Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV and Raspberry Pi: [docs/kodi.md](docs/kodi.md).
 
+   Not using Kodi? kia also works with Plex, Jellyfin, Emby, TiviMate, VLC, and apps for phones and tablets: [choosing a player](docs/players.md).
+
 To check on kia, open `http://<your address>:8780/` in a browser. The [status page](docs/how-it-works.md#the-status-page) there shows when it last refreshed, whether that worked, how many channels it found, and any alerts. It lists your playlists with their addresses, and links to the detailed reports. To make playlists for people and devices, or to connect other apps, use the [secure status page](docs/secure-page.md) and the [API](docs/api.md). If something isn't working, [docs/troubleshooting.md](docs/troubleshooting.md) goes through the usual problems.
 
 ## Setups
