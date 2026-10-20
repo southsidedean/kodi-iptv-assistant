@@ -4,7 +4,7 @@ The setups below differ only in who can reach kia and how much work the machine 
 
 ## Home server
 
-One always-on machine (a Linux box, NAS, or mini PC) serves every Kodi device in the house, including ones that can't run anything themselves, like Fire TV, Android TV, or Apple TV.
+One always-on machine (a Linux box, NAS, or mini PC) serves every TV, phone, and computer in the house, including ones that can't run anything themselves, like Fire TV, Android TV, or Apple TV.
 
 ```ini
 # This machine's address on your network
@@ -13,7 +13,7 @@ KIA_PUBLIC_URL=http://192.168.1.20:8780
 KIA_BIND=0.0.0.0
 ```
 
-Give the machine a fixed address (a DHCP reservation in your router) so the URL in Kodi keeps working.
+Give the machine a fixed address (a DHCP reservation in your router) so the address in your players keeps working.
 
 ## Same machine as Kodi
 

@@ -10,9 +10,11 @@ Get it from [kodi.tv/download](https://kodi.tv/download/), which has instruction
 
 - Windows, macOS, Linux: download the installer (on Linux, often from your distribution's package manager or Flathub). Kodi from Ubuntu's or Debian's own packages needs IPTV Simple Client installed separately: `sudo apt install kodi-pvr-iptvsimple`, then turn it on under *Settings → Add-ons → My add-ons → PVR clients*.
 - Android phones, tablets, Android TV, Google TV, Nvidia Shield: Google Play Store.
-- Amazon Fire TV: Kodi isn't in Amazon's store. Install it with the free *Downloader* app; kodi.tv's Android page and the [Kodi wiki](https://kodi.wiki/) walk through it.
+- Amazon Fire TV: Kodi isn't in Amazon's store. Install it with the free *Downloader* app; kodi.tv's Android page and the [Kodi Wiki](https://kodi.wiki/view/Main_Page) walk through it.
 - Raspberry Pi or a dedicated TV box: [LibreELEC](https://libreelec.tv/) is a ready-made system that boots straight into Kodi.
 - Apple TV and iPhone: possible, but it needs sideloading; see the Kodi wiki.
+
+To learn more about Kodi itself, such as installing it on other devices, using a remote, or changing its look, see the [Kodi Wiki](https://kodi.wiki/view/Main_Page).
 
 ## 2. Install IPTV Simple Client
 

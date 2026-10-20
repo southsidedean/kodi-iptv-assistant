@@ -88,7 +88,7 @@ TZ=America/New_York
 
 Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
 
-Then choose your playlists. Make your own copy of the list, so updating kia never touches your choices:
+Choosing playlists is optional: the USA list is on by default, which is enough to start, and you can change it any time. To choose now, make your own copy of the list, so updating kia never touches your choices:
 
 ```sh
 cp sources.txt sources.local.txt
@@ -104,21 +104,24 @@ docker compose up -d --build
 
 The first time, this downloads and builds kia (a few minutes), then starts the first run straight away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia` (press Ctrl+C to stop watching; kia keeps running).
 
-When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [status page](how-it-works.md#the-status-page), with the channel counts and links to `curated.m3u` and the reports. If another device will use kia, open that address on it too.
+When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [status page](how-it-works.md#the-status-page), with the channel counts and your playlist's address. If another device will use kia, open that address on it too.
+
+kia also made a password for changing things on the status page, such as [playlists for people and devices](profiles.md). It's in `state/admin-password.txt` in the kia folder; [the secure status page](secure-page.md) explains it.
 
 If other devices can't connect (more in [troubleshooting](troubleshooting.md#other-devices-cant-connect)):
 
-- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp`.
+- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and `sudo ufw allow 8743/tcp` (the secure status page).
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
 
 From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Between runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`). Kodi picks up each update within two hours, with the setting in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in* setting).
 
 ## 7. Set up Kodi
 
-Follow [Kodi setup](kodi.md) on each device you watch on: install Kodi, add IPTV Simple Client, enter `http://<your address>:8780/curated.m3u`, and turn on the repeated refresh.
+Follow [Kodi setup](kodi.md) on each device you watch on: install Kodi, add IPTV Simple Client, enter `http://<your address>:8780/curated.m3u`, and turn on the repeated refresh. For Plex, Jellyfin, TiviMate, phones, and other apps, see [choosing a player](players.md).
 
 ## Next steps
 
+- [Playlists for people and devices](profiles.md): a short list for the kids, a room, or a phone.
 - [Setups](setups.md): laptops that travel, Raspberry Pi settings, running without Docker.
 - [Configuration](configuration.md): every setting.
 - [How it works](how-it-works.md): what happens each night, and the reports.
