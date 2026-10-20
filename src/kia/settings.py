@@ -100,6 +100,8 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
         ]),
         ("Alerts", [
             ("ntfy address", _set(a.ntfy_url), ENV + "KIA_NTFY_URL"),
+            ("Email", _set(a.email),
+             ENV + "KIA_SMTP_HOST, KIA_EMAIL_TO"),
             ("Alert command", _set(a.command), ENV + "KIA_ALERT_COMMAND"),
             ("Events", _list(a.events), ENV + "KIA_ALERT_EVENTS"),
         ]),

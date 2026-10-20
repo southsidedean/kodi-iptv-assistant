@@ -977,18 +977,20 @@ def cmd_test_alert(args: argparse.Namespace) -> int:
     """Send a test notification through every configured channel, ignoring the event list."""
     cfg = load_config(args)
     a = cfg.alerts
-    if not a.ntfy_url and not a.command:
-        log("No notifications are set up. Set KIA_NTFY_URL or KIA_ALERT_COMMAND (or [alerts] in kia.toml).")
+    if not a.ntfy_url and not a.command and not a.email:
+        log("No notifications are set up. Set KIA_NTFY_URL, KIA_SMTP_HOST and KIA_EMAIL_TO, or KIA_ALERT_COMMAND "
+            "(or [alerts] in kia.toml).")  # fmt: skip
         return 1
     messages = []
-    test_cfg = alerts.AlertConfig(command=a.command, ntfy_url=a.ntfy_url, events=("daily_summary",))
+    test_cfg = alerts.AlertConfig(command=a.command, ntfy_url=a.ntfy_url, email=a.email, events=("daily_summary",))
     alerts.notify("daily_summary", "kia: test notification",
                   "If you can read this, kia's notifications work.", cfg.state_dir, test_cfg, messages.append)  # fmt: skip
     failures = [m for m in messages if "failed" in m or "timed out" in m]
     for m in failures:
         log(m)
     if not failures:
-        log(f"Test notification sent via {' and '.join(n for n, on in (('ntfy', a.ntfy_url), ('your command', a.command)) if on)}.")
+        ways = [n for n, on in (("ntfy", a.ntfy_url), ("email", a.email), ("your command", a.command)) if on]
+        log(f"Test notification sent via {' and '.join(ways)}.")
     log(f"Alerts turned on: {', '.join(a.events) or 'none'}")
     return 1 if failures else 0
 

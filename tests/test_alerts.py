@@ -185,3 +185,60 @@ def test_test_alert_command(tmp_path: Path, monkeypatch, ntfy):
 
     monkeypatch.setenv("KIA_NTFY_URL", "http://127.0.0.1:9/nope")
     assert cli.main(["test-alert", "-c", str(cfg_path)]) == 1
+
+
+def test_email_alerts(tmp_path: Path, monkeypatch):
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=None, context=None):
+            sent.append(("connect", host, port))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self, context=None):
+            sent.append(("starttls",))
+
+        def login(self, user, password):
+            sent.append(("login", user, password))
+
+        def send_message(self, msg):
+            sent.append(("send", msg["Subject"], msg["From"], msg["To"], msg.get_content()))
+
+    monkeypatch.setattr(alerts.smtplib, "SMTP", FakeSMTP)
+    email = alerts.EmailConfig(host="smtp.example.com", to=["me@example.com"], user="me@example.com", password="pw")
+    cfg = alerts.AlertConfig(email=email, events=("run_failed",))
+    assert alerts.notify("run_failed", "kia: nightly run failed", "Exit code 1.", tmp_path, cfg, lambda m: None)
+    assert sent[:3] == [("connect", "smtp.example.com", 587), ("starttls",), ("login", "me@example.com", "pw")]
+    assert sent[3][1:4] == ("kia: nightly run failed", "me@example.com", "me@example.com") and "Exit code 1." in sent[3][4]
+
+    def refuse(*a, **k):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(alerts.smtplib, "SMTP", refuse)
+    said = []
+    alerts.notify("run_failed", "x", "y", tmp_path, cfg, said.append)
+    assert any("email notification failed" in m for m in said)  # never stops the run
+
+
+def test_email_settings(tmp_path: Path, monkeypatch):
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    cfg = tmp_path / "kia.toml"
+    cfg.write_text("")
+    for name in ("KIA_SMTP_HOST", "KIA_EMAIL_TO", "KIA_SMTP_SECURITY", "KIA_SMTP_PORT", "KIA_SMTP_USER", "KIA_EMAIL_FROM"):
+        monkeypatch.setenv(name, "")
+    assert load(cfg).alerts.email is None
+    monkeypatch.setenv("KIA_SMTP_HOST", "smtp.example.com")
+    with pytest.raises(ValueError, match="KIA_EMAIL_TO"):
+        load(cfg)
+    monkeypatch.setenv("KIA_EMAIL_TO", "a@example.com, b@example.com")
+    monkeypatch.setenv("KIA_SMTP_SECURITY", "ssl")
+    e = load(cfg).alerts.email
+    assert (e.to, e.port, e.security) == (["a@example.com", "b@example.com"], 465, "ssl")
+    monkeypatch.setenv("KIA_SMTP_SECURITY", "plain")
+    with pytest.raises(ValueError, match="starttls"):
+        load(cfg)

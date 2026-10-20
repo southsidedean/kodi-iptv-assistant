@@ -5,11 +5,14 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import smtplib
+import ssl
 import subprocess
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from email.message import EmailMessage
 from pathlib import Path
 
 from kia import __version__
@@ -35,9 +38,23 @@ URGENT = {"dns_local", "run_failed"}
 
 
 @dataclass
+class EmailConfig:
+    """An email server to send alerts through (SMTP), such as your email provider's."""
+
+    host: str
+    to: list[str]
+    port: int = 587
+    user: str | None = None
+    password: str | None = None
+    sender: str | None = None  # the From address; your user name when it's empty
+    security: str = "starttls"  # "starttls" (port 587), "ssl" (port 465), or "none"
+
+
+@dataclass
 class AlertConfig:
     command: str | None = None
     ntfy_url: str | None = None
+    email: EmailConfig | None = None
     events: tuple[str, ...] = DEFAULT_EVENTS
     drop_percent: int = 25
     site_fail_runs: int = 3
@@ -89,7 +106,32 @@ def notify(
         send_ntfy(cfg.ntfy_url, event, title, message, log)
     if cfg.command:
         run_command(cfg.command, event, title, message, log)
+    if cfg.email:
+        send_email(cfg.email, title, message, log)
     return not notice
+
+
+def send_email(cfg: EmailConfig, title: str, message: str, log: Callable[[str], None]) -> None:
+    msg = EmailMessage()
+    msg["Subject"] = title
+    msg["From"] = cfg.sender or cfg.user or f"kia@{cfg.host}"
+    msg["To"] = ", ".join(cfg.to)
+    msg["X-Mailer"] = f"kodi-iptv-assistant/{__version__}"
+    msg.set_content(message + "\n\n(Sent by kia, kodi-iptv-assistant.)\n")
+    try:
+        context = ssl.create_default_context()
+        if cfg.security == "ssl":
+            server = smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=20, context=context)
+        else:
+            server = smtplib.SMTP(cfg.host, cfg.port, timeout=20)
+        with server:
+            if cfg.security == "starttls":
+                server.starttls(context=context)
+            if cfg.user:
+                server.login(cfg.user, cfg.password or "")
+            server.send_message(msg)
+    except (smtplib.SMTPException, OSError, ValueError) as exc:
+        log(f"email notification failed: {exc}")
 
 
 def send_ntfy(url: str, event: str, title: str, message: str, log: Callable[[str], None]) -> None:
