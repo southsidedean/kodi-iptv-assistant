@@ -12,6 +12,10 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 - The playlist points Pluto channels at kia (`/pluto/<id>.m3u8`). `KIA_PLUTO_RELAY=false` in `.env` (or `relay = false` under `[pluto]` in `kia.toml`) goes back to Pluto's own links.
 - The Details page shows the Pluto channels playing right now, with their sessions and recent problems, and `pluto.json` has the same for scripts. The home page warns you if Pluto channels are playing without kia's fix, and the new `pluto_fallback` alert (off by default) can tell you too.
 
+### Email alerts
+
+- Alerts can go by email, through your email provider's server: set `KIA_SMTP_HOST`, `KIA_SMTP_USER`, `KIA_SMTP_PASSWORD`, and `KIA_EMAIL_TO` in `.env`. `kia test-alert` sends a test. [Alerts](docs/alerts.md#email) has the settings for Gmail, Outlook.com, iCloud, and Fastmail.
+
 ### TV-only playlist
 
 - When your list has radio stations, kia also makes a TV-only playlist, `tv.m3u`, with its own guide. Jellyfin and some other players show radio stations as TV channels, so [Jellyfin's guide](docs/jellyfin.md) now uses it instead of asking you to make a profile. A profile of your own named `tv` replaces it.

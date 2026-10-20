@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
-from kia.alerts import DEFAULT_EVENTS, EVENTS, AlertConfig
+from kia.alerts import DEFAULT_EVENTS, EVENTS, AlertConfig, EmailConfig
 
 
 @dataclass
@@ -291,7 +291,30 @@ def _load_alerts(alerts: dict) -> AlertConfig:
         events=tuple(chosen),
         drop_percent=alerts.get("drop_percent", 25),
         site_fail_runs=alerts.get("site_fail_runs", 3),
+        email=_load_email(alerts.get("email", {})),
     )
+
+
+def _load_email(email: dict) -> EmailConfig | None:
+    """Email alerts: KIA_SMTP_* and KIA_EMAIL_* in .env, or [alerts.email] in kia.toml."""
+
+    def get(env: str, key: str) -> str:
+        return (os.environ.get(env) or str(email.get(key) or "")).strip()
+
+    host, to = get("KIA_SMTP_HOST", "host"), get("KIA_EMAIL_TO", "to")
+    if not host and not to:
+        return None
+    if not host or not to:
+        raise ValueError("email alerts need both KIA_SMTP_HOST (the email server) and KIA_EMAIL_TO (who gets them)")
+    security = (get("KIA_SMTP_SECURITY", "security") or "starttls").lower()
+    if security not in ("starttls", "ssl", "none"):
+        raise ValueError(f"KIA_SMTP_SECURITY={security!r}: expected starttls, ssl, or none")
+    port = get("KIA_SMTP_PORT", "port") or ("465" if security == "ssl" else "587" if security == "starttls" else "25")
+    if not port.isdigit():
+        raise ValueError(f"KIA_SMTP_PORT={port!r}: expected a number")
+    return EmailConfig(host=host, to=[t.strip() for t in to.split(",") if t.strip()], port=int(port),
+                       user=get("KIA_SMTP_USER", "user") or None, password=get("KIA_SMTP_PASSWORD", "password") or None,
+                       sender=get("KIA_EMAIL_FROM", "from") or None, security=security)  # fmt: skip
 
 
 def _upstream_url(upstream: dict) -> str | None:

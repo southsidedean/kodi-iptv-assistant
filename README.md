@@ -99,7 +99,7 @@ All the settings are listed in [docs/configuration.md](docs/configuration.md).
 
 Each night kia tests every stream with `ffprobe`, matches the working channels to guide sources from [iptv-org/epg](https://github.com/iptv-org/epg), downloads the guide data, and keeps the best source for each channel. When a name lookup fails, it checks public DNS to tell a dead stream from a problem on your network. The details are in [docs/how-it-works.md](docs/how-it-works.md).
 
-If something breaks that needs you, such as your network's DNS failing or the nightly refresh crashing, kia can send a notification to your phone. Setup takes about five minutes: [docs/alerts.md](docs/alerts.md).
+If something breaks that needs you, such as your network's DNS failing or the nightly refresh crashing, kia can send a notification to your phone or by email. Setup takes about five minutes: [docs/alerts.md](docs/alerts.md).
 
 ## Updating and stopping
 

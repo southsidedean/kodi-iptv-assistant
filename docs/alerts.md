@@ -35,9 +35,40 @@ The test notification should arrive on your phone within a few seconds. DNS and 
 
 Alert messages contain only host names, channel IDs, and counts. If you'd rather not use the public ntfy server, you can [run your own](https://docs.ntfy.sh/install/) and point `KIA_NTFY_URL` at it.
 
+## Email
+
+kia can send alerts by email through your email provider's server. Add these to `.env`, with your own details:
+
+```ini
+KIA_SMTP_HOST=smtp.gmail.com
+KIA_SMTP_USER=you@gmail.com
+KIA_SMTP_PASSWORD=abcd efgh ijkl mnop
+KIA_EMAIL_TO=you@gmail.com
+```
+
+Then apply the change and send a test, as for ntfy:
+
+```sh
+docker compose up -d
+docker compose exec kia python3 -m kia test-alert
+```
+
+Most providers, Gmail included, don't accept your normal password from programs like kia. They want an app password, which you make in your account's security settings (for Gmail, it needs 2-step verification on). Some common servers:
+
+| Provider | `KIA_SMTP_HOST` | Notes |
+|---|---|---|
+| Gmail | `smtp.gmail.com` | An [app password](https://support.google.com/accounts/answer/185833) |
+| Outlook.com, Hotmail | `smtp-mail.outlook.com` | Microsoft may require an app password or turn this off for some accounts |
+| iCloud Mail | `smtp.mail.me.com` | An [app-specific password](https://support.apple.com/en-us/102654); `KIA_EMAIL_FROM` must be your iCloud address |
+| Fastmail | `smtp.fastmail.com` | An app password |
+
+These all use port 587 with STARTTLS, kia's default. For a server on port 465, set `KIA_SMTP_SECURITY=ssl`. `KIA_EMAIL_TO` can list several addresses, separated by commas. Emails come from `KIA_SMTP_USER` unless you set `KIA_EMAIL_FROM`.
+
+The settings view on the status page shows only whether email is set up, never the addresses or the password.
+
 ## Other ways to be notified
 
-`KIA_ALERT_COMMAND` runs any shell command for each alert, inside the kia container, with `$KIA_ALERT_EVENT`, `$KIA_ALERT_TITLE`, and `$KIA_ALERT_MESSAGE` set. The container includes `curl`, so anything with a simple web address for posting messages works. You can use ntfy and a command together. Email isn't supported directly, because the container has no mail program.
+`KIA_ALERT_COMMAND` runs any shell command for each alert, inside the kia container, with `$KIA_ALERT_EVENT`, `$KIA_ALERT_TITLE`, and `$KIA_ALERT_MESSAGE` set. The container includes `curl`, so anything with a simple web address for posting messages works. You can use ntfy, email, and a command together.
 
 ## Choosing events
 

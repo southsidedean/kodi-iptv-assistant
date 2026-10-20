@@ -33,6 +33,9 @@ To see the settings kia is running with, open **Details** on the status page, or
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |
 | `KIA_NTFY_URL` | | Send alerts to your phone through ntfy (see [alerts](alerts.md)). |
+| `KIA_SMTP_HOST`, `KIA_SMTP_PORT`, `KIA_SMTP_SECURITY` | , 587, `starttls` | Your email provider's server for [email alerts](alerts.md#email). `KIA_SMTP_SECURITY` is `starttls` (port 587), `ssl` (port 465), or `none`. |
+| `KIA_SMTP_USER`, `KIA_SMTP_PASSWORD` | | The account kia signs in to the email server with. Many providers want an app password here. |
+| `KIA_EMAIL_TO`, `KIA_EMAIL_FROM` | , `KIA_SMTP_USER` | Who gets email alerts (comma-separated), and the address they come from. |
 | `KIA_ALERT_COMMAND` | | A command to run for each alert. |
 | `KIA_ALERT_EVENTS` | all but `daily_summary` | Which events notify you, comma-separated. |
 | `KIA_EPG_DAYS` | 3 | Days of program guide. |
@@ -134,7 +137,7 @@ Each setting is explained by a comment in the file. The sections:
 - `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
 - `[output]`: where files go, `channel_numbers` (steady channel numbers), `recycle_numbers_after_days` ([reusing old numbers](#gaps-in-the-numbers-and-renumbering)), and `public_url` / `epg_url` for setups without Docker.
 - `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.
-- `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`. See [alerts](alerts.md).
+- `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`, and `[alerts.email]` with `host`, `port`, `security`, `user`, `password`, `to`, `from` (the same as the `.env` settings). See [alerts](alerts.md).
 - `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `site_connections`, `site_delay_ms`, `site_time_limit`, `accept_name_matches`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `playlist_guides`, `git_url`, `git_ref`, `runner`.
 - `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.
 - `[pluto]`: `relay`, the same as `KIA_PLUTO_RELAY` above.
