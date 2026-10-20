@@ -321,6 +321,102 @@ def _settings_card(s: dict) -> str:
     )
 
 
+def _setting(s: dict, name: str) -> str | None:
+    return next((r["value"] for sec in s.get("settings", []) for r in sec["rows"] if r["name"] == name), None)
+
+
+def checklist(s: dict) -> list[dict]:
+    """First steps for a new kia, for the home page. kia ticks what it can check itself
+    ("done"); the person ticks the rest in their browser ("manual")."""
+    url = s.get("playlist_url") or ""
+    local_only = "://localhost" in url or "://127.0.0.1" in url
+    alerts = any(_setting(s, n) == "set" for n in ("ntfy address", "Email", "Alert command"))
+    password = _setting(s, "Password for changes")
+    return [
+        {"id": "refresh", "title": "kia finishes its first refresh", "done": bool(s["last_run"].get("finished")),
+         "text": "It checks every stream and builds the guide. It takes up to an hour, and this page updates when it's done."},
+        {"id": "address", "title": "Other devices can reach kia", "done": bool(url),
+         "text": "This computer only (KIA_PUBLIC_URL is localhost). That's right if you watch on this computer; "
+                 "for other devices, set KIA_PUBLIC_URL in .env to this computer's network address." if local_only
+                 else "Set KIA_PUBLIC_URL in .env to this computer's address, e.g. http://192.168.1.20:8780, "
+                      "so players find the guide.", "doc": "install.md#5-configure-kia"},
+        {"id": "player", "title": "Set up a player on each device", "manual": True,
+         "text": "Kodi, or another app: use a playlist address from below.", "doc": "players.md"},
+        {"id": "password", "title": "Keep the password for changes safe",
+         "done": password is not None and not password.startswith("made by kia"), "manual": True,
+         "text": "kia made one, in state/admin-password.txt. Change it on the secure page's Details page, "
+                 "or set KIA_ADMIN_PASSWORD in .env.", "doc": "secure-page.md#the-password"},
+        {"id": "playlists", "title": "Choose your playlists (optional)", "manual": True,
+         "text": "Add other countries, streaming services, or radio on the secure page's Details page.",
+         "doc": "configuration.md#choosing-playlists-on-the-status-page"},
+        {"id": "alerts", "title": "Get alerts when something breaks (optional)", "done": alerts,
+         "text": "A message on your phone or by email if the nightly refresh fails.", "doc": "alerts.md"},
+    ]  # fmt: skip
+
+
+def _checklist_card(s: dict) -> str:
+    items = checklist(s)
+    if not s.get("settings") or all(i.get("done") for i in items):
+        return ""
+    rows = "".join(
+        f'<li data-id="{i["id"]}"{" data-done" if i.get("done") else ""}{" data-manual" if i.get("manual") else ""}>'
+        f'<span class="tick" aria-hidden="true">{"✓" if i.get("done") else ""}</span><div><strong>{escape(i["title"])}</strong>'
+        f'<span>{escape(i["text"])}'
+        + (f' <a href="{escape(DOCS_URL)}/{escape(i["doc"])}">How</a>' if i.get("doc") else "")
+        + "</span></div></li>"
+        for i in items
+    )
+    return (
+        '<section class="card" id="getting-started"><h2>Getting started</h2>'
+        '<p class="muted">kia ticks what it can check. Tick the rest yourself; this browser remembers. '
+        "This card goes away when everything's ticked, or when you hide it.</p>"
+        f'<ol class="steps">{rows}</ol><div class="actions"><button type="button" class="hide">Hide this</button></div></section>'
+    )
+
+
+CHECKLIST_STYLE = """
+.steps { list-style: none; margin: var(--space-2) 0; padding: 0; display: grid; gap: var(--space-2); }
+.steps li { display: grid; grid-template-columns: 1.8rem 1fr; gap: var(--space-2); align-items: start; }
+.steps li div { display: grid; gap: .15rem; }
+.steps li div span { color: var(--muted); font-size: var(--step--1); }
+.steps .tick { width: 1.5rem; height: 1.5rem; border: 2px solid var(--line); border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; color: var(--card); background: none; padding: 0; min-height: 0; }
+.steps li[data-done] .tick { background: var(--good); border-color: var(--good); }
+.steps li[data-done] strong { text-decoration: line-through; color: var(--muted); }
+.steps button.tick { cursor: pointer; }
+"""
+
+CHECKLIST_SCRIPT = """
+<script>
+(function () {
+  var card = document.getElementById("getting-started");
+  if (!card) return;
+  var KEY = "kia-getting-started";
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; } }
+  function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} }
+  var state = load();
+  if (state.hidden) { card.hidden = true; return; }
+  function allDone() { return !card.querySelector("li:not([data-done])"); }
+  card.querySelectorAll("li[data-manual]").forEach(function (li) {
+    var old = li.querySelector(".tick"), b = document.createElement("button");
+    b.type = "button"; b.className = "tick"; b.setAttribute("aria-label", "Done: " + li.querySelector("strong").textContent);
+    function draw() { var on = li.hasAttribute("data-done"); b.textContent = on ? "✓" : ""; b.setAttribute("aria-pressed", on ? "true" : "false"); }
+    if (state[li.dataset.id]) li.setAttribute("data-done", "");
+    b.addEventListener("click", function () {
+      if (li.hasAttribute("data-done")) { li.removeAttribute("data-done"); delete state[li.dataset.id]; }
+      else { li.setAttribute("data-done", ""); state[li.dataset.id] = true; }
+      save(state); draw();
+      if (allDone()) card.hidden = true;
+    });
+    old.replaceWith(b); draw();
+  });
+  if (allDone()) card.hidden = true;
+  card.querySelector("button.hide").addEventListener("click", function () { state.hidden = true; save(state); card.hidden = true; });
+})();
+</script>
+"""
+
+
 def _pluto_card(s: dict) -> str:
     """Pluto TV channels playing through kia right now (kia.pluto); filled in from pluto.json."""
     names = s.get("pluto_channels") or {}
@@ -422,10 +518,11 @@ def render_html(s: dict) -> str:
         "</ul></section>"
     )
     body = (
-        f'<main>{_banner(s)}{_pluto_warning(s)}{tiles}{alerts}{_playlists_card(s)}'
+        f'<main>{_banner(s)}{_pluto_warning(s)}{_checklist_card(s)}{tiles}{alerts}{_playlists_card(s)}'
         f'<div class="pair">{more}{_help_card()}</div></main>'
     )
-    return page("kia status", body, _footer(s), COPY_SCRIPT + editor.SCRIPT + PLUTO_SCRIPT, editor.STYLE)
+    script = COPY_SCRIPT + editor.SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT
+    return page("kia status", body, _footer(s), script, editor.STYLE + CHECKLIST_STYLE)
 
 
 def render_details(s: dict) -> str:

@@ -41,6 +41,7 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 
 ### Status page
 
+- A new kia's home page starts with a **Getting started** checklist: the first refresh, the address other devices use, a player on each device, the password, choosing playlists, and alerts. kia ticks what it can check; you tick the rest (your browser remembers), or hide it.
 - The Details page lists the settings kia is running with, and where to change each one (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set. `kia settings` shows the same in a terminal, and `status.json` has it under `settings`.
 
 ## 0.3.0 (2026-10-20)

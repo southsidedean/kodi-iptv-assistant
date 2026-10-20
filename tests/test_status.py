@@ -183,3 +183,18 @@ def test_details_without_settings(tmp_path: Path):
     cfg = cli.load(make_instance(tmp_path))
     status.update(cfg.output_dir, cfg.state_dir, cfg.public_url)
     assert 'id="settings"' not in (tmp_path / "output" / "details.html").read_text()
+
+
+def test_getting_started_checklist():
+    settings = [{"title": "Alerts", "rows": [{"name": "ntfy address", "value": "not set", "change": ""},
+                                            {"name": "Email", "value": "set", "change": ""}]},
+                {"title": "Addresses", "rows": [{"name": "Password for changes", "value": "made by kia, in state/admin-password.txt", "change": ""}]}]  # fmt: skip
+    s = {"last_run": {"finished": None}, "playlist_url": "http://localhost:8780/curated.m3u", "settings": settings}
+    items = {i["id"]: i for i in status.checklist(s)}
+    assert not items["refresh"]["done"] and items["address"]["done"] and "This computer only" in items["address"]["text"]
+    assert items["alerts"]["done"] and not items["password"]["done"] and items["player"]["manual"]
+    card = status._checklist_card(s)
+    assert 'id="getting-started"' in card and 'data-id="alerts" data-done' in card
+    s.update(last_run={"finished": "2026-10-20T04:40:00+00:00"}, playlist_url="http://192.168.1.20:8780/curated.m3u")
+    settings[1]["rows"][0]["value"] = "your own, from .env"
+    assert all(i["done"] for i in status.checklist(s) if not i.get("manual") or i["id"] == "password")

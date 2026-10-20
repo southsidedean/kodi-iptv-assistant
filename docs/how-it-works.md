@@ -66,7 +66,9 @@ The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every d
 
 ## The status page
 
-`http://<your address>:8780/` shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button, and links to these docs. kia updates the page when a run starts and ends, and when you save a profile.
+Until you've finished setting up, `http://<your address>:8780/` starts with a **Getting started** checklist: the first refresh, the address other devices use, a player on each device, the password, your playlists, and alerts. kia ticks the steps it can check itself, you tick the rest, and you can hide it.
+
+The page shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button, and links to these docs. kia updates the page when a run starts and ends, and when you save a profile.
 
 Each playlist has its own page with its playlist and guide addresses and a list of its channels, TV and radio under their own headings, with their numbers and categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide. The times are in your device's time zone. A profile's page also has **Edit this playlist**. On the secure page, each channel has a star next to its name for [favorites](configuration.md#favorites-and-your-own-channel-numbers), and on Everything you can change its number. The **Details** page has the guide coverage, how each source playlist's streams are doing, the full reports, the [Pluto TV](#pluto-tv) channels playing right now, the playlists kia checks (on the secure page, where you can [choose them](configuration.md#choosing-playlists-on-the-status-page)), and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
