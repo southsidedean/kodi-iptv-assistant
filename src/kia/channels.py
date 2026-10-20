@@ -4,6 +4,9 @@ Kept in state/channels.json:
 
 - "favorites": channel keys. Favorites get the category "Favorites" (players show it as
   a group, and profiles can pick it) and come first in every playlist.
+- "removed": {key: {"when", "name", "entry"}}: channels taken out of every playlist from the
+  status page because they don't play. The nightly check puts one back when its stream
+  works again; "entry" (its playlist lines) lets the page put it back by hand.
 - "numbers": {"tv": {key: n}, "radio": {key: n}}. A number chosen here pins the channel
   like a tvg-chno in your own playlist file does (kia.numbers); a pin in a file wins.
 
@@ -32,7 +35,7 @@ def load(state_dir: Path) -> dict:
     except (OSError, ValueError):
         data = {}
     numbers = data.get("numbers", {})
-    return {"favorites": list(data.get("favorites", [])),
+    return {"favorites": list(data.get("favorites", [])), "removed": dict(data.get("removed", {})),
             "numbers": {"tv": dict(numbers.get("tv", {})), "radio": dict(numbers.get("radio", {}))}}  # fmt: skip
 
 
@@ -66,13 +69,21 @@ def apply(entries: list[Entry], choices: dict) -> list[Entry]:
     return sorted(entries, key=lambda e: (e.is_radio, e.key not in favorites, e.name.casefold()))
 
 
+def removal(e: Entry) -> dict:
+    """What "removed" keeps of a channel, so it can be put back."""
+    return {"when": datetime.now(timezone.utc).isoformat(timespec="seconds"), "name": e.name,
+            "entry": m3u.write([e]).split("\n", 1)[1]}  # fmt: skip
+
+
 def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m: None,
-            renumber: bool = False, recycle_after_days: int = 0) -> list[Entry]:  # fmt: skip
+            renumber: bool = False, recycle_after_days: int = 0, add: list[Entry] | None = None) -> list[Entry]:  # fmt: skip
     """Apply the choices to the playlist from the last check, now, and write it again.
     renumber: number everything 1, 2, 3 in playlist order first (kia renumber). The caller
     rebuilds the profiles."""
     curated = output_dir / "curated.m3u"
     entries = m3u.parse(curated.read_text()) if curated.exists() else []
+    known = {e.key for e in entries}
+    entries += [e for e in add or [] if e.key not in known]
     numbers = ChannelNumbers(state_dir / "channel-numbers.json", recycle_after_days)
     for e in entries:
         # Pins from your playlist files stay pins (the playlist only has the number).
@@ -80,7 +91,7 @@ def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m
         if rec and rec.get("pinned"):
             e.pinned_number = rec["number"]
     choices = load(state_dir)
-    entries = apply(entries, choices)
+    entries = apply([e for e in entries if e.key not in choices["removed"]], choices)
     when = datetime.now(timezone.utc).isoformat(timespec="seconds")
     if renumber:
         # Playlist order: TV, then radio, each with favorites first and the rest by name.

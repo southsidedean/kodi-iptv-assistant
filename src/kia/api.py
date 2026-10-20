@@ -14,6 +14,7 @@ profile playlists and the status page from the last check, which takes about a s
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from collections import Counter
@@ -187,6 +188,69 @@ def set_channel(cfg: ApiConfig, body: dict) -> dict:
     now = next((e for e in entries if e.key == entry.key), entry)
     return {**choices, "channel": {"key": now.key, "number": now.attrs.get("tvg-chno"),
                                    "favorite": now.key in choices["favorites"]}, "notes": notes}  # fmt: skip
+
+
+def _entry(cfg: ApiConfig, body: dict):
+    if not isinstance(body, dict) or not isinstance(body.get("key"), str):
+        raise ApiError(400, "Expected the channel's key.")
+    entry = next((e for e, _ in _items(cfg) if e.key == body["key"]), None)
+    if entry is None:
+        raise ApiError(404, "That channel isn't in the playlist.")
+    return entry
+
+
+def stream_url(url: str) -> str:
+    """The stream to test: Pluto channels' own address rather than kia's relay for them."""
+    from kia import pluto
+
+    m = re.search(r"/pluto/([0-9a-f]{24})\.m3u8$", url)
+    return pluto.FALLBACK_URL.format(channel=m.group(1)) if m else url
+
+
+def test_channel(cfg: ApiConfig, body: dict) -> dict:
+    """Try a channel's stream now, the way the nightly check does."""
+    import asyncio
+
+    from kia.config import DEFAULT_USER_AGENT
+    from kia.probe import probe
+
+    entry = _entry(cfg, body)
+    r = asyncio.run(probe(stream_url(entry.url), timeout=20, user_agent=entry.user_agent or DEFAULT_USER_AGENT,
+                          referrer=entry.referrer, require_video=not entry.is_radio))  # fmt: skip
+    return {"key": entry.key, "name": entry.name, "ok": r.ok, "error": r.error, "seconds": round(r.elapsed, 1),
+            "height": r.height}  # fmt: skip
+
+
+def remove_channel(cfg: ApiConfig, body: dict) -> dict:
+    """Take a channel out of every playlist until its stream works at a nightly check."""
+    with LOCK:
+        entry = _entry(cfg, body)
+        choices = channels.load(cfg.state_dir)
+        choices["removed"][entry.key] = channels.removal(entry)
+        channels.save(cfg.state_dir, choices)
+        channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, lambda m: None,
+                         recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
+        profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
+    cfg.on_change()
+    return channels.load(cfg.state_dir)
+
+
+def put_back(cfg: ApiConfig, body: dict) -> dict:
+    """Put a removed channel back now."""
+    from kia.m3u import parse
+
+    key = body.get("key") if isinstance(body, dict) else None
+    with LOCK:
+        choices = channels.load(cfg.state_dir)
+        if not isinstance(key, str) or key not in choices["removed"]:
+            raise ApiError(404, "That channel wasn't removed.")
+        gone = choices["removed"].pop(key)
+        channels.save(cfg.state_dir, choices)
+        channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, lambda m: None,
+                         recycle_after_days=cfg.recycle_numbers_after_days, add=parse("#EXTM3U\n" + gone["entry"]))  # fmt: skip
+        profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
+    cfg.on_change()
+    return channels.load(cfg.state_dir)
 
 
 def renumber(cfg: ApiConfig) -> dict:
@@ -380,6 +444,15 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             return 200, search_channels(cfg, parse_qs(url.query).get("q", [""])[0])
         if parts == ["channel-choices"] and method == "GET":
             return 200, get_choices(cfg)
+        if parts == ["channel", "test"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, test_channel(cfg, data)
+        if parts == ["channel", "remove"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, remove_channel(cfg, data)
+        if parts == ["channel", "restore"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, put_back(cfg, data)
         if parts == ["renumber"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, renumber(cfg)

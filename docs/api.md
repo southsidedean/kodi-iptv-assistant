@@ -37,8 +37,11 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `PUT /api/profiles/<name>` | Makes the profile, or replaces its settings | password, HTTPS |
 | `DELETE /api/profiles/<name>` | Deletes the profile, its playlist, its guide, and its page | password, HTTPS |
 | `POST /api/password` | Changes the password: send `{"new": "..."}` | password, HTTPS |
-| `GET /api/channel-choices` | Your favorites (channel keys) and the numbers chosen on the status page, by kind: `{"favorites": [...], "numbers": {"tv": {...}, "radio": {...}}}` | |
+| `GET /api/channel-choices` | Your favorites (channel keys), the numbers chosen on the status page by kind, and the channels removed because they didn't play: `{"favorites": [...], "numbers": {"tv": {...}, "radio": {...}}, "removed": {key: {"name", "when", "entry"}}}` | |
 | `PUT /api/channel` | Stars a channel or sets its number: send `{"key": "CNN.us@SD", "favorite": true}` or `{"key": "...", "number": 5}` (`null` clears the number). The key is the channel's ID, or `name:` or `radio:` with its simplified name for channels without one. The playlists are rewritten before the answer comes back. | password, HTTPS |
+| `POST /api/channel/test` | Tries a channel's stream now: send `{"key": "..."}`. Returns `ok`, `error`, `seconds`, and `height`. Pluto TV channels are tested at Pluto. | password, HTTPS |
+| `POST /api/channel/remove` | Takes a channel out of every playlist until its stream works at a nightly check: send `{"key": "..."}` | password, HTTPS |
+| `POST /api/channel/restore` | Puts a removed channel back now: send `{"key": "..."}` | password, HTTPS |
 | `POST /api/renumber` | Numbers every channel 1, 2, 3 down the list once, keeping chosen numbers ([renumbering](configuration.md#gaps-in-the-numbers-and-renumbering)). Returns the `tv` and `radio` counts. | password, HTTPS |
 | `GET /api/sources` | The playlists kia can check: each one's `url`, `name`, `label`, `section`, whether it's `radio`, whether it's `on`, where it comes from (`origin`: `file` or `added`), and its `streams` from the last check. Also the last "check now" (`check`). | |
 | `PUT /api/sources` | Turns a playlist on or off: send `{"url": "...", "on": true}`. The last playlist in use can't be turned off. | password, HTTPS |

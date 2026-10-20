@@ -213,6 +213,11 @@ def write_profiles(cfg: Config, chosen: list[Checked] | None = None) -> None:
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, log)
 
 
+def partial_run(args: argparse.Namespace) -> bool:
+    """A test check of part of the list, which mustn't change what players use."""
+    return bool(getattr(args, "limit", None) or getattr(args, "source", None) or getattr(args, "url", None))
+
+
 def is_transient(error: str | None) -> bool:
     return dnscheck.is_resolve_failure(error) or "timed out" in (error or "").lower()
 
@@ -320,7 +325,16 @@ def cmd_check(args: argparse.Namespace) -> int:
         checked.append(Checked(e, r, classify(r, rec, cfg.grace_failures), r.height or rec.get("height")))
     chosen = select(checked, {s.name: i for i, s in enumerate(cfg.sources)}, cfg.merge_duplicates)
     # Favorites and numbers chosen on the status page (kia.channels).
-    place = {id(e): i for i, e in enumerate(channels.apply([c.entry for c in chosen], channels.load(cfg.state_dir)))}
+    choices = channels.load(cfg.state_dir)
+    if choices["removed"] and not partial_run(args):
+        back = [c.entry.name for c in chosen if c.entry.key in choices["removed"] and c.status == "ok"]
+        chosen = [c for c in chosen if c.entry.key not in choices["removed"] or c.status == "ok"]
+        for c in chosen:
+            choices["removed"].pop(c.entry.key, None)
+        channels.save(cfg.state_dir, choices)
+        if back:
+            log(f"Back in the playlists, because their streams work again: {', '.join(back)}")
+    place = {id(e): i for i, e in enumerate(channels.apply([c.entry for c in chosen], choices))}
     chosen.sort(key=lambda c: place[id(c.entry)])
 
     # A test run (part of the list) mustn't replace the playlist Kodi is using.
