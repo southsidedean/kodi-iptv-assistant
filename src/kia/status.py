@@ -13,7 +13,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from kia import __version__, editor, guideview
+from kia import __version__, editor, guideview, sourceeditor
 from kia.htmlpage import FILTER_ROWS, FILTER_SCRIPT, page
 from kia.history import readable
 from kia.m3u import parse
@@ -450,6 +450,10 @@ def render_details(s: dict) -> str:
             for src in s["sources"]
         )
         sources = f'<section class="card"><h2>Streams by playlist</h2><div class="sources">{rows}</div></section>'
+    choose = (
+        f'<section class="card" id="sources-editor"{_secure_attr(s)} hidden><h2>Choose playlists</h2>'
+        '<div class="body"></div></section>'
+    )
 
     def file_item(name: str, what: str) -> str:
         twin = markdown_twin(name)
@@ -463,10 +467,11 @@ def render_details(s: dict) -> str:
         '<p class="muted">Loading…</p></section>'
     )
     body = (
-        f'<main><h1>Details</h1>{guide}{sources}<div class="pair">{_secure_card(s)}{editing}</div>'
+        f'<main><h1>Details</h1>{guide}{sources}{choose}<div class="pair">{_secure_card(s)}{editing}</div>'
         f'<div class="pair">{reports}{_help_card()}</div>{_pluto_card(s)}{_settings_card(s)}</main>'
     )
-    return page("kia details", body, _footer(s), editor.PASSWORD_SCRIPT + PLUTO_SCRIPT, editor.STYLE)
+    script = editor.PASSWORD_SCRIPT + sourceeditor.SCRIPT + PLUTO_SCRIPT
+    return page("kia details", body, _footer(s), script, editor.STYLE + sourceeditor.STYLE)
 
 
 def render_playlist(s: dict, pl: dict, entries: list) -> str:

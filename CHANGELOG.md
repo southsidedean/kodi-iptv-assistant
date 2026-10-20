@@ -12,6 +12,16 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 - The playlist points Pluto channels at kia (`/pluto/<id>.m3u8`). `KIA_PLUTO_RELAY=false` in `.env` (or `relay = false` under `[pluto]` in `kia.toml`) goes back to Pluto's own links.
 - The Details page shows the Pluto channels playing right now, with their sessions and recent problems, and `pluto.json` has the same for scripts. The home page warns you if Pluto channels are playing without kia's fix, and the new `pluto_fallback` alert (off by default) can tell you too.
 
+### Choosing playlists on the status page
+
+- The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-playlists-on-the-status-page).
+- **Check now** tests every stream in one playlist straight away and shows how many work, without changing your playlists.
+- The same is in the API: `GET`, `PUT`, `POST`, and `DELETE /api/sources`, and `/api/sources/check`.
+
+### Fixes
+
+- kia no longer raises a `dns_local` alert when a name fails to look up and the public DNS servers it double-checks with can't be reached either. Nothing then shows that your DNS is at fault (a moment without internet is more likely), so kia notes it in the log instead.
+
 ### Status page
 
 - The Details page lists the settings kia is running with, and where to change each one (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set. `kia settings` shows the same in a terminal, and `status.json` has it under `settings`.

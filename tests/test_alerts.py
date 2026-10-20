@@ -108,10 +108,12 @@ def test_site_failure_streak_alerts_once(tmp_path: Path):
     assert "bad.tv" not in alerts.load_state(tmp_path)["site_failures"]
 
 
-def test_local_dns_alert_only_when_backup_resolves_or_unreachable(tmp_path: Path):
+def test_local_dns_alert_only_when_backup_resolves(tmp_path: Path):
     cfg = config(tmp_path)
     gone = {"old.example": dnscheck.PublicLookup("old.example", "no-records", [])}
     assert not cli.alert_on_local_dns(gone, "check", cfg)
+    blip = {"nl.example": dnscheck.PublicLookup("nl.example", "unreachable", [])}
+    assert not cli.alert_on_local_dns(blip, "check", cfg)  # no internet for a moment
     assert not (tmp_path / "alerts.log").exists()
     local = {**gone, "cdn.example": dnscheck.PublicLookup("cdn.example", "resolves", ["1.2.3.4"])}
     assert cli.alert_on_local_dns(local, "check", cfg)

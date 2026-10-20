@@ -1,6 +1,7 @@
 """The settings kia is running with, for the status page's Details and `kia settings`.
 
-Read only: settings are changed in .env and kia.toml, never from the web. Anything
+Read only: settings are changed in .env and kia.toml, never from the web (the playlists
+kia checks can also be chosen on the status page; see kia.sources). Anything
 secret (the password, the ntfy address, the alert command) shows only whether it's set.
 """
 
@@ -65,7 +66,8 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Password for changes", _password(cfg), ENV + "KIA_ADMIN_PASSWORD"),
         ]),
         ("Playlists", [
-            ("Sources", f"{len(cfg.sources)}: {_list([s.name for s in cfg.sources])}", ENV + "KIA_SOURCES_FILE"),
+            ("Sources", f"{len(cfg.sources)}: {_list([s.name for s in cfg.sources])}",
+             "the status page (Choose playlists), or " + ENV + "KIA_SOURCES_FILE"),
             ("Profiles file", _relative(cfg, cfg.profiles_file), ENV + "KIA_PROFILES_FILE"),
             ("Left-out categories", _list(cfg.exclude_groups), ENV + "KIA_EXCLUDE_GROUPS"),
             ("Left-out name tags", _list(cfg.exclude_labels), TOML + "[filters] exclude_labels"),
