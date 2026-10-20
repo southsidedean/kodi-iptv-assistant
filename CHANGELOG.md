@@ -18,6 +18,12 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 - **Check now** tests every stream in one playlist straight away and shows how many work, without changing your playlists.
 - The same is in the API: `GET`, `PUT`, `POST`, and `DELETE /api/sources`, and `/api/sources/check`.
 
+### Favorites and channel numbers
+
+- Star channels on the secure status page to make them favorites. Favorites come first in every playlist and get a Favorites category, which Kodi and most players show as a group, and which a profile can pick for a playlist of just your favorites.
+- Change a channel's number on the Everything page. It works like a `tvg-chno` in your own playlist file: a channel that had the number moves to the next free one, and a number in your own file still wins.
+- Both apply straight away, without waiting for a refresh. kia keeps them in `state/channels.json`. The API has `GET /api/channel-choices` and `PUT /api/channel`.
+
 ### Fixes
 
 - kia no longer raises a `dns_local` alert when a name fails to look up and the public DNS servers it double-checks with can't be reached either. Nothing then shows that your DNS is at fault (a moment without internet is more likely), so kia notes it in the log instead.
@@ -146,7 +152,7 @@ The first run after upgrading numbers every channel, in alphabetical order, so c
 
 ### Kodi
 
-- Channels keep the same number from night to night (`tvg-chno`), instead of being renumbered whenever a stream drops out or a playlist is added. A channel that comes back within a month gets its old number. Turn on Kodi's *Use channel numbers from backend* to see them ([Kodi setup](docs/kodi.md)). TV and radio are numbered separately. To choose numbers yourself, give channels a `tvg-chno` in a playlist file of your own ([how](docs/configuration.md#your-own-channel-numbers)); numbers from internet playlists are ignored.
+- Channels keep the same number from night to night (`tvg-chno`), instead of being renumbered whenever a stream drops out or a playlist is added. A channel that comes back within a month gets its old number. Turn on Kodi's *Use channel numbers from backend* to see them ([Kodi setup](docs/kodi.md)). TV and radio are numbered separately. To choose numbers yourself, give channels a `tvg-chno` in a playlist file of your own ([how](docs/configuration.md#favorites-and-your-own-channel-numbers)); numbers from internet playlists are ignored.
 - The Kodi setup now includes IPTV Simple Client's daily refresh (*Auto refresh mode: Once per day*). Without it, Kodi loads the list and guide only when it starts, so devices that sleep instead of shutting down kept old data.
 
 ### Radio

@@ -67,9 +67,18 @@ To refresh now instead of waiting:
 
 To try out a change first, `docker compose exec kia python3 -m kia check --limit 50` tests the first 50 streams. Test runs like this one (also with `-s` or `-u`) write their results to `work/check-test/` and leave the playlist Kodi uses alone.
 
-## Your own channel numbers
+## Favorites and your own channel numbers
 
-kia numbers channels automatically and keeps each number steady. To choose a channel's number yourself, list the channel in a playlist file of your own in the `playlists/` folder, add `tvg-chno="<number>"` to its `#EXTINF` line, and add the file to your sources list. For example, `playlists/favorites.m3u` with two radio stations at the top of the radio list:
+kia numbers channels automatically and keeps each number steady. Both favorites and your own numbers are easiest to set on the secure status page:
+
+1. Open the secure status page (`https://<your address>:8743/`) and choose **Everything** under your playlists.
+2. Enter the password at the top of the channel list.
+3. Choose a channel's star to make it a favorite. Favorites come first in every playlist, and get a Favorites category that Kodi and most players show as a group. A [profile](profiles.md) can use it too, for a playlist of just your favorites.
+4. To change a channel's number, choose its number, type the new one, and press Enter. The channel then has that number in every playlist that doesn't [number from 1](profiles.md#what-a-profile-can-say). A channel that already had it moves to the next free number. To undo a number you chose, clear the box: the channel keeps the number, but a number you choose for another channel can then take it.
+
+The playlists change straight away, and Kodi picks them up within two hours or when it restarts. kia keeps these choices in `state/channels.json`. Stars also work on a profile's page; numbers only on Everything, so they're the same everywhere.
+
+You can also choose a channel's number in a playlist file of your own: list the channel in a playlist file of your own in the `playlists/` folder, add `tvg-chno="<number>"` to its `#EXTINF` line, and add the file to your sources list. For example, `playlists/favorites.m3u` with two radio stations at the top of the radio list:
 
 ```text
 #EXTM3U
@@ -85,7 +94,7 @@ and in your sources list:
 playlists/favorites.m3u   favorites
 ```
 
-Channels that already had those numbers move to the next free ones, and the log says which. Numbers in playlists from the internet are ignored, so they can't take yours. If you remove a `tvg-chno` later, the channel keeps the number it has.
+Channels that already had those numbers move to the next free ones, and the log says which. Numbers in playlists from the internet are ignored, so they can't take yours. If you remove a `tvg-chno` later, the channel keeps the number it has. A number in your own playlist file wins over one chosen on the status page.
 
 ## Versions
 

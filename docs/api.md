@@ -37,6 +37,8 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `PUT /api/profiles/<name>` | Makes the profile, or replaces its settings | password, HTTPS |
 | `DELETE /api/profiles/<name>` | Deletes the profile, its playlist, its guide, and its page | password, HTTPS |
 | `POST /api/password` | Changes the password: send `{"new": "..."}` | password, HTTPS |
+| `GET /api/channel-choices` | Your favorites (channel keys) and the numbers chosen on the status page, by kind: `{"favorites": [...], "numbers": {"tv": {...}, "radio": {...}}}` | |
+| `PUT /api/channel` | Stars a channel or sets its number: send `{"key": "CNN.us@SD", "favorite": true}` or `{"key": "...", "number": 5}` (`null` clears the number). The key is the channel's ID, or `name:` or `radio:` with its simplified name for channels without one. The playlists are rewritten before the answer comes back. | password, HTTPS |
 | `GET /api/sources` | The playlists kia can check: each one's `url`, `name`, `label`, `section`, whether it's `radio`, whether it's `on`, where it comes from (`origin`: `file` or `added`), and its `streams` from the last check. Also the last "check now" (`check`). | |
 | `PUT /api/sources` | Turns a playlist on or off: send `{"url": "...", "on": true}`. The last playlist in use can't be turned off. | password, HTTPS |
 | `POST /api/sources` | Adds a playlist: send `{"url": "https://...", "name": "extras", "radio": false}` (`name` and `radio` are optional) | password, HTTPS |

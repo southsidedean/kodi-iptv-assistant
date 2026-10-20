@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 import subprocess
 import sys
 
-from kia import profiles
+from kia import channels, profiles
 from kia import sources as web_sources
 from kia.auth import Auth
 from kia.m3u import parse
@@ -152,6 +152,39 @@ def delete_profile(cfg: ApiConfig, name: str) -> dict:
         result = profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
     cfg.on_change()
     return result
+
+
+# Favorites and channel numbers
+
+
+def get_choices(cfg: ApiConfig) -> dict:
+    return channels.load(cfg.state_dir)
+
+
+def set_channel(cfg: ApiConfig, body: dict) -> dict:
+    if not isinstance(body, dict) or not isinstance(body.get("key"), str):
+        raise ApiError(400, "Expected the channel's key.")
+    favorite = body.get("favorite")
+    if favorite is not None and not isinstance(favorite, bool):
+        raise ApiError(400, "favorite is true or false.")
+    number = body["number"] if "number" in body else "keep"
+    with LOCK:
+        entry = next((e for e, _ in _items(cfg) if e.key == body["key"]), None)
+        if entry is None:
+            raise ApiError(404, "That channel isn't in the playlist.")
+        choices = channels.load(cfg.state_dir)
+        try:
+            channels.set_choice(choices, entry.key, "radio" if entry.is_radio else "tv", favorite, number)
+        except ValueError as exc:
+            raise ApiError(400, str(exc))
+        channels.save(cfg.state_dir, choices)
+        notes: list[str] = []
+        entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, notes.append)
+        profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
+    cfg.on_change()
+    now = next((e for e in entries if e.key == entry.key), entry)
+    return {**choices, "channel": {"key": now.key, "number": now.attrs.get("tvg-chno"),
+                                   "favorite": now.key in choices["favorites"]}, "notes": notes}  # fmt: skip
 
 
 # Choosing playlists
@@ -332,6 +365,11 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             return 200, preview(cfg, data)
         if parts == ["channels"] and method == "GET":
             return 200, search_channels(cfg, parse_qs(url.query).get("q", [""])[0])
+        if parts == ["channel-choices"] and method == "GET":
+            return 200, get_choices(cfg)
+        if parts == ["channel"] and method == "PUT":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, set_channel(cfg, data)
         if parts == ["sources"] and method == "GET":
             return 200, get_sources(cfg, secure)
         if parts == ["sources", "check"] and method == "GET":

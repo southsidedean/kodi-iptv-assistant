@@ -13,7 +13,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from kia import __version__, editor, guideview, sourceeditor
+from kia import __version__, channeleditor, editor, guideview, sourceeditor
 from kia.htmlpage import FILTER_ROWS, FILTER_SCRIPT, page
 from kia.history import readable
 from kia.m3u import parse
@@ -479,7 +479,7 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
     root = "../"
     tag = f' data-profile="{escape(pl["name"])}"' if pl["name"] else ""
     rows = "".join(
-        f'<tr data-id="{escape(e.tvg_id or "")}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td><td>{escape(e.name)}</td>'
+        f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td><td>{escape(e.name)}</td>'
         '<td class="now" hidden></td><td class="next" hidden></td>'
         f'<td>{escape(e.group.replace(";", ", "))}</td><td>{"Radio" if e.is_radio else "TV"}</td></tr>\n'
         for e in entries
@@ -514,8 +514,9 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         "<th>Category</th><th>Type</th></tr></thead>"
         f"<tbody>\n{rows}</tbody></table></div></section></main>"
     )
-    script = COPY_SCRIPT + FILTER_SCRIPT + editor.SCRIPT + guideview.SCRIPT
-    return page(f"{pl['title']} - kia", body, _footer(s, root), script, editor.STYLE + guideview.STYLE, root=root)
+    script = COPY_SCRIPT + FILTER_SCRIPT + editor.SCRIPT + guideview.SCRIPT + channeleditor.SCRIPT
+    style = editor.STYLE + guideview.STYLE + channeleditor.STYLE
+    return page(f"{pl['title']} - kia", body, _footer(s, root), script, style, root=root)
 
 
 def write_pages(output_dir: Path, s: dict) -> None:
