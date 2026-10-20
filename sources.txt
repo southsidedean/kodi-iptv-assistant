@@ -79,11 +79,24 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # radio-browser: country=US top=100                                 # 7,400 US stations to choose from
 # radio-browser: country=US tag=jazz top=25
 # radio-browser: country=US tag=news top=25
+#
+# Bigger genre lists, gathered from many station directories (github.com/junguler).
+# Worldwide, names only (no logos). About half the stations worked in a test; kia keeps
+# only those. The word "radio" at the end marks every entry as a radio station.
+# https://raw.githubusercontent.com/junguler/m3u-radio-music-playlists/main/jazz.m3u   jazz   radio   # 403 stations, 210 working
+# https://raw.githubusercontent.com/junguler/m3u-radio-music-playlists/main/80s.m3u    80s    radio   # 456 stations, 236 working
+# Other genres: replace jazz.m3u with rock, classical, country, blues, 70s, 90s, ... (the
+# list of files is at github.com/junguler/m3u-radio-music-playlists).
 
 # --- Free streaming services (lists from apsattv.com) ----------------------------
-# This list names its own program guide, which kia uses for its channels. About a
-# quarter of its channels are also in iptv-org's USA list; kia shows each one once.
+# Samsung's list names its own program guide, which kia uses. About a quarter of its
+# channels are also in iptv-org's USA list; kia shows each one once.
 # https://www.apsattv.com/ssungusa.m3u   samsung-us   # Samsung TV Plus, USA         539
+# Xumo and Local Now add channels iptv-org doesn't have, but no guide covers them, so
+# they show only their names in the guide. Local Now is mostly local news for US cities.
+# (Tested October 2026: streams working, and channels not already in the USA list.)
+# https://www.apsattv.com/xumo.m3u       xumo         # Xumo, 389: 275 working, 187 new
+# https://www.apsattv.com/localnow.m3u   localnow     # Local Now, 447: 335 working, 267 new
 
 # --- Other collections ------------------------------------------------------------
 # https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8   free-tv  # Free-TV, worldwide, 2,023, own guides (~300 MB a night)

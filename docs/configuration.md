@@ -2,7 +2,7 @@
 
 Three files, from most to least often changed:
 
-- `sources.txt`: which playlists and radio stations to check. Remove `#` to turn a line on; add your own URLs or file paths, one per line. Radio lines (`radio-browser: country=US top=100`) are explained in the file. With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer. Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below.
+- `sources.txt`: which playlists and radio stations to check. Remove `#` to turn a line on; add your own URLs or file paths, one per line. Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio. With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer. Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below.
 - `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
 - `profiles/profiles.toml`: smaller playlists for people and devices, made from the full list. The status page writes it for you; you can also edit it by hand. See [profiles](profiles.md).
 - `kia.toml`: fine-tuning. The defaults suit most people.

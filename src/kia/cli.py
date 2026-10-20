@@ -61,6 +61,10 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
             else:
                 text = fetch(src.url)
                 found = m3u.parse(text, source=src.name)
+                if src.radio:
+                    for e in found:
+                        e.attrs["radio"] = "true"
+                        e.attrs.setdefault("group-title", src.name)
                 if cfg.epg.playlist_guides:
                     guides = tuple(m3u.header_guide_urls(text))
                     for e in found:

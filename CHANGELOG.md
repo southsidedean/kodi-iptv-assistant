@@ -36,6 +36,11 @@ Update as usual (`git pull`, then `docker compose up -d --build`). Both containe
 - A guide site that takes longer than 30 minutes is stopped, and its channels keep their previous guide (`site_time_limit`).
 - ontvtonight.com is skipped by default; it sends programs without titles.
 
+### Sources
+
+- `sources.txt` has new options, each tested from a US home connection: Xumo and Local Now (channels iptv-org doesn't list, without guide data) and genre radio lists from github.com/junguler (worldwide; about half the stations work, and kia keeps those).
+- A playlist line in the sources file can end with `radio`, for radio playlists that don't mark their stations.
+
 ### Program guide
 
 - `accept_name_matches` in `kia.toml` turns on "possible matches" from the mapping report that you've checked.
