@@ -116,6 +116,8 @@ docker compose up -d
 
 This also brings the latest Node.js and nginx images; to stay on fixed versions, see [versions](docs/configuration.md#versions). Your `.env`, your own playlist list, and the stream history are kept. If you edited `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
 
+To save your settings, playlists, and choices in one file, or to move kia to another computer, see [backing up](docs/configuration.md#backing-up-and-moving-to-another-computer).
+
 To stop kia, run `docker compose down`. While it's stopped, your players can't refresh the channel list or guide.
 
 ## Credits
