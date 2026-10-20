@@ -31,6 +31,7 @@ DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
 HELP = [
     (f"{DOCS_URL}/troubleshooting.md", "Troubleshooting", "no channels, no guide, failed refreshes, alerts"),
     (f"{DOCS_URL}/kodi.md", "Setting up Kodi", "the playlist, repeated refresh, and channel numbers"),
+    (f"{DOCS_URL}/players.md", "Other players", "Plex, Jellyfin, Emby, TiviMate, VLC, phones and tablets"),
     (f"{DOCS_URL}/configuration.md", "Settings", "playlists, refresh time, and when changes take effect"),
     (f"{DOCS_URL}/how-it-works.md", "How it works", "what each nightly step does, and the reports"),
     (f"{DOCS_URL}/alerts.md", "Alerts", "what each alert means, and getting them on your phone"),

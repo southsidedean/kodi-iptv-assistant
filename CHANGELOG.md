@@ -36,6 +36,10 @@ Update as usual (`git pull`, then `docker compose up -d --build`). Both containe
 - A guide site that takes longer than 30 minutes is stopped, and its channels keep their previous guide (`site_time_limit`).
 - ontvtonight.com is skipped by default; it sends programs without titles.
 
+### Guides for other players
+
+- New setup guides for [Plex](docs/plex.md) (through Threadfin), [Jellyfin and Emby](docs/jellyfin.md), [TiviMate](docs/tivimate.md), [VLC](docs/vlc.md), and [phones and tablets](docs/phones.md), with a page to help [choose a player](docs/players.md). The Jellyfin and Threadfin steps were tested against kia.
+
 ### Sources
 
 - `sources.txt` has new options, each tested from a US home connection: Xumo and Local Now (channels iptv-org doesn't list, without guide data) and genre radio lists from github.com/junguler (worldwide; about half the stations work, and kia keeps those).
