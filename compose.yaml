@@ -11,7 +11,9 @@ services:
       context: .
       args:
         NODE_IMAGE: ${KIA_NODE_IMAGE:-node:lts-alpine}
-    image: kodi-iptv-assistant:latest
+    # Built here by default. KIA_IMAGE can name kia's published image instead, e.g.
+    # ghcr.io/southsidedean/kodi-iptv-assistant:latest (docs/configuration.md, "Versions").
+    image: ${KIA_IMAGE:-kodi-iptv-assistant:latest}
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
