@@ -36,6 +36,12 @@ Update as usual (`git pull`, then `docker compose up -d --build`). Both containe
 - A guide site that takes longer than 30 minutes is stopped, and its channels keep their previous guide (`site_time_limit`).
 - ontvtonight.com is skipped by default; it sends programs without titles.
 
+### Installing
+
+- `scripts/install.sh` installs kia with Docker on macOS or Linux in one step: it downloads kia, finds the address and time zone, makes `.env`, opens the firewall ports if it can, starts kia, and prints the status page's address and the password. Running it again keeps your settings.
+- `scripts/install-service.sh` runs kia without Docker as a service that starts with the computer: a systemd user service on Linux, a launchd agent on macOS (templates in `deploy/`). kia runs straight from its folder; there's nothing to install from Python.
+- `kia daemon` takes its daily time from `KIA_RUN_AT` too.
+
 ### Docs
 
 - [Start here](docs/start-here.md) explains what kia gives you, the three steps to get there, and the words you'll see. A [docs index](docs/README.md) lists every guide by task.

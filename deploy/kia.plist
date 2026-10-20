@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- kia as a launchd agent on macOS, for installs without Docker. scripts/install-service.sh
+     fills in the paths and copies your .env settings into EnvironmentVariables; run it
+     again after changing .env. Log: work/logs/kia.log in the kia folder. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.github.southsidedean.kia</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@PYTHON@</string>
+    <string>-m</string>
+    <string>kia</string>
+    <string>daemon</string>
+    <string>--serve</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@DIR@</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>@PATH@</string>
+    <key>PYTHONPATH</key>
+    <string>@DIR@/src</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+    <key>KIA_EPG_RUNNER</key>
+    <string>local</string>
+@ENV@
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>@DIR@/work/logs/kia.log</string>
+  <key>StandardErrorPath</key>
+  <string>@DIR@/work/logs/kia.log</string>
+</dict>
+</plist>
