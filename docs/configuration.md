@@ -48,6 +48,7 @@ To see the settings kia is running with, open **Details** on the status page, or
 | `KIA_RADIO_PLACEHOLDERS` | false | The same for radio stations, so Kodi's radio guide lists each station's name. Almost no station has guide data, so this fills the radio guide with name blocks. |
 | `KIA_EPG_GIT_URL`, `KIA_EPG_GIT_REF` | iptv-org/epg, `latest` | Use a fork of iptv-org/epg, or pin a branch, tag, or commit. See [versions](#versions). |
 | `KIA_NODE_IMAGE`, `KIA_NGINX_IMAGE` | `node:lts-alpine`, `nginx:alpine` | Docker images for kia and the web server. See [versions](#versions). |
+| `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.
 
@@ -128,6 +129,24 @@ docker compose up -d
 To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions into it. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, and an exact image in `KIA_NODE_IMAGE` or `KIA_NGINX_IMAGE`, e.g. `node:22.23.3-alpine3.24` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). An image can also be pinned by digest, e.g. `nginx:alpine@sha256:...`. Pinned versions don't receive fixes until you change them.
 
 Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, and `tls/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, where it can't change kia itself, your settings, or anything else on the computer. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
+
+### The published image
+
+Instead of building kia on your computer, you can use the image published with each release, for 64-bit Intel and AMD computers and 64-bit ARM ones (Raspberry Pi 4 and 5, Apple silicon Macs). It saves the build, which takes a few minutes and more on a Raspberry Pi. In `.env`:
+
+```ini
+KIA_IMAGE=ghcr.io/southsidedean/kodi-iptv-assistant:latest
+```
+
+Then, to start or update kia:
+
+```sh
+git pull
+docker compose pull
+docker compose up -d
+```
+
+`latest` follows each release. To stay on one, use its version instead, such as `:0.4.0`; `:main` has what's merged since the last release. Keep `git pull` in the steps either way, because the image doesn't include the settings files and the web server's settings in the kia folder. Running `docker compose up -d --build` builds kia locally again, under the image's name, until the next `docker compose pull`.
 
 ## `kia.toml`
 
