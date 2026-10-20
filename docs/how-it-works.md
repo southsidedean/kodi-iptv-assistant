@@ -120,6 +120,8 @@ The [Pluto TV](#pluto-tv) channels playing through kia right now, at `http://<yo
 | `suspicious` | Pluto has flagged one of kia's sessions |
 | `fallback` | A channel has been on Pluto's plain link for 5 minutes or more |
 
+Docker also checks both containers every minute: kia's own server and the web server must answer. `docker compose ps` shows `(healthy)` or `(unhealthy)` for each, and tools that watch Docker can warn you about the second.
+
 A monitor should warn you when `result` is `failed`, and when `last_run.finished` is more than a day old, which means kia stopped running. For example, as a shell check that fails in either case:
 
 ```sh

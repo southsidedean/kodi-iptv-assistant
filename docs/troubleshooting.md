@@ -98,7 +98,7 @@ Each [player's guide](players.md) ends with its own common problems. If a channe
 
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d`.
 - Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and, for the secure status page, `sudo ufw allow 8743/tcp`.
-- Check that kia is running: `docker compose ps` should list `kia` and `web` as running. If not, run `docker compose up -d`.
+- Check that kia is running: `docker compose ps` should list `kia` and `web` as running and `(healthy)`. If one isn't running, run `docker compose up -d`. If one says `(unhealthy)`, it's running but not answering: `docker compose logs --tail 50 kia` (or `web`) usually says why, and `docker compose restart kia` often fixes it.
 - If the computer's address changed (after a restart, for example), update `KIA_PUBLIC_URL` and the playlist URL in Kodi. A DHCP reservation in your router keeps the address fixed.
 
 ### The status page says the refresh failed
