@@ -478,11 +478,23 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
     """One playlist's page: its addresses, its channels, and (for a profile) Edit."""
     root = "../"
     tag = f' data-profile="{escape(pl["name"])}"' if pl["name"] else ""
-    rows = "".join(
-        f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td><td>{escape(e.name)}</td>'
-        '<td class="now" hidden></td><td class="next" hidden></td>'
-        f'<td>{escape(e.group.replace(";", ", "))}</td><td>{"Radio" if e.is_radio else "TV"}</td></tr>\n'
-        for e in entries
+    def row(e) -> str:
+        return (
+            f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td>'
+            f'<td class="name">{escape(e.name)}</td><td class="now" hidden></td><td class="next" hidden></td>'
+            f'<td>{escape(e.group.replace(";", ", "))}</td></tr>\n'
+        )
+
+    # TV, then radio, each under its own heading (Kodi shows them apart too).
+    tv = [e for e in entries if not e.is_radio]
+    radio = [e for e in entries if e.is_radio]
+    both = bool(tv and radio)
+    bodies = "".join(
+        f'<tbody class="group-{kind}">'
+        + (f'<tr class="group-head"><th colspan="9">{title} ({len(group):,})</th></tr>\n' if both else "")
+        + "".join(row(e) for e in group) + "</tbody>"
+        for kind, title, group in (("tv", "TV channels", tv), ("radio", "Radio stations", radio))
+        if group
     )
     filter_box = (
         f'<input type="search" placeholder="Filter these {len(entries):,} channels" data-filter="channels">'
@@ -510,9 +522,9 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         '<button type="button" data-view="timeline" aria-pressed="false">Next 6 hours</button></div>'
         '<p class="guide-age bad-note" hidden></p>'
         '<div class="wide"><table id="channels">'
-        '<thead><tr><th class="num">No.</th><th>Channel</th><th class="now" hidden>On now</th><th class="next" hidden>Next</th>'
-        "<th>Category</th><th>Type</th></tr></thead>"
-        f"<tbody>\n{rows}</tbody></table></div></section></main>"
+        '<thead><tr><th class="num">No.</th><th class="name">Channel</th><th class="now" hidden>On now</th>'
+        '<th class="next" hidden>Next</th><th>Category</th></tr></thead>'
+        f"{bodies}</table></div></section></main>"
     )
     script = COPY_SCRIPT + FILTER_SCRIPT + editor.SCRIPT + guideview.SCRIPT + channeleditor.SCRIPT
     style = editor.STYLE + guideview.STYLE + channeleditor.STYLE

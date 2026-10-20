@@ -17,7 +17,8 @@ STYLE = """
 .tl-hours { position: relative; height: 1.8rem; }
 .tl-hours span { position: absolute; top: .3rem; font-size: var(--step--1); color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
 .tl-row { border-bottom: 1px solid var(--line); min-height: 2.6rem; }
-.tl-row[hidden] { display: none; }
+.tl-row[hidden], .tl-group[hidden] { display: none; }
+.tl-group { font-weight: 600; padding: .6rem 0 .3rem; border-bottom: 1px solid var(--line); }
 .tl-name { padding: .45rem .5rem .45rem 0; font-size: var(--step--1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl-name b { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; margin-right: .35rem; }
 .tl-track { position: relative; }
@@ -35,7 +36,7 @@ SCRIPT = r"""
   var card = document.getElementById("whats-on");
   if (!table || !card) return;
   var root = card.dataset.root || "";
-  var rows = Array.prototype.slice.call(table.tBodies[0].rows);
+  var rows = Array.prototype.slice.call(table.querySelectorAll("tbody tr:not(.group-head)"));
   var guide = null, timeline = null;
   var HOURS = 6;
 
@@ -85,11 +86,18 @@ SCRIPT = r"""
       hours.appendChild(h);
     }
     head.appendChild(hours); tl.appendChild(head);
+    var lastBody = null;
     rows.forEach(function (row) {
+      var head = row.parentNode.querySelector("tr.group-head");
+      if (row.parentNode !== lastBody && head) {
+        var g = el("div", "tl-group", head.textContent); g._head = head; g.hidden = head.hidden; tl.appendChild(g);
+      }
+      lastBody = row.parentNode;
       var line = el("div", "tl-row"), name = el("div", "tl-name"), track = el("div", "tl-track");
-      name.appendChild(el("b", null, row.cells[0].textContent));
-      name.appendChild(document.createTextNode(row.cells[1].textContent));
-      name.title = row.cells[1].textContent;
+      var label = row.querySelector("td.name").textContent;
+      name.appendChild(el("b", null, row.querySelector("td.num").textContent));
+      name.appendChild(document.createTextNode(label));
+      name.title = label;
       var shown = 0;
       slots(row).forEach(function (p) {
         if (p[1] <= start || p[0] >= end) return;
@@ -131,7 +139,10 @@ SCRIPT = r"""
     // The filter box hides rows; keep the timeline in step.
     var box = card.querySelector("input[data-filter]");
     if (box) box.addEventListener("input", function () {
-      if (timeline) timeline.querySelectorAll(".tl-row").forEach(function (line) { line.hidden = line._row.hidden; });
+      if (timeline) {
+        timeline.querySelectorAll(".tl-row").forEach(function (line) { line.hidden = line._row.hidden; });
+        timeline.querySelectorAll(".tl-group").forEach(function (g) { g.hidden = g._head.hidden; });
+      }
     });
   }).catch(function () {});
 })();

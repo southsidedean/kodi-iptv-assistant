@@ -22,6 +22,7 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 
 - Star channels on the secure status page to make them favorites. Favorites come first in every playlist and get a Favorites category, which Kodi and most players show as a group, and which a profile can pick for a playlist of just your favorites.
 - Change a channel's number on the Everything page. It works like a `tvg-chno` in your own playlist file: a channel that had the number moves to the next free one, and a number in your own file still wins.
+- Playlists list TV channels first, then radio stations, each with favorites at the top. A playlist's page shows TV and radio under their own headings, in the list and in the **Next 6 hours** view.
 - Both apply straight away, without waiting for a refresh. kia keeps them in `state/channels.json`. The API has `GET /api/channel-choices` and `PUT /api/channel`.
 
 ### Fixes
