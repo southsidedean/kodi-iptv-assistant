@@ -74,6 +74,15 @@ SCRIPT = r"""
         el("p", { class: "muted", text: "Star a channel to make it a favorite: favorites come first in every playlist and get their own Favorites category." +
           (everything ? " Choose a number to give a channel that number everywhere; a channel already on it moves." : "") }),
         el("label", { for: "ch-pass" }, [el("strong", { text: "Password" }), pass]), msg]);
+      if (everything) tools.appendChild(el("div", { class: "actions" }, [el("button", { type: "button", text: "Renumber everything",
+        on: { click: function () {
+          if (!confirm("Number every channel 1, 2, 3 down this list (TV and radio apart), keeping the numbers you chose? " +
+            "Channel numbers change on every device. Afterwards, clear Kodi's TV data on each one (Settings > PVR & Live TV > General > Clear data).")) return;
+          fetch(root + "api/renumber", { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": pass.value } })
+            .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; }); })
+            .then(function (r) { if (r._status !== 200) return failed(r); setPassword(pass.value); location.reload(); },
+              function () { say("kia didn't answer. Is it running?", true); });
+        } } })]));
       table.closest(".wide").before(tools);
     }
     table.querySelectorAll("tbody tr:not(.group-head)").forEach(function (row) {

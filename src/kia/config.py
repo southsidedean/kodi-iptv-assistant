@@ -87,6 +87,8 @@ class Config:
     state_dir: Path = Path("state")
     epg_url: str | None = None
     channel_numbers: bool = True
+    # Reuse the number of a channel last seen this many days ago (0: never reuse numbers).
+    recycle_numbers_after_days: int = 0
     profiles_file: Path | None = None
     public_url: str | None = None
     # The secure status page (kia.tls): its certificate's folder, the port people open
@@ -212,6 +214,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         state_dir=base / output.get("state_dir", "state"),
         epg_url=output.get("epg_url") or _derive_epg_url(output),
         channel_numbers=output.get("channel_numbers", True),
+        recycle_numbers_after_days=_recycle_days(output.get("recycle_numbers_after_days", 0)),
         profiles_file=base / (os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles/profiles.toml")),
         public_url=_public_url(output),
         tls_dir=base / output.get("tls_dir", "tls"),
@@ -225,6 +228,14 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         dns_resolvers=tuple(data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
         epg=_load_epg(data.get("epg", {}), base),
     )
+
+
+def _recycle_days(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"recycle_numbers_after_days {value!r}: expected a whole number of days (0 = never)")
+    if 0 < value < 60:
+        raise ValueError("recycle_numbers_after_days: use 60 or more, so Kodi has forgotten the old channel")
+    return value
 
 
 def _env_int(name: str, fallback: int) -> int:

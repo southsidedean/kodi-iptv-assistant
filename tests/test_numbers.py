@@ -116,3 +116,38 @@ def test_only_your_own_files_pin_numbers(tmp_path: Path, monkeypatch):
     entries = cli.load_entries(cfg, None)
     assert {e.name: e.pinned_number for e in entries} == {"Mine": 50, "Web": None}
     assert "tvg-chno" not in entries[1].attrs
+
+
+def test_recycled_numbers_only_after_the_wait(tmp_path: Path):
+    path = tmp_path / "n.json"
+    a, b = Entry("A", "u1", {"tvg-id": "A.us"}), Entry("B", "u2", {"tvg-id": "B.us"})
+    n = ChannelNumbers(path)
+    n.assign([a, b], "2026-01-01T00:00:00+00:00")
+    n.forget_older_than(30)  # A (1) and B (2) were last seen long before today: both retired
+    n.save()
+    # Without recycling, a new channel gets a new number.
+    c = Entry("C", "u3", {"tvg-id": "C.us"})
+    fresh = ChannelNumbers(path)
+    fresh.assign([c], "2026-06-01T00:00:00+00:00")
+    assert c.attrs["tvg-chno"] == "3"
+    # With recycling, after the wait, it takes the lowest retired number.
+    d = Entry("D", "u4", {"tvg-id": "D.us"})
+    reuse = ChannelNumbers(path, recycle_after_days=90)
+    reuse.assign([d], "2026-02-15T00:00:00+00:00")  # only 45 days after A was last seen
+    assert d.attrs["tvg-chno"] == "3"
+    e = Entry("E", "u5", {"tvg-id": "E.us"})
+    later = ChannelNumbers(path, recycle_after_days=90)
+    later.assign([e], "2026-06-01T00:00:00+00:00")
+    assert e.attrs["tvg-chno"] == "1" and "1" not in later.retired["tv"]
+
+
+def test_renumber_from_one_keeping_pins(tmp_path: Path):
+    path = tmp_path / "n.json"
+    es = [Entry(x, f"u{x}", {"tvg-id": f"{x}.us"}) for x in "ABCD"] + [Entry("K", "uk", {"radio": "true"})]
+    n = ChannelNumbers(path)
+    n.next = {"tv": 40, "radio": 9}
+    n.assign(es, "2026-01-01T00:00:00+00:00")
+    assert [e.attrs["tvg-chno"] for e in es] == ["40", "41", "42", "43", "9"]
+    es[2].pinned_number = 1  # C was chosen to be number 1
+    n.renumber(es, "2026-01-02T00:00:00+00:00")
+    assert [e.attrs["tvg-chno"] for e in es] == ["2", "3", "1", "4", "1"]
