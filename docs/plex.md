@@ -142,6 +142,8 @@ docker compose start threadfin
 
 **Some channels have numbers from 1000 up, or cut-off names.** Their names have an apostrophe. Edit the playlist on kia's page and tick **For Plex through Threadfin**.
 
+**A channel says "There was an unexpected error during playback" in Firefox.** This is a bug in Plex's web app in Firefox (seen with Plex Web 4.163), and it hits some channels and not others. The same channels play in Chrome, Safari, and the Plex apps.
+
 **The guide in Plex is empty.** Choose **Refresh Guide** on Plex's Live TV & DVR page.
 
 For anything else, see [troubleshooting](troubleshooting.md).
