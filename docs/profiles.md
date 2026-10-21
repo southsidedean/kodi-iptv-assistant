@@ -7,7 +7,7 @@ Each profile also gets its own program guide with only its channels, so a slow d
 You can make profiles on kia's Dashboard or by editing a file. Both change the same file, `profiles/profiles.toml`, so you can switch between them.
 
 ```mermaid
-flowchart LR
+flowchart TB
   all["Everything<br>curated.m3u"] --> kids["kids.m3u<br>and its guide"]
   all --> lr["living-room.m3u<br>and its guide"]
   all --> tv["tv.m3u<br>TV only"]
