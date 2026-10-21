@@ -265,3 +265,11 @@ def test_pluto_channels_from_samsungs_list_use_the_relay():
     assert e[1].url.endswith("USBA9999") and "USBA9999" not in "".join(asked)  # not named for Pluto: not looked up
     assert e[2].url.endswith("USBA0000")  # couldn't tell: left alone
     assert pluto.for_players(e, "http://192.168.1.20:8780")[0].url == f"http://192.168.1.20:8780/pluto/{CID}.m3u8"
+
+
+def test_problems_reach_kias_log_and_the_folder_answers():
+    said = []
+    r = pluto.Relay(None, log=said.append, fetcher=lambda u: (_ for _ in ()).throw(urllib.error.URLError("down")))
+    assert r.handle("/pluto/", "x")[0] == 200
+    r.handle(f"/pluto/{CID}.m3u8", "x")
+    assert any(m.startswith(f"Pluto {CID}: ") and "jmp2.uk link failed" in m for m in said)
