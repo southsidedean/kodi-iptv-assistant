@@ -97,6 +97,7 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "profiles_error": _load(output_dir / "profiles.json").get("error"),
         "secure": _load(state_dir / "secure.json"),
         "settings": _load(state_dir / "settings.json").get("sections", []),
+        "env_private": _load(state_dir / "settings.json").get("env_private"),
         "pluto_channels": _pluto_channels(entries),
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
@@ -448,6 +449,17 @@ def _pluto_card(s: dict) -> str:
     )
 
 
+def _env_warning(s: dict) -> str:
+    """A warning on the Dashboard when anyone on this computer can read .env."""
+    if s.get("env_private") is not False:
+        return ""
+    return (
+        '<section class="card" id="env-warning"><p class="bad-note">Anyone with an account on this computer can read '
+        "<code>.env</code>, which holds kia's password and other secrets. In the kia folder, run "
+        "<code>chmod 600 .env</code>. kia checks again when it restarts and every night.</p></section>"
+    )
+
+
 def _pluto_warning(s: dict) -> str:
     """A line on the home page, shown (by PLUTO_SCRIPT) only when kia's fix isn't working."""
     if not s.get("pluto_channels"):
@@ -535,7 +547,7 @@ def render_html(s: dict) -> str:
         alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
     again = '<p class="muted"><a href="#getting-started" class="show-steps" hidden>Show the Getting started steps again</a></p>'
     body = (
-        f'<main>{_banner(s)}{_pluto_warning(s)}{_checklist_card(s)}{tiles}{alerts}{_short_playlists_card(s)}{again}</main>'
+        f'<main>{_banner(s)}{_env_warning(s)}{_pluto_warning(s)}{_checklist_card(s)}{tiles}{alerts}{_short_playlists_card(s)}{again}</main>'
     )
     script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT
     return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE, current="index.html")

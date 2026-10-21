@@ -31,7 +31,7 @@ Free streams come and go. The nightly check drops a stream once it has failed a 
 To check one now, open the playlist's page on the secure Dashboard, enter the password, and choose **Test** on the channel's row. kia tries the stream right away, as the nightly check does:
 
 - If it plays from kia, the problem is more likely the device or the app. Try the channel in another player, such as VLC.
-- If it doesn't play, choose **Remove it until it works**. kia takes it out of every playlist now, and the nightly check puts it back when its stream works again. Removed channels are listed on the Everything page, each with **Put back**.
+- If it doesn't play, choose **Remove it until it works**. kia takes it out of every playlist now, and the nightly check puts it back after its stream works three nights in a row. Removed channels are listed on the Everything page, each with **Put back**.
 
 ### Pluto TV channels freeze or jump at ad breaks
 

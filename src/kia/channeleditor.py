@@ -97,7 +97,7 @@ SCRIPT = r"""
       if (r.ok) return rowSay(row, "It plays from here (" + (r.height ? r.height + "p, " : "") + r.seconds + " s). If it won't play on a device, " +
         "the problem may be that device or the app; try it in another player.");
       var remove = el("button", { type: "button", text: "Remove it until it works", on: { click: function () {
-        if (!confirm("Take " + name(row) + " out of every playlist? The nightly check puts it back when it works again.")) return;
+        if (!confirm("Take " + name(row) + " out of every playlist? The nightly check puts it back after it works three nights in a row.")) return;
         call("POST", "channel/remove", { key: key }).then(function (res) {
           if (res._status !== 200) return failed(row, res);
           flash("", "Removed " + name(row) + " from every playlist. " + (everything ? "It's listed above, with Put back." : "To put it back, use Everything."));
@@ -147,7 +147,7 @@ SCRIPT = r"""
             } } })]));
         });
         tools.appendChild(el("div", {}, [el("h3", { text: "Removed because they didn't play" }),
-          el("p", { class: "muted", text: "The nightly check puts each one back when its stream works again." }), list]));
+          el("p", { class: "muted", text: "The nightly check puts each one back after its stream works three nights in a row." }), list]));
       }
       table.closest(".wide").before(tools);
     }

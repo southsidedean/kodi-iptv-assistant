@@ -159,3 +159,48 @@ def test_threadfin_switch_writes_curly_apostrophes(tmp_path: Path):
     assert parse(plex)[0].attrs["tvg-chno"] == "7"
     assert "Hogan's Heroes" in (out / "kodi.m3u").read_text()  # only where it's asked for
     assert profiles.rules(profiles.load_text("[p]\nthreadfin = true\n")[0]) == {"threadfin": True}
+
+
+def test_guides_are_rewritten_only_when_needed(tmp_path: Path):
+    import gzip
+    import os
+    import time
+
+    out, state = tmp_path / "output", tmp_path / "state"
+    out.mkdir()
+    from kia.m3u import write
+
+    entries = [Entry("A", "http://a/1", {"tvg-id": "A.us", "group-title": "News", "tvg-chno": "1"}, source="us"),
+               Entry("B", "http://a/2", {"tvg-id": "B.us", "group-title": "Kids", "tvg-chno": "2"}, source="us"),
+               Entry("R", "http://a/3", {"tvg-id": "R.radio", "tvg-chno": "3", "radio": "true"}, source="radio")]  # fmt: skip
+    (out / "curated.m3u").write_text(write(entries, None))
+    guide = '<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n' + "".join(
+        f'<channel id="{i}"><display-name>{i}</display-name></channel>\n' for i in ("A.us", "B.us", "R.radio")) + "</tv>\n"
+    (out / "guide.xml").write_text(guide)
+    with gzip.open(out / "guide.xml.gz", "wt") as f:
+        f.write(guide)
+    pfile = tmp_path / "profiles.toml"
+    pfile.write_text('[news]\ngroups = ["News"]\n[kids]\ngroups = ["Kids"]\n')
+    profiles.rebuild(out, state, pfile, None, lambda m: None)
+    # kia's own TV-only guide is the full guide under another name, not a copy.
+    assert os.path.samefile(out / "tv.guide.xml.gz", out / "guide.xml.gz")
+    stamp = {n: (out / f"{n}.guide.xml.gz").stat().st_mtime_ns for n in ("news", "kids")}
+    time.sleep(0.01)
+    # A save that changes one playlist rewrites only that one's guide.
+    pfile.write_text('[news]\ngroups = ["News", "Kids"]\n[kids]\ngroups = ["Kids"]\n')
+    profiles.rebuild(out, state, pfile, None, lambda m: None)
+    assert (out / "news.guide.xml.gz").stat().st_mtime_ns != stamp["news"]
+    assert (out / "kids.guide.xml.gz").stat().st_mtime_ns == stamp["kids"]
+    # A new full guide rewrites every guide, and the TV-only one follows the new file.
+    time.sleep(0.01)
+    (out / "guide.xml").write_text(guide)
+    (out / "guide.xml.gz").unlink()
+    with gzip.open(out / "guide.xml.gz", "wt") as f:
+        f.write(guide)
+    profiles.rebuild(out, state, pfile, None, lambda m: None)
+    assert (out / "kids.guide.xml.gz").stat().st_mtime_ns != stamp["kids"]
+    assert os.path.samefile(out / "tv.guide.xml.gz", out / "guide.xml.gz")
+    # A guide someone deleted is made again.
+    (out / "kids.guide.xml.gz").unlink()
+    profiles.rebuild(out, state, pfile, None, lambda m: None)
+    assert (out / "kids.guide.xml.gz").exists()

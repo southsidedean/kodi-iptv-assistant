@@ -10,7 +10,7 @@ The examples use `192.168.1.20` for the kia machine; use yours.
 |---|---|
 | `http://192.168.1.20:8780/status.json` | Whether kia is working, the channel counts, alerts, playlists, the certificate, and the settings. Its fields are listed in [how it works](how-it-works.md#statusjson). |
 | `http://192.168.1.20:8780/pluto.json` | The Pluto TV channels playing through kia right now, with their sessions and recent problems. Its fields are listed in [how it works](how-it-works.md#plutojson). |
-| `http://192.168.1.20:8780/profiles.json` | Each profile's `name`, `title`, playlist `file`, its own `guide` file, `tv` and `radio` counts, and `builtin` (true for kia's TV-only playlist), plus `error` when the profiles file has a mistake |
+| `http://192.168.1.20:8780/profiles.json` | Each profile's `name`, `title`, playlist `file`, its own `guide` file, `tv` and `radio` counts, `builtin` (true for kia's TV-only playlist), and `guide_ids` (a fingerprint of the channels in its guide, which kia uses to skip rewriting a guide that hasn't changed), plus `error` when the profiles file has a mistake |
 | `http://192.168.1.20:8780/curated.m3u` | The full playlist |
 | `http://192.168.1.20:8780/<name>.m3u` | A profile's playlist, or `tv.m3u`, kia's TV-only playlist |
 | `http://192.168.1.20:8780/guide.xml.gz` | The full guide (XMLTV, gzipped) |

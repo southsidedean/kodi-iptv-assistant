@@ -1,6 +1,19 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 0.4.3 (unreleased)
+
+### Faster on small computers
+
+- Saving a playlist on the Dashboard used to rebuild every playlist's guide before the page answered: 2 to 7 seconds on the PCs we measured, about 10 on a Raspberry Pi 4, and 30 on a Pi 3B. Now kia rewrites only the guides whose channels changed, and the full set only when the guide itself is new.
+- The TV-only playlist's guide is the full guide under a second name instead of a copy. Radio has almost no listings, and players ignore channels they don't have. That saves about 40% of the work of every guide refresh, and 3 MB.
+
+### Fixes
+
+- A channel you remove because it won't play now comes back on its own only after its stream works three nights in a row, instead of after one. kia's check only opens a stream, and some streams that open still don't play well, so they kept coming back every night. **Put back** still works straight away.
+
+### Security
+
+- The installer makes `.env` readable only by you, and tightens an existing one. It holds kia's password, and your email, alert, and Plex settings if you use them. The Dashboard warns if anyone else on the computer can read it, and the manual install steps include `chmod 600 .env`.
 
 ## 0.4.2 (2026-10-21)
 

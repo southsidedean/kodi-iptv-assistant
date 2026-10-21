@@ -172,9 +172,20 @@ def test_nightly_check_puts_back_what_works(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(cli, "probe_all", fake_probe_all)
     monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/" + name)
     monkeypatch.setattr(cli, "double_check_dns", lambda results, resolvers: {})
-    assert cli.main(["check", "-c", str(tmp_path / "kia.toml")]) == 0
-    names = [e.name for e in m3u.parse((tmp_path / "output" / "curated.m3u").read_text())]
-    assert names == ["Alpha", "Charlie"]  # Alpha works again; Bravo still doesn't, so it stays out
+
+    def night():
+        assert cli.main(["check", "-c", str(tmp_path / "kia.toml")]) == 0
+        return [e.name for e in m3u.parse((tmp_path / "output" / "curated.m3u").read_text())]
+
+    # One good night isn't enough: kia's check only opens the stream.
+    assert night() == ["Charlie"]
+    assert channels.load(tmp_path / "state")["removed"]["Alpha.us"]["good_nights"] == 1
+    working["http://a/1"] = False  # a bad night starts the count again
+    night()
+    assert channels.load(tmp_path / "state")["removed"]["Alpha.us"]["good_nights"] == 0
+    working["http://a/1"] = True
+    assert night() == ["Charlie"] and night() == ["Charlie"]
+    assert night() == ["Alpha", "Charlie"]  # three good nights in a row; Bravo still doesn't work
     assert list(channels.load(tmp_path / "state")["removed"]) == ["Bravo.us"]
 
 

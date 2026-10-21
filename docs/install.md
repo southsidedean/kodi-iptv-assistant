@@ -89,10 +89,11 @@ This address can change when the computer restarts. To keep it fixed, set up a D
 
 ## 5. Configure kia
 
-Make your settings file from the example:
+Make your settings file from the example, readable only by you (it will hold kia's password and other secrets):
 
 ```sh
 cp .env.example .env
+chmod 600 .env
 ```
 
 Open `.env` in a text editor (`open -e .env` on macOS, `nano .env` on Linux) and change these lines:
