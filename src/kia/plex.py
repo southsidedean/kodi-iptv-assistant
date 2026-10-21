@@ -70,14 +70,37 @@ def playlist_title(base: Path, folder: str, output_dir: Path) -> str | None:
     return ", ".join(titles) or None
 
 
-def find_tuners(base: Path, output_dir: Path, host: str, log=print, getter=_get_json) -> list[Tuner]:
-    """Each running Threadfin of this kia: its address, its playlist's title, and its channels."""
+def in_stack(plex_url: str) -> bool:
+    """Whether Plex runs in kia's own compose stack (the plex-server profile), where it
+    reaches each Threadfin by its name on Docker's network."""
+    return urllib.parse.urlparse(plex_url).hostname == "plex"
+
+
+# Where Plex in the stack keeps its settings (compose.yaml mounts KIA_PLEX_CONFIG, by
+# default plex/config in the kia folder, as /config).
+PREFERENCES = Path("plex/config/Library/Application Support/Plex Media Server/Preferences.xml")
+
+
+def own_token(base: Path) -> str | None:
+    """The token Plex in the stack saved for itself when it was claimed, if kia can read it."""
+    import xml.etree.ElementTree as ET  # Plex writes this file itself
+
+    try:
+        return ET.parse(base / PREFERENCES).getroot().get("PlexOnlineToken") or None
+    except (OSError, ET.ParseError):
+        return None
+
+
+def find_tuners(base: Path, output_dir: Path, host: str | None, log=print, getter=_get_json) -> list[Tuner]:
+    """Each running Threadfin of this kia: its address, its playlist's title, and its channels.
+    host: this computer's address; None when Plex is in the stack, which reaches each
+    Threadfin by its service name instead."""
     found = []
     for i, (folder, setting, default) in enumerate(FOLDERS, 1):
         if not (base / folder / "conf" / "settings.json").exists():
             continue
         port = os.environ.get(setting) or str(default)
-        address = f"{host}:{port}"
+        address = f"{folder}:34400" if host is None else f"{host}:{port}"
         try:
             lineup = getter(f"http://{address}/lineup.json")
         except (OSError, ValueError) as exc:

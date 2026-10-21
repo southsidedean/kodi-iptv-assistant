@@ -1047,12 +1047,14 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                 except (Exception, SystemExit) as exc:  # keep the daemon alive
                     log(f"Guide refresh failed: {type(exc).__name__}: {exc}")
                 touch_guide(cfg)  # a failed refresh waits a full interval, too, instead of looping
+                keep_plex_in_step(args.config)
             wait_until(nxt)
         run_now = False
         try:
             secure_setup(cfg)  # renews kia's own certificate before it expires
             write_settings(load_config(args), args.at, args.guide_every)  # kia.toml may have changed
             run_and_report(args.config, update_epg=True)
+            keep_plex_in_step(args.config)
         except (Exception, SystemExit) as exc:  # e.g. the config became invalid; keep the daemon alive
             log(f"Run could not start: {type(exc).__name__}: {exc}")
             try:
@@ -1061,6 +1063,17 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                               cfg.state_dir, cfg.alerts, log)  # fmt: skip
             except Exception as exc2:  # reporting must never stop the daemon
                 log(f"Couldn't report it: {exc2}")
+
+
+def keep_plex_in_step(config: str) -> None:
+    """With KIA_PLEX_URL set, bring Plex's Threadfin DVR up to date after a refresh, so
+    channels the playlists gained reach Plex (kia plex-tuners). Never stops the daemon."""
+    if not os.environ.get("KIA_PLEX_URL"):
+        return
+    try:
+        main(["plex-tuners", "-c", config])
+    except (Exception, SystemExit) as exc:
+        log(f"Couldn't update Plex: {type(exc).__name__}: {exc}")
 
 
 def guide_age_due(cfg: Config, every: timedelta) -> datetime:
@@ -1098,24 +1111,36 @@ def cmd_test_alert(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_threadfin_setup(args: argparse.Namespace) -> int:
+    """Write each Threadfin's first settings (kia.threadfin); never changes existing ones."""
+    from kia import threadfin
+
+    cfg = load_config(args)
+    threadfin.set_up(Path(args.config).resolve().parent, cfg.output_dir, log)
+    return 0
+
+
 def cmd_plex_tuners(args: argparse.Namespace) -> int:
     """Add kia's Threadfins to Plex as one DVR of their own (kia.plex)."""
     from kia import plex
 
     cfg = load_config(args)
     url = args.plex or os.environ.get("KIA_PLEX_URL", "")
-    token = args.token or os.environ.get("KIA_PLEX_TOKEN", "")
-    host = args.address or (urlparse(cfg.public_url).hostname if cfg.public_url else None)
+    base = Path(args.config).resolve().parent
+    stack = bool(url) and plex.in_stack(url)
+    # Plex in the stack has its own token, which kia can read; another Plex needs one in .env.
+    token = args.token or os.environ.get("KIA_PLEX_TOKEN", "") or (plex.own_token(base) if stack else None) or ""
+    host = None if stack else args.address or (urlparse(cfg.public_url).hostname if cfg.public_url else None)
     missing = [n for n, v in (("KIA_PLEX_URL (Plex's address, e.g. http://192.168.1.20:32400)", url),
-                              ("KIA_PLEX_TOKEN (see docs/plex.md)", token),
-                              ("KIA_PUBLIC_URL (this computer's address)", host)) if not v]  # fmt: skip
+                              ("KIA_PLEX_TOKEN (see docs/plex.md)" if not stack else
+                               "Plex's own token (Plex hasn't been claimed yet: see PLEX_CLAIM)", token),
+                              ("KIA_PUBLIC_URL (this computer's address)", host or stack)) if not v]  # fmt: skip
     if missing:
         log("Set these in .env first, then restart kia: " + "; ".join(missing))
         return 1
     if host in ("localhost", "127.0.0.1"):
         log("Note: Plex will look for Threadfin at localhost, which only works when Plex runs on this computer, "
             "outside a container. Use --address with this computer's network address otherwise.")  # fmt: skip
-    base = Path(args.config).resolve().parent
     try:
         server, tuners = plex.Plex(url, token), plex.find_tuners(base, cfg.output_dir, host, log)
         if args.remove:
@@ -1224,6 +1249,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("test-alert", help="send a test notification (ntfy and/or your alert command)")
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_test_alert)
+
+    p = sub.add_parser("threadfin-setup", help="give each Threadfin its settings before it first starts (compose runs this)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_threadfin_setup)
 
     p = sub.add_parser("plex-tuners", help="add kia's Threadfins to Plex as a DVR of their own (docs/plex.md)")
     p.add_argument("-c", "--config", default="kia.toml")

@@ -55,7 +55,14 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `COMPOSE_PROFILES` | | `plex` starts Threadfin with kia, for [Plex](plex.md); `plex,plex-2` starts two, for more than 480 channels. |
 | `KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT` | `34400`, `34401` | Threadfin's web pages, and the tuner addresses Plex uses. |
 | `KIA_THREADFIN_IMAGE` | `fyb3roptik/threadfin:1.2.37` | Threadfin's version. |
+| `KIA_THREADFIN_PLAYLIST`, `KIA_THREADFIN_2_PLAYLIST` | `plex` (or `plex-1`), `plex-2` | The kia playlist each Threadfin reads. kia sets Threadfin up with it the first time Threadfin starts, and never changes Threadfin's settings after that. |
 | `KIA_PLEX_URL`, `KIA_PLEX_TOKEN` | | Plex's address (such as `http://192.168.1.20:32400`) and a Plex token, for `kia plex-tuners`, which adds the Threadfins to Plex ([Plex](plex.md#let-kia-add-them)). The token is like a password for your Plex account: keep `.env` private. |
+| `PLEX_CLAIM` | | For Plex in the same stack ([the home TV box](cookbooks/plex-box.md)): a code from [plex.tv/claim](https://plex.tv/claim) that links the new Plex to your account on its first start. It works for 4 minutes. |
+| `KIA_PLEX_ADVERTISE` | | The address Plex apps on your network use to reach Plex in the stack, such as `http://192.168.1.20:32400/`. |
+| `KIA_PLEX_PORT` | `32400` | Plex's port, for Plex in the stack. |
+| `KIA_PLEX_IMAGE` | `plexinc/pms-docker:latest` | Plex's version, for Plex in the stack. |
+| `KIA_PLEX_CONFIG`, `KIA_PLEX_TRANSCODE` | `plex/config`, `plex/transcode` | Where Plex in the stack keeps its settings and database, and its temporary files while converting video. Both survive restarts and updates. |
+| `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex in the stack. Plex can read them but not change them. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.

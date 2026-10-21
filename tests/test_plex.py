@@ -193,3 +193,38 @@ def test_find_tuners_reads_threadfin_and_kia(tmp_path: Path, monkeypatch):
     said = []
     plex.find_tuners(tmp_path, out, "my-server.lan", said.append, getter=lambda url: (_ for _ in ()).throw(OSError("refused")))
     assert len(said) == 2 and "isn't answering" in said[0]
+
+
+def test_plex_in_the_stack_reaches_threadfin_by_name_and_has_its_own_token(tmp_path: Path):
+    assert plex.in_stack("http://plex:32400") and not plex.in_stack("http://192.168.1.20:32400")
+    assert plex.own_token(tmp_path) is None  # not claimed yet
+    prefs = tmp_path / plex.PREFERENCES
+    prefs.parent.mkdir(parents=True)
+    prefs.write_text('<?xml version="1.0" encoding="utf-8"?>\n<Preferences FriendlyName="box" PlexOnlineToken="abc123"/>\n')
+    assert plex.own_token(tmp_path) == "abc123"
+    out = tmp_path / "output"
+    out.mkdir()
+    (tmp_path / "threadfin" / "conf").mkdir(parents=True)
+    (tmp_path / "threadfin" / "conf" / "settings.json").write_text("{}")
+    lineups = {"http://threadfin:34400/lineup.json": [{"GuideNumber": "7"}]}
+    found = plex.find_tuners(tmp_path, out, None, lambda m: None, getter=lineups.__getitem__)
+    assert [(t.address, t.channels) for t in found] == [("threadfin:34400", ["7"])]
+
+
+def test_the_daemon_keeps_plex_in_step_only_when_asked(monkeypatch):
+    from kia import cli
+
+    calls = []
+    monkeypatch.setattr(cli, "main", lambda argv: calls.append(argv) or 0)
+    monkeypatch.delenv("KIA_PLEX_URL", raising=False)
+    cli.keep_plex_in_step("kia.toml")
+    assert calls == []
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    cli.keep_plex_in_step("kia.toml")
+    assert calls == [["plex-tuners", "-c", "kia.toml"]]
+
+    def broken(argv):
+        raise SystemExit(1)
+
+    monkeypatch.setattr(cli, "main", broken)
+    cli.keep_plex_in_step("kia.toml")  # a failure never stops the daemon

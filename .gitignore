@@ -14,6 +14,11 @@ tls/*
 threadfin/*/*
 threadfin-2/*/*
 !threadfin*/*/.gitkeep
+# Plex's settings and database, and your media (compose.yaml, plex-server profile).
+plex/*/*
+!plex/*/.gitkeep
+media/*
+!media/.gitkeep
 # Your profiles (the Dashboard writes them here), apart from the example.
 profiles/*
 !profiles/example.toml
