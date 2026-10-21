@@ -96,7 +96,7 @@ For a second tuner, do the same at `http://<your address>:34401/web/` with `http
 
 ## 4. Add Threadfin to Plex
 
-In Plex, go to **Settings → Live TV & DVR** and choose **Set Up Plex Tuner**.
+In Plex, go to **Settings → Live TV & DVR** and choose **Set Up Plex Tuner**. If Plex already has a DVR (an antenna tuner, say), choose **Add Another Device** instead: Threadfin's channels join that DVR with their own guide, and your antenna channels stay as they are. In that case, step 2 starts with **Next**, and Plex then asks for the XMLTV guide.
 
 1. Choose **Don't see your HDHomeRun device? Enter its network address manually**, enter `<your address>:34400`, and choose **Connect**. Threadfin appears as a tuner with your channel count.
 
@@ -112,7 +112,7 @@ In Plex, go to **Settings → Live TV & DVR** and choose **Set Up Plex Tuner**.
 
 Plex then downloads the guide, and the channels appear under **Live TV** in every Plex app.
 
-For a second tuner, go back to **Settings → Live TV & DVR**, choose **Add Another Device**, and repeat the three steps with port 34401: `<your address>:34401`, then `http://<your address>:34401/xmltv/threadfin.xml` with a title such as `Plex 2 guide`. Plex keeps both tuners in one guide.
+For a second tuner, go back to **Settings → Live TV & DVR**, choose **Add Another Device**, and repeat the three steps with port 34401: connect to `<your address>:34401`, choose **Next**, and enter `http://<your address>:34401/xmltv/threadfin.xml` with a title such as `Plex 2 guide`. Plex keeps both tuners in one guide.
 
 ![Plex's Live TV & DVR page with two Threadfin tuners and their guides](../images/plex/plex-two-tuners.png)
 
@@ -137,7 +137,7 @@ sudo chown -R "$(id -u):$(id -g)" threadfin threadfin-2
 docker compose up -d
 ```
 
-**Plex shows no channels.** Look at Threadfin's **Mapping** page. Channels only appear there after a **Filter** picks them (step 3.3).
+**Plex shows no channels.** Look at Threadfin's **Mapping** page. Channels only appear there after a filter picks them (**Filter → New** in step 3).
 
 **Channels have no guide, or Mapping shows `-` for their XMLTV file.** Threadfin saw the channels before it had the guide, and it doesn't match them again later. Have it start over (your playlist, guide, filter, and settings stay):
 
