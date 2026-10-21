@@ -1,7 +1,6 @@
 import json
 import shutil
 import threading
-import urllib.request
 from pathlib import Path
 
 import pytest

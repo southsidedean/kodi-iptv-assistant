@@ -12,6 +12,16 @@ python3 -m venv .venv
 .venv/bin/python -m pytest
 ```
 
+The same checks CI runs on the code, which find bugs and security problems rather than style:
+
+```sh
+.venv/bin/ruff check src tests
+.venv/bin/bandit -q -c pyproject.toml -r src
+shellcheck scripts/*.sh deploy/*.sh
+```
+
+CI also scans the Docker image for known vulnerabilities (CVEs) with [Trivy](https://trivy.dev), and fails on fixable high or critical ones. Known exceptions, each with a reason and an end date, are in `.trivyignore`.
+
 To try a change end to end, run kia with Docker as the [install guide](docs/install.md) describes, then `docker compose up -d --build`.
 
 ## Making a change

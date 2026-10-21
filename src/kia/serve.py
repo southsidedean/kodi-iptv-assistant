@@ -17,7 +17,7 @@ from kia import tls
 
 
 class OutputHandler(SimpleHTTPRequestHandler):
-    extensions_map = {
+    extensions_map = {  # noqa: RUF012
         **SimpleHTTPRequestHandler.extensions_map,
         ".m3u": "audio/x-mpegurl",
         ".m3u8": "audio/x-mpegurl",
@@ -42,7 +42,7 @@ class OutputHandler(SimpleHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         super().end_headers()
 
-    def log_message(self, format, *args):  # noqa: A002 - signature from the base class
+    def log_message(self, format, *args):
         pass
 
     # The profile editor's API (kia.api), when the server was given one.

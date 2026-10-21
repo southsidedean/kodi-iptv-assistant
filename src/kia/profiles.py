@@ -15,7 +15,7 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import replace
 import tomllib
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from kia.m3u import Entry
@@ -213,7 +213,7 @@ def write_guides(output_dir: Path, wanted: dict[str, set[str]]) -> set[str]:
     if not wanted or not full.exists():
         return set()
     files = {name: output_dir / f"{name}.guide.xml.gz.tmp" for name in wanted}
-    outs = {name: gzip.open(path, "wt", encoding="utf-8", compresslevel=6) for name, path in files.items()}
+    outs = {name: gzip.open(path, "wt", encoding="utf-8", compresslevel=6) for name, path in files.items()}  # noqa: SIM115
     try:
         for f in outs.values():
             f.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="kodi-iptv-assistant">\n')

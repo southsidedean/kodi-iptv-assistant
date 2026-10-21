@@ -86,7 +86,7 @@ def test_playlist_carries_the_tested_user_agent():
 def test_playlists_in_windows_1252_keep_their_accents(tmp_path):
     from kia.cli import decode_text, fetch
 
-    assert decode_text("Español ✓".encode("utf-8")) == "Español ✓"
+    assert decode_text("Español ✓".encode()) == "Español ✓"
     assert decode_text("AMC en Español, Pokémon".encode("cp1252")) == "AMC en Español, Pokémon"
     f = tmp_path / "list.m3u"
     f.write_bytes('#EXTM3U\n#EXTINF:-1,AMC en Español\nhttp://a/1\n'.encode("cp1252"))

@@ -137,7 +137,7 @@ def test_check_now_runs_one_playlist(cfg, monkeypatch):
 
     monkeypatch.setattr(api.subprocess, "run", fake_run)
     monkeypatch.setattr(api.threading, "Thread", lambda target, args, **kw: type("T", (), {"start": lambda self: target(*args)})())
-    status, data = call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})
+    status, _data = call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})
     assert status == 200
     assert ran[0][-2:] == ["-u", "https://example.com/jazz.m3u jazz radio"]
     check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]

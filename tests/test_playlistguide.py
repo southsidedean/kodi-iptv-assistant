@@ -16,7 +16,7 @@ NOW = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
 
 def guide(channels: dict[str, list[str]], now: datetime = NOW) -> bytes:
     """An XMLTV guide: channel id -> titles, one an hour from midnight UTC."""
-    t = lambda h: xmltv.format_time(now.replace(hour=0) + timedelta(hours=h))  # noqa: E731
+    t = lambda h: xmltv.format_time(now.replace(hour=0) + timedelta(hours=h))
     body = "".join(
         f'<programme start="{t(h)}" stop="{t(h + 1)}" channel="{cid}"><title>{title}</title></programme>'
         for cid, titles in channels.items()
@@ -44,7 +44,7 @@ def test_plan_groups_channels_by_playlist():
     assert playlistguide.sites_by_channel(spec)["A"] == ["playlist-roku"]
 
 
-def test_download_keeps_only_our_channels(server, tmp_path: Path):  # noqa: F811
+def test_download_keeps_only_our_channels(server, tmp_path: Path):
     www, base = server
     (www / "a.xml.gz").write_bytes(gzip.compress(guide({"A": ["News", "Weather"], "Z": ["Not ours"]})))
     (www / "b.xml").write_bytes(guide({"B": ["Movie"]}))
@@ -61,7 +61,7 @@ def test_download_keeps_only_our_channels(server, tmp_path: Path):  # noqa: F811
         playlistguide.download({"urls": [f"{base}/missing.xml"], "channels": {"A": ["A"]}}, out, 1, logs.append, NOW)
 
 
-def test_check_map_grab_guide_use_the_playlists_guide(server, tmp_path: Path, monkeypatch):  # noqa: F811
+def test_check_map_grab_guide_use_the_playlists_guide(server, tmp_path: Path, monkeypatch):
     www, base = server
     now = datetime.now(timezone.utc)
     (www / "roku.xml").write_bytes(guide({"r1": [f"Show {h}" for h in range(24)]}, now))
@@ -107,7 +107,7 @@ def test_failed_playlist_guide_keeps_the_previous_one(tmp_path: Path):
     assert r.returncode == 1 and previous.read_text() == "<tv>old</tv>"
 
 
-def test_quick_refresh_fetches_only_the_guides_that_had_our_channels(server, tmp_path: Path):  # noqa: F811
+def test_quick_refresh_fetches_only_the_guides_that_had_our_channels(server, tmp_path: Path):
     www, base = server
     now = datetime.now(timezone.utc)
     (www / "ours.xml").write_bytes(guide({"A": ["News"]}, now))

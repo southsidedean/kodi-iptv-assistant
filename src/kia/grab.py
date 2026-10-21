@@ -95,7 +95,7 @@ def _update_repo(cfg: EpgConfig, fresh: bool, log: Callable[[str], None]) -> Non
         install_deps(cfg, log)
     else:
         # Same dependencies; just refresh the iptv-org API data (channel logos, feeds).
-        subprocess.run(runner_prefix(cfg) + ["npm", "run", "api:load"], cwd=repo, check=True)
+        subprocess.run([*runner_prefix(cfg), "npm", "run", "api:load"], cwd=repo, check=True)
 
 
 def install_deps(cfg: EpgConfig, log: Callable[[str], None]) -> None:
@@ -104,8 +104,8 @@ def install_deps(cfg: EpgConfig, log: Callable[[str], None]) -> None:
     # --ignore-scripts skips husky, a git hook installer that fails without git (the node
     # image has none). It also skips the postinstall step, which downloads iptv-org's
     # channel data, so run that separately.
-    subprocess.run(prefix + ["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=cfg.repo_dir, check=True)
-    subprocess.run(prefix + ["npm", "run", "api:load"], cwd=cfg.repo_dir, check=True)
+    subprocess.run([*prefix, "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=cfg.repo_dir, check=True)
+    subprocess.run([*prefix, "npm", "run", "api:load"], cwd=cfg.repo_dir, check=True)
 
 
 def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
@@ -161,7 +161,7 @@ def _run_epg_grab(cfg: EpgConfig, channels_file: Path, staged: Path, log_path: P
 def stop(proc: subprocess.Popen, container: str | None) -> None:
     """Stop a download and everything it started."""
     if container:
-        subprocess.run(["docker", "kill", container], capture_output=True)
+        subprocess.run(["docker", "kill", container], capture_output=True, check=False)
     try:
         os.killpg(proc.pid, signal.SIGTERM)
         proc.wait(timeout=10)

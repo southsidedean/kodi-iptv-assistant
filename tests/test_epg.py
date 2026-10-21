@@ -127,7 +127,7 @@ def test_choose_and_write_guide(tmp_path: Path):
 
 
 def name_repo(tmp_path: Path) -> list[epgmap.SiteChannel]:
-    sc = lambda site, sid, name, xid="": epgmap.SiteChannel(site, sid, "en", xid, name)  # noqa: E731
+    sc = lambda site, sid, name, xid="": epgmap.SiteChannel(site, sid, "en", xid, name)
     return [
         sc("pluto.tv", "p1", "Battlestar Galactica"),  # no id on the site
         sc("pluto.tv", "p0", "CNN", "CNN.us@East"),  # gives pluto.tv its country: us
@@ -183,7 +183,7 @@ def test_report_lists_name_matches_and_suggestions(tmp_path: Path):
 
 def test_programmes_without_titles_are_not_guide_data(tmp_path: Path):
     now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
-    t = lambda h: xmltv.format_time(now + timedelta(hours=h))  # noqa: E731
+    t = lambda h: xmltv.format_time(now + timedelta(hours=h))
     blank = tmp_path / "blank.xml"
     blank.write_text("<tv>" + "".join(f'<programme start="{t(h)}" stop="{t(h + 1)}" channel="A.us"/>' for h in range(24)) + "</tv>")
     titled = tmp_path / "titled.xml"
@@ -200,7 +200,7 @@ def test_programmes_without_titles_are_not_guide_data(tmp_path: Path):
 
 def test_listings_that_run_out_are_followed_by_the_name(tmp_path: Path):
     now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
-    t = lambda h, m=0: xmltv.format_time(now.replace(hour=0) + timedelta(hours=h, minutes=m))  # noqa: E731
+    t = lambda h, m=0: xmltv.format_time(now.replace(hour=0) + timedelta(hours=h, minutes=m))
     src = tmp_path / "short.xml"
     # Listings until 21:30 on day one only, like a guide that reaches 11 hours ahead.
     src.write_text("<tv>" + "".join(f'<programme start="{t(h)}" stop="{t(h + 1)}" channel="A.us"><title>P{h}</title></programme>'

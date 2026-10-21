@@ -28,6 +28,7 @@ from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
 from kia.probe import ProbeResult, probe
+import contextlib
 
 
 def log(msg: str) -> None:
@@ -239,7 +240,7 @@ def write_report(path: Path, markdown: str) -> None:
 
 def lookup_all(hosts: list[str], resolvers: tuple[str, ...]) -> dict[str, dnscheck.PublicLookup]:
     with ThreadPoolExecutor(16) as pool:
-        return dict(zip(hosts, pool.map(lambda h: dnscheck.check_public(h, resolvers), hosts)))
+        return dict(zip(hosts, pool.map(lambda h: dnscheck.check_public(h, resolvers), hosts), strict=True))
 
 
 def double_check_dns(
@@ -551,7 +552,7 @@ def report_grab_dns(
     # Grabbers don't retry a failed lookup the way the stream check does, so try each name
     # once more here. Only names that still fail locally can point to a DNS problem.
     with ThreadPoolExecutor(16) as pool:
-        still_failing = [h for h, ok in zip(hosts, pool.map(resolves_locally, hosts)) if not ok]
+        still_failing = [h for h, ok in zip(hosts, pool.map(resolves_locally, hosts), strict=True) if not ok]
     if len(still_failing) < len(hosts):
         log(f"{len(hosts) - len(still_failing)} hostnames the grabbers couldn't look up resolve now; ignoring those")
     hosts = still_failing
@@ -822,7 +823,7 @@ _RELAY: pluto.Relay | None = None
 
 def pluto_relay(cfg: Config) -> pluto.Relay | None:
     """The Pluto TV relay every server in this process shares (None when it's off)."""
-    global _RELAY
+    global _RELAY  # noqa: PLW0603
     if not cfg.pluto_relay:
         return None
     if _RELAY is None:
@@ -970,10 +971,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
     serve_secure(cfg, args.bind, args.https_port)
     server = serve.make_server(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=pluto_relay(cfg))
     log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/ (Ctrl-C to stop)")
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 
@@ -991,7 +990,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     elif args.api_port:
         # With Docker, nginx serves the files (HTTP and HTTPS) and forwards /api/ here; this
         # port isn't published, and nginx tells it which requests came over HTTPS.
-        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg), trust_proxy=True,
+        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg), trust_proxy=True,  # noqa: S104  # nosec B104
                                   relay=pluto_relay(cfg))  # fmt: skip
         log(f"Profile editor API and Pluto relay on port {args.api_port}")
     run_now = (

@@ -22,7 +22,7 @@ def test_bad_ntfy_url_is_logged_not_raised(tmp_path: Path):
     assert any("ntfy notification failed" in m for m in messages)
 
 
-def test_truncated_upstream_guide_is_rejected(server, tmp_path: Path):  # noqa: F811
+def test_truncated_upstream_guide_is_rejected(server, tmp_path: Path):
     www, base = server
     dest = tmp_path / "guide.xml.gz"
     good = gzip.compress(b'<?xml version="1.0"?><tv>' + b"<x/>" * 50_000 + b"</tv>")
@@ -129,7 +129,7 @@ def test_grab_with_nothing_mapped(tmp_path: Path):
 def test_damaged_guide_file_is_skipped(tmp_path: Path):
     cfg = load(make_cfg(tmp_path))
     now = datetime.now(timezone.utc)
-    t = lambda h: xmltv.format_time(now + timedelta(hours=h))  # noqa: E731
+    t = lambda h: xmltv.format_time(now + timedelta(hours=h))
     good = tmp_path / "good.xml"
     good.write_text(f'<tv><programme start="{t(0)}" stop="{t(2)}" channel="A.us"><title>x</title></programme></tv>')
     bad = tmp_path / "bad.xml"
@@ -232,7 +232,7 @@ def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):
     entries = [m3u.Entry(str(i), f"http://jmp2.uk/{i}") for i in range(12)] + [m3u.Entry(f"o{i}", f"http://other.tv/{i}") for i in range(4)]
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
     assert peak == {"jmp2.uk": 6, "other.tv": cfg.per_host}
-    gaps = [b - a for a, b in zip(starts["jmp2.uk"], starts["jmp2.uk"][1:])]
+    gaps = [b - a for a, b in zip(starts["jmp2.uk"], starts["jmp2.uk"][1:], strict=False)]
     assert min(gaps) >= 0.045  # starts at least host_delay_ms apart
 
 
