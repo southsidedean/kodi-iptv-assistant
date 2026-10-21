@@ -157,7 +157,8 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
   :root { --step-2: 1.3rem; --step-3: 1.7rem; }
   .brand { font-size: 2.1rem; }
   .brand svg { width: 3.5rem; height: 3.5rem; }
-  nav.menu a { padding: .4rem .55rem; }
+  nav.menu { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 0; }
+  nav.menu a { padding: .4rem .5rem; flex: none; font-size: var(--step--1); }
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .tiles .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .tile, .card { padding: var(--space-3); }
@@ -170,6 +171,8 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
   table.settings td { border: 0; padding: .05rem .35rem; }
   table.settings td:first-child { color: var(--muted); }
 }
+@media (max-width: 24rem) { nav.menu a { padding-inline: .32rem; } }
+@media (max-width: 21rem) { nav.menu a { padding-inline: .2rem; font-size: .8rem; } }
 @media (prefers-reduced-motion: reduce) { .state-running .dot { animation: none; } }
 """
 
