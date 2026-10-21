@@ -33,6 +33,7 @@ from kia.m3u import parse
 
 # One change at a time, and none while kia check rebuilds the profiles.
 LOCK = threading.Lock()
+PASSWORD_LOCK = threading.Lock()
 
 
 @dataclass
@@ -105,8 +106,12 @@ def get_profiles(cfg: ApiConfig, secure: bool = False) -> dict:
     }
 
 
-def preview(cfg: ApiConfig, body: dict) -> dict:
-    """How many channels a profile with these settings would have, and a few of them."""
+def preview(cfg: ApiConfig, body: dict, headers=None, secure: bool = False) -> dict:
+    """How many channels a profile with these settings would have, and a few of them.
+    Name patterns are regular expressions, and a crafted one can keep the matcher busy for
+    hours, so previews that use them need the password, like saving does."""
+    if isinstance(body, dict) and (body.get("names") or body.get("exclude_names")):
+        check_password(cfg, (headers or {}).get("X-Kia-Password"), secure)
     p = _profile_from(body)
     picked = profiles.select(p, _items(cfg))
     radio = sum(1 for e in picked if e.is_radio)
@@ -286,6 +291,10 @@ def _counts(cfg: ApiConfig) -> dict[str, dict]:
 def get_sources(cfg: ApiConfig, secure: bool = False) -> dict:
     text, catalog = _sources_texts(cfg)
     rows = web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), _counts(cfg))
+    if not secure:
+        # Addresses can carry a provider's user name and password; show those only on the secure page.
+        for r in rows:
+            r["url"] = mask_url(r["url"])
     return {
         "editable": cfg.auth.source != "off",
         "secure": secure,
@@ -341,6 +350,21 @@ def remove_source(cfg: ApiConfig, url: str) -> dict:
             raise ApiError(404, str(exc))
         web_sources.save_state(cfg.state_dir, state)
     return get_sources(cfg, True)
+
+
+def mask_url(url: str) -> str:
+    """An address with any user name, password, or query hidden."""
+    from urllib.parse import urlsplit, urlunsplit
+
+    try:
+        u = urlsplit(url)
+    except ValueError:
+        return url
+    if not u.scheme.startswith("http"):
+        return url
+    host = u.hostname or ""
+    netloc = ("•••@" if u.username or u.password else "") + host + (f":{u.port}" if u.port else "")
+    return urlunsplit((u.scheme, netloc, u.path, "•••" if u.query else "", ""))
 
 
 # "Check now": a test check of one playlist, one at a time. It writes to work/check-test/
@@ -407,9 +431,10 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
         raise ApiError(403, "Editing is off (KIA_EDITING=false in kia's .env file).")
     if not secure:
         raise ApiError(403, "Changes are accepted only on the secure (https://) status page.")
-    if not cfg.auth.check(given):
-        time.sleep(1)  # slows down guessing
-        raise ApiError(401, "Wrong password.")
+    with PASSWORD_LOCK:  # one check at a time: each costs 16 MB and a second when wrong
+        if not cfg.auth.check(given):
+            time.sleep(1)  # slows down guessing
+            raise ApiError(401, "Wrong password.")
 
 
 def change_password(cfg: ApiConfig, body: dict) -> dict:
@@ -443,7 +468,7 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["profiles"] and method == "GET":
             return 200, get_profiles(cfg, secure)
         if parts == ["preview"] and method == "POST":
-            return 200, preview(cfg, data)
+            return 200, preview(cfg, data, headers, secure)
         if parts == ["channels"] and method == "GET":
             return 200, search_channels(cfg, parse_qs(url.query).get("q", [""])[0])
         if parts == ["channel-choices"] and method == "GET":

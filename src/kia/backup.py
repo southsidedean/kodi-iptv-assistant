@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import tarfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -48,13 +49,15 @@ def make(base: Path, out: Path, sources_file: Path | None = None) -> list[str]:
     tmp = out.with_name(out.name + ".tmp")
     manifest = json.dumps({"kia": __version__, "made": datetime.now().astimezone().isoformat(timespec="seconds"),
                            "files": names}, indent=1).encode()  # fmt: skip
-    with tarfile.open(tmp, "w:gz") as tar:
+    # Private from the start: it holds the password and the certificate's key.
+    os.close(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
+    # dereference: store what a symlink points at (e.g. a Let's Encrypt certificate) as a file.
+    with tarfile.open(tmp, "w:gz", dereference=True) as tar:
         info = tarfile.TarInfo(MANIFEST)
         info.size = len(manifest)
         tar.addfile(info, io.BytesIO(manifest))
         for p, name in zip(files, names):
             tar.add(p, arcname=name, recursive=False)
-    tmp.chmod(0o600)  # it holds the password and the certificate's key
     tmp.replace(out)
     return names
 
@@ -88,8 +91,14 @@ def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[
         bad = [m.name for m in members if not _safe(m.name) or not (m.isfile() or m.isdir())]
         if bad:
             raise ValueError(f"{archive.name} has entries kia won't restore: {', '.join(bad[:5])}")
-        allowed = [m for m in members if m.isfile() and (m.name in FILES or PurePosixPath(m.name).parts[0] in FOLDERS
-                                                          or m.name in manifest.get("files", []))]  # fmt: skip
+        # Only kia's own settings files and folders, plus a sources file of your own at the
+        # top of the kia folder; never what the archive's list claims beyond that.
+        def own(name: str) -> bool:
+            parts = PurePosixPath(name).parts
+            return (name in FILES or parts[0] in FOLDERS
+                    or (len(parts) == 1 and name.endswith(".txt") and name in manifest.get("files", [])))  # fmt: skip
+
+        allowed = [m for m in members if m.isfile() and own(m.name)]
         safety = None
         if _wanted(base, None):
             safety = default_name(safety_folder).with_name(f"before-restore-{datetime.now():%Y%m%d-%H%M%S}.tar.gz")
@@ -104,7 +113,7 @@ def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[
                 continue
             tmp = target.with_name(target.name + ".restore-tmp")
             tmp.write_bytes(data.read())
-            tmp.chmod(m.mode & 0o777 or 0o644)
+            tmp.chmod((m.mode & 0o666) or 0o600)  # never executable
             tmp.replace(target)
             restored.append(m.name)
     log(f"Restored {len(restored)} files from a backup made {manifest.get('made', '?')} by kia {manifest.get('kia', '?')}")

@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import ssl
 import threading
+import traceback
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -33,8 +34,12 @@ class OutputHandler(SimpleHTTPRequestHandler):
             return None
         return super().send_head()
 
+    # A client that connects and goes quiet doesn't hold a thread forever.
+    timeout = 60
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Frame-Options", "DENY")
         super().end_headers()
 
     def log_message(self, format, *args):  # noqa: A002 - signature from the base class
@@ -56,12 +61,21 @@ class OutputHandler(SimpleHTTPRequestHandler):
     def _api(self, method: str) -> bool:
         if not self.api or not self.path.startswith("/api/"):
             return False
-        length = int(self.headers.get("Content-Length") or 0)
-        if length > self.MAX_BODY:
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if length < 0:
+            status, data = 400, {"error": "Bad request."}
+        elif length > self.MAX_BODY:
             status, data = 413, {"error": "Too much data."}
         else:
             body = self.rfile.read(length) if length else b""
-            status, data = api_module.handle(self.api, method, self.path, self.headers, body, self._secure())
+            try:
+                status, data = api_module.handle(self.api, method, self.path, self.headers, body, self._secure())
+            except Exception:  # never drop the connection without an answer
+                traceback.print_exc()
+                status, data = 500, {"error": "kia hit an error doing that; its log has the details."}
         payload = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")

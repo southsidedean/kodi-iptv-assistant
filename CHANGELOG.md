@@ -2,6 +2,15 @@
 
 ## 0.4.1 (unreleased)
 
+### Security
+
+- A crafted name pattern in the playlist editor's preview could keep kia busy for hours, stopping playback and the status page for everyone. Previews that use name patterns now need the password, like saving.
+- A crafted backup could have written files outside kia's own settings when restored. Restore now writes only kia's settings files and folders, never as programs, and backs up linked certificates as real files.
+- Text from radio-browser.info, which anyone can edit, could add an unchecked channel to your playlists. Playlist lines are now always one line each.
+- kia's own server answers bad or unexpected requests with an error instead of hanging or dropping the connection, lets go of clients that go quiet, and checks one password at a time.
+- The Pluto TV relay plays only channels in your playlists, at most 20 at once, with a bounded cache, and fetches only https addresses.
+- Playlist addresses with a provider's login in them are shown in full only on the secure page. kia's pages can't be shown inside another website.
+
 ### Fixes
 
 - New installs start with `KIA_PUBLIC_URL` empty instead of an example address that looked real, so the guide and Pluto TV links can't point at a computer that doesn't exist. The Getting started checklist doesn't count the old example as set.

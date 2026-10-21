@@ -40,6 +40,12 @@ def _password(cfg: Config) -> str:
     }.get(source, source)
 
 
+def _masked(url: str) -> str:
+    from kia.api import mask_url
+
+    return mask_url(url)
+
+
 def _time_zone() -> str:
     name = os.environ.get("TZ") or ""
     abbr = datetime.now().astimezone().tzname() or ""
@@ -95,7 +101,7 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Use playlists' own guides", _yes(e.playlist_guides), TOML + "[epg] playlist_guides"),
             ("Time limit per site", f"{e.site_time_limit} min" if e.site_time_limit else "none",
              TOML + "[epg] site_time_limit"),
-            ("Guide from another kia server", cfg.upstream_url or "no", ENV + "KIA_UPSTREAM_URL"),
+            ("Guide from another kia server", _masked(cfg.upstream_url) if cfg.upstream_url else "no", ENV + "KIA_UPSTREAM_URL"),
             ("iptv-org/epg version", e.git_ref, ENV + "KIA_EPG_GIT_REF"),
         ]),
         ("Alerts", [

@@ -55,6 +55,8 @@ BOOT_URL = (
 FALLBACK_URL = "https://jmp2.uk/plu-{channel}.m3u8"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 
+MAX_CHANNELS = 20  # Pluto channels playing at once
+CACHE_PIECES = 12  # pieces kept per channel for viewers who are a little behind
 WINDOW = 6  # pieces in each playlist kia hands out
 KEEP = 60  # pieces kia remembers per channel
 REFRESH_EVERY = 2.0  # seconds between looks at Pluto's playlist
@@ -84,7 +86,9 @@ def for_players(entries: list[Entry], base_url: str | None) -> list[Entry]:
 
 
 def fetch(url: str, timeout: float = TIMEOUT) -> tuple[str, bytes]:
-    """(final address, body)."""
+    """(final address, body). Only https: the addresses come from Pluto's playlists."""
+    if not url.lower().startswith("https://"):
+        raise ValueError(f"not an https address: {url[:80]}")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.geturl(), r.read()
@@ -386,8 +390,8 @@ class Channel:
                 self.cache[seq] = self._remux(p)
                 if self.trace:
                     self.trace(f"{self.cid[:6]} sent {seq} at {p.t0:.3f} ({len(self.cache[seq])} bytes) to {viewer}")
-                for old in [k for k in self.cache if k < seq - 10]:
-                    del self.cache[old]
+                while len(self.cache) > CACHE_PIECES:
+                    del self.cache[next(iter(self.cache))]  # the oldest one in
             return self.cache[seq]
 
     def _key(self, uri: str) -> bytes:
@@ -417,7 +421,7 @@ class Channel:
         s = self.session
         return {
             "id": self.cid,
-            "viewers": sum(1 for t in self.viewers.values() if now - t < 30),
+            "viewers": sum(1 for t in list(self.viewers.values()) if now - t < 30),
             "session_started": s.started_at if s else None,
             "session_hours": round((now - s.started) / 3600, 1) if s else None,
             "next_refresh_hours": round(max(0.0, s.refresh_after - (now - s.started)) / 3600, 1) if s and s.own else None,
@@ -439,7 +443,7 @@ def _short(exc: BaseException) -> str:
 
 def probe_start(path: str, key: str | None, iv: str, ffprobe: str = "ffprobe") -> tuple[float, float]:
     """The first video and audio timestamps of a piece, in seconds."""
-    src = ["-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-i", path]
+    src = ["-f", "mpegts", "-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-f", "mpegts", "-i", path]
     out = subprocess.run([ffprobe, "-v", "error", "-read_intervals", "%+3", "-show_entries",
                           "packet=codec_type,dts_time", "-of", "csv=p=0", *src],
                          capture_output=True, text=True, timeout=30).stdout  # fmt: skip
@@ -466,7 +470,7 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
         v0, a0 = probe_start(path, key, iv, ffprobe)
         tv = round((t0 - v0) * 90000)
         ta = tv if abs(a0 - v0) < 1 else round((t0 - a0) * 90000)
-        src = ["-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-i", path]
+        src = ["-f", "mpegts", "-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-f", "mpegts", "-i", path]
         cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-copyts",
                "-t", f"{dur:.3f}", *src,  # Pluto sometimes packs in more than it lists
                "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy",
@@ -485,23 +489,29 @@ class Relay:
     """Every Pluto channel being watched. Writes its status to status_file (pluto.json)."""
 
     def __init__(self, status_file: Path | None = None, log: Callable[[str], None] = print,
-                 fetcher=fetch, remux_fn=remux, on_fallback: Callable[[str, int], None] | None = None):  # fmt: skip
+                 fetcher=fetch, remux_fn=remux, on_fallback: Callable[[str, int], None] | None = None,
+                 allowed: Callable[[], set[str]] | None = None):  # fmt: skip
         self.status_file = status_file
         self.log = log
         self.fetcher = fetcher
         self.remux = remux_fn
         self.on_fallback = on_fallback
+        self.allowed = allowed  # the channel ids kia's playlists have (None: any)
+        self.save_lock = threading.Lock()
         self.channels: dict[str, Channel] = {}
         self.lock = threading.Lock()
         self.alerted: dict[str, float] = {}
         self.trace: Callable[[str], None] | None = None
         self.last_saved = 0.0
 
-    def channel(self, cid: str) -> Channel:
+    def channel(self, cid: str) -> Channel | None:
+        """The channel, starting it if needed; None when too many are playing."""
         with self.lock:
             self._let_go_idle()
             ch = self.channels.get(cid)
             if ch is None:
+                if len(self.channels) >= MAX_CHANNELS:
+                    return None
                 ch = self.channels[cid] = Channel(cid, self)
             return ch
 
@@ -516,7 +526,11 @@ class Relay:
         if not m:
             return 404, "text/plain", b"Not a Pluto channel address."
         cid = m.group(1).lower()
+        if self.allowed is not None and cid not in self.allowed():
+            return 404, "text/plain", b"That Pluto channel isn't in kia's playlists."
         ch = self.channel(cid)
+        if ch is None:
+            return 503, "text/plain", f"kia is already playing {MAX_CHANNELS} Pluto channels.".encode()
         try:
             if m.group(2) is None:
                 body = ch.playlist().encode()
@@ -559,16 +573,19 @@ class Relay:
         }
 
     def save_status(self, force: bool = False) -> None:
-        if not self.status_file or (not force and time.monotonic() - self.last_saved < 15):
+        if not self.status_file:
             return
-        self.last_saved = time.monotonic()
-        try:
-            self.status_file.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self.status_file.with_name(self.status_file.name + ".tmp")
-            tmp.write_text(json.dumps(self.status(), indent=1))
-            tmp.replace(self.status_file)
-        except OSError as exc:
-            self.log(f"Couldn't write {self.status_file.name}: {exc}")
+        with self.save_lock:  # one writer at a time
+            if not force and time.monotonic() - self.last_saved < 15:
+                return
+            self.last_saved = time.monotonic()
+            try:
+                self.status_file.parent.mkdir(parents=True, exist_ok=True)
+                tmp = self.status_file.with_name(self.status_file.name + ".tmp")
+                tmp.write_text(json.dumps(self.status(), indent=1))
+                tmp.replace(self.status_file)
+            except Exception as exc:  # the status file must never stop playback
+                self.log(f"Couldn't write {self.status_file.name}: {exc}")
 
     def keep_status_fresh(self) -> None:
         """Rewrite pluto.json every minute, so it shows channels being let go."""
