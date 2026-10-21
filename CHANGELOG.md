@@ -10,6 +10,8 @@
 - kia's own server answers bad or unexpected requests with an error instead of hanging or dropping the connection, lets go of clients that go quiet, and checks one password at a time.
 - The Pluto TV relay plays only channels in your playlists, at most 20 at once, with a bounded cache, and fetches only https addresses.
 - Playlist addresses with a provider's login in them are shown in full only on the secure page. kia's pages can't be shown inside another website.
+- kia's own certificate key is readable only by you when kia runs without Docker (with Docker, the web server still needs to read it). A password kia makes on first start is no longer printed in the log; it's in `state/admin-password.txt`. The macOS service file, which can hold your settings, is readable only by you.
+- kia's own web server no longer serves a half-written file when its name is disguised with `%` codes.
 
 ### Fixes
 
@@ -24,6 +26,11 @@
 - "Check now" could miss a finished check's result; it now tells a new report from the old one reliably.
 - Building kia sends only its code to Docker, never `.env`, `state/`, or `tls/`.
 - A test release tag (such as `v0.4.1-rc1`) no longer replaces the published `latest` image.
+
+### Under the hood
+
+- Building and reading the guide keeps memory flat on large guides.
+- The test suite runs in about 7 seconds instead of 22, and its timing-dependent tests no longer fail on a busy machine.
 
 ### The kia image
 

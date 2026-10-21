@@ -8,6 +8,7 @@ import json
 import ssl
 import threading
 import traceback
+import urllib.parse
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -29,7 +30,7 @@ class OutputHandler(SimpleHTTPRequestHandler):
 
     def send_head(self):
         # Don't serve files that a run is still writing.
-        if self.path.split("?", 1)[0].endswith(".tmp"):
+        if urllib.parse.unquote(self.path.split("?", 1)[0]).endswith(".tmp"):
             self.send_error(404)
             return None
         return super().send_head()

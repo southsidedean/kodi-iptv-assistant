@@ -23,7 +23,7 @@ When kia first starts, it makes a password like `kxq7-m2pa-9fht`. To see it, loo
 cat state/admin-password.txt
 ```
 
-It's also in kia's log (`docker compose logs kia`). The status page asks for it when you save a change, and the browser tab remembers it until you close it.
+The status page asks for it when you save a change, and the browser tab remembers it until you close it.
 
 ### Changing it
 

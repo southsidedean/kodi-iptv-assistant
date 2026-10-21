@@ -55,6 +55,7 @@ BOOT_URL = (
 FALLBACK_URL = "https://jmp2.uk/plu-{channel}.m3u8"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 
+RETRY_DELAY = 1.0  # seconds before trying Pluto again
 MAX_CHANNELS = 20  # Pluto channels playing at once
 CACHE_PIECES = 12  # pieces kept per channel for viewers who are a little behind
 WINDOW = 6  # pieces in each playlist kia hands out
@@ -133,7 +134,7 @@ def fetch_retry(url: str, fetcher=fetch) -> tuple[str, bytes]:
     try:
         return fetcher(url)
     except (urllib.error.URLError, OSError, ValueError):
-        time.sleep(1)
+        time.sleep(RETRY_DELAY)
         return fetcher(url)
 
 

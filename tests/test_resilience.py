@@ -96,6 +96,7 @@ def test_retry_keeps_the_per_server_limit(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(cli, "probe", fake_probe)
     cfg = load(make_cfg(tmp_path))
+    cfg.host_delay_ms = 0  # this test is about the limit, not the spacing
     entries = [m3u.Entry(str(i), f"http://one.host/{i}") for i in range(10)]
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
     assert seen["calls"] == 20 and seen["max"] <= cfg.per_host
@@ -208,8 +209,11 @@ def test_a_site_that_runs_too_long_is_stopped(tmp_path: Path, monkeypatch):
     assert r.returncode == 124 and _time.monotonic() - start < 15
     assert previous.read_text() == "<tv>yesterday</tv>"
     assert "stopped after" in r.log.read_text()
-    _time.sleep(0.5)
-    assert subprocess.run(["pgrep", "-f", str(marker)], capture_output=True).returncode == 1  # child gone too
+    # The child is gone too (give a busy machine a few seconds to reap it).
+    deadline = _time.monotonic() + 5
+    while subprocess.run(["pgrep", "-f", str(marker)], capture_output=True, check=False).returncode != 1:
+        assert _time.monotonic() < deadline, "the site's child process outlived the time limit"
+        _time.sleep(0.05)
 
 
 def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):

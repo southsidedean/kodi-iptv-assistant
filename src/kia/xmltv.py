@@ -49,11 +49,23 @@ def has_title(el: ET.Element) -> bool:
     return any((t.text or "").strip() for t in el.iter("title"))
 
 
+def elements(source, tags: tuple[str, ...] = ("programme",)):
+    """The guide's <programme> (or other top-level) elements one at a time. Each is gone
+    from memory once the loop moves on, so a guide of any size takes little memory."""
+    root = None
+    for event, el in ET.iterparse(source, events=("start", "end")):
+        if root is None:
+            root = el
+        elif event == "end" and el.tag in tags:
+            yield el
+            root.clear()  # drops the finished element (clearing it alone leaves an empty one behind)
+
+
 def scan(path: Path) -> dict[str, list[tuple[datetime, datetime]]]:
     """Programme time slots per channel id, without keeping the programmes in memory."""
     slots: dict[str, list[tuple[datetime, datetime]]] = defaultdict(list)
     with _open(path) as f:
-        for _, el in ET.iterparse(f, events=("end",)):
+        for el in elements(f):
             if el.tag == "programme" and (el.get(PLACEHOLDER_ATTR) or not has_title(el)):
                 el.clear()
             elif el.tag == "programme":
@@ -178,9 +190,7 @@ def write_guide(
 
         for site, ids in sorted(wanted.items()):
             with _open(site_files[site]) as src:
-                for _, el in ET.iterparse(src, events=("end",)):
-                    if el.tag != "programme":
-                        continue
+                for el in elements(src):
                     if el.get("channel") in ids and not el.get(PLACEHOLDER_ATTR) and has_title(el):
                         el.tail = None
                         f.write("  " + ET.tostring(el, encoding="unicode") + "\n")
@@ -268,9 +278,7 @@ def write_preview(guide: Path, out_path: Path, now: datetime, hours: int = PREVI
     since, until = now.timestamp(), (now + timedelta(hours=hours)).timestamp()
     channels: dict[str, list] = defaultdict(list)
     count = 0
-    for _, el in ET.iterparse(guide, events=("end",)):
-        if el.tag != "programme":
-            continue
+    for el in elements(guide):
         if not el.get(PLACEHOLDER_ATTR) and has_title(el):
             try:
                 start, stop = parse_time(el.get("start")).timestamp(), parse_time(el.get("stop")).timestamp()

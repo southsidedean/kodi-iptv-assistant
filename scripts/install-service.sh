@@ -109,7 +109,8 @@ if ! [ -f .env ]; then
 fi
 mkdir -p output state work/logs vendor profiles tls "$(dirname "$target")"
 
-render "$template" >"$target.tmp"
+# The service file can hold your .env settings (passwords included), so only you can read it.
+(umask 077 && render "$template" >"$target.tmp")
 mv "$target.tmp" "$target"
 
 if [ "$OS" = Darwin ]; then

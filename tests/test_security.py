@@ -138,3 +138,28 @@ def test_sources_hide_logins_outside_the_secure_page():
     assert api.mask_url("https://user:secret@example.org/list.m3u?token=abc") == "https://•••@example.org/list.m3u?•••"
     assert api.mask_url("https://example.org/list.m3u") == "https://example.org/list.m3u"
     assert api.mask_url("radio-browser: country=US") == "radio-browser: country=US"
+
+
+def test_encoded_tmp_addresses_are_hidden_too(server):
+    port, _ = server
+    out = Path(server[1].output_dir)
+    (out / "guide.xml.tmp").write_text("half written")
+    for path in ("/guide.xml.tmp", "/guide.xml%2etmp", "/guide.xml.%74mp"):
+        with pytest.raises(urllib.error.HTTPError) as err:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5)
+        assert err.value.code == 404
+
+
+def test_kias_own_key_is_private_without_docker(tmp_path: Path, monkeypatch):
+    import shutil as _sh
+
+    from kia import tls
+
+    if not _sh.which("openssl"):
+        pytest.skip("needs openssl")
+    monkeypatch.delenv("KIA_TLS_SHARED", raising=False)
+    tls.make_self_signed(tmp_path / "a", ["kia.lan"])
+    assert (tmp_path / "a" / tls.KEY).stat().st_mode & 0o077 == 0
+    monkeypatch.setenv("KIA_TLS_SHARED", "true")  # with Docker, nginx reads it
+    tls.make_self_signed(tmp_path / "b", ["kia.lan"])
+    assert (tmp_path / "b" / tls.KEY).stat().st_mode & 0o044 == 0o044
