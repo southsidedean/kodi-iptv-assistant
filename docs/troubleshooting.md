@@ -80,10 +80,11 @@ Those are on the secure page. On the plain `http://` page, use the link to it. I
 
 ### It says the password is wrong, or I've forgotten it
 
-If you haven't changed it, it's in `state/admin-password.txt` in the kia folder. If `KIA_ADMIN_PASSWORD` is set in `.env`, that's the password. Otherwise make a new one:
+If you haven't changed it, it's in `state/admin-password.txt` in the kia folder. If `KIA_ADMIN_PASSWORD` is set in `.env`, that's the password. Otherwise make a new one, then read it:
 
 ```sh
 docker compose exec kia python3 -m kia password --reset
+cat state/admin-password.txt
 ```
 
 ### Changes are refused "only on the secure page"

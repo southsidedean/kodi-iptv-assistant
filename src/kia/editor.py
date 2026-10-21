@@ -317,7 +317,7 @@ EDITING_SCRIPT = r"""
     if (d.password !== "env" && d.password !== "off") {
       card.appendChild(el("p", { class: "muted" }, ["Forgot it? On the kia computer, in the kia folder, run ",
         el("code", { text: "docker compose exec kia python3 -m kia password --reset" }),
-        " (without Docker: ", el("code", { text: "PYTHONPATH=src python3 -m kia password --reset" }), "). ",
+        " (without Docker: ", el("code", { text: "PYTHONPATH=src python3 -m kia password --reset" }), "), then read state/admin-password.txt. ",
         el("a", { href: "https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/secure-page.md#if-you-forget-it", text: "More" })]));
     }
     if (d.password === "env" || d.password === "off") return;

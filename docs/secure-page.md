@@ -31,10 +31,11 @@ Open the secure page, go to **Details**, and use **Change password**. kia then d
 
 ### If you forget it
 
-Make a new one:
+Make a new one, then read it from the file kia saves it in:
 
 ```sh
 docker compose exec kia python3 -m kia password --reset
+cat state/admin-password.txt
 ```
 
 ### Setting it in `.env`

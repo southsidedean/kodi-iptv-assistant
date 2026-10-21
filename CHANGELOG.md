@@ -10,7 +10,7 @@
 - kia's own server answers bad or unexpected requests with an error instead of hanging or dropping the connection, lets go of clients that go quiet, and checks one password at a time.
 - The Pluto TV relay plays only channels in your playlists, at most 20 at once, with a bounded cache, and fetches only https addresses.
 - Playlist addresses with a provider's login in them are shown in full only on the secure page. kia's pages can't be shown inside another website.
-- kia's own certificate key is readable only by you when kia runs without Docker (with Docker, the web server still needs to read it). A password kia makes on first start is no longer printed in the log; it's in `state/admin-password.txt`. The macOS service file, which can hold your settings, is readable only by you.
+- kia's own certificate key is readable only by you when kia runs without Docker (with Docker, the web server still needs to read it). Passwords kia makes, on first start or with `kia password --reset`, are no longer printed; they're in `state/admin-password.txt`. The macOS service file, which can hold your settings, is readable only by you.
 - kia's own web server no longer serves a half-written file when its name is disguised with `%` codes.
 
 ### Fixes

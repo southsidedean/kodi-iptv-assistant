@@ -73,18 +73,15 @@ class Auth:
         """Make a password on first start when .env doesn't set one."""
         if not self.enabled or self.env_password or self.saved.exists():
             return
-        self.reset(log, show=False)
+        self.reset(log)
 
-    def reset(self, log=print, show: bool = True) -> str:
-        """A new password. show: print it (kia password --reset); otherwise, as on first
-        start, only say where it is, so it never lands in logs others can read."""
+    def reset(self, log=print) -> str:
+        """A new password, saved in state/admin-password.txt (readable only by you). It's
+        never printed, so it can't land in a log others can read."""
         password = generate()
         self._save(password, generated=True)
         _write_private(self.shown, password + "\n")
-        if show:
-            log(f"Made a new password for editing on the status page: {password} (also in {self.shown})")
-        else:
-            log(f"Made a password for editing on the status page; it's in {self.shown}")
+        log(f"Made a new password for editing on the status page; it's in {self.shown}")
         return password
 
     def _save(self, password: str, generated: bool) -> None:
