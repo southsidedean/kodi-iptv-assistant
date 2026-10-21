@@ -62,21 +62,26 @@ So kia plays Pluto channels itself. The playlist points each Pluto channel at ki
 
 kia fetches each piece from Pluto when a player first asks for it, so it uses about as much of your internet connection as watching Pluto directly. Everyone watching a channel shares its session and its pieces, and kia lets a channel go two minutes after the last player stops. When Pluto goes back to pieces kia already sent, kia waits for new ones instead of playing them again, so the picture can pause for up to half a minute. If Pluto won't open a session, kia plays Pluto's plain link instead, which may freeze at breaks, and tries again every five minutes. Timeshift (pausing and rewinding live TV) keeps working, because it happens in the player.
 
-The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every device that plays them must be able to reach it; when it isn't set, Pluto channels keep their own links. `KIA_PLUTO_RELAY=false` in `.env` turns this off, and the playlist then has Pluto's own links. While Pluto channels play, the status page's Details page shows each one, its session, and any recent problems. The same is in `pluto.json` for scripts.
+The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every device that plays them must be able to reach it; when it isn't set, Pluto channels keep their own links. `KIA_PLUTO_RELAY=false` in `.env` turns this off, and the playlist then has Pluto's own links. While Pluto channels play, the Dashboard's **System** page shows each one, its session, and any recent problems. The same is in `pluto.json` for scripts.
 
-## The status page
+## The Dashboard
 
 Until you've finished setting up, `http://<your address>:8780/` starts with a **Getting started** checklist: the first refresh, the address other devices use, a player on each device, the password, your playlists, and alerts. kia ticks the steps it can check itself, you tick the rest, and you can hide it.
 
-The page shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button, and links to these docs. kia updates the page when a run starts and ends, and when you save a profile.
+The page shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button. kia updates the pages when a run starts and ends, and when you save a profile.
 
-The pages:
+The menu at the top leads to the other pages:
 
 - **A playlist's page** (Everything, TV only, and each profile) has its playlist and guide addresses and its channels, TV and radio under their own headings, with their numbers, categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide, in your device's time zone. A profile's page also has **Edit this playlist**.
 - **On the secure page**, each channel also has a star for [favorites](configuration.md#favorites-and-your-own-channel-numbers) and a **Test** button that tries its stream now ([a channel won't play](troubleshooting.md#a-channel-wont-play)). On Everything you can change channel numbers.
-- **Details** has the guide coverage, how each source playlist's streams are doing, the full reports, the [Pluto TV](#pluto-tv) channels playing right now, the playlists kia checks (which you can [choose](configuration.md#choosing-channel-sources-on-the-status-page) on the secure page), and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
+- **Playlists** lists every playlist with its address, and on the secure page has **Make a playlist**.
+- **Sources** has the playlists kia checks (which you can [choose](configuration.md#choosing-channel-sources-on-the-dashboard) on the secure page) and how each one's streams did in the last check.
+- **Guide** shows how much of the guide is filled in, with the guide reports.
+- **System** has the secure page's certificate, the password, the [Pluto TV](#pluto-tv) channels playing right now, every file and report, and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
-![kia's status page showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
+Every page has the same menu at the top, a **Documentation** button that opens these docs, and a link to the [troubleshooting guide](troubleshooting.md) at the bottom.
+
+![kia's Dashboard showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 
@@ -85,10 +90,10 @@ The banner at the top shows the state of the last refresh:
 | Refreshing now | A run is going. The numbers are from the last run until it finishes. |
 | Everything's working | Nothing needs you. |
 | Working, with alerts | The playlist and guide were updated, but something needs a look. The alerts are listed further down the page; [troubleshooting](troubleshooting.md#alerts) says what to do about each. |
-| The last refresh failed | The playlist or guide may not have been updated. See [the refresh failed](troubleshooting.md#the-status-page-says-the-refresh-failed). |
+| The last refresh failed | The playlist or guide may not have been updated. See [the refresh failed](troubleshooting.md#the-dashboard-says-the-refresh-failed). |
 | Waiting for the first refresh | kia's first run hasn't finished. It can take up to an hour. |
 
-On the Details page, bars show how many TV channels have a full guide, a partial one, or only their name, and how many streams in each source playlist work.
+On the **Guide** page, a bar shows how many TV channels have a full guide, a partial one, or only their name. On **Sources**, bars show how many streams in each source playlist work.
 
 ### `status.json`
 
@@ -107,7 +112,7 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `playlist_url` | The playlist address for Kodi |
 | `profiles` | Each [profile](profiles.md) playlist, and kia's [TV-only playlist](profiles.md#the-tv-only-playlist): `name`, `title`, `file`, `tv` and `radio` counts, its `url`, its own `guide` file, and `builtin` (true for TV only) |
 | `profiles_error` | The mistake in the profiles file, if it has one |
-| `secure` | The [secure status page](secure-page.md): its `url`, and its certificate (`tls`: `names`, `expires`, `issuer`, whether kia `generated` it, and whether its key matches) |
+| `secure` | The [secure Dashboard](secure-page.md): its `url`, and its certificate (`tls`: `names`, `expires`, `issuer`, whether kia `generated` it, and whether its key matches) |
 | `settings` | The settings kia is running with, in sections (`title`, `rows`), each row with its `name`, `value`, and where to `change` it. Secrets show only `set` or `not set`. |
 | `pluto_channels` | The Pluto TV channels in the playlist that play through kia, by Pluto channel ID, with their names |
 | `files` | The files in the output folder |
@@ -148,9 +153,9 @@ Alerts also cover a failed nightly run, sharp drops in working channels or guide
 
 | Folder | Contents |
 |---|---|
-| `output/` | What gets served: the playlist (`curated.m3u`) and guide, the TV-only playlist (`tv.m3u`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), the reports (each as `.html` for browsers and `.md`, plus `report.json`), the status pages (`index.html`, `details.html`, one per playlist in `playlists/`), and for scripts `status.json`, `profiles.json`, `guide-preview.json`, and `pluto.json` while Pluto TV channels play |
-| `state/` | The password (`admin.json`, and `admin-password.txt` until you change it), stream history, channel numbers, the alert log, and the choices made on the status page: playlists (`sources.json`), favorites, numbers, and removed channels (`channels.json`) |
+| `output/` | What gets served: the playlist (`curated.m3u`) and guide, the TV-only playlist (`tv.m3u`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), the reports (each as `.html` for browsers and `.md`, plus `report.json`), the Dashboards (`index.html`, `details.html`, one per playlist in `playlists/`), and for scripts `status.json`, `profiles.json`, `guide-preview.json`, and `pluto.json` while Pluto TV channels play |
+| `state/` | The password (`admin.json`, and `admin-password.txt` until you change it), stream history, channel numbers, the alert log, and the choices made on the Dashboard: playlists (`sources.json`), favorites, numbers, and removed channels (`channels.json`) |
 | `work/` | Intermediate files: per-site channel lists, downloaded guides, logs, and your [backups](configuration.md#backing-up-and-moving-to-another-computer) (`work/backups/`) |
 | `vendor/epg/` | kia's copy of iptv-org/epg, updated nightly |
 
-Deleting `vendor/`, or `work/` apart from `work/backups/`, is safe; they're rebuilt on the next run. Don't delete `state/`: it holds the password and everything you chose on the status page, and the channel numbers.
+Deleting `vendor/`, or `work/` apart from `work/backups/`, is safe; they're rebuilt on the next run. Don't delete `state/`: it holds the password and everything you chose on the Dashboard, and the channel numbers.

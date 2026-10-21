@@ -66,7 +66,7 @@ In the kia folder, run:
 scripts/install-service.sh
 ```
 
-On Linux it installs a systemd user service (`deploy/kia.service`); on macOS, a launchd agent (`deploy/kia.plist`). It makes `.env` with this computer's address and time zone if there isn't one, starts kia, and prints the status page's address and the password. Settings work as with Docker: `.env` and `kia.toml`. kia serves the playlists, the status page, and the secure page itself, and plays [Pluto TV channels](how-it-works.md#pluto-tv) itself too.
+On Linux it installs a systemd user service (`deploy/kia.service`); on macOS, a launchd agent (`deploy/kia.plist`). It makes `.env` with this computer's address and time zone if there isn't one, starts kia, and prints the Dashboard's address and the password. Settings work as with Docker: `.env` and `kia.toml`. kia serves the playlists, the Dashboard, and the secure page itself, and plays [Pluto TV channels](how-it-works.md#pluto-tv) itself too.
 
 - After changing `.env`, run the script again (on macOS it copies the settings into the agent).
 - After `git pull`, restart kia: `systemctl --user restart kia` on Linux, or run the script again on macOS.

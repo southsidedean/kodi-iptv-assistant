@@ -12,8 +12,8 @@
 #   --dir PATH      where to put kia (default: this copy, or ~/kodi-iptv-assistant)
 #   --address IP    the address other devices use to reach this computer
 #   --tz ZONE       time zone, e.g. America/New_York
-#   --port N        port for playlists and the status page (default 8780)
-#   --https-port N  port for the secure status page (default 8743)
+#   --port N        port for playlists and the Dashboard (default 8780)
+#   --https-port N  port for the secure Dashboard (default 8743)
 #   --yes           don't ask; accept what it finds
 set -eu
 
@@ -157,14 +157,14 @@ step "Done"
 say "kia is running its first refresh now, which takes up to an hour. Watch it with:"
 say "  cd $DIR && docker compose logs -f kia"
 say ""
-say "Status page:          $url/"
-say "Secure status page:   https://$host:${https_port:-8743}/   (for making changes; your browser warns about kia's own certificate the first time)"
+say "Dashboard:          $url/"
+say "Secure Dashboard:   https://$host:${https_port:-8743}/   (for making changes; your browser warns about kia's own certificate the first time)"
 if [ -n "$password" ]; then
     say "Password for changes: $password   (also in $DIR/state/admin-password.txt)"
 fi
 say "Playlist for players: $url/curated.m3u"
 say ""
-say "Next: wait for the first refresh (the status page says when it's done), then set up"
+say "Next: wait for the first refresh (the Dashboard says when it's done), then set up"
 say "Kodi or another player on each device:"
 say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/kodi.md"
 say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/players.md (other players)"

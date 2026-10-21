@@ -69,7 +69,7 @@ SCRIPT = r"""
     var note = card.querySelector(".guide-age");
     note.hidden = age < 8;
     note.textContent = "This is from the guide kia built " + Math.round(age) + " hours ago, so later shows may be missing. "
-      + "The status page says when the guide was last updated.";
+      + "The Dashboard says when the guide was last updated.";
   }
 
   function buildTimeline() {
@@ -140,9 +140,8 @@ SCRIPT = r"""
     bar.querySelectorAll("button").forEach(function (b) { b.addEventListener("click", function () { show(b.dataset.view); }); });
     fill();
     setInterval(function () { fill(); if (timeline) show("timeline"); }, 60000);
-    // The filter box hides rows; keep the timeline in step.
-    var box = card.querySelector("input[data-filter]");
-    if (box) box.addEventListener("input", function () {
+    // The list's controls hide rows (the playlist page's LIST_SCRIPT); keep the timeline in step.
+    card.addEventListener("rows-changed", function () {
       if (timeline) {
         timeline.querySelectorAll(".tl-row").forEach(function (line) { line.hidden = line._row.hidden; });
         timeline.querySelectorAll(".tl-group").forEach(function (g) { g.hidden = g._head.hidden; });

@@ -1,4 +1,4 @@
-# Playlists for people and devices ("profiles"). The status page can make and edit these
+# Playlists for people and devices ("profiles"). The Dashboard can make and edit these
 # for you (see docs/profiles.md). To write them by hand instead, copy this file to
 # profiles/profiles.toml and change it: git ignores that copy, so updating kia never
 # touches it.
@@ -19,7 +19,7 @@
 #   exclude_names   channel names to leave out, as patterns
 #   tv, radio       true or false: include TV channels, radio stations (both true unless set)
 #   renumber        true: number this playlist's channels 1, 2, 3 instead of the full list's numbers
-#   title           the name shown on the status page, e.g. "The kids"
+#   title           the name shown on the Dashboard, e.g. "The kids"
 
 [kids]
 title = "Kids"

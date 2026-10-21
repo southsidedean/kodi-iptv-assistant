@@ -2,18 +2,18 @@
 
 Three files, from most to least often changed:
 
-- `sources.txt`: which playlists and radio stations to check. The easiest way to choose them is on the status page ([choosing playlists](#choosing-channel-sources-on-the-status-page)). In the file:
+- `sources.txt`: which playlists and radio stations to check. The easiest way to choose them is on the Dashboard ([choosing playlists](#choosing-channel-sources-on-the-dashboard)). In the file:
   - Remove `#` to turn a line on. Add your own URLs or file paths, one per line.
   - Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio.
   - With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer.
   - Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below, so updating kia never touches them.
 - `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
-- `profiles/profiles.toml`: smaller playlists for people and devices, made from the full list. The status page writes it for you; you can also edit it by hand. See [profiles](profiles.md).
+- `profiles/profiles.toml`: smaller playlists for people and devices, made from the full list. The Dashboard writes it for you; you can also edit it by hand. See [profiles](profiles.md).
 - `kia.toml`: fine-tuning. The defaults suit most people.
 
 When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
 
-To see the settings kia is running with, open **Details** on the status page, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-channel-sources-on-the-status-page)), settings can't be changed from the status page.
+To see the settings kia is running with, open **System** on the Dashboard, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-channel-sources-on-the-dashboard)), settings can't be changed from the Dashboard.
 
 ## `.env`
 
@@ -28,10 +28,10 @@ To see the settings kia is running with, open **Details** on the status page, or
 | `PUID`, `PGID` | `1000` | The user and group that own the files kia writes. Use the numbers `id -u` and `id -g` print, so you can open and delete those files yourself. |
 | `KIA_SOURCES_FILE` | `sources.txt` | Use your own list instead, e.g. `sources.local.txt` (copy `sources.txt` to start). git ignores it, so updates never conflict with your choices. |
 | `KIA_PROFILES_FILE` | `profiles/profiles.toml` | Your playlists for people and devices; see [profiles](profiles.md). With Docker it must be in the `profiles` folder, the one kia can write. |
-| `KIA_HTTPS_PORT` | `8743` | The secure status page, where you make changes. Playlists and guides stay on `KIA_PORT`. See [the secure status page](secure-page.md). |
-| `KIA_TLS_NAMES` | the host in `KIA_PUBLIC_URL` | Names and addresses the certificate covers, comma-separated, e.g. `kia.home.lan,192.168.1.20`. The status page links to the first. |
-| `KIA_ADMIN_PASSWORD` | made by kia | The password for making changes on the status page. When it's empty, kia makes one and saves it in `state/admin-password.txt`, and you can change it on the status page. |
-| `KIA_EDITING` | true | `false` turns off changes from the status page. |
+| `KIA_HTTPS_PORT` | `8743` | The secure Dashboard, where you make changes. Playlists and guides stay on `KIA_PORT`. See [the secure Dashboard](secure-page.md). |
+| `KIA_TLS_NAMES` | the host in `KIA_PUBLIC_URL` | Names and addresses the certificate covers, comma-separated, e.g. `kia.home.lan,192.168.1.20`. The Dashboard links to the first. |
+| `KIA_ADMIN_PASSWORD` | made by kia | The password for making changes on the Dashboard. When it's empty, kia makes one and saves it in `state/admin-password.txt`, and you can change it on the Dashboard. |
+| `KIA_EDITING` | true | `false` turns off changes from the Dashboard. |
 | `KIA_PLUTO_RELAY` | true | Pluto TV channels play through kia, so they keep going across ad breaks. `false` gives players Pluto's own links, which freeze or jump back at breaks in most players. See [Pluto TV](how-it-works.md#pluto-tv). |
 | `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. |
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
@@ -59,9 +59,9 @@ To see the settings kia is running with, open **Details** on the status page, or
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.
 
-## Choosing channel sources on the status page
+## Choosing channel sources on the Dashboard
 
-The secure status page's **Details** page has a **Channel sources** card: the playlists kia reads channels from. It lists every one kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a channel source** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
+The secure Dashboard's **Sources** page has a **Channel sources** card: the playlists kia reads channels from. It lists every one kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a channel source** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
 
 **Check now** tests every stream in one source right away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing.
 
@@ -69,7 +69,7 @@ kia doesn't change your sources file (with Docker, it can't), so it keeps the ch
 
 ## When changes take effect
 
-kia reads `sources.txt` (or your own copy), the playlists chosen on the status page, and `kia.toml` at the start of each run, so changes to them show up after the next nightly run. Changes to `.env` need `docker compose up -d` first. Kodi then picks up the new list within two hours (its refresh interval), or when it restarts.
+kia reads `sources.txt` (or your own copy), the playlists chosen on the Dashboard, and `kia.toml` at the start of each run, so changes to them show up after the next nightly run. Changes to `.env` need `docker compose up -d` first. Kodi then picks up the new list within two hours (its refresh interval), or when it restarts.
 
 To refresh now instead of waiting:
 
@@ -80,9 +80,9 @@ To try out a change first, `docker compose exec kia python3 -m kia check --limit
 
 ## Favorites and your own channel numbers
 
-kia numbers channels automatically and keeps each number steady. Both favorites and your own numbers are easiest to set on the secure status page:
+kia numbers channels automatically and keeps each number steady. Both favorites and your own numbers are easiest to set on the secure Dashboard:
 
-1. Open the secure status page (`https://<your address>:8743/`) and choose **Everything** under your playlists.
+1. Open the secure Dashboard (`https://<your address>:8743/`) and choose **Everything** under your playlists.
 2. Enter the password at the top of the channel list.
 3. Choose a channel's star to make it a favorite. Favorites come first in every playlist, and get a Favorites category that Kodi and most players show as a group. A [profile](profiles.md) can use it too, for a playlist of just your favorites.
 4. To change a channel's number, choose its number, type the new one, and press Enter. The channel then has that number in every playlist that doesn't [number from 1](profiles.md#what-a-profile-can-say). A channel that already had it moves to the next free number. To undo a number you chose, clear the box: the channel keeps the number, but a number you choose for another channel can then take it.
@@ -112,11 +112,11 @@ and in your sources list:
 playlists/favorites.m3u   favorites
 ```
 
-Channels that already had those numbers move to the next free ones, and the log says which. Numbers in playlists from the internet are ignored, so they can't take yours. If you remove a `tvg-chno` later, the channel keeps the number it has. A number in your own playlist file wins over one chosen on the status page.
+Channels that already had those numbers move to the next free ones, and the log says which. Numbers in playlists from the internet are ignored, so they can't take yours. If you remove a `tvg-chno` later, the channel keeps the number it has. A number in your own playlist file wins over one chosen on the Dashboard.
 
 ## Backing up, and moving to another computer
 
-One command saves everything you've set up in one file: `.env`, `kia.toml`, your sources file, your own playlists, profiles, and `state/` (the password, channel numbers, favorites, the playlists chosen on the status page, and stream history), plus the secure page's certificate. Channel lists and guides aren't in it; kia rebuilds them at its next refresh.
+One command saves everything you've set up in one file: `.env`, `kia.toml`, your sources file, your own playlists, profiles, and `state/` (the password, channel numbers, favorites, the playlists chosen on the Dashboard, and stream history), plus the secure page's certificate. Channel lists and guides aren't in it; kia rebuilds them at its next refresh.
 
 ```sh
 docker compose exec kia python3 -m kia backup

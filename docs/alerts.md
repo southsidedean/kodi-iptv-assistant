@@ -2,7 +2,7 @@
 
 kia runs on its own at night, so nobody is watching when something goes wrong. Most problems need no attention: a dead stream drops out of the list and a broken guide site is replaced by another. Alerts are for the problems that break things for you and won't fix themselves, such as your network's DNS failing or the nightly refresh crashing. Without an alert, you'd find out days later when the guide goes blank.
 
-Alerts are off until you choose where to send them. Until then they're written to `state/alerts.log`, and the last run's alerts are listed on kia's status page at `http://<your address>:8780/`.
+Alerts are off until you choose where to send them. Until then they're written to `state/alerts.log`, and the last run's alerts are listed on kia's Dashboard at `http://<your address>:8780/`.
 
 ## What triggers an alert
 
@@ -64,7 +64,7 @@ Most providers, Gmail included, don't accept your normal password from programs 
 
 These all use port 587 with STARTTLS, kia's default. For a server on port 465, set `KIA_SMTP_SECURITY=ssl`. `KIA_EMAIL_TO` can list several addresses, separated by commas. Emails come from `KIA_SMTP_USER` unless you set `KIA_EMAIL_FROM`.
 
-The settings view on the status page shows only whether email is set up, never the addresses or the password.
+The settings view on the Dashboard shows only whether email is set up, never the addresses or the password.
 
 ## Other ways to be notified
 

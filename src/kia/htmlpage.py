@@ -1,4 +1,4 @@
-"""HTML pages for the output folder: the status page and browser-friendly reports.
+"""HTML pages for the output folder: the Dashboard and browser-friendly reports.
 
 kia writes its reports as Markdown, which reads well in a text editor or on GitHub but
 shows as raw text in a browser. Each report also gets an .html copy, made from the same
@@ -11,6 +11,12 @@ from __future__ import annotations
 import re
 from html import escape
 from urllib.parse import quote
+
+PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
+DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
+# The Dashboard's pages, in the menu at the top of every page kia serves.
+NAV = [("index.html", "Dashboard"), ("playlists.html", "Playlists"), ("sources.html", "Sources"),
+       ("guide.html", "Guide"), ("system.html", "System")]  # fmt: skip
 
 # The kia logo: a screen showing program guide rows, with the "now" line in amber.
 LOGO_LIGHT = {"screen": "#1f2b4d", "rows": "#cfd8f0", "now": "#e5a52e"}
@@ -32,7 +38,7 @@ def logo_svg(screen: str, rows: str, now: str, standalone: bool = False) -> str:
 FAVICON = "data:image/svg+xml," + quote(logo_svg(**LOGO_LIGHT, standalone=True))
 MARK = logo_svg("var(--logo-screen)", "var(--logo-rows)", "var(--logo-now)")
 
-# The kia theme: one stylesheet for every page kia serves (the status page and the
+# The kia theme: one stylesheet for every page kia serves (the Dashboard and the
 # reports). Colors, sizes, and spacing are tokens, light and dark follow the device's
 # setting, fonts are each system's own (nothing loads from the internet), and narrow
 # screens get a one-column layout with tap-sized controls.
@@ -72,10 +78,20 @@ ul { padding-left: 1.2rem; }
 .muted, li span { color: var(--muted); }
 footer { color: var(--muted); font-size: var(--step--1); margin-top: var(--space-5); }
 
-/* Brand mark at the top of every page */
+/* Brand mark, menu, and Documentation button at the top of every page */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2); }
 .brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none;
-  font-weight: 700; font-size: 2.6rem; line-height: 1; letter-spacing: -.01em; margin-bottom: var(--space-4); min-height: 44px; }
+  font-weight: 700; font-size: 2.6rem; line-height: 1; letter-spacing: -.01em; min-height: 44px; }
 .brand svg { width: 4.25rem; height: 4.25rem; }
+.docs-button { display: inline-flex; align-items: center; min-height: 44px; padding: .45rem 1rem; border: 1px solid var(--line);
+  border-radius: var(--radius-small); background: var(--card); text-decoration: none; font-weight: 600; }
+nav.menu { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
+nav.menu a { display: inline-flex; align-items: center; min-height: 44px; padding: .4rem .8rem; text-decoration: none;
+  color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+nav.menu a:hover { color: var(--fg); }
+nav.menu a[aria-current=page] { color: var(--fg); font-weight: 600; border-bottom-color: var(--logo-now); }
+footer p { margin: 0 0 var(--space-1); }
 
 /* Tables (reports) */
 .wide { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -86,12 +102,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 table.settings { table-layout: fixed; }
 table.settings td:first-child { width: 38%; }
 table.settings td:last-child { width: 32%; font-size: .9em; overflow-wrap: anywhere; }
-#settings h3 { margin: var(--space-3) 0 0; }
+#settings details { border-top: 1px solid var(--line); padding: var(--space-1) 0; }
+#settings summary { cursor: pointer; font-weight: 600; min-height: 44px; display: list-item; padding-top: .55rem; }
+#settings summary .n { color: var(--muted); font-weight: 400; font-size: var(--step--1); margin-left: .4rem; }
 blockquote { background: var(--note); border-radius: var(--radius-small); margin: var(--space-3) 0; padding: .6rem .9rem; }
 input[type=search] { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-small); color: var(--fg);
   font: inherit; margin: var(--space-1) 0; padding: .55rem .7rem; width: 100%; min-height: 44px; }
 
-/* Status page */
+/* Dashboard */
 main { display: grid; gap: var(--space-4); }
 main h2 { margin: 0 0 var(--space-2); }
 .banner { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4); border-radius: var(--radius); }
@@ -106,6 +124,8 @@ main h2 { margin: 0 0 var(--space-2); }
 @keyframes pulse { 50% { opacity: .3; } }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--space-2); }
 .tile, .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-3) var(--space-4); min-width: 0; }
+a.tile { color: inherit; text-decoration: none; }
+a.tile:hover { border-color: var(--info); }
 .tile .n { font-size: var(--step-3); font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .tile .l { color: var(--muted); font-size: var(--step--1); }
 .bar { display: flex; height: .8rem; border-radius: 99px; overflow: hidden; background: var(--bar-none); }
@@ -137,6 +157,8 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
   :root { --step-2: 1.3rem; --step-3: 1.7rem; }
   .brand { font-size: 2.1rem; }
   .brand svg { width: 3.5rem; height: 3.5rem; }
+  nav.menu { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 0; }
+  nav.menu a { padding: .4rem .5rem; flex: none; font-size: var(--step--1); }
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .tiles .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .tile, .card { padding: var(--space-3); }
@@ -149,6 +171,8 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
   table.settings td { border: 0; padding: .05rem .35rem; }
   table.settings td:first-child { color: var(--muted); }
 }
+@media (max-width: 24rem) { nav.menu a { padding-inline: .32rem; } }
+@media (max-width: 21rem) { nav.menu a { padding-inline: .2rem; font-size: .8rem; } }
 @media (prefers-reduced-motion: reduce) { .state-running .dot { animation: none; } }
 """
 
@@ -184,8 +208,22 @@ document.querySelectorAll("input[data-filter]").forEach(function (box) {
 """
 
 
-def page(title: str, body: str, footer: str = "", script: str = "", style: str = "", root: str = "") -> str:
-    """A kia page. root: the way back to the output folder from the page ("../" for playlists/)."""
+def header(root: str = "", current: str = "") -> str:
+    """The logo, the Documentation button, and the menu. current: the page shown, from NAV."""
+    here = ' aria-current="page"'
+    links = "".join(f'<a href="{root}{href}"{here if href == current else ""}>{label}</a>' for href, label in NAV)
+    return (
+        f'<header class="top"><a class="brand" href="{root}index.html">{MARK}<span>kia</span></a>'
+        f'<a class="docs-button" href="{DOCS_URL}/README.md">Documentation</a></header>'
+        f'<nav class="menu" aria-label="kia">{links}</nav>'
+    )
+
+
+def page(title: str, body: str, footer: str = "", script: str = "", style: str = "", root: str = "",
+         current: str = "") -> str:  # fmt: skip
+    """A kia page. root: the way back to the output folder from the page ("../" for playlists/).
+    current: which menu item is this page (NAV)."""
+    trouble = f'<p>Having problems? See the <a href="{DOCS_URL}/troubleshooting.md">troubleshooting guide</a>.</p>'
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -199,9 +237,9 @@ def page(title: str, body: str, footer: str = "", script: str = "", style: str =
 <style>{STYLE}{style}</style>
 </head>
 <body>
-<a class="brand" href="{root}index.html">{MARK}<span>kia</span></a>
+{header(root, current)}
 {body}
-<footer>{footer}</footer>
+<footer>{trouble}<p>{footer}</p></footer>
 {script}
 </body>
 </html>
@@ -284,5 +322,5 @@ def markdown_to_html(markdown: str) -> tuple[str, str, bool]:
 
 def report_page(markdown: str, markdown_name: str) -> str:
     title, body, has_filter = markdown_to_html(markdown)
-    footer = f'<a href="index.html">Status page</a> · <a href="{escape(markdown_name)}">Markdown version</a>'
+    footer = f'<a href="{escape(markdown_name)}">Markdown version</a> of this report.'
     return page(title, body, footer, FILTER_SCRIPT if has_filter else "")

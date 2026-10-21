@@ -1,11 +1,11 @@
-# The secure status page and your password
+# The secure Dashboard and your password
 
-kia's status page is on two ports:
+kia's Dashboard is on two ports:
 
 | Address | What it's for |
 |---|---|
-| `http://<your address>:8780/` | Playlists and guides for Kodi and other players, and the status page to look at |
-| `https://<your address>:8743/` | The same status page, where you add and change playlists, choose the playlists kia checks, and change the password |
+| `http://<your address>:8780/` | Playlists and guides for Kodi and other players, and the Dashboard to look at |
+| `https://<your address>:8743/` | The same Dashboard, where you add and change playlists, choose the playlists kia checks, and change the password |
 
 Changes are accepted only on the secure (`https://`) page, so the password never crosses your network in the clear. Playlists and guides stay on plain HTTP because Kodi and most players refuse a certificate they don't trust, and kia's own certificate is one of those.
 
@@ -23,11 +23,11 @@ When kia first starts, it makes a password like `kxq7-m2pa-9fht`. To see it, loo
 cat state/admin-password.txt
 ```
 
-The status page asks for it when you save a change, and the browser tab remembers it until you close it.
+The Dashboard asks for it when you save a change, and the browser tab remembers it until you close it.
 
 ### Changing it
 
-Open the secure page, go to **Details**, and use **Change password**. kia then deletes `state/admin-password.txt` and keeps only a scrambled form of the password.
+Open the secure page, go to **System**, and use **Change password**. kia then deletes `state/admin-password.txt` and keeps only a scrambled form of the password.
 
 ### If you forget it
 
@@ -44,7 +44,7 @@ Add `KIA_ADMIN_PASSWORD=...` to `.env` and restart kia (`docker compose up -d`).
 
 ### Turning editing off
 
-Set `KIA_EDITING=false` in `.env` and restart kia. The status page then only shows your playlists.
+Set `KIA_EDITING=false` in `.env` and restart kia. The Dashboard then only shows your playlists.
 
 ## Names on the certificate
 
@@ -54,7 +54,7 @@ kia's certificate covers the address in `KIA_PUBLIC_URL`. If you reach kia by an
 KIA_TLS_NAMES=kia.home.lan,192.168.1.20
 ```
 
-The status page's "secure page" links use the first one. kia makes a new certificate when this list changes, and renews its own a month before it expires.
+The Dashboard's "secure page" links use the first one. kia makes a new certificate when this list changes, and renews its own a month before it expires.
 
 ## Using your own certificate
 
@@ -64,7 +64,7 @@ A certificate from a known authority removes the browser warning. Put it in kia'
 chmod 644 tls/fullchain.pem tls/privkey.pem
 ```
 
-The web server picks up the new files within a minute. kia never replaces a certificate it didn't make, so renewing yours is up to you; the status page warns three weeks before it expires. To check what's installed:
+The web server picks up the new files within a minute. kia never replaces a certificate it didn't make, so renewing yours is up to you; the Dashboard warns three weeks before it expires. To check what's installed:
 
 ```sh
 docker compose exec kia python3 -m kia tls
@@ -84,7 +84,7 @@ If you use [Tailscale](https://tailscale.com) to reach kia away from home, it ca
    sudo chown "$(id -u):$(id -g)" tls/*.pem && chmod 644 tls/*.pem
    ```
 
-3. Add the name to `.env` so the status page links to it, then restart kia:
+3. Add the name to `.env` so the Dashboard links to it, then restart kia:
 
    ```sh
    KIA_TLS_NAMES=my-server.tail1234.ts.net

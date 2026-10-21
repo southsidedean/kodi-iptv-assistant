@@ -1,6 +1,6 @@
 # Using kia from scripts and other apps
 
-Everything the status page shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-status-page), favorites and channel numbers, and the password, and tests or removes channels: reading works on either port, and changes work only on the secure port.
+Everything the Dashboard shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-dashboard), favorites and channel numbers, and the password, and tests or removes channels: reading works on either port, and changes work only on the secure port.
 
 The examples use `192.168.1.20` for the kia machine; use yours.
 
@@ -37,7 +37,7 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `PUT /api/profiles/<name>` | Makes the profile, or replaces its settings | password, HTTPS |
 | `DELETE /api/profiles/<name>` | Deletes the profile, its playlist, its guide, and its page | password, HTTPS |
 | `POST /api/password` | Changes the password: send `{"new": "..."}` | password, HTTPS |
-| `GET /api/channel-choices` | Your favorites (channel keys), the numbers chosen on the status page by kind, and the channels removed because they didn't play: `{"favorites": [...], "numbers": {"tv": {...}, "radio": {...}}, "removed": {key: {"name", "when", "entry"}}}` | |
+| `GET /api/channel-choices` | Your favorites (channel keys), the numbers chosen on the Dashboard by kind, and the channels removed because they didn't play: `{"favorites": [...], "numbers": {"tv": {...}, "radio": {...}}, "removed": {key: {"name", "when", "entry"}}}` | |
 | `PUT /api/channel` | Stars a channel or sets its number: send `{"key": "CNN.us@SD", "favorite": true}` or `{"key": "...", "number": 5}` (`null` clears the number). The key is the channel's ID, or `name:` or `radio:` with its simplified name for channels without one. The playlists are rewritten before the answer comes back. | password, HTTPS |
 | `POST /api/channel/test` | Tries a channel's stream now: send `{"key": "..."}`. Returns `ok`, `error`, `seconds`, and `height`. Pluto TV channels are tested at Pluto. | password, HTTPS |
 | `POST /api/channel/remove` | Takes a channel out of every playlist until its stream works at a nightly check: send `{"key": "..."}` | password, HTTPS |
@@ -46,7 +46,7 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `GET /api/sources` | The playlists kia can check: each one's `url`, `name`, `label`, `section`, whether it's `radio`, whether it's `on`, where it comes from (`origin`: `file` or `added`), and its `streams` from the last check. Also the last "check now" (`check`). | |
 | `PUT /api/sources` | Turns a playlist on or off: send `{"url": "...", "on": true}`. The last playlist in use can't be turned off. | password, HTTPS |
 | `POST /api/sources` | Adds a playlist: send `{"url": "https://...", "name": "extras", "radio": false}` (`name` and `radio` are optional) | password, HTTPS |
-| `DELETE /api/sources?url=...` | Removes a playlist added through the API or the status page | password, HTTPS |
+| `DELETE /api/sources?url=...` | Removes a playlist added through the API or the Dashboard | password, HTTPS |
 | `POST /api/sources/check` | Tests every stream in one playlist now: send `{"url": "..."}`. One check runs at a time, and none during a refresh. | password, HTTPS |
 | `GET /api/sources/check` | The check's progress: `running`, then `result` (`total`, `ok`, `flaky`, `dead`, and a `sample` of working channel names) or `error` | |
 
@@ -56,11 +56,11 @@ A profile's settings are the ones in [what a profile can say](profiles.md#what-a
 {"title": "The kids", "groups": ["Kids", "Animation"], "radio": false, "renumber": true}
 ```
 
-A change rewrites `profiles/profiles.toml`, makes the playlist and its guide, and updates the status page, all before the answer comes back. It returns the same contents as `profiles.json`. Changes to the playlists kia checks are saved in `state/sources.json` and return the same contents as `GET /api/sources`; they take effect at the next refresh.
+A change rewrites `profiles/profiles.toml`, makes the playlist and its guide, and updates the Dashboard, all before the answer comes back. It returns the same contents as `profiles.json`. Changes to the playlists kia checks are saved in `state/sources.json` and return the same contents as `GET /api/sources`; they take effect at the next refresh.
 
 ### The password
 
-Send the password in the `X-Kia-Password` header. [The secure status page](secure-page.md#the-password) explains where it is and how to change it. A wrong password gets `401` after a one-second wait. Changes sent to the plain HTTP port get `403`, even with the right password.
+Send the password in the `X-Kia-Password` header. [The secure Dashboard](secure-page.md#the-password) explains where it is and how to change it. A wrong password gets `401` after a one-second wait. Changes sent to the plain HTTP port get `403`, even with the right password.
 
 ### Examples
 

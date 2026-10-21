@@ -1,6 +1,6 @@
-"""The status page's profile editor: a small API behind /api/.
+"""The Dashboard's profile editor: a small API behind /api/.
 
-Reading is open to anyone who can open the status page. Changes (profiles, the password)
+Reading is open to anyone who can open the Dashboard. Changes (profiles, the password)
 need the admin password (kia.auth), sent as the X-Kia-Password header, and are accepted
 only over HTTPS, so the password never crosses the network in the clear. Requests from
 other websites are refused: browsers send a custom header like X-Kia-Password only after
@@ -8,7 +8,7 @@ asking the server first (a CORS preflight), which this API never allows, and any
 header must match the page's own address.
 
 The profiles stay in the profiles file. Saving rewrites that file, then rebuilds the
-profile playlists and the status page from the last check, which takes about a second.
+profile playlists and the Dashboard from the last check, which takes about a second.
 """
 
 from __future__ import annotations
@@ -43,8 +43,8 @@ class ApiConfig:
     profiles_file: Path
     epg_url: str | None
     auth: Auth
-    https_port: int | None = None  # the secure status page's port, for the "open it" link
-    on_change: Callable[[], None] = lambda: None  # e.g. rewrite the status page
+    https_port: int | None = None  # the secure Dashboard's port, for the "open it" link
+    on_change: Callable[[], None] = lambda: None  # e.g. rewrite the Dashboard
     # Choosing playlists (kia.sources): the sources file in use, sources.txt (the list to
     # choose from), kia.toml (for "check now"), and where a test check writes its report.
     sources_file: Path | None = None
@@ -137,7 +137,7 @@ def _profile_from(body: dict, name: str = "preview") -> profiles.Profile:
         raise ApiError(400, "Expected the profile's settings as a JSON object.")
     settings = {k: v for k, v in body.items() if k != "name"}
     try:
-        return profiles.from_rules(name, settings, "the status page")
+        return profiles.from_rules(name, settings, "the Dashboard")
     except ValueError as exc:
         raise ApiError(400, str(exc)) from None
 
@@ -442,7 +442,7 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
     if cfg.auth.source == "off":
         raise ApiError(403, "Editing is off (KIA_EDITING=false in kia's .env file).")
     if not secure:
-        raise ApiError(403, "Changes are accepted only on the secure (https://) status page.")
+        raise ApiError(403, "Changes are accepted only on the secure (https://) Dashboard.")
     with PASSWORD_LOCK:  # one check at a time: each costs 16 MB and a second when wrong
         if not cfg.auth.check(given):
             time.sleep(1)  # slows down guessing

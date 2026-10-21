@@ -91,7 +91,7 @@ class Config:
     recycle_numbers_after_days: int = 0
     profiles_file: Path | None = None
     public_url: str | None = None
-    # The secure status page (kia.tls): its certificate's folder, the port people open
+    # The secure Dashboard (kia.tls): its certificate's folder, the port people open
     # (with Docker, the one published on this machine), and the names the certificate
     # covers (empty: the host in public_url).
     tls_dir: Path = Path("tls")
@@ -181,7 +181,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         text = sources_file.read_text()
         sources = parse_sources(text)
         origin = str(sources_file)
-        # Choices made on the status page (kia.sources), on top of the file.
+        # Choices made on the Dashboard (kia.sources), on top of the file.
         from kia import sources as web_sources
 
         state = web_sources.load_state(base / output.get("state_dir", "state"))

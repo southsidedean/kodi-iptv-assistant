@@ -76,7 +76,7 @@ def load(path: Path) -> list[Profile]:
 
 
 def from_rules(name: str, rules: object, where_file: str = "profile") -> Profile:
-    """A checked Profile from a [name] section's settings (from the file or the status page)."""
+    """A checked Profile from a [name] section's settings (from the file or the Dashboard)."""
     where = f"{where_file}, [{name}]"
     if not isinstance(rules, dict):
         raise ValueError(f"{where}: expected a section like [{name}] with settings under it")
@@ -126,8 +126,8 @@ def _toml_value(value: object) -> str:
     return json.dumps(value, ensure_ascii=False)  # a TOML basic string uses the same escapes
 
 
-HEADER = """# Playlists for people and devices. kia's status page edits this file, and you can edit
-# it by hand too (the status page rewrites it without comments when it saves).
+HEADER = """# Playlists for people and devices. kia's Dashboard edits this file, and you can edit
+# it by hand too (the Dashboard rewrites it without comments when it saves).
 # Each [section] is a playlist: http://<your address>:8780/<name>.m3u. See docs/profiles.md.
 """
 
@@ -261,7 +261,7 @@ def profile_epg_url(epg_url: str | None, p: Profile) -> str | None:
 
 def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_url: str | None, log) -> dict:
     """Write every profile's playlist and guide from curated.m3u and guide.xml, and
-    output/profiles.json for the status page; remove those of deleted profiles. A mistake in
+    output/profiles.json for the Dashboard; remove those of deleted profiles. A mistake in
     the profiles file leaves the previous playlists in place and is reported in
     profiles.json. Returns profiles.json."""
     from kia.m3u import parse, write

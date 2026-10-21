@@ -1,7 +1,7 @@
-"""The settings kia is running with, for the status page's Details and `kia settings`.
+"""The settings kia is running with, for the Dashboard's System page and `kia settings`.
 
 Read only: settings are changed in .env and kia.toml, never from the web (the playlists
-kia checks can also be chosen on the status page; see kia.sources). Anything
+kia checks can also be chosen on the Dashboard; see kia.sources). Anything
 secret (the password, the ntfy address, the alert command) shows only whether it's set.
 """
 
@@ -36,7 +36,7 @@ def _password(cfg: Config) -> str:
         "off": "editing is off",
         "env": "your own, from .env",
         "generated": "made by kia, in state/admin-password.txt",
-        "set": "changed on the status page",
+        "set": "changed on the Dashboard",
     }.get(source, source)
 
 
@@ -65,7 +65,7 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Time zone", _time_zone(), ENV + "TZ"),
         ]),
         ("Addresses", [
-            ("Status page and playlists", cfg.public_url or "not set", ENV + "KIA_PUBLIC_URL"),
+            ("Dashboard and playlists", cfg.public_url or "not set", ENV + "KIA_PUBLIC_URL"),
             ("Secure page port", str(cfg.https_port), ENV + "KIA_HTTPS_PORT"),
             ("Certificate names", _list(cfg.tls_names) if cfg.tls_names else "the host in KIA_PUBLIC_URL",
              ENV + "KIA_TLS_NAMES"),
@@ -73,7 +73,7 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
         ]),
         ("Playlists", [
             ("Sources", f"{len(cfg.sources)}: {_list([s.name for s in cfg.sources])}",
-             "the status page (Channel sources), or " + ENV + "KIA_SOURCES_FILE"),
+             "the Dashboard (Channel sources), or " + ENV + "KIA_SOURCES_FILE"),
             ("Profiles file", _relative(cfg, cfg.profiles_file), ENV + "KIA_PROFILES_FILE"),
             ("Left-out categories", _list(cfg.exclude_groups), ENV + "KIA_EXCLUDE_GROUPS"),
             ("Left-out name tags", _list(cfg.exclude_labels), TOML + "[filters] exclude_labels"),

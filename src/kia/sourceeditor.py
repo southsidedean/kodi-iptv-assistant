@@ -1,4 +1,4 @@
-"""The Details page's Channel sources card: the playlists kia reads channels from
+"""The Sources page's Channel sources card: the playlists kia reads channels from
 (kia.sources, through kia.api). On the secure page, with editing on, each source can be
 turned on or off and checked now, and sources can be added; elsewhere the card only lists
 them, with a link to the secure page at the top.
@@ -164,7 +164,7 @@ SCRIPT = r"""
   function draw() {
     body.textContent = "";
     if (!can && data.editable && card.dataset.secureUrl) {
-      body.appendChild(el("p", {}, [el("a", { href: new URL("details.html#sources-editor", card.dataset.secureUrl).href,
+      body.appendChild(el("p", {}, [el("a", { href: new URL("sources.html#sources-editor", card.dataset.secureUrl).href,
         text: "Turn sources on or off, or add one, on the secure page" }), el("span", { class: "muted", text: " (https://)." })]));
     }
     body.appendChild(el("p", {}, [el("span", { class: "used" }), " " +

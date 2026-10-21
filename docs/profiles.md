@@ -4,9 +4,9 @@ kia's main playlist, `curated.m3u`, has every working channel. That's often more
 
 Each profile also gets its own program guide with only its channels, so a slow device has much less to load. A channel keeps the number it has in the full list, so it's number 45 everywhere, unless you choose to number a profile from 1.
 
-You can make profiles on kia's status page or by editing a file. Both change the same file, `profiles/profiles.toml`, so you can switch between them.
+You can make profiles on kia's Dashboard or by editing a file. Both change the same file, `profiles/profiles.toml`, so you can switch between them.
 
-## On the status page
+## On the Dashboard
 
 1. Find kia's password. kia made one when it first started; in the kia folder, run:
 
@@ -14,9 +14,9 @@ You can make profiles on kia's status page or by editing a file. Both change the
    cat state/admin-password.txt
    ```
 
-   You can change it later on the status page. [The secure status page](secure-page.md#the-password) has more about the password.
+   You can change it later on the Dashboard. [The secure Dashboard](secure-page.md#the-password) has more about the password.
 
-2. Open the secure status page at `https://<your address>:8743/` and choose **Make a playlist**. (The plain `http://` page has a link to it.) The first time, your browser warns that the certificate isn't trusted, because kia made it itself; [here's how to continue](secure-page.md#the-browser-warning).
+2. Open the secure Dashboard at `https://<your address>:8743/` and choose **Make a playlist**. (The plain `http://` page has a link to it.) The first time, your browser warns that the certificate isn't trusted, because kia made it itself; [here's how to continue](secure-page.md#the-browser-warning).
 
 3. Fill in the form:
    - **Short name**: becomes the playlist's address, so `kids` is `http://<your address>:8780/kids.m3u`.
@@ -31,9 +31,9 @@ You can make profiles on kia's status page or by editing a file. Both change the
 
 5. On the device, use that address as the **M3U playlist URL** in IPTV Simple Client (or your player), instead of `curated.m3u`. Kodi finds the playlist's own guide by itself. If another player asks for a guide address, it's on the same page.
 
-![A playlist's page on the status page: its playlist and guide addresses with Copy buttons, and its channels numbered from 1](../images/kia-playlist-screenshot.png)
+![A playlist's page on the Dashboard: its playlist and guide addresses with Copy buttons, and its channels numbered from 1](../images/kia-playlist-screenshot.png)
 
-To change or delete a playlist later, open it from the secure status page and choose **Edit this playlist**. The browser tab remembers the password until you close it.
+To change or delete a playlist later, open it from the secure Dashboard and choose **Edit this playlist**. The browser tab remembers the password until you close it.
 
 ## In the file
 
@@ -66,15 +66,15 @@ The name in square brackets becomes the playlist's address. Use lowercase letter
 docker compose exec kia python3 -m kia check
 ```
 
-Changes made on the status page show up right away.
+Changes made on the Dashboard show up right away.
 
-When the status page saves, it rewrites the file and drops any comments you added, so keep notes somewhere else.
+When the Dashboard saves, it rewrites the file and drops any comments you added, so keep notes somewhere else.
 
 ## What a profile can say
 
 | Setting | What it does | Example |
 |---|---|---|
-| `title` | The name shown on the status page | `"The kids"` |
+| `title` | The name shown on the Dashboard | `"The kids"` |
 | `groups` | Include channels in these categories | `["Kids", "Animation"]` |
 | `sources` | Include channels from these playlists, by the names in your sources list | `["samsung-us"]` |
 | `names` | Include channels whose names contain these words | `["news", "weather"]` |
@@ -88,11 +88,11 @@ When the status page saves, it rewrites the file and drops any comments you adde
 
 If a profile names something to include (`groups`, `sources`, or `names`), it starts with just those channels; otherwise it starts with all of them. Anything in `exclude_groups` or `exclude_names` is then taken out. `channels` adds specific channels, even ones the other rules left out, and `exclude_channels` takes specific channels out, even ones `channels` names.
 
-Categories are the ones in the full playlist, such as "News", "Kids", or "Sports". Each playlist's page on the status page shows every channel's category and number. Upper and lower case don't matter. `names` and `exclude_names` are patterns, so `"news"` also matches "Fox News Now" and "NewsNation"; to match a whole name exactly, write `"^CNN$"`.
+Categories are the ones in the full playlist, such as "News", "Kids", or "Sports". Each playlist's page on the Dashboard shows every channel's category and number. Upper and lower case don't matter. `names` and `exclude_names` are patterns, so `"news"` also matches "Fox News Now" and "NewsNation"; to match a whole name exactly, write `"^CNN$"`.
 
 ## More examples
 
-Just your favorites (the channels you've starred on the status page; see [favorites](configuration.md#favorites-and-your-own-channel-numbers)):
+Just your favorites (the channels you've starred on the Dashboard; see [favorites](configuration.md#favorites-and-your-own-channel-numbers)):
 
 ```toml
 [favorites]
@@ -126,9 +126,9 @@ renumber = true
 
 ## If something goes wrong
 
-If the status page has no **Make a playlist** button, you're on the plain `http://` page (use its link to the secure page), or editing is turned off with `KIA_EDITING=false` in `.env`.
+If the Dashboard has no **Make a playlist** button, you're on the plain `http://` page (use its link to the secure page), or editing is turned off with `KIA_EDITING=false` in `.env`.
 
-If the profiles file has a mistake, such as a missing bracket or a misspelled setting, kia keeps the profile playlists it made last time and shows the problem on the status page. The full playlist updates as usual, and the page won't save changes over a file it can't read. Fix the file, and the next run picks it up. Each time the status page saves, it keeps the previous file as `profiles/profiles.toml.bak`.
+If the profiles file has a mistake, such as a missing bracket or a misspelled setting, kia keeps the profile playlists it made last time and shows the problem on the Dashboard. The full playlist updates as usual, and the page won't save changes over a file it can't read. Fix the file, and the next run picks it up. Each time the Dashboard saves, it keeps the previous file as `profiles/profiles.toml.bak`.
 
 When you delete a profile, kia removes its playlist, guide, and page from the server.
 

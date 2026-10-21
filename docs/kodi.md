@@ -65,7 +65,7 @@ kia gives every channel a number that stays the same from night to night, even w
 
 TV and radio are numbered separately, each starting at 1. A new channel gets the next unused number, and a channel that drops out keeps its number for a month, in case it comes back.
 
-To choose numbers yourself, for example to put favorite stations at the top, change them on the status page; see [favorites and your own channel numbers](configuration.md#favorites-and-your-own-channel-numbers). Starred favorites also show up in Kodi as a Favorites group. To number everything 1, 2, 3 again after many channels have come and gone, see [renumbering](configuration.md#gaps-in-the-numbers-and-renumbering).
+To choose numbers yourself, for example to put favorite stations at the top, change them on the Dashboard; see [favorites and your own channel numbers](configuration.md#favorites-and-your-own-channel-numbers). Starred favorites also show up in Kodi as a Favorites group. To number everything 1, 2, 3 again after many channels have come and gone, see [renumbering](configuration.md#gaps-in-the-numbers-and-renumbering).
 
 ## Troubleshooting
 

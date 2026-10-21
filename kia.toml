@@ -5,7 +5,7 @@
 # The playlists to check, one per line. See the comments in that file.
 sources_file = "sources.txt"
 
-# Playlists for people and devices, made from the full list. The status page edits this
+# Playlists for people and devices, made from the full list. The Dashboard edits this
 # file; it must be in the profiles/ folder, the one kia may write. See docs/profiles.md.
 # .env: KIA_PROFILES_FILE
 profiles_file = "profiles/profiles.toml"
@@ -83,7 +83,7 @@ state_dir = "state"
 # Give each channel a number (tvg-chno) that it keeps from night to night, instead of
 # its place in the list. Kodi shows them once "Use channel numbers from backend" is on
 # (see docs/kodi.md). To number everything 1, 2, 3 again, once: kia renumber, or
-# "Renumber" on the secure status page.
+# "Renumber" on the secure Dashboard.
 channel_numbers = true
 
 # A channel that's gone keeps its number, which isn't reused, so numbers climb and the

@@ -8,7 +8,7 @@ Any of these apps plays kia's channels on a phone or tablet at home. On a small 
 | Android phone or tablet | [Televizo](https://play.google.com/store/apps/details?id=com.ottplay.ottplay) | Yes | Free |
 | Either, for a quick look | [VLC](https://www.videolan.org/vlc/) | No | Free |
 
-Each app needs the playlist address, `http://<your address>:8780/curated.m3u` or a profile's such as `http://<your address>:8780/kids.m3u`. The apps with a guide also take the guide address, `http://<your address>:8780/guide.xml.gz` or the profile's own, such as `http://<your address>:8780/kids.guide.xml.gz`. kia's status page shows both with Copy buttons, so the easiest way is to open the status page on the phone, copy, and paste.
+Each app needs the playlist address, `http://<your address>:8780/curated.m3u` or a profile's such as `http://<your address>:8780/kids.m3u`. The apps with a guide also take the guide address, `http://<your address>:8780/guide.xml.gz` or the profile's own, such as `http://<your address>:8780/kids.guide.xml.gz`. kia's Dashboard shows both with Copy buttons, so the easiest way is to open the Dashboard on the phone, copy, and paste.
 
 ## UHF (iPhone and iPad)
 

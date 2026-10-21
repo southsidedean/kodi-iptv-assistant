@@ -8,7 +8,7 @@
 #
 # It needs Python 3.11+ (nothing else from Python), ffmpeg, git, and openssl, and Node.js 22+ for guide downloads
 # from websites. Settings come from .env (copy .env.example) and kia.toml, the same as
-# with Docker. kia serves the playlists, the status page, and the secure page itself.
+# with Docker. kia serves the playlists, the Dashboard, and the secure page itself.
 set -eu
 
 DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -133,12 +133,12 @@ else
 fi
 
 url=$(sed -n 's/^KIA_PUBLIC_URL=//p' .env)
-say "Status page: ${url:-http://localhost:8780}/"
+say "Dashboard: ${url:-http://localhost:8780}/"
 i=0
 while [ $i -lt 15 ] && ! [ -s state/admin-password.txt ] && ! grep -q '^KIA_ADMIN_PASSWORD=.' .env; do
     sleep 1
     i=$((i + 1))
 done
 if [ -s state/admin-password.txt ]; then
-    say "Password for changes on the status page: $(cat state/admin-password.txt)"
+    say "Password for changes on the Dashboard: $(cat state/admin-password.txt)"
 fi

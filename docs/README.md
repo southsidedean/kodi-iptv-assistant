@@ -21,12 +21,12 @@ New here? Begin with [start here](start-here.md).
 ## Everyday use
 
 - [Playlists for people and devices](profiles.md): smaller playlists for the kids, a room, or a phone.
-- [The secure status page and your password](secure-page.md)
+- [The secure Dashboard and your password](secure-page.md)
 - [Alerts](alerts.md): a message on your phone when something needs you.
 - [Troubleshooting](troubleshooting.md)
 
 ## Going further
 
 - [Configuration](configuration.md): every setting.
-- [How it works](how-it-works.md): what happens each night, the reports, and the status page.
+- [How it works](how-it-works.md): what happens each night, the reports, and the Dashboard.
 - [Using kia from scripts and other apps](api.md)

@@ -1,4 +1,4 @@
-"""The status page's profile editor: a form in the Playlists card that talks to kia.api.
+"""The Dashboard's profile editor: a form in the Playlists card that talks to kia.api.
 
 The pages themselves stay plain files. This script asks /api/profiles what's there; when
 there's no API (a page opened from disk, or a server without one) it does nothing. The home
@@ -188,7 +188,7 @@ SCRIPT = r"""
       el("label", { class: "field", for: "ed-pass" }, [el("strong", { text: "Password" }),
         el("span", { class: "hint", text: ({ env: "The one set by KIA_ADMIN_PASSWORD in kia's .env file.",
           generated: "kia made one: it's in state/admin-password.txt in the kia folder.",
-          set: "The one set on the Details page." }[data.password] || "kia's admin password.") + " This browser tab remembers it until you close it." })]), pass,
+          set: "The one set on the System page." }[data.password] || "kia's admin password.") + " This browser tab remembers it until you close it." })]), pass,
       error,
       el("div", { class: "actions" }, [save,
         el("button", { type: "button", text: "Cancel", on: { click: function () { form.remove(); } } }),
@@ -279,7 +279,7 @@ SCRIPT = r"""
         if (r._status !== 200) return fail(r);
         setPassword(pass.value);
         try { sessionStorage.setItem("kia-saved", "Deleted the " + (p.title || name) + " playlist."); } catch (e) {}
-        location.href = root + "index.html";
+        location.href = root + "playlists.html";
       }, function () { fail({ error: "kia didn't answer. Is it running?" }); });
     }
 
@@ -318,7 +318,7 @@ EDITING_SCRIPT = r"""
     var where = { env: "The password is set by KIA_ADMIN_PASSWORD in kia's .env file. Change it there and restart kia.",
       generated: "kia made the password. It's in state/admin-password.txt in the kia folder until you change it here.",
       set: "The password was set on this page.",
-      off: "Changes from the status page are turned off (KIA_EDITING=false in kia's .env file)." }[d.password] || "";
+      off: "Changes from the Dashboard are turned off (KIA_EDITING=false in kia's .env file)." }[d.password] || "";
     say(where);
     if (d.password !== "env" && d.password !== "off") {
       card.appendChild(el("p", { class: "muted" }, ["Forgot it? On the kia computer, in the kia folder, run ",
@@ -328,7 +328,7 @@ EDITING_SCRIPT = r"""
     }
     if (d.password === "env" || d.password === "off") return;
     if (!d.secure) {
-      if (card.dataset.secureUrl) card.appendChild(el("p", {}, [el("a", { href: new URL("details.html", card.dataset.secureUrl).href, text: "Change the password on the secure page" })]));
+      if (card.dataset.secureUrl) card.appendChild(el("p", {}, [el("a", { href: new URL("system.html", card.dataset.secureUrl).href, text: "Change the password on the secure page" })]));
       return;
     }
     var current = el("input", { type: "password", id: "pw-current", autocomplete: "current-password", class: "pw" });

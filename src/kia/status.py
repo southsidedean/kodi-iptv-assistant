@@ -1,8 +1,9 @@
-"""A status page (index.html) and status.json in the output folder.
+"""The Dashboard (index.html and the pages in its menu) and status.json in the output folder.
 
 They answer "is kia working?" from any browser on the network: when it last ran, whether
-that run worked, what it found, and any alerts it raised. kia rewrites both whenever a
-run starts or ends and whenever the playlist or guide changes.
+that run worked, what it found, and any alerts it raised. The menu's other pages hold the
+playlists, the channel sources, the guide, and the system details. kia rewrites them all
+whenever a run starts or ends and whenever the playlist or guide changes.
 """
 
 from __future__ import annotations
@@ -14,8 +15,9 @@ from html import escape
 from pathlib import Path
 
 from kia import __version__, channeleditor, editor, guideview, sourceeditor
-from kia.htmlpage import FILTER_ROWS, FILTER_SCRIPT, page
+from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
+from kia.channels import FAVORITES
 from kia.m3u import parse
 
 # Files in output/ the page links to, with what each one is for.
@@ -26,19 +28,6 @@ FILES = [
     ("guide-report.html", "Guide coverage by channel and site"),
     ("mapping-report.html", "Which guide sites match which channels, including matches by name to check"),
     ("pluto.json", "Pluto TV channels playing through kia right now"),
-]
-PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
-DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
-# Docs pages for someone looking at this page because something seems wrong.
-HELP = [
-    (f"{DOCS_URL}/troubleshooting.md", "Troubleshooting", "no channels, no guide, failed refreshes, alerts"),
-    (f"{DOCS_URL}/kodi.md", "Setting up Kodi", "the playlist, repeated refresh, and channel numbers"),
-    (f"{DOCS_URL}/players.md", "Other players", "Plex, Jellyfin, Emby, TiviMate, VLC, phones and tablets"),
-    (f"{DOCS_URL}/configuration.md", "Settings", "playlists, refresh time, and when changes take effect"),
-    (f"{DOCS_URL}/how-it-works.md", "How it works", "what each nightly step does, and the reports"),
-    (f"{DOCS_URL}/alerts.md", "Alerts", "what each alert means, and getting them on your phone"),
-    (f"{DOCS_URL}/secure-page.md", "The secure page", "the password, the browser warning, and using your own certificate"),
-    (f"{DOCS_URL}/api.md", "API", "using kia from scripts and other apps"),
 ]
 RESULTS = {
     "running": "Refreshing now",
@@ -281,7 +270,7 @@ def _secure_card(s: dict) -> str:
     cert = secure.get("tls")
     if not cert:
         return (
-            '<section class="card"><h2>Secure status page</h2><p class="bad-note">There\'s no certificate, so the '
+            '<section class="card"><h2>Secure Dashboard</h2><p class="bad-note">There\'s no certificate, so the '
             "secure page isn't working. kia's log says why.</p></section>"
         )
     url = secure.get("url") or ""
@@ -298,7 +287,7 @@ def _secure_card(s: dict) -> str:
         ("Address", url), ("Certificate made by", made_by), ("Covers", ", ".join(cert.get("names", []))),
         ("Expires", _day(expires) if expires else "-")])  # fmt: skip
     return (
-        '<section class="card"><h2>Secure status page</h2>'
+        '<section class="card"><h2>Secure Dashboard</h2>'
         "<p>Changes are made on the secure page. Your browser warns about kia's own certificate the first time; "
         f'<a href="{escape(DOCS_URL)}/secure-page.md">the secure page guide</a> explains why and how to use your own.</p>'
         + "".join(f'<p class="bad-note">{escape(n)}</p>' for n in notes)
@@ -311,12 +300,13 @@ def _settings_card(s: dict) -> str:
     if not s.get("settings"):
         return ""
     groups = "".join(
-        f"<h3>{escape(sec['title'])}</h3><table class=\"settings\"><tbody>"
+        f'<details><summary>{escape(sec["title"])} <span class="n">{len(sec["rows"])}</span></summary>'
+        '<div class="wide"><table class="settings"><tbody>'
         + "".join(
             f"<tr><td>{escape(r['name'])}</td><td>{escape(r['value'])}</td><td class=\"muted\">{escape(r['change'])}</td></tr>"
             for r in sec["rows"]
         )
-        + "</tbody></table>"
+        + "</tbody></table></div></details>"
         for sec in s["settings"]
     )
     return (
@@ -325,7 +315,7 @@ def _settings_card(s: dict) -> str:
         "<code>kia.toml</code> in the kia folder, then restart kia. "
         f'<a href="{escape(DOCS_URL)}/configuration.md">Configuration</a> explains them all. '
         "Passwords and alert addresses only show whether they're set.</p>"
-        f'<div class="wide">{groups}</div></section>'
+        f"{groups}</section>"
     )
 
 
@@ -354,11 +344,11 @@ def checklist(s: dict) -> list[dict]:
          "text": "Kodi, or another app: use a playlist address from below.", "doc": "players.md"},
         {"id": "password", "title": "Keep the password for changes safe",
          "done": password is not None and not password.startswith("made by kia"), "manual": True,
-         "text": "kia made one, in state/admin-password.txt. Change it on the secure page's Details page, "
+         "text": "kia made one, in state/admin-password.txt. Change it on the secure page's System page, "
                  "or set KIA_ADMIN_PASSWORD in .env.", "doc": "secure-page.md#the-password"},
         {"id": "playlists", "title": "Choose your playlists (optional)", "manual": True,
-         "text": "Add other countries, streaming services, or radio on the secure page's Details page.",
-         "doc": "configuration.md#choosing-channel-sources-on-the-status-page"},
+         "text": "Add other countries, streaming services, or radio on the secure page's Sources page.",
+         "doc": "configuration.md#choosing-channel-sources-on-the-dashboard"},
         {"id": "alerts", "title": "Get alerts when something breaks (optional)", "done": alerts,
          "text": "A message on your phone or by email if the nightly refresh fails.", "doc": "alerts.md"},
     ]  # fmt: skip
@@ -377,9 +367,8 @@ def _checklist_card(s: dict) -> str:
         for i in items
     )
     return (
-        '<section class="card" id="getting-started"><h2>Getting started</h2>'
-        '<p class="muted">kia ticks what it can check. Tick the rest yourself; this browser remembers. '
-        "This card goes away when everything's ticked, or when you hide it.</p>"
+        '<section class="card" id="getting-started"><h2>Getting started <span class="progress muted"></span></h2>'
+        '<p class="muted">kia ticks what it can check; tick the rest yourself. This browser remembers.</p>'
         f'<ol class="steps">{rows}</ol><div class="actions"><button type="button" class="hide">Hide this</button></div></section>'
     )
 
@@ -393,6 +382,8 @@ CHECKLIST_STYLE = """
   font-weight: 700; color: var(--card); background: none; padding: 0; min-height: 0; }
 .steps li[data-done] .tick { background: var(--good); border-color: var(--good); }
 .steps li[data-done] strong { text-decoration: line-through; color: var(--muted); }
+.steps li[data-done] div span { display: none; }
+#getting-started h2 .progress { font-size: var(--step--1); font-weight: 400; margin-left: .4rem; }
 .steps button.tick { cursor: pointer; }
 """
 
@@ -412,6 +403,10 @@ CHECKLIST_SCRIPT = """
   });
   if (state.hidden) { card.hidden = true; if (again) again.hidden = false; }
   function allDone() { return !card.querySelector("li:not([data-done])"); }
+  function count() {
+    var items = card.querySelectorAll("li"), done = card.querySelectorAll("li[data-done]");
+    card.querySelector(".progress").textContent = done.length + " of " + items.length + " done";
+  }
   card.querySelectorAll("li[data-manual]").forEach(function (li) {
     var old = li.querySelector(".tick"), b = document.createElement("button");
     b.type = "button"; b.className = "tick"; b.setAttribute("aria-label", "Done: " + li.querySelector("strong").textContent);
@@ -420,11 +415,12 @@ CHECKLIST_SCRIPT = """
     b.addEventListener("click", function () {
       if (li.hasAttribute("data-done")) { li.removeAttribute("data-done"); delete state[li.dataset.id]; }
       else { li.setAttribute("data-done", ""); state[li.dataset.id] = true; }
-      save(state); draw();
+      save(state); draw(); count();
       if (allDone()) card.hidden = true;
     });
     old.replaceWith(b); draw();
   });
+  count();
   if (allDone()) card.hidden = true;
   card.querySelector("button.hide").addEventListener("click", function () {
     state.hidden = true; save(state); card.hidden = true; if (again) again.hidden = false; });
@@ -474,7 +470,7 @@ PLUTO_SCRIPT = """
     var trouble = p.suspicious ? "Pluto has flagged kia's sessions as suspicious, so Pluto channels may misbehave."
       : p.fallback ? "Pluto channels are playing without kia's fix, so they may freeze at ad breaks. kia keeps trying."
       : "";
-    if (warn && trouble) { warn.querySelector("p").textContent = trouble + " See Details."; warn.hidden = false; }
+    if (warn && trouble) { warn.querySelector("p").textContent = trouble + " See System."; warn.hidden = false; }
     if (!card) return;
     var note = card.querySelector(".pluto-note");
     if (trouble) { note.textContent = trouble; note.hidden = false; }
@@ -505,46 +501,78 @@ def _footer(s: dict, root: str = "") -> str:
     )
 
 
-def _help_card() -> str:
-    links = "".join(f'<li><a href="{escape(url)}">{escape(name)}</a><span>{escape(what)}</span></li>' for url, name, what in HELP)
-    again = ('<li><a href="index.html#getting-started" class="show-steps" hidden>Getting started</a>'
-             "<span>the setup checklist, if you hid it</span></li>")
-    return f'<section class="card"><h2>Help</h2><ul class="links">{links}{again}</ul></section>'
+def _short_playlists_card(s: dict) -> str:
+    """The Dashboard's list of playlist addresses, to copy into a player."""
+    items = "".join(
+        f'<div class="playlist"><div><a class="pl-title" href="{escape(pl["page"])}">{escape(pl["title"])}</a> '
+        f'<span class="muted">{_counts(pl)}</span></div>{_address(i, pl["url"], pl["file"], what=pl["title"] + " playlist address")}</div>'
+        for i, pl in enumerate(_playlists(s))
+    )
+    return (
+        '<section class="card" id="playlist-addresses"><h2>Playlists</h2>'
+        "<p>Use one of these as the <strong>M3U playlist URL</strong> in IPTV Simple Client or your player. "
+        'To make one or change one, go to <a href="playlists.html">Playlists</a>.</p>'
+        f'{_profiles_error(s)}<div class="playlists">{items}</div></section>'
+    )
 
 
 def render_html(s: dict) -> str:
-    """The home page: is kia working, what it found, and the playlists."""
+    """The Dashboard: is kia working, what it found, and the playlist addresses."""
     ch = s["channels"]
     tv = ch["tv"] or 0
     guided = ch["with_guide"]
     share = f" ({100 * guided / (tv + ch['radio']):.0f}%)" if isinstance(guided, int) and tv + ch["radio"] else ""
     tiles = (
         '<section class="tiles">'
-        f'<div class="tile"><div class="n">{_n(tv)}</div><div class="l">TV channels</div></div>'
-        f'<div class="tile"><div class="n">{_n(ch["radio"])}</div><div class="l">Radio stations</div></div>'
-        f'<div class="tile"><div class="n">{_n(guided)}</div><div class="l">Channels with guide data{share}</div></div>'
+        f'<a class="tile" href="playlists/curated.html"><div class="n">{_n(tv)}</div><div class="l">TV channels</div></a>'
+        f'<a class="tile" href="playlists/curated.html"><div class="n">{_n(ch["radio"])}</div><div class="l">Radio stations</div></a>'
+        f'<a class="tile" href="guide.html"><div class="n">{_n(guided)}</div><div class="l">Channels with guide data{share}</div></a>'
         "</section>"
     )
     alerts = ""
     if s["alerts"]:
         items = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
         alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
-    more = (
-        '<section class="card"><h2>Details</h2><ul class="links">'
-        '<li><a href="details.html">Guide coverage, streams, and reports</a>'
-        "<span>how much of the guide is filled in, which playlists' streams work, and the full reports</span></li>"
-        "</ul></section>"
-    )
+    again = '<p class="muted"><a href="#getting-started" class="show-steps" hidden>Show the Getting started steps again</a></p>'
     body = (
-        f'<main>{_banner(s)}{_pluto_warning(s)}{_checklist_card(s)}{tiles}{alerts}{_playlists_card(s)}'
-        f'<div class="pair">{more}{_help_card()}</div></main>'
+        f'<main>{_banner(s)}{_pluto_warning(s)}{_checklist_card(s)}{tiles}{alerts}{_short_playlists_card(s)}{again}</main>'
     )
-    script = COPY_SCRIPT + editor.SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT
-    return page("kia status", body, _footer(s), script, editor.STYLE + CHECKLIST_STYLE)
+    script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT
+    return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE, current="index.html")
 
 
-def render_details(s: dict) -> str:
-    """Guide coverage, streams by playlist, and the reports."""
+def render_playlists(s: dict) -> str:
+    """Playlists: every playlist, Make a playlist, and a link to each one's page."""
+    body = f"<main><h1>Playlists</h1>{_playlists_card(s)}</main>"
+    return page("Playlists - kia", body, _footer(s), COPY_SCRIPT + editor.SCRIPT, editor.STYLE, current="playlists.html")
+
+
+def render_sources(s: dict) -> str:
+    """Sources: which playlists kia checks, and how their streams did."""
+    streams = ""
+    if s.get("sources"):
+        rows = "".join(
+            f'<div class="source"><strong>{escape(src["name"])}</strong>'
+            + _bar([(src["ok"], "--bar-full"), (src["flaky"], "--bar-part"), (src["dead"], "--bar-dead")])
+            + f'<span class="counts">{_n(src["ok"])} working, {_n(src["flaky"])} flaky, {_n(src["dead"])} dead</span></div>'
+            for src in s["sources"]
+        )
+        report = ' <a href="report.html">The full stream check</a> lists every stream.' if "report.html" in s["files"] else ""
+        streams = (
+            '<section class="card"><h2>Streams from the last check</h2>'
+            f'<p class="muted">How each playlist\'s streams did when kia last checked them.{report}</p>'
+            f'<div class="sources">{rows}</div></section>'
+        )
+    choose = (
+        f'<section class="card" id="sources-editor"{_secure_attr(s)} hidden><h2>Channel sources</h2>'
+        '<div class="body"></div></section>'
+    )
+    body = f"<main><h1>Sources</h1>{choose}{streams}</main>"
+    return page("Sources - kia", body, _footer(s), sourceeditor.SCRIPT, sourceeditor.STYLE, current="sources.html")
+
+
+def render_guide(s: dict) -> str:
+    """Guide: how much of the guide is filled in, and the guide reports."""
     cov = s.get("coverage") or {}
     guide = ""
     if cov:
@@ -557,19 +585,24 @@ def render_details(s: dict) -> str:
             f'<span><i style="background:var(--bar-none)"></i>Channel name only: {_n(cov["none"])}</span>'
             "</div></section>"
         )
-    sources = ""
-    if s.get("sources"):
-        rows = "".join(
-            f'<div class="source"><strong>{escape(src["name"])}</strong>'
-            + _bar([(src["ok"], "--bar-full"), (src["flaky"], "--bar-part"), (src["dead"], "--bar-dead")])
-            + f'<span class="counts">{_n(src["ok"])} working, {_n(src["flaky"])} flaky, {_n(src["dead"])} dead</span></div>'
-            for src in s["sources"]
-        )
-        sources = f'<section class="card"><h2>Streams by playlist</h2><div class="sources">{rows}</div></section>'
-    choose = (
-        f'<section class="card" id="sources-editor"{_secure_attr(s)} hidden><h2>Channel sources</h2>'
-        '<div class="body"></div></section>'
+    else:
+        guide = '<section class="card"><p class="muted">The guide is built during kia\'s first refresh.</p></section>'
+    when = f"Updated {escape(_when(s['guide_updated']))}. " if s.get("guide_updated") else ""
+    whats_on = (
+        '<section class="card"><h2>What\'s on</h2>'
+        f"<p>{when}Each playlist's page shows what's on now and next, and a timeline of the next few hours. "
+        'Start with <a href="playlists/curated.html">Everything</a>.</p></section>'
     )
+    names = {"guide-report.html": "Guide coverage by channel and site",
+             "mapping-report.html": "Which guide sites match which channels, including matches by name to check"}  # fmt: skip
+    links = "".join(f'<li><a href="{n}">{n}</a><span>{escape(w)}</span></li>' for n, w in names.items() if n in s["files"])
+    reports = f'<section class="card"><h2>Guide reports</h2><ul class="links">{links}</ul></section>' if links else ""
+    body = f"<main><h1>Guide</h1>{guide}{whats_on}{reports}</main>"
+    return page("Guide - kia", body, _footer(s), current="guide.html")
+
+
+def render_system(s: dict) -> str:
+    """System: the secure page, the password, Pluto TV, the settings, and every file."""
 
     def file_item(name: str, what: str) -> str:
         twin = markdown_twin(name)
@@ -583,11 +616,27 @@ def render_details(s: dict) -> str:
         '<p class="muted">Loading…</p></section>'
     )
     body = (
-        f'<main><h1>Details</h1>{guide}{sources}{choose}<div class="pair">{_secure_card(s)}{editing}</div>'
-        f'<div class="pair">{reports}{_help_card()}</div>{_pluto_card(s)}{_settings_card(s)}</main>'
+        f'<main><h1>System</h1><div class="pair">{_secure_card(s)}{editing}</div>'
+        f"{_pluto_card(s)}{_settings_card(s)}{reports}</main>"
     )
-    script = editor.EDITING_SCRIPT + sourceeditor.SCRIPT + PLUTO_SCRIPT
-    return page("kia details", body, _footer(s), script, editor.STYLE + sourceeditor.STYLE)
+    script = editor.EDITING_SCRIPT + PLUTO_SCRIPT
+    return page("System - kia", body, _footer(s), script, editor.STYLE, current="system.html")
+
+
+# Where the old Details page's cards went, for bookmarks and older docs.
+MOVED = [("sources.html", "Sources", "choosing channel sources, and how their streams did"),
+         ("guide.html", "Guide", "how much of the guide is filled in, and the guide reports"),
+         ("system.html", "System", "the secure page, the password, Pluto TV, settings, and every file")]  # fmt: skip
+
+
+def render_details(s: dict) -> str:
+    """details.html: the Details page was split up; this points to where things are now."""
+    links = "".join(f'<li><a href="{h}">{escape(n)}</a><span>{escape(w)}</span></li>' for h, n, w in MOVED)
+    body = (
+        '<main><h1>Details has moved</h1><section class="card"><p>What was on this page is now on these pages, '
+        f'in the menu at the top:</p><ul class="links">{links}</ul></section></main>'
+    )
+    return page("Details - kia", body, _footer(s))
 
 
 def render_playlist(s: dict, pl: dict, entries: list) -> str:
@@ -600,7 +649,8 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
 
     def row(e) -> str:
         return (
-            f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td>'
+            f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"{" data-fav" if FAVORITES in e.group.split(";") else ""}>'
+            f'<td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td>'
             f'<td class="name">{escape(e.name)}</td><td class="now" hidden></td><td class="next" hidden></td>'
             f'<td>{escape(e.group.replace(";", ", "))}</td></tr>\n'
         )
@@ -625,6 +675,9 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         if len(entries) > FILTER_ROWS
         else ""
     )
+    filter_box += (
+        '<label class="choice guided-only" hidden><input type="checkbox"> Hide channels without guide data</label>'
+    )
     guide_note = (
         "Its own guide, with only these channels."
         if pl["guide"] != "guide.xml.gz"
@@ -648,17 +701,83 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         '<div class="wide"><table id="channels">'
         '<thead><tr><th class="num">No.</th><th class="name">Channel</th><th class="now" hidden>On now</th>'
         '<th class="next" hidden>Next</th><th>Category</th></tr></thead>'
-        f"{bodies}</table></div></section></main>"
+        f"{bodies}</table></div>"
+        f'<p class="list-more" hidden><button type="button" data-limit="{LIST_LIMIT}">Show all channels</button></p>'
+        "</section></main>"
     )
-    script = COPY_SCRIPT + FILTER_SCRIPT + editor.SCRIPT + guideview.SCRIPT + channeleditor.SCRIPT
-    style = editor.STYLE + guideview.STYLE + channeleditor.STYLE
-    return page(f"{pl['title']} - kia", body, _footer(s, root), script, style, root=root)
+    script = COPY_SCRIPT + LIST_SCRIPT + editor.SCRIPT + guideview.SCRIPT + channeleditor.SCRIPT
+    style = editor.STYLE + guideview.STYLE + channeleditor.STYLE + LIST_STYLE
+    return page(f"{pl['title']} - kia", body, _footer(s, root), script, style, root=root, current="playlists.html")
+
+
+# A playlist page shows your favorites and this many channels until you ask for all of them.
+LIST_LIMIT = 200
+LIST_STYLE = """
+.guided-only { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
+.list-more { margin: var(--space-2) 0 0; }
+"""
+# The playlist page's channel list: the filter box, the first LIST_LIMIT channels (and every
+# favorite) until "Show all", and "Hide channels without guide data" (from guide-preview.json).
+# guideview keeps its timeline in step through the "rows-changed" event.
+LIST_SCRIPT = r"""
+<script>
+(function () {
+  var card = document.getElementById("whats-on"), table = document.getElementById("channels");
+  if (!card || !table) return;
+  var box = card.querySelector("input[data-filter]"), only = card.querySelector(".guided-only");
+  var more = card.querySelector(".list-more"), button = more.querySelector("button");
+  var limit = +button.dataset.limit, all = false, guided = null;
+  var rows = Array.prototype.slice.call(table.querySelectorAll("tbody tr[data-key]"));
+  // The rows' text as written, before any buttons are added to them.
+  rows.forEach(function (row) { row._text = row.textContent.toLowerCase(); });
+  var none = document.createElement("p");
+  none.className = "muted"; none.hidden = true; none.setAttribute("role", "status");
+  table.parentNode.before(none);
+  if (box) box.setAttribute("aria-label", box.placeholder);
+  function apply() {
+    var q = box ? box.value.toLowerCase() : "", hideBare = guided && only.querySelector("input").checked;
+    var shown = 0, cut = 0, matched = 0;
+    rows.forEach(function (row) {
+      var match = (!q || row._text.indexOf(q) >= 0) && (!hideBare || guided[row.dataset.id]);
+      var early = all || q || matched < limit || row.hasAttribute("data-fav");
+      if (match) matched++;
+      row.hidden = !(match && early);
+      if (match && !early) cut++;
+      if (!row.hidden) shown++;
+    });
+    Array.prototype.forEach.call(table.tBodies, function (body) {
+      var head = body.querySelector("tr.group-head");
+      if (head) head.hidden = !body.querySelector("tr[data-key]:not([hidden])");
+    });
+    more.hidden = !cut;
+    button.textContent = "Show all " + (shown + cut).toLocaleString() + " channels";
+    none.hidden = shown > 0 || !rows.length;
+    none.textContent = q ? "No channels match “" + box.value + "”." : "No channels have guide data.";
+    card.dispatchEvent(new Event("rows-changed"));
+  }
+  if (box) box.addEventListener("input", apply);
+  button.addEventListener("click", function () { all = true; apply(); });
+  only.querySelector("input").addEventListener("change", apply);
+  var root = card.dataset.root || "";
+  fetch(root + "guide-preview.json", { cache: "no-cache" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+    if (!data || !data.channels) return;
+    guided = {};
+    Object.keys(data.channels).forEach(function (id) { if (data.channels[id].length) guided[id] = true; });
+    only.hidden = false;
+  }).catch(function () {});
+  apply();
+})();
+</script>
+"""
+
+PAGES = {"index.html": render_html, "playlists.html": render_playlists, "sources.html": render_sources,
+         "guide.html": render_guide, "system.html": render_system, "details.html": render_details}  # fmt: skip
 
 
 def write_pages(output_dir: Path, s: dict) -> None:
-    """index.html, details.html, and a page per playlist in playlists/."""
-    _write(output_dir / "index.html", render_html(s))
-    _write(output_dir / "details.html", render_details(s))
+    """The Dashboard's pages (PAGES) and a page per playlist in playlists/."""
+    for name, render in PAGES.items():
+        _write(output_dir / name, render(s))
     folder = output_dir / "playlists"
     keep = set()
     for pl in _playlists(s):

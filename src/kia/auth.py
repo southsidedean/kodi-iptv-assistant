@@ -1,10 +1,10 @@
-"""The status page's admin password.
+"""The Dashboard's admin password.
 
 Where it comes from, first match wins:
-1. KIA_ADMIN_PASSWORD in .env. The status page can't change it; change it in .env.
-2. One saved from the status page, or made by kia on first start, kept as a salted hash
+1. KIA_ADMIN_PASSWORD in .env. The Dashboard can't change it; change it in .env.
+2. One saved from the Dashboard, or made by kia on first start, kept as a salted hash
    in state/admin.json. A password kia made is also written to state/admin-password.txt
-   so the owner can read it; changing it on the status page deletes that file.
+   so the owner can read it; changing it on the Dashboard deletes that file.
 KIA_EDITING=false turns editing off whatever the password.
 """
 
@@ -81,7 +81,7 @@ class Auth:
         password = generate()
         self._save(password, generated=True)
         _write_private(self.shown, password + "\n")
-        log(f"Made a new password for editing on the status page; it's in {self.shown}")
+        log(f"Made a new password for editing on the Dashboard; it's in {self.shown}")
         return password
 
     def _save(self, password: str, generated: bool) -> None:
