@@ -55,6 +55,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `COMPOSE_PROFILES` | | `plex` starts Threadfin with kia, for [Plex](plex.md); `plex,plex-2` starts two, for more than 480 channels. |
 | `KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT` | `34400`, `34401` | Threadfin's web pages, and the tuner addresses Plex uses. |
 | `KIA_THREADFIN_IMAGE` | `fyb3roptik/threadfin:1.2.37` | Threadfin's version. |
+| `KIA_PLEX_URL`, `KIA_PLEX_TOKEN` | | Plex's address (such as `http://192.168.1.20:32400`) and a Plex token, for `kia plex-tuners`, which adds the Threadfins to Plex ([Plex](plex.md#let-kia-add-them)). The token is like a password for your Plex account: keep `.env` private. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.

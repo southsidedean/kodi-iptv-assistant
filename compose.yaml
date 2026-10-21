@@ -43,6 +43,11 @@ services:
       KIA_EMAIL_FROM: ${KIA_EMAIL_FROM:-}
       KIA_EMAIL_TO: ${KIA_EMAIL_TO:-}
       KIA_PLUTO_RELAY: ${KIA_PLUTO_RELAY:-}
+      # kia plex-tuners: where Plex is, and where it finds the Threadfins.
+      KIA_PLEX_URL: ${KIA_PLEX_URL:-}
+      KIA_PLEX_TOKEN: ${KIA_PLEX_TOKEN:-}
+      KIA_THREADFIN_PORT: ${KIA_THREADFIN_PORT:-}
+      KIA_THREADFIN_2_PORT: ${KIA_THREADFIN_2_PORT:-}
       # Optional; empty means use the setting in kia.toml.
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
