@@ -25,6 +25,12 @@ def test_new_threadfins_get_kias_playlist_guide_filter_and_options(tmp_path: Pat
     assert "no playlist named sports" in said[1] and "restart threadfin-2" in said[1]
 
 
+def test_only_the_threadfins_that_run_are_set_up(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex,plex-server")
+    assert threadfin.set_up(tmp_path, tmp_path, lambda m: None) == ["threadfin"]
+    assert not (tmp_path / "threadfin-2" / "conf" / "settings.json").exists()
+
+
 def test_existing_threadfin_settings_are_never_changed(tmp_path: Path):
     conf = tmp_path / "threadfin" / "conf"
     conf.mkdir(parents=True)

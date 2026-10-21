@@ -19,7 +19,7 @@ from pathlib import Path
 
 # The Threadfins compose.yaml can start: their folder in the kia folder, and the .env
 # setting that names the kia playlist each one reads.
-THREADFINS = (("threadfin", "KIA_THREADFIN_PLAYLIST"), ("threadfin-2", "KIA_THREADFIN_2_PLAYLIST"))
+THREADFINS = (("threadfin", "KIA_THREADFIN_PLAYLIST", "plex"), ("threadfin-2", "KIA_THREADFIN_2_PLAYLIST", "plex-2"))
 # Pass on the best single stream, not every quality at once (Threadfin's own options).
 FFMPEG_OPTIONS = "-hide_banner -loglevel error -i [URL] -c copy -f mpegts pipe:1"
 TUNERS = 4
@@ -68,7 +68,11 @@ def settings(playlist: str, base: str = "http://web") -> dict:
 def set_up(base: Path, output_dir: Path, log=print) -> list[str]:
     """Write settings for each Threadfin folder that has none. Returns the folders set up."""
     done = []
-    for index, (folder, setting) in enumerate(THREADFINS, 1):
+    # compose.yaml passes COMPOSE_PROFILES on, so only the Threadfins that run get set up.
+    running = {p.strip() for p in os.environ.get("KIA_COMPOSE_PROFILES", "").split(",") if p.strip()}
+    for index, (folder, setting, profile) in enumerate(THREADFINS, 1):
+        if running and profile not in running:
+            continue
         conf = base / folder / "conf"
         target = conf / "settings.json"
         if target.exists():

@@ -156,6 +156,7 @@ services:
     environment:
       KIA_THREADFIN_PLAYLIST: ${KIA_THREADFIN_PLAYLIST:-}
       KIA_THREADFIN_2_PLAYLIST: ${KIA_THREADFIN_2_PLAYLIST:-}
+      KIA_COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
     command: ["threadfin-setup"]
     restart: "no"
     volumes:
