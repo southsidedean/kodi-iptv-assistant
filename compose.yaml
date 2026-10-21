@@ -153,7 +153,8 @@ services:
     mem_limit: 1g
     # Healthy while Threadfin answers on its port (its image has no curl or wget).
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/34400"]
+      # Threadfin listens on the container's own address, not 127.0.0.1.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/$$(hostname -i | cut -d' ' -f1)/34400"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -184,7 +185,8 @@ services:
       - web
     mem_limit: 1g
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/34400"]
+      # Threadfin listens on the container's own address, not 127.0.0.1.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/$$(hostname -i | cut -d' ' -f1)/34400"]
       interval: 60s
       timeout: 10s
       retries: 3
