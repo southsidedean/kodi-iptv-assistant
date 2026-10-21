@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.4.2 (unreleased)
+## 0.4.2 (2026-10-21)
+
+### Upgrading from 0.4.1
+
+Update as usual: `git pull`, then `docker compose up -d --build`.
 
 ### Plex
 
