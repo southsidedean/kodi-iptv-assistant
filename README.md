@@ -45,7 +45,7 @@ Or by hand:
 
    Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`; [how to find it](docs/install.md#4-find-this-computers-address)) and `TZ` to your time zone.
 
-2. Optional: pick your playlists. The USA list is on by default, which is enough to start. Once kia is running, you can choose others on its status page ([how](docs/configuration.md#choosing-playlists-on-the-status-page)). To choose them now instead, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the playlists you want in `sources.local.txt`. Updating kia never touches your copy.
+2. Optional: pick your playlists. The USA list is on by default, which is enough to start. Once kia is running, you can choose others on its status page ([how](docs/configuration.md#choosing-channel-sources-on-the-status-page)). To choose them now instead, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the playlists you want in `sources.local.txt`. Updating kia never touches your copy.
 
 3. Start it:
 

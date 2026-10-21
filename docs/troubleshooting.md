@@ -46,7 +46,9 @@ If a Pluto channel still misbehaves:
 
 ### Sound is choppy on some channels
 
-Most streams, Pluto TV's included, have 48 kHz sound. If the device's sound output is set to another rate, such as 44.1 kHz, Kodi converts it as it plays, and on some devices that comes out choppy. Set the output to 48 kHz, in Kodi's audio settings (*Settings → System → Audio*) or in the device's own sound settings.
+Most streams, Pluto TV's included, have 48 kHz sound. If the device's sound output is set to another rate, such as 44.1 kHz, Kodi converts it as it plays, and on some devices that comes out choppy. Set the output to 48 kHz: in Kodi, *Settings → System → Audio*, set **Output configuration** to *Fixed* and **Limit sampling rate** to *48.0 kHz* (at the *Advanced* settings level).
+
+Kodi can also leave a sound output at another rate after it quits, so the computer's own sound on a TV turns choppy. On a Mac, open **Audio MIDI Setup** (Applications → Utilities), choose the TV or speaker on the left, and set **Format** to 48,000 Hz. The fixed Kodi setting above keeps it from happening again.
 
 ### Changes don't show up
 
@@ -72,7 +74,7 @@ Set IPTV Simple Client's **Auto refresh mode** to *Repeated refresh* and **Refre
 
 That's the secure page (`https://…:8743`) and kia's own certificate. The connection is encrypted; your browser just doesn't know kia. [The browser warning](secure-page.md#the-browser-warning) shows how to continue, and how to use a certificate your browser trusts.
 
-### There's no Add a playlist or Edit button
+### There's no Make a playlist or Edit button
 
 Those are on the secure page. On the plain `http://` page, use the link to it. If neither page has them, editing is turned off with `KIA_EDITING=false` in `.env`.
 

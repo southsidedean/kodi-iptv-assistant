@@ -6,7 +6,7 @@ Plex says watching through a tuner is free, and recording (DVR) needs [Plex Pass
 
 ## 1. Pick a playlist for Plex
 
-A shorter list is quicker for Plex to load and easier to browse. Make a [profile](profiles.md) with the categories you watch, for example on kia's secure status page: **Add a playlist**, name it `plex`, choose **Only the channels I pick**, tick categories such as News, Movies, and Sports, and save. You'll use:
+A shorter list is quicker for Plex to load and easier to browse. Make a [profile](profiles.md) with the categories you watch, for example on kia's secure status page: **Make a playlist**, name it `plex`, choose **Only the channels I pick**, tick categories such as News, Movies, and Sports, and save. You'll use:
 
 - Playlist: `http://<your address>:8780/plex.m3u`
 - Guide: `http://<your address>:8780/plex.guide.xml.gz`

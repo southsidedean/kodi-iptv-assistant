@@ -1,6 +1,6 @@
 # Using kia from scripts and other apps
 
-Everything the status page shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-playlists-on-the-status-page), favorites and channel numbers, and the password, and tests or removes channels: reading works on either port, and changes work only on the secure port.
+Everything the status page shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-status-page), favorites and channel numbers, and the password, and tests or removes channels: reading works on either port, and changes work only on the secure port.
 
 The examples use `192.168.1.20` for the kia machine; use yours.
 

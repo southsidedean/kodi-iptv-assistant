@@ -73,7 +73,7 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
         ]),
         ("Playlists", [
             ("Sources", f"{len(cfg.sources)}: {_list([s.name for s in cfg.sources])}",
-             "the status page (Choose playlists), or " + ENV + "KIA_SOURCES_FILE"),
+             "the status page (Channel sources), or " + ENV + "KIA_SOURCES_FILE"),
             ("Profiles file", _relative(cfg, cfg.profiles_file), ENV + "KIA_PROFILES_FILE"),
             ("Left-out categories", _list(cfg.exclude_groups), ENV + "KIA_EXCLUDE_GROUPS"),
             ("Left-out name tags", _list(cfg.exclude_labels), TOML + "[filters] exclude_labels"),

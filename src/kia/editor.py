@@ -2,7 +2,7 @@
 
 The pages themselves stay plain files. This script asks /api/profiles what's there; when
 there's no API (a page opened from disk, or a server without one) it does nothing. The home
-page offers "Add a playlist" (#playlists has data-add); a playlist's own page offers Edit
+page offers "Make a playlist" (#playlists has data-add); a playlist's own page offers Edit
 (its row has data-profile). Saving rewrites the profiles file and the pages, then this
 opens the playlist's page.
 """
@@ -21,6 +21,8 @@ STYLE = """
 .editor textarea { min-height: 4.5rem; font-family: var(--mono); font-size: .92em; }
 .editor input:focus-visible, .editor textarea:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
 .editor .hint { color: var(--muted); font-size: var(--step--1); margin: 0; }
+.check-filter { margin-top: var(--space-1); max-width: 18rem; }
+.checks label { min-height: 40px; }
 .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .1rem var(--space-2);
   max-height: 14rem; overflow-y: auto; margin-top: var(--space-1); }
 .checks label, .choice { display: flex; gap: .45rem; align-items: center; min-height: 36px; }
@@ -35,7 +37,7 @@ STYLE = """
 button.primary { background: var(--info); border-color: var(--info); color: var(--card); font-weight: 600; }
 button.danger { color: var(--bad); }
 button:disabled { opacity: .55; cursor: default; }
-.editor .error { background: var(--bad-bg); border-radius: var(--radius-small); padding: .6rem .8rem; margin: 0; }
+.error { background: var(--bad-bg); color: var(--fg); border-radius: var(--radius-small); padding: .6rem .8rem; margin: 0; }
 """
 
 SCRIPT = r"""
@@ -69,6 +71,11 @@ SCRIPT = r"""
   function lines(text) { return text.split("\n").map(function (s) { return s.trim(); }).filter(Boolean); }
   function plural(n, one, many) { return n.toLocaleString() + " " + (n === 1 ? one : many); }
 
+  try {
+    var note = sessionStorage.getItem("kia-saved");
+    if (note) { sessionStorage.removeItem("kia-saved"); card.insertBefore(el("p", { class: "preview", role: "status", text: note }), card.firstChild.nextSibling); }
+  } catch (e) {}
+
   api("GET", "profiles").then(function (d) {
     if (d._status !== 200 || !d.groups) return;  // no editor API here
     data = d;
@@ -77,10 +84,12 @@ SCRIPT = r"""
     if (d.editable && !d.secure) {
       // Changes go over HTTPS only; offer this page on the secure address.
       var to = card.dataset.secureUrl ? new URL(location.pathname.replace(/^\//, ""), card.dataset.secureUrl).href : null;
-      if (to) tools.appendChild(el("p", {}, [el("a", { href: to, text: adding ? "Add or change playlists on the secure page" : "Change this playlist on the secure page" }),
+      var own = document.querySelector("#playlists [data-profile]");
+      if (to) tools.appendChild(el("p", {}, [el("a", { href: to, text: adding ? "Make or change playlists on the secure page"
+          : own ? "Change this playlist on the secure page" : "Star, number, and test channels on the secure page" }),
         el("span", { class: "muted", text: " (https://). Your browser may warn about kia's own certificate the first time." })]));
     } else if (d.editable) {
-      if (adding) tools.appendChild(el("button", { type: "button", text: "Add a playlist", on: { click: function () { open(null); } } }));
+      if (adding) tools.appendChild(el("button", { type: "button", text: "Make a playlist", on: { click: function () { open(null); } } }));
       document.querySelectorAll("#playlists [data-profile]").forEach(function (row) {
         tools.appendChild(el("button", { type: "button", text: "Edit this playlist",
           on: { click: function () { open(row.dataset.profile); } } }));
@@ -96,16 +105,23 @@ SCRIPT = r"""
     if (old) old.remove();
     var p = name ? data.profiles.filter(function (x) { return x.name === name; })[0] || { name: name } : {};
     var pinned = (p.channels || []).slice();
-    var known = {};
+    var known = Object.assign({}, data.channel_names || {});
     var picking = !!((p.groups || []).length || (p.sources || []).length || (p.names || []).length);
 
     function checks(items, chosen, prefix) {
       var set = {};
       (chosen || []).forEach(function (g) { set[g.toLowerCase()] = true; });
-      return el("div", { class: "checks" }, items.map(function (it) {
+      var box = el("div", { class: "checks" }, items.map(function (it) {
         return el("label", {}, [el("input", { type: "checkbox", value: it.name, "data-list": prefix, checked: !!set[it.name.toLowerCase()],
           on: { change: changed } }), it.name + " ", el("span", { class: "n", text: it.count.toLocaleString() })]);
       }));
+      if (items.length < 12) return box;
+      var filter = el("input", { type: "search", class: "check-filter", placeholder: "Filter these " + items.length,
+        "aria-label": "Filter these " + items.length, on: { input: function () {
+          var q = filter.value.toLowerCase();
+          Array.prototype.forEach.call(box.children, function (l) { l.hidden = q && l.textContent.toLowerCase().indexOf(q) < 0; });
+        } } });
+      return el("div", {}, [filter, box]);
     }
     function chosen(list) {
       return Array.prototype.map.call(form.querySelectorAll('input[data-list="' + list + '"]:checked'), function (b) { return b.value; });
@@ -113,7 +129,7 @@ SCRIPT = r"""
 
     var nameBox = el("input", { type: "text", id: "ed-name", value: p.name || "", autocomplete: "off", autocapitalize: "none",
       spellcheck: "false", maxlength: "40", disabled: !!name, on: { input: function () {
-        nameBox.value = nameBox.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+        nameBox.value = nameBox.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "");
         address.textContent = (nameBox.value || "name") + ".m3u"; } } });
     var address = el("code", { text: (p.name || "name") + ".m3u" });
     var titleBox = el("input", { type: "text", id: "ed-title", value: p.title || "", maxlength: "60", on: { input: changed } });
@@ -124,7 +140,7 @@ SCRIPT = r"""
     var picks = el("div", { hidden: !picking }, [
       el("p", { class: "hint", text: "Channels in any of the categories or playlists you tick, or with any of the names below." }),
       el("h3", { text: "Categories" }), checks(data.groups, p.groups, "groups"),
-      el("h3", { text: "Playlists" }), checks(data.sources, p.sources, "sources"),
+      el("h3", { text: "From these channel sources" }), checks(data.sources, p.sources, "sources"),
       el("label", { class: "field", for: "ed-names" }, [el("strong", { text: "Channel names containing" }),
         el("span", { class: "hint", text: "One per line, e.g. news. Upper and lower case don't matter." })]), namesBox]);
     var exNamesBox = el("textarea", { id: "ed-exnames", rows: "2", spellcheck: "false", on: { input: changed } });
@@ -132,7 +148,8 @@ SCRIPT = r"""
     var tvBox = el("input", { type: "checkbox", checked: p.tv !== false, on: { change: changed } });
     var radioBox = el("input", { type: "checkbox", checked: p.radio !== false, on: { change: changed } });
     var renumberBox = el("input", { type: "checkbox", checked: p.renumber === true });
-    var search = el("input", { type: "search", placeholder: "Search channels by name", on: { input: debounce(find, 250) } });
+    var search = el("input", { type: "search", placeholder: "Search channels by name", "aria-label": "Search channels by name",
+      on: { input: debounce(find, 250) } });
     var found = el("ul", { class: "found" });
     var chips = el("ul", { class: "chips" });
     var preview = el("p", { class: "preview", "aria-live": "polite", text: "Counting…" });
@@ -142,7 +159,7 @@ SCRIPT = r"""
     var save = el("button", { type: "submit", class: "primary", text: "Save" });
 
     var form = el("form", { class: "editor", id: "editor", on: { submit: submit } }, [
-      el("h3", { text: name ? "Edit " + (p.title || name) : "Add a playlist" }),
+      el("h3", { text: name ? "Edit " + (p.title || name) : "Make a playlist" }),
       el("label", { class: "field", for: "ed-name" }, [el("strong", { text: "Short name" }),
         el("span", { class: "hint" }, ["Lowercase letters, numbers, and dashes. The playlist's address ends in ", address,
           name ? ". To rename a playlist, add a new one and delete this one." : "."])]), nameBox,
@@ -165,7 +182,9 @@ SCRIPT = r"""
         el("p", { class: "hint", text: "Specific channels, whatever the settings above say." }), search, found, chips]),
       preview,
       el("label", { class: "field", for: "ed-pass" }, [el("strong", { text: "Password" }),
-        el("span", { class: "hint", text: "kia's admin password. If you haven't changed it, it's in state/admin-password.txt in the kia folder. This browser tab remembers it until you close it." })]), pass,
+        el("span", { class: "hint", text: ({ env: "The one set by KIA_ADMIN_PASSWORD in kia's .env file.",
+          generated: "kia made one: it's in state/admin-password.txt in the kia folder.",
+          set: "The one set on the Details page." }[data.password] || "kia's admin password.") + " This browser tab remembers it until you close it." })]), pass,
       error,
       el("div", { class: "actions" }, [save,
         el("button", { type: "button", text: "Cancel", on: { click: function () { form.remove(); } } }),
@@ -207,7 +226,7 @@ SCRIPT = r"""
         });
       });
     }
-    var counting = 0;
+    var counting = 0, lastCount = null;
     function changed() { counting++; later(); }
     var later = debounce(function () {
       var mine = counting;
@@ -222,13 +241,14 @@ SCRIPT = r"""
         preview.textContent = (empty ? "Pick some categories, playlists, or names; until then this has every channel. " : "")
           + "This playlist would have " + plural(r.tv, "TV channel", "TV channels") + " and "
           + plural(r.radio, "radio station", "radio stations") + (r.sample.length ? ", such as " + r.sample.slice(0, 5).join(", ") : "") + ".";
-      });
+        lastCount = r.tv + r.radio;
+      }, function () { if (mine === counting) { preview.className = "preview warn"; preview.textContent = "Can't count channels right now: kia didn't answer."; } });
     }, 300);
     function fail(r) {
       error.hidden = false;
       error.textContent = r.error || "Something went wrong.";
       if (r._status === 401) { setPassword(""); pass.focus(); }
-      save.disabled = false;
+      save.disabled = false; save.textContent = "Save";
     }
     function submit(ev) {
       ev.preventDefault();
@@ -237,10 +257,13 @@ SCRIPT = r"""
       if (!n) { fail({ error: "Give the playlist a short name." }); nameBox.focus(); return; }
       if (!name && data.profiles.some(function (x) { return x.name === n; })) {
         fail({ error: "There's already a playlist named " + n + "." }); return; }
-      save.disabled = true;
+      nameBox.value = n;
+      if (lastCount === 0 && !confirm("No channels match these settings, so this playlist would be empty. Save it anyway?")) return;
+      save.disabled = true; save.textContent = "Saving…";
       api("PUT", "profiles/" + encodeURIComponent(n), settings(), pass.value).then(function (r) {
         if (r._status !== 200) return fail(r);
         setPassword(pass.value);
+        try { sessionStorage.setItem("kia-saved", name ? "Saved." : "Made the playlist. Its address is below."); } catch (e) {}
         if (name) location.reload(); else location.href = root + "playlists/" + n + ".html";
       }, function () { fail({ error: "kia didn't answer. Is it running?" }); });
     }
@@ -249,6 +272,7 @@ SCRIPT = r"""
       api("DELETE", "profiles/" + encodeURIComponent(name), null, pass.value).then(function (r) {
         if (r._status !== 200) return fail(r);
         setPassword(pass.value);
+        try { sessionStorage.setItem("kia-saved", "Deleted the " + (p.title || name) + " playlist."); } catch (e) {}
         location.href = root + "index.html";
       }, function () { fail({ error: "kia didn't answer. Is it running?" }); });
     }
@@ -284,12 +308,18 @@ EDITING_SCRIPT = r"""
   }
   function say(text) { note.className = "muted"; note.textContent = text; }
   fetch("api/profiles").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-    if (!d) { say("Editing isn't available from this server."); return; }
+    if (!d) { say(location.protocol === "file:" ? "Open this page through kia's address to make changes." : "Editing isn't available from this server."); return; }
     var where = { env: "The password is set by KIA_ADMIN_PASSWORD in kia's .env file. Change it there and restart kia.",
       generated: "kia made the password. It's in state/admin-password.txt in the kia folder until you change it here.",
-      set: "The password was set on this page. If you forget it, run: docker compose exec kia python3 -m kia password --reset",
+      set: "The password was set on this page.",
       off: "Changes from the status page are turned off (KIA_EDITING=false in kia's .env file)." }[d.password] || "";
     say(where);
+    if (d.password !== "env" && d.password !== "off") {
+      card.appendChild(el("p", { class: "muted" }, ["Forgot it? On the kia computer, in the kia folder, run ",
+        el("code", { text: "docker compose exec kia python3 -m kia password --reset" }),
+        " (without Docker: ", el("code", { text: "PYTHONPATH=src python3 -m kia password --reset" }), "). ",
+        el("a", { href: "https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/secure-page.md#if-you-forget-it", text: "More" })]));
+    }
     if (d.password === "env" || d.password === "off") return;
     if (!d.secure) {
       if (card.dataset.secureUrl) card.appendChild(el("p", {}, [el("a", { href: new URL("details.html", card.dataset.secureUrl).href, text: "Change the password on the secure page" })]));
@@ -309,13 +339,14 @@ EDITING_SCRIPT = r"""
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
       function show(text, bad) { msg.hidden = false; msg.className = bad ? "error" : "preview"; msg.textContent = text; }
-      if (fresh.value !== again.value) return show("The new passwords don't match.", true);
+      if (fresh.value !== again.value) { again.focus(); return show("The new passwords don't match.", true); }
       button.disabled = true;
       fetch("api/password", { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": current.value },
         body: JSON.stringify({ new: fresh.value }) })
         .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); })
         .then(function (res) {
           button.disabled = false;
+          if (res[0] === 401) { current.focus(); return show("That's not the current password. Forgot it? See above.", true); }
           if (res[0] !== 200) return show(res[1].error || "Something went wrong.", true);
           try { sessionStorage.removeItem("kia-password"); } catch (e) {}
           current.value = fresh.value = again.value = "";

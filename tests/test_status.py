@@ -191,7 +191,8 @@ def test_getting_started_checklist():
                 {"title": "Addresses", "rows": [{"name": "Password for changes", "value": "made by kia, in state/admin-password.txt", "change": ""}]}]  # fmt: skip
     s = {"last_run": {"finished": None}, "playlist_url": "http://localhost:8780/curated.m3u", "settings": settings}
     items = {i["id"]: i for i in status.checklist(s)}
-    assert not items["refresh"]["done"] and items["address"]["done"] and "This computer only" in items["address"]["text"]
+    assert not items["refresh"]["done"] and not items["address"]["done"] and items["address"]["manual"]
+    assert "This computer only" in items["address"]["text"]
     assert items["alerts"]["done"] and not items["password"]["done"] and items["player"]["manual"]
     card = status._checklist_card(s)
     assert 'id="getting-started"' in card and 'data-id="alerts" data-done' in card

@@ -36,7 +36,7 @@ SCRIPT = r"""
   var card = document.getElementById("whats-on");
   if (!table || !card) return;
   var root = card.dataset.root || "";
-  var rows = Array.prototype.slice.call(table.querySelectorAll("tbody tr:not(.group-head)"));
+  var rows = Array.prototype.slice.call(table.querySelectorAll("tbody tr[data-key]"));
   var guide = null, timeline = null;
   var HOURS = 6;
 
@@ -94,7 +94,7 @@ SCRIPT = r"""
       }
       lastBody = row.parentNode;
       var line = el("div", "tl-row"), name = el("div", "tl-name"), track = el("div", "tl-track");
-      var label = row.querySelector("td.name").textContent;
+      var label = row.querySelector("td.name").firstChild.textContent;
       name.appendChild(el("b", null, row.querySelector("td.num").textContent));
       name.appendChild(document.createTextNode(label));
       name.title = label;
@@ -128,7 +128,11 @@ SCRIPT = r"""
   }
 
   fetch(root + "guide-preview.json", { cache: "no-cache" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
-    if (!data || !data.channels) return;
+    if (!data || !data.channels) {
+      var note = card.querySelector(".guide-age");
+      if (note && rows.length) { note.hidden = false; note.textContent = "What's on shows here once kia has built the guide, after its first refresh."; }
+      return;
+    }
     guide = data;
     card.querySelectorAll("th.now, th.next, td.now, td.next").forEach(function (c) { c.hidden = false; });
     var bar = card.querySelector(".view");

@@ -101,6 +101,9 @@ def get_profiles(cfg: ApiConfig, secure: bool = False) -> dict:
         "password": source,  # where it comes from: env, generated, set, or off
         "error": error,
         "profiles": [{"name": p.name, **profiles.rules(p)} for p in defined],
+        # Names for the channels profiles pin by ID, so the editor shows names, not IDs.
+        "channel_names": {e.tvg_id: e.name for e, _ in items
+                          if e.tvg_id and any(e.tvg_id in p.channels for p in defined)},
         "groups": [{"name": g, "count": n} for g, n in sorted(groups.items(), key=lambda kv: kv[0].casefold())],
         "sources": [{"name": s, "count": n} for s, n in sorted(playlists.items())],
         "total": len(items),
@@ -187,13 +190,17 @@ def set_channel(cfg: ApiConfig, body: dict) -> dict:
             raise ApiError(400, str(exc)) from None
         channels.save(cfg.state_dir, choices)
         notes: list[str] = []
+        before = {e.key: e.attrs.get("tvg-chno") for e, _ in _items(cfg)}
         entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, notes.append,
                                    recycle_after_days=cfg.recycle_numbers_after_days, numbered=cfg.channel_numbers)  # fmt: skip
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
     cfg.on_change()
     now = next((e for e in entries if e.key == entry.key), entry)
+    # Other channels whose number changed because of this one, so the page can say where they went.
+    moved = [{"name": e.name, "number": e.attrs.get("tvg-chno")} for e in entries
+             if e.key != entry.key and before.get(e.key) != e.attrs.get("tvg-chno")]  # fmt: skip
     return {**choices, "channel": {"key": now.key, "number": now.attrs.get("tvg-chno"),
-                                   "favorite": now.key in choices["favorites"]}, "notes": notes}  # fmt: skip
+                                   "favorite": now.key in choices["favorites"]}, "notes": notes, "moved": moved}  # fmt: skip
 
 
 def _entry(cfg: ApiConfig, body: dict):

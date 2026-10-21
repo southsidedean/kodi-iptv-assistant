@@ -26,8 +26,9 @@ From then on kia updates the channels every night and the guide every few hours,
 | Playlist, M3U | A list of channels and their internet addresses. Files end in `.m3u`. kia's is `curated.m3u`. |
 | Guide, EPG, XMLTV | The TV guide: what's on each channel and when. EPG means "electronic program guide", and XMLTV is its file format. kia's is `guide.xml.gz`. |
 | Stream | One channel's video or audio coming over the internet. |
-| Source | A playlist kia checks, listed in `sources.txt`, such as iptv-org's list of US channels. |
-| Profile | A smaller playlist for one person or device, made from the full list. See [profiles](profiles.md). |
+| Channel source | A playlist kia reads channels from, such as iptv-org's list of US channels. You turn them on and off on the status page's Details page. |
+| Everything | kia's full playlist, every working channel from your sources. The status page lists it first. |
+| Profile | A smaller playlist for one person or device, made from Everything; on the status page, **Make a playlist**. See [profiles](profiles.md). |
 | Your address | How other devices reach the kia computer, such as `192.168.1.20`. [Installing kia](install.md#4-find-this-computers-address) shows how to find it. |
 
 ## Where to go next
@@ -35,7 +36,7 @@ From then on kia updates the channels every night and the guide every few hours,
 | You want to | Read |
 |---|---|
 | Make a playlist for the kids or a room | [Playlists for people and devices](profiles.md) |
-| Add channels from other countries, or radio | [Choosing playlists on the status page](configuration.md#choosing-playlists-on-the-status-page), or the comments in `sources.txt` |
+| Add channels from other countries, or radio | [Choosing channel sources](configuration.md#choosing-channel-sources-on-the-status-page), or the comments in `sources.txt` |
 | Get a message when something breaks | [Alerts](alerts.md) |
 | Watch away from home | [Away from home](players.md#away-from-home) |
 | Fix something that isn't working | [Troubleshooting](troubleshooting.md) |

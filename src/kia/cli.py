@@ -787,7 +787,7 @@ def api_config(cfg: Config):
         epg_url=cfg.epg_url,
         auth=auth.from_env(cfg.state_dir),
         https_port=cfg.https_port,
-        on_change=lambda: update_status(cfg),
+        on_change=lambda: refresh_settings_and_status(cfg),
         sources_file=cfg.sources_file,
         catalog_file=cfg.sources_file.parent / "sources.txt" if cfg.sources_file else None,
         config_file=cfg.config_file,
@@ -815,6 +815,17 @@ def write_settings(cfg: Config, run_at: str | None, guide_every: float | None) -
         write_atomic(cfg.state_dir / "settings.json", json.dumps(shown, indent=1))
     except OSError as exc:
         log(f"Couldn't save the settings for the status page: {exc}")
+
+
+def refresh_settings_and_status(cfg: Config) -> None:
+    """After a change on the status page (a new password, say): the settings shown on
+    Details and the Getting started checklist read them, so rewrite both."""
+    try:
+        saved = json.loads((cfg.state_dir / "settings.json").read_text())
+    except (OSError, ValueError):
+        saved = {}
+    write_settings(cfg, saved.get("run_at"), saved.get("guide_every"))
+    update_status(cfg)
 
 
 def cmd_settings(args: argparse.Namespace) -> int:

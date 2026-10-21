@@ -16,7 +16,7 @@ You can make profiles on kia's status page or by editing a file. Both change the
 
    You can change it later on the status page. [The secure status page](secure-page.md#the-password) has more about the password.
 
-2. Open the secure status page at `https://<your address>:8743/` and choose **Add a playlist**. (The plain `http://` page has a link to it.) The first time, your browser warns that the certificate isn't trusted, because kia made it itself; [here's how to continue](secure-page.md#the-browser-warning).
+2. Open the secure status page at `https://<your address>:8743/` and choose **Make a playlist**. (The plain `http://` page has a link to it.) The first time, your browser warns that the certificate isn't trusted, because kia made it itself; [here's how to continue](secure-page.md#the-browser-warning).
 
 3. Fill in the form:
    - **Short name**: becomes the playlist's address, so `kids` is `http://<your address>:8780/kids.m3u`.
@@ -124,7 +124,7 @@ renumber = true
 
 ## If something goes wrong
 
-If the status page has no **Add a playlist** button, you're on the plain `http://` page (use its link to the secure page), or editing is turned off with `KIA_EDITING=false` in `.env`.
+If the status page has no **Make a playlist** button, you're on the plain `http://` page (use its link to the secure page), or editing is turned off with `KIA_EDITING=false` in `.env`.
 
 If the profiles file has a mistake, such as a missing bracket or a misspelled setting, kia keeps the profile playlists it made last time and shows the problem on the status page. The full playlist updates as usual, and the page won't save changes over a file it can't read. Fix the file, and the next run picks it up. Each time the status page saves, it keeps the previous file as `profiles/profiles.toml.bak`.
 
