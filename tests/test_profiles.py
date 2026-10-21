@@ -140,3 +140,22 @@ def test_exclude_channels_wins_over_everything():
     p = profiles.from_rules("news", {"groups": ["News"], "channels": ["B.us"], "exclude_channels": ["B.us"]})
     assert [e.name for e in profiles.select(p, items)] == ["A"]
     assert profiles.rules(p)["exclude_channels"] == ["B.us"]
+
+
+def test_threadfin_switch_writes_curly_apostrophes(tmp_path: Path):
+    # Threadfin turns ' into " before it reads a playlist, which breaks the line.
+    out = tmp_path / "output"
+    out.mkdir()
+    from kia.m3u import write
+    e = Entry("Hogan's Heroes", "http://a/it's", {"tvg-id": "Hogan's.us", "tvg-name": "Hogan's Heroes",
+              "tvg-logo": "http://a/logo's.png", "group-title": "Kids' TV", "tvg-chno": "7"}, source="us")  # fmt: skip
+    (out / "curated.m3u").write_text(write([e], None))
+    pfile = tmp_path / "profiles.toml"
+    pfile.write_text("[plex]\nthreadfin = true\n[kodi]\n")
+    profiles.rebuild(out, tmp_path / "state", pfile, None, lambda m: None)
+    plex = (out / "plex.m3u").read_text()
+    assert "Hogan’s Heroes" in plex and "Kids’ TV" in plex
+    assert "'" not in plex.replace("Hogan's.us", "").replace("logo's", "").replace("it's", "")
+    assert parse(plex)[0].attrs["tvg-chno"] == "7"
+    assert "Hogan's Heroes" in (out / "kodi.m3u").read_text()  # only where it's asked for
+    assert profiles.rules(profiles.load_text("[p]\nthreadfin = true\n")[0]) == {"threadfin": True}

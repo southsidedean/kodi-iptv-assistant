@@ -84,6 +84,7 @@ When the status page saves, it rewrites the file and drops any comments you adde
 | `exclude_channels` | Leave out these channels by ID, whatever else the profile says | `["CNN.us@SD"]` |
 | `tv`, `radio` | Include TV channels, radio stations (both are included unless you say `false`) | `radio = false` |
 | `renumber` | Number this playlist's channels from 1 | `renumber = true` |
+| `threadfin` | Write ’ in place of ' in channel names, for a playlist Threadfin reads (see [Plex](plex.md)) | `threadfin = true` |
 
 If a profile names something to include (`groups`, `sources`, or `names`), it starts with just those channels; otherwise it starts with all of them. Anything in `exclude_groups` or `exclude_names` is then taken out. `channels` adds specific channels, even ones the other rules left out, and `exclude_channels` takes specific channels out, even ones `channels` names.
 

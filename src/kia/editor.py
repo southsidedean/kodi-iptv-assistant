@@ -148,6 +148,7 @@ SCRIPT = r"""
     var tvBox = el("input", { type: "checkbox", checked: p.tv !== false, on: { change: changed } });
     var radioBox = el("input", { type: "checkbox", checked: p.radio !== false, on: { change: changed } });
     var renumberBox = el("input", { type: "checkbox", checked: p.renumber === true });
+    var threadfinBox = el("input", { type: "checkbox", checked: p.threadfin === true });
     var search = el("input", { type: "search", placeholder: "Search channels by name", "aria-label": "Search channels by name",
       on: { input: debounce(find, 250) } });
     var found = el("ul", { class: "found" });
@@ -178,6 +179,9 @@ SCRIPT = r"""
       el("fieldset", {}, [el("legend", { text: "Channel numbers" }),
         el("label", { class: "choice" }, [renumberBox, "Number this playlist's channels 1, 2, 3…"]),
         el("p", { class: "hint", text: "Off: each channel keeps its number from the full list, so it's the same on every device." })]),
+      el("fieldset", {}, [el("legend", { text: "Plex" }),
+        el("label", { class: "choice" }, [threadfinBox, "For Plex through Threadfin"]),
+        el("p", { class: "hint", text: "Writes \u2019 for ' in channel names, which Threadfin needs to read them right." })]),
       el("fieldset", {}, [el("legend", { text: "Always include" }),
         el("p", { class: "hint", text: "Specific channels, whatever the settings above say." }), search, found, chips]),
       preview,
@@ -199,10 +203,12 @@ SCRIPT = r"""
       }
       s.channels = pinned.slice();
       s.exclude_groups = chosen("exclude_groups"); s.exclude_names = lines(exNamesBox.value);
+      s.exclude_channels = (p.exclude_channels || []).slice(); // set in the profiles file; kept as it is
       Object.keys(s).forEach(function (k) { if (Array.isArray(s[k]) && !s[k].length) delete s[k]; });
       if (!tvBox.checked) s.tv = false;
       if (!radioBox.checked) s.radio = false;
       if (renumberBox.checked) s.renumber = true;
+      if (threadfinBox.checked) s.threadfin = true;
       return s;
     }
     function drawChips() {
