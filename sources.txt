@@ -106,5 +106,5 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # Put your own playlist files in the playlists/ folder, which git ignores. With Docker,
 # a playlist file must be inside the kia folder; give its path from there. A station
 # marked radio="true" in its #EXTINF line shows under Radio in Kodi, and tvg-chno="5"
-# gives a channel number 5 (docs/configuration.md, "Your own channel numbers").
+# gives a channel number 5 (docs/configuration.md, "Favorites and your own channel numbers").
 # playlists/my-extras.m3u8   extras

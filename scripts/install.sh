@@ -56,7 +56,7 @@ ask() {  # ask "Question" default -> answer
 OS=$(uname -s)
 case "$OS" in
     Darwin|Linux) ;;
-    *) die "this installer is for macOS and Linux; see docs/install.md for other options" ;;
+    *) die "kia runs on macOS and Linux (including Raspberry Pi), not Windows yet. Kodi on Windows works with a kia on another computer." ;;
 esac
 
 step "Checking what's installed"
@@ -164,4 +164,7 @@ if [ -n "$password" ]; then
 fi
 say "Playlist for players: $url/curated.m3u"
 say ""
-say "Next: set up Kodi or another player on each device: docs/kodi.md, or docs/players.md for the others."
+say "Next: wait for the first refresh (the status page says when it's done), then set up"
+say "Kodi or another player on each device:"
+say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/kodi.md"
+say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/players.md (other players)"

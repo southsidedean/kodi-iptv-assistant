@@ -43,7 +43,7 @@ Or by hand:
    cp .env.example .env
    ```
 
-   Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`) and `TZ` to your time zone.
+   Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`; [how to find it](docs/install.md#4-find-this-computers-address)) and `TZ` to your time zone.
 
 2. Optional: pick your playlists. The USA list is on by default, which is enough to start. Once kia is running, you can choose others on its status page ([how](docs/configuration.md#choosing-playlists-on-the-status-page)). To choose them now instead, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the playlists you want in `sources.local.txt`. Updating kia never touches your copy.
 
@@ -105,7 +105,7 @@ If something breaks that needs you, such as your network's DNS failing or the ni
 
 kia refreshes everything every night at 4:00, and the guide every 4 hours in between. To change those, set `KIA_RUN_AT` and `KIA_GUIDE_REFRESH_HOURS` in `.env`. Changes to your playlists or settings show up after the next run; to refresh right away, see [when changes take effect](docs/configuration.md#when-changes-take-effect).
 
-To update kia, run these in the kia folder:
+To update kia, first read the *Upgrading* notes for the new version in the [changelog](CHANGELOG.md); some versions need an extra step. Then run these in the kia folder:
 
 ```sh
 git pull
@@ -114,7 +114,7 @@ docker compose pull --ignore-buildable
 docker compose up -d
 ```
 
-This also brings the latest Node.js and nginx images; to stay on fixed versions, see [versions](docs/configuration.md#versions). Your `.env`, your own playlist list, and the stream history are kept. If you edited `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
+This also brings the latest Node.js and nginx images; to stay on fixed versions, see [versions](docs/configuration.md#versions). If you use kia's [published image](docs/configuration.md#the-published-image) instead of building it, run `git pull`, `docker compose pull`, and `docker compose up -d`. Your `.env`, your own playlist list, and the stream history are kept. If you edited `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
 
 To save your settings, playlists, and choices in one file, or to move kia to another computer, see [backing up](docs/configuration.md#backing-up-and-moving-to-another-computer).
 

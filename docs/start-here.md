@@ -9,7 +9,7 @@ New to kia, or to internet TV in general? This page explains what you'll end up 
 - If you want them, smaller playlists for people and devices: a short list for the kids' tablet, another for the living room.
 - A status page in your browser that says whether everything's working.
 
-kia runs on one computer at home and shares all of this on your home network. Your TVs, phones, and computers play the channels with an app such as Kodi.
+kia runs on one computer at home (a Mac, a Linux computer, or a Raspberry Pi; not Windows yet) and shares all of this on your home network. Your TVs, phones, and computers play the channels with an app such as Kodi.
 
 ## The three steps
 

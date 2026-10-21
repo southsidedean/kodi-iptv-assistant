@@ -198,3 +198,8 @@ def test_getting_started_checklist():
     s.update(last_run={"finished": "2026-10-20T04:40:00+00:00"}, playlist_url="http://192.168.1.20:8780/curated.m3u")
     settings[1]["rows"][0]["value"] = "your own, from .env"
     assert all(i["done"] for i in status.checklist(s) if not i.get("manual") or i["id"] == "password")
+
+
+def test_checklist_doesnt_tick_the_example_address():
+    s = {"last_run": {"finished": None}, "playlist_url": "http://my-server.lan:8780/curated.m3u", "settings": []}
+    assert not next(i for i in status.checklist(s) if i["id"] == "address")["done"]
