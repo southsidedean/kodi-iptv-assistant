@@ -112,7 +112,7 @@ The menu at the top leads to the other pages:
 
 Every page has the same menu at the top, a **Documentation** button that opens these docs, and a link to the [troubleshooting guide](troubleshooting.md) at the bottom.
 
-![kia's Dashboard showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
+![kia's Dashboard: the menu, a banner saying everything's working, the Getting started checklist, the channel counts, and four playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 
