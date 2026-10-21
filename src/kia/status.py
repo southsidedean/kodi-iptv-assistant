@@ -570,7 +570,7 @@ def render_details(s: dict) -> str:
         f'<main><h1>Details</h1>{guide}{sources}{choose}<div class="pair">{_secure_card(s)}{editing}</div>'
         f'<div class="pair">{reports}{_help_card()}</div>{_pluto_card(s)}{_settings_card(s)}</main>'
     )
-    script = editor.PASSWORD_SCRIPT + sourceeditor.SCRIPT + PLUTO_SCRIPT
+    script = editor.EDITING_SCRIPT + sourceeditor.SCRIPT + PLUTO_SCRIPT
     return page("kia details", body, _footer(s), script, editor.STYLE + sourceeditor.STYLE)
 
 

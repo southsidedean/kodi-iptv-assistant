@@ -56,7 +56,7 @@ def make(base: Path, out: Path, sources_file: Path | None = None) -> list[str]:
         info = tarfile.TarInfo(MANIFEST)
         info.size = len(manifest)
         tar.addfile(info, io.BytesIO(manifest))
-        for p, name in zip(files, names):
+        for p, name in zip(files, names, strict=True):
             tar.add(p, arcname=name, recursive=False)
     tmp.replace(out)
     return names

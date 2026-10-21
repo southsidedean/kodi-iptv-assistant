@@ -84,7 +84,7 @@ def make_instance(tmp_path: Path, upstream_url: str | None = None, fallback: str
 
 
 def central_guide(now: datetime) -> bytes:
-    t = lambda h: xmltv.format_time(now + timedelta(hours=h))  # noqa: E731
+    t = lambda h: xmltv.format_time(now + timedelta(hours=h))
     progs = "".join(
         f'<programme start="{t(h)}" stop="{t(h + 1)}" channel="Alpha.us@SD"><title>A{h}</title></programme>'
         for h in range(24)
@@ -243,7 +243,7 @@ def test_pin_versions_script(tmp_path: Path):
     for f in bin_dir.iterdir():
         f.chmod(0o755)
     env = {"PATH": f"{bin_dir}:/usr/bin:/bin"}
-    run = lambda *a: subprocess.run(["sh", "scripts/pin-versions.sh", *a], cwd=proj, env=env, capture_output=True, text=True)  # noqa: E731
+    run = lambda *a: subprocess.run(["sh", "scripts/pin-versions.sh", *a], cwd=proj, env=env, capture_output=True, text=True)
     assert run().returncode == 0
     text = (proj / ".env").read_text()
     assert "KIA_NODE_IMAGE=node@sha256:abc123" in text and "KIA_NGINX_IMAGE=nginx@sha256:abc123" in text

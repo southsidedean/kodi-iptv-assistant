@@ -11,7 +11,7 @@ import subprocess
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -154,7 +154,8 @@ def send_ntfy(url: str, event: str, title: str, message: str, log: Callable[[str
 def run_command(command: str, event: str, title: str, message: str, log: Callable[[str], None]) -> None:
     env = {**os.environ, "KIA_ALERT_EVENT": event, "KIA_ALERT_TITLE": title, "KIA_ALERT_MESSAGE": message}
     try:
-        proc = subprocess.run(command, shell=True, env=env, timeout=60, capture_output=True, text=True)
+        # A shell on purpose: the command is your own, from KIA_ALERT_COMMAND.
+        proc = subprocess.run(command, shell=True, env=env, timeout=60, capture_output=True, text=True, check=False)  # noqa: S602  # nosec B602
     except subprocess.TimeoutExpired:
         log("alert command timed out after 60s")
         return

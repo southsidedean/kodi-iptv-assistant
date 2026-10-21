@@ -14,6 +14,7 @@ from xml.sax.saxutils import escape, quoteattr
 
 from kia.history import readable
 from kia.m3u import Entry
+import contextlib
 
 # Marks programmes kia generated for channels without guide data. Kodi ignores unknown
 # attributes; kia uses it to skip another kia server's placeholders when reading its guide.
@@ -56,10 +57,8 @@ def scan(path: Path) -> dict[str, list[tuple[datetime, datetime]]]:
             if el.tag == "programme" and (el.get(PLACEHOLDER_ATTR) or not has_title(el)):
                 el.clear()
             elif el.tag == "programme":
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     slots[el.get("channel", "")].append((parse_time(el.get("start")), parse_time(el.get("stop"))))
-                except (TypeError, ValueError):
-                    pass
                 el.clear()
     return slots
 

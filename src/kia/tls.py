@@ -34,7 +34,7 @@ class TlsError(Exception):
 def _openssl(*args: str, data: bytes | None = None) -> str:
     if not shutil.which("openssl"):
         raise TlsError("openssl isn't installed, so kia can't make or read certificates")
-    proc = subprocess.run(["openssl", *args], input=data, capture_output=True, timeout=60)
+    proc = subprocess.run(["openssl", *args], input=data, capture_output=True, timeout=60, check=False)
     if proc.returncode:
         raise TlsError(proc.stderr.decode(errors="replace").strip() or f"openssl {args[0]} failed")
     return proc.stdout.decode(errors="replace")

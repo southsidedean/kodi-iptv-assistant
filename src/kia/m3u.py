@@ -90,10 +90,7 @@ def _parse_extinf(line: str) -> tuple[str, dict[str, str], str]:
         attrs[am.group(1)] = am.group(2)
         pos = am.end()
     name = rest[pos:].strip()
-    if name.startswith(","):
-        name = name[1:]
-    else:
-        name = name.partition(",")[2]
+    name = name[1:] if name.startswith(",") else name.partition(",")[2]
     return duration, attrs, name.strip()
 
 

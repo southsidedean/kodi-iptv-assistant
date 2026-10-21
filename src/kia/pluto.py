@@ -446,10 +446,10 @@ def probe_start(path: str, key: str | None, iv: str, ffprobe: str = "ffprobe") -
     src = ["-f", "mpegts", "-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-f", "mpegts", "-i", path]
     out = subprocess.run([ffprobe, "-v", "error", "-read_intervals", "%+3", "-show_entries",
                           "packet=codec_type,dts_time", "-of", "csv=p=0", *src],
-                         capture_output=True, text=True, timeout=30).stdout  # fmt: skip
+                         capture_output=True, text=True, timeout=30, check=False).stdout  # fmt: skip
     first: dict[str, float] = {}
     for line in out.splitlines():
-        kind, dts = (line.split(",") + [""])[:2]
+        kind, dts = ([*line.split(","), ""])[:2]
         if kind in ("video", "audio") and kind not in first and dts not in ("", "N/A"):
             first[kind] = float(dts)
     if not first:
@@ -477,7 +477,7 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
                "-bsf:v", f"setts=pts=PTS+{tv}:dts=DTS+{tv}", "-bsf:a", f"setts=pts=PTS+{ta}:dts=DTS+{ta}",
                "-muxdelay", "0", "-muxpreload", "0", "-mpegts_flags", "+initial_discontinuity",
                "-f", "mpegts", "pipe:1"]  # fmt: skip
-        proc = subprocess.run(cmd, capture_output=True, timeout=30)
+        proc = subprocess.run(cmd, capture_output=True, timeout=30, check=False)
         if not proc.stdout:
             raise ValueError(proc.stderr.decode(errors="replace").strip()[-200:] or "no output")
         return proc.stdout
@@ -569,8 +569,8 @@ class Relay:
             "channels": channels,
             "suspicious": any(c["suspicious"] for c in channels),
             "fallback": any(c["fallback_minutes"] is not None and c["fallback_minutes"] >= FALLBACK_ALERT / 60
-                            for c in channels),  # fmt: skip
-        }
+                            for c in channels),
+        }  # fmt: skip
 
     def save_status(self, force: bool = False) -> None:
         if not self.status_file:

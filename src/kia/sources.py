@@ -192,7 +192,7 @@ def check_new(url: str, name: str, taken: set[str]) -> tuple[str, str]:
     try:
         parsed = parse_sources(url + (f" {name}" if name and not url.startswith("radio-browser:") else ""))
     except ValueError as exc:
-        raise ValueError(str(exc))
+        raise ValueError(str(exc)) from None
     name = name or parsed[0].name
     if name in taken:
         raise ValueError(f"There's already a playlist named {name!r}. Choose another name.")

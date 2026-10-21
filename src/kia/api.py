@@ -74,7 +74,7 @@ def _load(cfg: ApiConfig) -> list[profiles.Profile]:
     try:
         return profiles.load(cfg.profiles_file)
     except ValueError as exc:
-        raise ApiError(409, f"The profiles file has a mistake, so it can't be edited here until it's fixed: {exc}")
+        raise ApiError(409, f"The profiles file has a mistake, so it can't be edited here until it's fixed: {exc}") from None
 
 
 def get_profiles(cfg: ApiConfig, secure: bool = False) -> dict:
@@ -135,7 +135,7 @@ def _profile_from(body: dict, name: str = "preview") -> profiles.Profile:
     try:
         return profiles.from_rules(name, settings, "the status page")
     except ValueError as exc:
-        raise ApiError(400, str(exc))
+        raise ApiError(400, str(exc)) from None
 
 
 def save_profile(cfg: ApiConfig, name: str, body: dict) -> dict:
@@ -174,7 +174,7 @@ def set_channel(cfg: ApiConfig, body: dict) -> dict:
     favorite = body.get("favorite")
     if favorite is not None and not isinstance(favorite, bool):
         raise ApiError(400, "favorite is true or false.")
-    number = body["number"] if "number" in body else "keep"
+    number = body.get("number", "keep")
     with LOCK:
         entry = next((e for e, _ in _items(cfg) if e.key == body["key"]), None)
         if entry is None:
@@ -183,7 +183,7 @@ def set_channel(cfg: ApiConfig, body: dict) -> dict:
         try:
             channels.set_choice(choices, entry.key, "radio" if entry.is_radio else "tv", favorite, number)
         except ValueError as exc:
-            raise ApiError(400, str(exc))
+            raise ApiError(400, str(exc)) from None
         channels.save(cfg.state_dir, choices)
         notes: list[str] = []
         entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, notes.append,
@@ -318,7 +318,7 @@ def set_source(cfg: ApiConfig, body: dict) -> dict:
         try:
             web_sources.set_on(state, url, on, in_file, url in rows)
         except ValueError as exc:
-            raise ApiError(404, str(exc))
+            raise ApiError(404, str(exc)) from None
         web_sources.save_state(cfg.state_dir, state)
     return get_sources(cfg, True)
 
@@ -335,7 +335,7 @@ def add_source(cfg: ApiConfig, body: dict) -> dict:
         try:
             url, name = web_sources.check_new(body["url"], str(body.get("name") or ""), {r["name"] for r in rows})
         except ValueError as exc:
-            raise ApiError(400, str(exc))
+            raise ApiError(400, str(exc)) from None
         web_sources.add(state, url, name, bool(body.get("radio")))
         web_sources.save_state(cfg.state_dir, state)
     return get_sources(cfg, True)
@@ -347,7 +347,7 @@ def remove_source(cfg: ApiConfig, url: str) -> dict:
         try:
             web_sources.remove(state, url)
         except ValueError as exc:
-            raise ApiError(404, str(exc))
+            raise ApiError(404, str(exc)) from None
         web_sources.save_state(cfg.state_dir, state)
     return get_sources(cfg, True)
 
@@ -411,7 +411,7 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
 def _run_check(cfg: ApiConfig, line: str) -> None:
     cmd = [sys.executable, "-m", "kia", "check", "-c", str(cfg.config_file), "-u", line]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, check=False)
         # A new report: there was none, or it changed (file times are too coarse to compare to time.time()).
         if cfg.test_report and cfg.test_report.exists() and cfg.test_report.stat().st_mtime_ns != CHECK_REPORT.get("before"):
             CHECK["result"] = _summary(cfg.test_report)
@@ -445,7 +445,7 @@ def change_password(cfg: ApiConfig, body: dict) -> dict:
         try:
             cfg.auth.change(new)
         except ValueError as exc:
-            raise ApiError(400, str(exc))
+            raise ApiError(400, str(exc)) from None
     cfg.on_change()
     return {"password": cfg.auth.source}
 
@@ -464,7 +464,7 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             try:
                 data = json.loads(body)
             except ValueError:
-                raise ApiError(400, "The request wasn't valid JSON.")
+                raise ApiError(400, "The request wasn't valid JSON.") from None
         if parts == ["profiles"] and method == "GET":
             return 200, get_profiles(cfg, secure)
         if parts == ["preview"] and method == "POST":

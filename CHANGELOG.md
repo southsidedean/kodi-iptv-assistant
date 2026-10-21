@@ -18,6 +18,11 @@
 - Building kia sends only its code to Docker, never `.env`, `state/`, or `tls/`.
 - A test release tag (such as `v0.4.1-rc1`) no longer replaces the published `latest` image.
 
+### The kia image
+
+- The image now runs as an ordinary user even without compose.yaml, and picks up Alpine's and npm's security fixes when it's built.
+- Every pull request scans the image for known vulnerabilities (Trivy) and checks kia's code with Ruff and Bandit, its scripts with ShellCheck, and its workflows with zizmor. The published image is scanned again every week, and the results show in the repository's Security tab.
+
 ### Docs
 
 - The quick install now waits for the first refresh before setting up Kodi, explains how to open a terminal, and includes the Raspberry Pi settings. The installer prints full links to the guides.

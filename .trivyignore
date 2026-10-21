@@ -1,0 +1,9 @@
+# Known issues the image scan (CI, images.yml) skips, each with why and until when.
+#
+# Bundled inside npm itself (usr/local/lib/node_modules/npm); even the newest npm (12.2.0,
+# Oct 2026) ships these versions. kia uses npm only to install iptv-org/epg's
+# dependencies from the npm registry; these are denial-of-service bugs in brace patterns
+# and WebSocket handling that kia's use can't reach. Recheck when the dates pass.
+CVE-2026-102276 exp:2026-11-20
+CVE-2026-102278 exp:2026-11-20
+CVE-2026-19534 exp:2026-11-20

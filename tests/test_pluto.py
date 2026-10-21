@@ -101,7 +101,7 @@ def test_steady_numbers_and_one_clock_when_pluto_jumps():
         media([(5, SHOW.format(part=part, n=1)), (10, SHOW.format(part=part, n=2))], seq=1234),  # garbage
         media([(10, SHOW.format(part=part, n=2)), (15, AD.format(n=960, sig="a"))], seq=7),
     ])  # fmt: skip
-    r, calls = relay(fake)
+    r, _calls = relay(fake)
     first = look(r)
     assert "#EXT-X-MEDIA-SEQUENCE:0" in first and numbers(first) == [f"{CID}/0.ts", f"{CID}/1.ts"]
     look(r)

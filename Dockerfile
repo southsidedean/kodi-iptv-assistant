@@ -7,7 +7,13 @@ FROM ${NODE_IMAGE}
 
 # curl is for alert commands (e.g. ntfy notifications); see [alerts] in kia.toml.
 # openssl makes the secure status page's self-signed certificate (kia.tls).
-RUN apk add --no-cache python3 ffmpeg git tzdata curl openssl
+# apk upgrade and the newest npm pick up security fixes released since the base image was
+# built (the image scan in CI fails on fixable high or critical CVEs).
+RUN apk upgrade --no-cache \
+    && apk add --no-cache python3 ffmpeg git tzdata curl openssl \
+    && npm install -g npm@latest \
+    && npm cache clean --force \
+    && rm -rf /root/.npm /tmp/*
 
 COPY src /app/src
 # The container's own files are read-only (see compose.yaml), so npm keeps its cache in
@@ -23,5 +29,7 @@ ENV PYTHONPATH=/app/src \
 # Settings and playlists come from the project folder (read-only); results go to the
 # output/, state/, work/, and vendor/ folders inside it.
 WORKDIR /data
+# Not root, even when started without compose.yaml (which runs it as PUID:PGID).
+USER node
 ENTRYPOINT ["python3", "-m", "kia"]
 CMD ["daemon"]

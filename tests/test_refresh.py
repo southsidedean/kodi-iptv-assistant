@@ -4,6 +4,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from kia import cli, grab, status
+import contextlib
 
 
 def instance(tmp_path: Path, extra: str = "") -> str:
@@ -93,10 +94,8 @@ def test_daemon_refreshes_the_guide_between_nightly_runs(tmp_path: Path, monkeyp
     monkeypatch.setattr(cli, "main", fake_main)
     monkeypatch.setattr(cli, "wait_until", fake_wait)
     monkeypatch.setattr(cli, "update_status", lambda *a, **k: None)
-    try:
+    with contextlib.suppress(Stop):
         real_main(["daemon", "-c", cfg_path, "--guide-every", "4"])
-    except Stop:
-        pass
     # Refreshes now, +4 h, and +8 h; the next (+12 h) is after the nightly run (+9 h), which
     # rebuilds the guide anyway, so the daemon waits for that. Failed refreshes don't loop.
     assert len(refreshes) == 3 and waits[-1] == nightly

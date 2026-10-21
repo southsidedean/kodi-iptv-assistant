@@ -95,7 +95,7 @@ async def probe(
         # ffprobe's rw_timeout only catches a server that stops sending. This also stops one
         # that sends too slowly, or an HLS playlist with many variants to open.
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout * 2)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         await proc.wait()
         return ProbeResult(ok=False, error="timed out", elapsed=time.monotonic() - start)

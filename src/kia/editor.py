@@ -268,7 +268,7 @@ SCRIPT = r"""
 </script>
 """
 
-PASSWORD_SCRIPT = r"""
+EDITING_SCRIPT = r"""
 <script>
 (function () {
   var card = document.getElementById("editing");

@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.15", "bandit>=1.8"]
 
 [project.scripts]
 kia = "kia.cli:main"
@@ -23,3 +23,29 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+# Rules that find bugs and risky code, not style: pyflakes, pycodestyle errors, bugbear,
+# pyupgrade, simplify, perflint, async, security (bandit's rules), and pylint's errors
+# and warnings. The ignored S rules are kia's design: it runs ffmpeg/git/npm/openssl
+# with argument lists, reads XML guides (Python's expat refuses entity expansion), and
+# fetches addresses from your own settings.
+select = ["E4", "E7", "E9", "F", "B", "UP", "SIM", "PERF", "ASYNC", "S", "PLE", "PLW", "RUF"]
+ignore = ["S603", "S404", "S607", "S314", "S405", "S406", "S310", "S311", "UP017", "RUF001", "RUF002", "RUF003",
+          "ASYNC109",  # probe() takes ffprobe's own timeout, passed on to it
+          "PERF401", "PLW2901", "RUF005", "SIM105"]  # style, not bugs
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, use temporary paths, and write example passwords.
+# Fixtures are imported by name and reused as parameters; small fakes are lambdas.
+"tests/**" = ["S101", "S105", "S106", "S107", "S108", "S110", "B011", "E731", "F811", "PLW1510"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+# Same reasons as the ruff S ignores above; B602 is the alert command, which comes from
+# your own settings (KIA_ALERT_COMMAND) and is meant to run in a shell.
+skips = ["B404", "B603", "B607", "B314", "B405", "B406", "B310", "B311"]
