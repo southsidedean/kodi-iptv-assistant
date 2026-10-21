@@ -140,9 +140,11 @@ class Plex:
         return json.loads(body) if body.strip().startswith(b"{") else {}
 
     def text(self, path: str, params: dict | None = None) -> str:
-        """A GET that answers with text (a transcoder playlist)."""
+        """A GET that answers with text (a transcoder playlist). Plex picks how to transcode
+        from the player it's told about, so these name a common one."""
         query = "?" + urllib.parse.urlencode(params, safe="") if params else ""
-        req = urllib.request.Request(self.url + path + query, headers=self.headers)
+        headers = {**self.headers, "X-Plex-Product": "Plex Web", "X-Plex-Platform": "Chrome"}
+        req = urllib.request.Request(self.url + path + query, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 return r.read().decode(errors="replace")
