@@ -2,6 +2,8 @@
 
 Plex can't open a playlist by itself. It does live TV through tuners such as the HDHomeRun, so kia runs a small free program next to it, [Threadfin](https://github.com/Threadfin/Threadfin), that shows kia's playlist and guide to Plex as an HDHomeRun tuner. Threadfin starts and stops with kia, keeps its settings in the kia folder, and is included in [kia's backups](configuration.md#backing-up-and-moving-to-another-computer). These steps were tested with Threadfin 1.2.37 and Plex Media Server 1.43.
 
+Don't have Plex yet? The [home TV box cookbook](cookbooks/plex-box.md) runs Plex, Threadfin, and kia together on one computer, set up for you.
+
 Plex says watching through a tuner is free, and recording (DVR) needs [Plex Pass](https://www.plex.tv/plex-pass/). Plex changes its plans from time to time, so check its [Live TV & DVR](https://support.plex.tv/articles/225877347-live-tv-dvr/) page.
 
 <picture>

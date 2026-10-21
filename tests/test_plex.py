@@ -228,3 +228,46 @@ def test_the_daemon_keeps_plex_in_step_only_when_asked(monkeypatch):
 
     monkeypatch.setattr(cli, "main", broken)
     cli.keep_plex_in_step("kia.toml")  # a failure never stops the daemon
+
+
+class StubPlex:
+    """Just enough Plex for warm_up: a library that finds the clip, and a transcoder that,
+    once asked for a piece, 'downloads' the AAC codec into the codecs folder."""
+
+    def __init__(self, base: Path):
+        self.base, self.calls, self.sections = base, [], []
+
+    def call(self, method, path, params=None):
+        self.calls.append((method, path))
+        if method == "POST" and path == "/library/sections":
+            self.sections.append({"key": "9", "title": params["name"], "location": params["location"]})
+        if path == "/library/sections" and method == "GET":
+            return {"MediaContainer": {"Directory": self.sections}}
+        if path == "/library/sections/9/all":
+            return {"MediaContainer": {"Metadata": [{"ratingKey": "42"}]}}
+        if method == "DELETE":
+            self.sections = []
+        return {}
+
+    def text(self, path, params=None):
+        self.calls.append(("GET", path))
+        if path.endswith("start.m3u8"):
+            assert params["path"] == "/library/metadata/42" and params["directStream"] == "0"
+            return "#EXTM3U\nsession/x/base/index.m3u8\n"
+        if path.endswith("index.m3u8"):
+            folder = self.base / plex.CODECS / "abc-linux-x86_64"
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / "libaac_decoder.so").write_bytes(b"")
+        return ""
+
+
+def test_a_new_plex_is_warmed_up_once_and_left_tidy(tmp_path: Path):
+    stub = StubPlex(tmp_path)
+    assert not plex.has_codecs(tmp_path)
+    said = []
+    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=5) is True
+    assert plex.has_codecs(tmp_path)
+    assert ("DELETE", "/library/sections/9") in stub.calls and stub.sections == []  # the library is gone again
+    assert ("GET", "/video/:/transcode/universal/stop") in stub.calls
+    assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # and so is the clip
+    assert "codecs" in said[0] and said[-1] == "Plex has its codecs now."

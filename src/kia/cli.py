@@ -1143,6 +1143,8 @@ def cmd_plex_tuners(args: argparse.Namespace) -> int:
             "outside a container. Use --address with this computer's network address otherwise.")  # fmt: skip
     try:
         server, tuners = plex.Plex(url, token), plex.find_tuners(base, cfg.output_dir, host, log)
+        if stack and not args.remove and not plex.has_codecs(base):
+            plex.warm_up(server, base, log)
         if args.remove:
             plex.remove(server, tuners, log)
         else:

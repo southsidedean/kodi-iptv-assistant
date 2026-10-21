@@ -90,6 +90,8 @@ services:
       - ./profiles:/data/profiles
       # The secure Dashboard's certificate (kia makes and renews its own).
       - ./tls:/data/tls
+      # A short clip kia plays through Plex in the stack once, so Plex downloads its codecs.
+      - ./plex/warmup:/data/plex/warmup
 
   web:
     image: ${KIA_NGINX_IMAGE:-nginx:alpine}
@@ -253,3 +255,4 @@ services:
       - ${KIA_PLEX_CONFIG:-./plex/config}:/config
       - ${KIA_PLEX_TRANSCODE:-./plex/transcode}:/transcode
       - ${KIA_MEDIA_DIR:-./media}:/data:ro
+      - ./plex/warmup:/kia-warmup:ro
