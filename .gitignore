@@ -10,9 +10,10 @@ vendor/*
 work/*
 # The secure status page's certificate.
 tls/*
-# Threadfin's settings, for Plex (compose.yaml, plex profile).
-threadfin/
-threadfin-2/
+# Threadfin's settings, for Plex (compose.yaml, plex profiles). The empty folders are kept too.
+threadfin/*/*
+threadfin-2/*/*
+!threadfin*/*/.gitkeep
 # Your profiles (the status page writes them here), apart from the example.
 profiles/*
 !profiles/example.toml

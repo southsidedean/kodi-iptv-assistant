@@ -130,6 +130,13 @@ To update Threadfin, set `KIA_THREADFIN_IMAGE` in `.env` to the version you want
 
 **Plex says "There was a problem adding the device".** Check the address and port, and open `http://<your address>:34400/discover.json` in a browser on another device. If it doesn't open, check that `docker compose ps` shows Threadfin as healthy and that no firewall blocks the port.
 
+**`docker compose ps` shows Threadfin restarting, and its log says "permission denied".** Its folders were made by Docker for another user. In kia's folder, give them back to yourself and start it again:
+
+```sh
+sudo chown -R "$(id -u):$(id -g)" threadfin threadfin-2
+docker compose up -d
+```
+
 **Plex shows no channels.** Look at Threadfin's **Mapping** page. Channels only appear there after a **Filter** picks them (step 3.3).
 
 **Channels have no guide, or Mapping shows `-` for their XMLTV file.** Threadfin saw the channels before it had the guide, and it doesn't match them again later. Have it start over (your playlist, guide, filter, and settings stay):
