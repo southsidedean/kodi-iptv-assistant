@@ -5,3 +5,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # One pull request for all of them, and only for releases at least a week old.
+    groups:
+      actions:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7

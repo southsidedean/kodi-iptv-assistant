@@ -346,6 +346,7 @@ def remove_source(cfg: ApiConfig, url: str) -> dict:
 # "Check now": a test check of one playlist, one at a time. It writes to work/check-test/
 # and leaves the playlists players use alone.
 CHECK: dict = {"running": False}
+CHECK_REPORT: dict = {}  # the test report's file time when the check started
 
 
 def _summary(report: Path) -> dict:
@@ -373,7 +374,9 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
         if CHECK.get("running"):
             raise ApiError(409, f"kia is already checking {CHECK.get('name')}. Wait for it to finish.")
         CHECK.clear()
+        before = cfg.test_report.stat().st_mtime_ns if cfg.test_report and cfg.test_report.exists() else None
         CHECK.update({"running": True, "url": url, "name": row["name"], "started": time.time()})
+        CHECK_REPORT["before"] = before
     line = f"{url} name={row['name']}" if url.startswith("radio-browser:") else f"{url} {row['name']}"
     if row["radio"] and not url.startswith("radio-browser:"):
         line += " radio"
@@ -385,7 +388,8 @@ def _run_check(cfg: ApiConfig, line: str) -> None:
     cmd = [sys.executable, "-m", "kia", "check", "-c", str(cfg.config_file), "-u", line]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
-        if cfg.test_report and cfg.test_report.exists() and cfg.test_report.stat().st_mtime >= CHECK["started"]:
+        # A new report: there was none, or it changed (file times are too coarse to compare to time.time()).
+        if cfg.test_report and cfg.test_report.exists() and cfg.test_report.stat().st_mtime_ns != CHECK_REPORT.get("before"):
             CHECK["result"] = _summary(cfg.test_report)
         else:
             last = (proc.stdout + proc.stderr).strip().splitlines()[-1:] or ["no report"]

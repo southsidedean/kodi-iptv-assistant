@@ -124,12 +124,12 @@ def test_generated_password_can_be_changed(cfg, tmp_path):
     assert len(logged) == 1  # made once
     cfg.auth = a
     assert call(cfg, "POST", "/api/password", {"new": "short"}, password=shown)[0] == 400
-    assert call(cfg, "POST", "/api/password", {"new": "tiddlywinks"}, password="wrong")[0] == 401
-    assert call(cfg, "POST", "/api/password", {"new": "tiddlywinks"}, password=shown) == (200, {"password": "set"})
-    assert a.check("tiddlywinks") and not a.check(shown) and not a.shown.exists()
-    assert call(cfg, "PUT", "/api/profiles/kids", {}, password="tiddlywinks")[0] == 200
+    assert call(cfg, "POST", "/api/password", {"new": "new-password-123"}, password="wrong")[0] == 401
+    assert call(cfg, "POST", "/api/password", {"new": "new-password-123"}, password=shown) == (200, {"password": "set"})
+    assert a.check("new-password-123") and not a.check(shown) and not a.shown.exists()
+    assert call(cfg, "PUT", "/api/profiles/kids", {}, password="new-password-123")[0] == 200
     a.reset(logged.append)
-    assert a.source == "generated" and not a.check("tiddlywinks")
+    assert a.source == "generated" and not a.check("new-password-123")
     # A password in .env wins and can't be changed here.
     env = auth.Auth(tmp_path / "state2", "from-env-file")
     assert env.check("from-env-file") and not env.check(a.shown.read_text().strip())
