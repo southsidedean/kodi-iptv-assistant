@@ -41,12 +41,12 @@ def test_run_pipeline(monkeypatch, codes, expected, steps_run):
 def test_next_run_keeps_wall_clock_time_across_dst(monkeypatch):
     import time
 
-    monkeypatch.setenv("TZ", "America/Chicago")
+    monkeypatch.setenv("TZ", "America/New_York")
     time.tzset()
     try:
-        # The evening before US clocks go back (Nov 1, 2026): 04:00 that morning is CST.
+        # The evening before US clocks go back (Nov 1, 2026): 04:00 that morning is EST.
         nxt = cli.next_run_local("04:00", datetime(2026, 10, 31, 23, 0))
-        assert (nxt.hour, nxt.utcoffset().total_seconds() / 3600) == (4, -6)
+        assert (nxt.hour, nxt.utcoffset().total_seconds() / 3600) == (4, -5)
     finally:
         monkeypatch.delenv("TZ")
         time.tzset()

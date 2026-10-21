@@ -13,10 +13,16 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request replaces the older run.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pytest:
     name: pytest (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +41,7 @@ jobs:
   docker:
     name: docker build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
