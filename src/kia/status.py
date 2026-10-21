@@ -66,6 +66,14 @@ def _write(path: Path, text: str) -> None:
 def update(output_dir: Path, state_dir: Path, public_url: str | None = None, **run: object) -> dict:
     """Merge `run` fields (result, started, finished, minutes, exit_code, next_run; None
     clears one) into the saved run state, then rewrite status.json and index.html."""
+    with _UPDATE_LOCK:  # the daemon and the page's API both update it
+        return _update(output_dir, state_dir, public_url, run)
+
+
+_UPDATE_LOCK = __import__("threading").RLock()
+
+
+def _update(output_dir: Path, state_dir: Path, public_url: str | None, run: dict) -> dict:
     saved_path = state_dir / "run.json"
     saved = _load(saved_path)
     saved.update(run)

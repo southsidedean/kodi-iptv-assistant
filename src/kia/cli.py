@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import os
 import re
@@ -327,34 +328,42 @@ def cmd_check(args: argparse.Namespace) -> int:
         checked.append(Checked(e, r, classify(r, rec, cfg.grace_failures), r.height or rec.get("height")))
     chosen = select(checked, {s.name: i for i, s in enumerate(cfg.sources)}, cfg.merge_duplicates)
     # Favorites and numbers chosen on the status page (kia.channels).
-    choices = channels.load(cfg.state_dir)
-    if choices["removed"] and not partial_run(args):
-        back = [c.entry.name for c in chosen if c.entry.key in choices["removed"] and c.status == "ok"]
-        chosen = [c for c in chosen if c.entry.key not in choices["removed"] or c.status == "ok"]
-        for c in chosen:
-            choices["removed"].pop(c.entry.key, None)
-        channels.save(cfg.state_dir, choices)
-        if back:
-            log(f"Back in the playlists, because their streams work again: {', '.join(back)}")
-    place = {id(e): i for i, e in enumerate(channels.apply([c.entry for c in chosen], choices))}
-    chosen.sort(key=lambda c: place[id(c.entry)])
+    # Choices, numbers, and the playlist are written together, never while the status page
+    # is saving a change (kia.api.LOCK), so neither undoes the other.
+    from kia import api as api_module
 
-    # A test run (part of the list) mustn't replace the playlist Kodi is using.
-    partial = bool(args.limit or args.source or args.url)
-    out = cfg.epg.work_dir / "check-test" if partial else cfg.output_dir
-    out.mkdir(parents=True, exist_ok=True)
-    if cfg.channel_numbers and not partial:
-        numbers = ChannelNumbers(cfg.state_dir / "channel-numbers.json", cfg.recycle_numbers_after_days)
-        numbers.assign([c.entry for c in chosen], generated, log)
-        numbers.forget_older_than(cfg.history_days)
-        numbers.save()
-    play_as_tested([c.entry for c in chosen], cfg.user_agent)
-    players = [c.entry for c in chosen]
-    if cfg.pluto_relay:
-        players = pluto.for_players(players, cfg.public_url)
-    write_atomic(out / "curated.m3u", m3u.write(players, cfg.epg_url))
-    if not partial:
-        write_profiles(cfg, chosen)
+    with api_module.LOCK:
+        choices = channels.load(cfg.state_dir)
+        if choices["removed"] and not partial_run(args):
+            back = [c.entry.name for c in chosen if c.entry.key in choices["removed"] and c.status == "ok"]
+            chosen = [c for c in chosen if c.entry.key not in choices["removed"] or c.status == "ok"]
+            for c in chosen:
+                choices["removed"].pop(c.entry.key, None)
+            channels.save(cfg.state_dir, choices)
+            if back:
+                log(f"Back in the playlists, because their streams work again: {', '.join(back)}")
+        place = {id(e): i for i, e in enumerate(channels.apply([c.entry for c in chosen], choices))}
+        chosen.sort(key=lambda c: place[id(c.entry)])
+
+        # A test run (part of the list) mustn't replace the playlist Kodi is using.
+        partial = bool(args.limit or args.source or args.url)
+        out = cfg.epg.work_dir / "check-test" if partial else cfg.output_dir
+        out.mkdir(parents=True, exist_ok=True)
+        if cfg.channel_numbers and not partial:
+            numbers = ChannelNumbers(cfg.state_dir / "channel-numbers.json", cfg.recycle_numbers_after_days)
+            numbers.assign([c.entry for c in chosen], generated, log)
+            numbers.forget_older_than(cfg.history_days)
+            numbers.save()
+        play_as_tested([c.entry for c in chosen], cfg.user_agent)
+        players = [c.entry for c in chosen]
+        if cfg.pluto_relay and cfg.public_url and not partial:
+            players = [dataclasses.replace(e) for e in players]  # the report keeps the original links
+            pluto.adopt_partner_channels(players, log)
+        if cfg.pluto_relay:
+            players = pluto.for_players(players, cfg.public_url)
+        write_atomic(out / "curated.m3u", m3u.write(players, cfg.epg_url))
+        if not partial:
+            write_profiles(cfg, chosen)
     write_atomic(
         out / "report.json",
         json.dumps(
@@ -375,7 +384,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         playlistguide.save(
             cfg.epg.work_dir / "playlist-guides.json", playlistguide.plan([c.entry for c in chosen], aliases)
         )
-    history.save()
+    if not partial:  # a test check ("check now") mustn't overwrite the nightly history
+        history.save()
 
     drop_alert = False if partial else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
                                                           "working channels")  # fmt: skip
@@ -783,6 +793,7 @@ def api_config(cfg: Config):
         config_file=cfg.config_file,
         test_report=cfg.epg.work_dir / "check-test" / "report.json",
         recycle_numbers_after_days=cfg.recycle_numbers_after_days,
+        channel_numbers=cfg.channel_numbers,
     )
 
 
@@ -930,6 +941,9 @@ def cmd_restore(args: argparse.Namespace) -> int:
 def cmd_renumber(args: argparse.Namespace) -> int:
     """Number every channel 1, 2, 3 in playlist order, once, keeping chosen numbers."""
     cfg = load_config(args)
+    if not cfg.channel_numbers:
+        log("Channel numbers are off (channel_numbers = false in kia.toml), so there's nothing to renumber.")
+        return 1
     if not (cfg.output_dir / "curated.m3u").exists():
         log("There's no playlist yet; wait for the first refresh.")
         return 1
@@ -1009,7 +1023,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                 wait_until(due)
                 try:
                     main(["refresh-guide", "-c", args.config])
-                except Exception as exc:  # keep the daemon alive
+                except (Exception, SystemExit) as exc:  # keep the daemon alive
                     log(f"Guide refresh failed: {type(exc).__name__}: {exc}")
                 touch_guide(cfg)  # a failed refresh waits a full interval, too, instead of looping
             wait_until(nxt)
@@ -1018,8 +1032,14 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             secure_setup(cfg)  # renews kia's own certificate before it expires
             write_settings(load_config(args), args.at, args.guide_every)  # kia.toml may have changed
             run_and_report(args.config, update_epg=True)
-        except Exception as exc:  # e.g. the config became invalid; keep the daemon alive
+        except (Exception, SystemExit) as exc:  # e.g. the config became invalid; keep the daemon alive
             log(f"Run could not start: {type(exc).__name__}: {exc}")
+            try:
+                update_status(cfg, result="failed", finished=now_iso(), exit_code=1)
+                alerts.notify("run_failed", "kia: nightly run couldn't start", f"{type(exc).__name__}: {exc}",
+                              cfg.state_dir, cfg.alerts, log)  # fmt: skip
+            except Exception as exc2:  # reporting must never stop the daemon
+                log(f"Couldn't report it: {exc2}")
 
 
 def guide_age_due(cfg: Config, every: timedelta) -> datetime:

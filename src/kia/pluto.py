@@ -44,7 +44,7 @@ from kia import __version__
 from kia.m3u import Entry
 
 # jmp2.uk/plu-<id>.m3u8 (iptv-org and most lists), or a Pluto stitcher address.
-_CHANNEL_RE = re.compile(r"(?:jmp2\.uk/plu-|pluto\.tv/.*?/channel/)([0-9a-f]{24})\b", re.I)
+_CHANNEL_RE = re.compile(r"(?:jmp2\.uk/plu-|pluto\.tv/.*?/channel/)([0-9a-f]{24})\b", re.I)  # incl. /stitch/embed/
 _ID_RE = re.compile(r"[0-9a-f]{24}")
 
 BOOT_URL = (
@@ -72,6 +72,40 @@ TIMEOUT = 15
 def channel_id(url: str) -> str | None:
     m = _CHANNEL_RE.search(url)
     return m.group(1).lower() if m else None
+
+
+_PARTNER_RE = re.compile(r"jmp2\.uk/stvp-", re.I)  # Samsung TV Plus, which also carries Pluto TV channels
+
+
+def final_url(url: str, timeout: float = TIMEOUT) -> str:
+    """Where a link ends up after its redirects (nothing is downloaded)."""
+    req = urllib.request.Request(url, headers={"User-Agent": "VLC/3.0.20 LibVLC/3.0.20"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.geturl()
+
+
+def adopt_partner_channels(entries: list[Entry], log=print, resolve=final_url) -> int:
+    """Pluto TV channels that reach kia through another service's link (the Samsung TV
+    Plus list has some) play through the relay too: their link ends at Pluto's stream
+    server, with the same trouble at ad breaks. Only entries named for Pluto are looked
+    up, one request each. Returns how many were found."""
+    found = 0
+    for e in entries:
+        if channel_id(e.url) or not _PARTNER_RE.search(e.url):
+            continue
+        if "pluto" not in f"{e.name} {e.tvg_id}".lower():
+            continue
+        try:
+            cid = channel_id(resolve(e.url))
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            log(f"  {e.name}: couldn't follow its link ({exc})")
+            continue
+        if cid:
+            e.url = FALLBACK_URL.format(channel=cid)
+            found += 1
+    if found:
+        log(f"{found} Pluto TV channels from other services' lists play through kia's Pluto relay too")
+    return found
 
 
 def for_players(entries: list[Entry], base_url: str | None) -> list[Entry]:

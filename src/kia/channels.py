@@ -59,6 +59,7 @@ def apply(entries: list[Entry], choices: dict) -> list[Entry]:
         chosen = choices["numbers"][kind].get(e.key)
         if chosen is not None and e.pinned_number is None:
             e.pinned_number = int(chosen)
+            e.pinned_by = "page"
         groups = _groups(e)
         if e.key in favorites:
             groups.append(FAVORITES)
@@ -76,7 +77,8 @@ def removal(e: Entry) -> dict:
 
 
 def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m: None,
-            renumber: bool = False, recycle_after_days: int = 0, add: list[Entry] | None = None) -> list[Entry]:  # fmt: skip
+            renumber: bool = False, recycle_after_days: int = 0, add: list[Entry] | None = None,
+            numbered: bool = True) -> list[Entry]:  # fmt: skip
     """Apply the choices to the playlist from the last check, now, and write it again.
     renumber: number everything 1, 2, 3 in playlist order first (kia renumber). The caller
     rebuilds the profiles."""
@@ -88,19 +90,23 @@ def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m
     for e in entries:
         # Pins from your playlist files stay pins (the playlist only has the number).
         rec = numbers.numbers.get("radio" if e.is_radio else "tv", {}).get(e.key)
-        if rec and rec.get("pinned"):
+        # Page choices come back from channels.json below, so a moved or cleared one is gone.
+        if rec and rec.get("pinned") in (True, "file"):
             e.pinned_number = rec["number"]
     choices = load(state_dir)
     entries = apply([e for e in entries if e.key not in choices["removed"]], choices)
     when = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    if renumber:
+    if not numbered:
+        pass  # channel_numbers = false in kia.toml: the playlist has no numbers to keep
+    elif renumber:
         # Playlist order: TV, then radio, each with favorites first and the rest by name.
         favorites = set(choices["favorites"])
         entries.sort(key=lambda e: (e.is_radio, e.key not in favorites, e.name.casefold()))
         numbers.renumber(entries, when, log)
     else:
         numbers.assign(entries, when, log)
-    numbers.save()
+    if numbered:
+        numbers.save()
     tmp = curated.with_name(curated.name + ".tmp")
     tmp.write_text(m3u.write(entries, epg_url))
     tmp.replace(curated)

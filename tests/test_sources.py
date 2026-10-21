@@ -149,3 +149,11 @@ def test_no_check_during_a_refresh(cfg):
     (cfg.output_dir / "status.json").write_text(json.dumps({"result": "running"}))
     status, data = call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})
     assert status == 409 and "refreshing" in data["error"]
+
+
+def test_the_last_playlist_cant_be_removed_either(cfg):
+    us = "https://iptv-org.github.io/iptv/countries/us.m3u"
+    call(cfg, "POST", "/api/sources", {"url": "https://example.org/x.m3u", "name": "x"})
+    call(cfg, "PUT", "/api/sources", {"url": us, "on": False})
+    status, data = call(cfg, "DELETE", "/api/sources?url=https%3A%2F%2Fexample.org%2Fx.m3u")
+    assert status == 409 and "last playlist" in data["error"]
