@@ -2,7 +2,11 @@
 
 Three files, from most to least often changed:
 
-- `sources.txt`: which playlists and radio stations to check. Remove `#` to turn a line on; add your own URLs or file paths, one per line. Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio. With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer. Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below. You can also choose playlists on the status page; see [choosing playlists on the status page](#choosing-playlists-on-the-status-page).
+- `sources.txt`: which playlists and radio stations to check. The easiest way to choose them is on the status page ([choosing playlists](#choosing-playlists-on-the-status-page)). In the file:
+  - Remove `#` to turn a line on. Add your own URLs or file paths, one per line.
+  - Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio.
+  - With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer.
+  - Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below, so updating kia never touches them.
 - `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
 - `profiles/profiles.toml`: smaller playlists for people and devices, made from the full list. The status page writes it for you; you can also edit it by hand. See [profiles](profiles.md).
 - `kia.toml`: fine-tuning. The defaults suit most people.
@@ -15,7 +19,7 @@ To see the settings kia is running with, open **Details** on the status page, or
 
 | Setting | Default | What it does |
 |---|---|---|
-| `KIA_PUBLIC_URL` | | How Kodi reaches this machine, e.g. `http://192.168.1.20:8780`. Written into the playlist so Kodi finds the guide. |
+| `KIA_PUBLIC_URL` | empty | How Kodi reaches this machine, e.g. `http://192.168.1.20:8780`. Written into the playlist so Kodi finds the guide. |
 | `KIA_BIND` | `0.0.0.0` | `0.0.0.0` = any device on your network; `127.0.0.1` = this machine only. |
 | `KIA_PORT` | `8780` | Port for the playlist and guide. |
 | `KIA_RUN_AT` | `04:00` | Daily refresh time (24-hour clock). A run takes up to an hour. |
@@ -56,7 +60,7 @@ After changing `.env`, apply it with `docker compose up -d`. Add `--build` if yo
 
 The secure status page's **Details** page has a **Choose playlists** card. It lists every playlist kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a playlist** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
 
-**Check now** tests every stream in one playlist straight away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing.
+**Check now** tests every stream in one playlist right away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing.
 
 kia doesn't change your sources file (with Docker, it can't), so it keeps the choices made on the page in `state/sources.json` and applies them on top of the file at every run. The file stays yours to edit by hand. If you use your own copy (`KIA_SOURCES_FILE`), the page still offers everything in `sources.txt`. Like changes to the file, choices made on the page take effect at the next refresh.
 
@@ -80,7 +84,7 @@ kia numbers channels automatically and keeps each number steady. Both favorites 
 3. Choose a channel's star to make it a favorite. Favorites come first in every playlist, and get a Favorites category that Kodi and most players show as a group. A [profile](profiles.md) can use it too, for a playlist of just your favorites.
 4. To change a channel's number, choose its number, type the new one, and press Enter. The channel then has that number in every playlist that doesn't [number from 1](profiles.md#what-a-profile-can-say). A channel that already had it moves to the next free number. To undo a number you chose, clear the box: the channel keeps the number, but a number you choose for another channel can then take it.
 
-The playlists change straight away, and Kodi picks them up within two hours or when it restarts. kia keeps these choices in `state/channels.json`. Stars also work on a profile's page; numbers only on Everything, so they're the same everywhere.
+The playlists change right away, and Kodi picks them up within two hours or when it restarts. kia keeps these choices in `state/channels.json`. Stars also work on a profile's page; numbers only on Everything, so they're the same everywhere.
 
 ### Gaps in the numbers, and renumbering
 
@@ -127,6 +131,16 @@ docker compose up -d
 
 A restore first saves the settings that are there now, in `work/backups/before-restore-<date>.tar.gz`, so you can undo it the same way. If the new computer has a different address, check `KIA_PUBLIC_URL` in `.env` afterwards.
 
+## Uninstalling
+
+To remove kia, in the kia folder:
+
+```sh
+docker compose down --rmi all
+```
+
+Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back. If you opened ports in a Linux firewall, close them with `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`. On each device, remove kia's address from the player (in Kodi, disable or uninstall IPTV Simple Client). Without Docker, `scripts/install-service.sh --uninstall` removes the service first.
+
 ## Versions
 
 By default kia uses the latest version of each thing it depends on:
@@ -172,7 +186,7 @@ docker compose up -d
 
 Each setting is explained by a comment in the file. The sections:
 
-- `[check]`: stream testing: `merge_duplicates` (join the same channel from different playlists), `concurrency`, `per_host` (tests at once per server), `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many failed nightly checks in a row a stream that used to work survives; it's dropped after the next one), `history_days`, `user_agent` (kia introduces itself as VLC by default).
+- `[check]`: stream testing: `merge_duplicates` (join the same channel from different playlists), `concurrency`, `per_host` (tests at once per server), `per_host_limits` (exceptions to `per_host` for some servers), `host_delay_ms` (the gap between tests on one server), `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many failed nightly checks in a row a stream that used to work survives; it's dropped after the next one), `history_days`, `user_agent` (kia introduces itself as VLC by default).
 - `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
 - `[output]`: where files go, `channel_numbers` (steady channel numbers), `recycle_numbers_after_days` ([reusing old numbers](#gaps-in-the-numbers-and-renumbering)), and `public_url` / `epg_url` for setups without Docker.
 - `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.

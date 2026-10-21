@@ -28,7 +28,7 @@ Most likely kia matched it to a guide by name, and the name belongs to a differe
 
 Free streams come and go. The nightly check drops a stream once it has failed a few nights in a row, so a stream that has just broken can stay in the list for a couple of days. `report.html` shows each stream's last result.
 
-To check one now, open the playlist's page on the secure status page, enter the password, and choose **Test** on the channel's row. kia tries the stream straight away, as the nightly check does:
+To check one now, open the playlist's page on the secure status page, enter the password, and choose **Test** on the channel's row. kia tries the stream right away, as the nightly check does:
 
 - If it plays from kia, the problem is more likely the device or the app. Try the channel in another player, such as VLC.
 - If it doesn't play, choose **Remove it until it works**. kia takes it out of every playlist now, and the nightly check puts it back when its stream works again. Removed channels are listed on the Everything page, each with **Put back**.
@@ -93,6 +93,26 @@ The page you're on is the plain `http://` one. Open the `https://…:8743` addre
 Each [player's guide](players.md) ends with its own common problems. If a channel won't play in any app, it's the stream itself; see [a channel won't play](#a-channel-wont-play).
 
 ## On the computer running kia
+
+### kia won't start
+
+If `docker compose up -d` stops with an error, or `docker compose ps` doesn't list `kia` and `web`:
+
+- `Cannot connect to the Docker daemon`: Docker isn't running. On macOS, start Docker Desktop and wait for the whale icon to stop moving; on Linux, run `sudo systemctl start docker`.
+- `port is already allocated` or `address already in use`: another program uses port 8780 or 8743. Pick other ports with `KIA_PORT` and `KIA_HTTPS_PORT` in `.env` (and use the new port in `KIA_PUBLIC_URL`), then run `docker compose up -d` again.
+- `no space left on device`: the disk is full. `docker system df` shows what Docker uses.
+- An error during the build: run `docker compose build --pull kia` again; a download may have failed. If it keeps failing, open an issue with the end of the output.
+- `kia` keeps restarting: `docker compose logs --tail 50 kia` shows why. A mistake in `.env` or `kia.toml` is the usual cause, and the message names the setting.
+
+### Changing kia's address
+
+If the kia computer gets a new address (after a router change, say) or you move kia to another computer:
+
+1. Set `KIA_PUBLIC_URL` in `.env` to the new address, and update `KIA_TLS_NAMES` if you set it.
+2. Run `docker compose up -d`. kia makes a new certificate for the secure page by itself, and writes the new address into the playlists at its next refresh ([refresh now](configuration.md#when-changes-take-effect) to do it sooner).
+3. On each device, change the playlist address in the player (in Kodi, IPTV Simple Client's **M3U playlist URL**) and restart it.
+
+A DHCP reservation in your router keeps the address from changing again.
 
 ### Other devices can't connect
 

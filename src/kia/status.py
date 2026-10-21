@@ -329,6 +329,8 @@ def checklist(s: dict) -> list[dict]:
     """First steps for a new kia, for the home page. kia ticks what it can check itself
     ("done"); the person ticks the rest in their browser ("manual")."""
     url = s.get("playlist_url") or ""
+    if "://my-server.lan" in url:
+        url = ""  # the example from older .env files, never changed
     local_only = "://localhost" in url or "://127.0.0.1" in url
     alerts = any(_setting(s, n) == "set" for n in ("ntfy address", "Email", "Alert command"))
     password = _setting(s, "Password for changes")

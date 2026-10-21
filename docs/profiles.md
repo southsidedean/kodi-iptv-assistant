@@ -27,7 +27,7 @@ You can make profiles on kia's status page or by editing a file. Both change the
 
    As you change things, the form shows how many channels the playlist would have.
 
-4. Enter the password and choose **Save**. kia makes the playlist straight away and opens its page, which lists its channels and its address with a Copy button.
+4. Enter the password and choose **Save**. kia makes the playlist right away and opens its page, which lists its channels and its address with a Copy button.
 
 5. On the device, use that address as the **M3U playlist URL** in IPTV Simple Client (or your player), instead of `curated.m3u`. Kodi finds the playlist's own guide by itself. If another player asks for a guide address, it's on the same page.
 
@@ -60,11 +60,13 @@ title = "Radio only"
 tv = false
 ```
 
-The name in square brackets becomes the playlist's address. Use lowercase letters, numbers, and dashes. Changes in the file show up after the next nightly run, or right away with:
+The name in square brackets becomes the playlist's address. Use lowercase letters, numbers, and dashes. Changes in the file show up after the next nightly run. To see them sooner, run the stream check now, which tests every stream again and takes up to an hour:
 
 ```sh
 docker compose exec kia python3 -m kia check
 ```
+
+Changes made on the status page show up right away.
 
 When the status page saves, it rewrites the file and drops any comments you added, so keep notes somewhere else.
 

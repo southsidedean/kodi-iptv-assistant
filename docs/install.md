@@ -12,7 +12,7 @@ This guide takes you from nothing to a working channel list and program guide in
 | Kodi | Version 21 or newer is a good choice | Plays the channels. Install it on each device you watch on ([Kodi setup](kodi.md)). |
 | About 2 GB of disk space | | For kia, its downloads, and the guide. |
 
-Kodi itself can run on almost anything, including Windows, Android TV, and Fire TV. Only the computer running kia needs macOS or Linux.
+Kodi itself can run on almost anything, including Windows, Android TV, and Fire TV. Only the computer running kia needs macOS or Linux; kia doesn't run on Windows yet.
 
 If you plan to run kia on a different computer from the one you watch on, do steps 1 to 6 on that computer.
 
@@ -24,7 +24,11 @@ Once Docker and Git are installed (steps 1 and 2 below), one command does steps 
 curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
 ```
 
-It asks you to confirm the address and time zone, and at the end prints the status page's address and the password for making changes. Running it again is safe; it keeps your settings. Then go on to [step 7](#7-set-up-kodi).
+(To open a terminal: on macOS, open the *Terminal* app from Applications → Utilities; on Linux, it's usually called *Terminal* in your apps menu.)
+
+It asks you to confirm the address and time zone, and at the end prints the status page's address and the password for making changes. Running it again is safe; it keeps your settings. On a Raspberry Pi, add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi) to `.env` in the `kodi-iptv-assistant` folder and run `docker compose up -d` there.
+
+kia then starts its first refresh, which takes up to an hour. Wait for it to finish and check the status page, as the end of [step 6](#6-start-kia) describes, then set up Kodi in [step 7](#7-set-up-kodi).
 
 To do it by hand instead, or to see what it does, follow the steps below.
 
@@ -79,7 +83,7 @@ The rest of the commands in this guide run from inside this `kodi-iptv-assistant
 Kodi needs an address to reach kia. If Kodi runs on this same computer, use `localhost` and skip ahead. Otherwise, find this computer's address on your network:
 
 - macOS: run `ipconfig getifaddr en0` (or `en1` if that prints nothing), e.g. `192.168.1.20`.
-- Linux: run `hostname -I` and use the first address.
+- Linux: run `hostname -I`. It may print several; use the one that looks like your other devices' addresses, usually starting with `192.168.` or `10.`.
 
 This address can change when the computer restarts. To keep it fixed, set up a DHCP reservation in your router's settings (often under *LAN* or *DHCP*).
 
@@ -98,7 +102,7 @@ KIA_PUBLIC_URL=http://192.168.1.20:8780
 TZ=America/New_York
 ```
 
-Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
+Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). On a Raspberry Pi, also add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory. If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
 
 Choosing playlists is optional: the USA list is on by default, which is enough to start. You can change it any time, most easily on the status page once kia is running ([choosing playlists on the status page](configuration.md#choosing-playlists-on-the-status-page)). To choose now instead, make your own copy of the list, so updating kia never touches your choices:
 
@@ -114,7 +118,7 @@ In `.env`, set `KIA_SOURCES_FILE=sources.local.txt` (the line is already there, 
 docker compose up -d --build
 ```
 
-The first time, this downloads and builds kia (a few minutes), then starts the first run straight away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia` (press Ctrl+C to stop watching; kia keeps running).
+The first time, this downloads and builds kia (a few minutes), then starts the first run right away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia` (press Ctrl+C to stop watching; kia keeps running).
 
 When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [status page](how-it-works.md#the-status-page), with the channel counts and your playlist's address. If another device will use kia, open that address on it too.
 

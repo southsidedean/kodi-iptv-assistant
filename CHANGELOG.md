@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+### Fixes
+
+- New installs start with `KIA_PUBLIC_URL` empty instead of an example address that looked real, so the guide and Pluto TV links can't point at a computer that doesn't exist. The Getting started checklist doesn't count the old example as set.
+- "Check now" could miss a finished check's result; it now tells a new report from the old one reliably.
+- Building kia sends only its code to Docker, never `.env`, `state/`, or `tls/`.
+- A test release tag (such as `v0.4.1-rc1`) no longer replaces the published `latest` image.
+
+### Docs
+
+- The quick install now waits for the first refresh before setting up Kodi, explains how to open a terminal, and includes the Raspberry Pi settings. The installer prints full links to the guides.
+- New: what to do when kia won't start, how to change kia's address, and how to uninstall. kia doesn't run on Windows yet, and the docs now say so.
+- Corrections to the security policy, the profiles example, the files kia keeps (`state/` holds the password), the API overview, and the update steps, which now point to each version's upgrade notes.
+
 ## 0.4.0 (2026-10-20)
 
 ### Upgrading from 0.3.0
