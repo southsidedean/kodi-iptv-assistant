@@ -13,6 +13,12 @@
 
 ### Fixes
 
+- Pluto TV channels that reach kia through the Samsung TV Plus list now play through kia's Pluto relay too, so they keep playing across ad breaks.
+- A channel number chosen on the status page can be moved to another channel or cleared, and the change shows right away instead of after the next night.
+- With `channel_numbers = false`, changes on the status page no longer add numbers to the playlists.
+- The nightly run and changes made on the status page at the same moment can't undo each other, and "Check now" no longer rewrites the stream history.
+- When a nightly run can't start (a mistake in `kia.toml`, say), kia now marks it failed on the status page and sends the `run_failed` alert, instead of only logging it.
+- The last playlist kia uses can't be removed from the status page, and `concurrency` or `per_host` of 0 in `kia.toml` is refused instead of making the check wait forever.
 - New installs start with `KIA_PUBLIC_URL` empty instead of an example address that looked real, so the guide and Pluto TV links can't point at a computer that doesn't exist. The Getting started checklist doesn't count the old example as set.
 - "Check now" could miss a finished check's result; it now tells a new report from the old one reliably.
 - Building kia sends only its code to Docker, never `.env`, `state/`, or `tls/`.

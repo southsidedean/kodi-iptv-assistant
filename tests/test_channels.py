@@ -176,3 +176,55 @@ def test_nightly_check_puts_back_what_works(tmp_path: Path, monkeypatch):
     names = [e.name for e in m3u.parse((tmp_path / "output" / "curated.m3u").read_text())]
     assert names == ["Alpha", "Charlie"]  # Alpha works again; Bravo still doesn't, so it stays out
     assert list(channels.load(tmp_path / "state")["removed"]) == ["Bravo.us"]
+
+
+def test_page_numbers_can_move_and_be_cleared_right_away(cfg):
+    call(cfg, {"key": "Alpha.us", "number": 50})
+    call(cfg, {"key": "Charlie.us", "number": 50})  # the newest choice takes 50
+    nums = {e.name: e.attrs["tvg-chno"] for e in m3u.parse((cfg.output_dir / "curated.m3u").read_text())}
+    assert nums["Charlie"] == "50" and nums["Alpha"] != "50"
+    call(cfg, {"key": "Charlie.us", "number": None})  # cleared: no longer held
+    call(cfg, {"key": "Bravo.us", "number": 50})
+    nums = {e.name: e.attrs["tvg-chno"] for e in m3u.parse((cfg.output_dir / "curated.m3u").read_text())}
+    assert nums["Bravo"] == "50" and nums["Charlie"] != "50"
+
+
+def test_page_edits_add_no_numbers_when_numbering_is_off(cfg):
+    cfg.channel_numbers = False
+    plain = [Entry(e.name, e.url, {k: v for k, v in e.attrs.items() if k != "tvg-chno"}) for e in entries()]
+    (cfg.output_dir / "curated.m3u").write_text(write(plain))
+    call(cfg, {"key": "Charlie.us", "favorite": True})
+    assert "tvg-chno" not in (cfg.output_dir / "curated.m3u").read_text()
+
+
+def test_limits_of_zero_are_refused(tmp_path: Path, monkeypatch):
+    from kia.config import load
+
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    monkeypatch.delenv("KIA_CHECK_CONCURRENCY", raising=False)
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    for bad in ("concurrency = 0", "per_host = 0", 'per_host_limits = {"jmp2.uk" = 0}'):
+        (tmp_path / "kia.toml").write_text(f"[check]\n{bad}\n")
+        with pytest.raises(ValueError, match="1 or more"):
+            load(tmp_path / "kia.toml")
+
+
+def test_a_test_check_leaves_the_history_alone(tmp_path: Path, monkeypatch):
+    from kia import cli
+    from kia.probe import ProbeResult
+
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    monkeypatch.delenv("KIA_PUBLIC_URL", raising=False)
+    (tmp_path / "list.m3u").write_text(write(entries()[:2]))
+    (tmp_path / "sources.txt").write_text(f"{tmp_path / 'list.m3u'} mine\n")
+    (tmp_path / "kia.toml").write_text("")
+
+    async def fake_probe_all(es, cfg, verbose):
+        return {e.url: ProbeResult(ok=True, height=720) for e in es}
+
+    monkeypatch.setattr(cli, "probe_all", fake_probe_all)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(cli, "double_check_dns", lambda results, resolvers: {})
+    assert cli.main(["check", "-c", str(tmp_path / "kia.toml"), "--limit", "1"]) == 0
+    assert not (tmp_path / "state" / "history.json").exists()
+    assert (tmp_path / "work" / "check-test" / "report.json").exists()

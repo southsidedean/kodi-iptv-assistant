@@ -246,3 +246,22 @@ def test_remux_decrypts_and_moves_the_clock(tmp_path: Path):
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
                            capture_output=True, text=True).stdout  # fmt: skip
     assert float(probe) < 2.5  # cut back to the listed length
+
+
+def test_pluto_channels_from_samsungs_list_use_the_relay():
+    e = [Entry("Pluto TV Fantastic", "https://jmp2.uk/stvp-USBA300017PK", {"tvg-id": "PlutoTVFantastic.us@SD"}),
+         Entry("Samsung News", "https://jmp2.uk/stvp-USBA9999", {"tvg-id": "News.us"}),
+         Entry("Pluto TV Down", "https://jmp2.uk/stvp-USBA0000", {})]  # fmt: skip
+    asked = []
+
+    def resolve(url):
+        asked.append(url)
+        if url.endswith("0000"):
+            raise urllib.error.URLError("down")
+        return f"https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/embed/hls/channel/{CID}/master.m3u8?x=1"
+
+    assert pluto.adopt_partner_channels(e, log=lambda m: None, resolve=resolve) == 1
+    assert e[0].url == f"https://jmp2.uk/plu-{CID}.m3u8"
+    assert e[1].url.endswith("USBA9999") and "USBA9999" not in "".join(asked)  # not named for Pluto: not looked up
+    assert e[2].url.endswith("USBA0000")  # couldn't tell: left alone
+    assert pluto.for_players(e, "http://192.168.1.20:8780")[0].url == f"http://192.168.1.20:8780/pluto/{CID}.m3u8"

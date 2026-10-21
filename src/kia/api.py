@@ -32,7 +32,7 @@ from kia.auth import Auth
 from kia.m3u import parse
 
 # One change at a time, and none while kia check rebuilds the profiles.
-LOCK = threading.Lock()
+LOCK = threading.RLock()
 PASSWORD_LOCK = threading.Lock()
 
 
@@ -52,6 +52,7 @@ class ApiConfig:
     config_file: Path | None = None
     test_report: Path | None = None
     recycle_numbers_after_days: int = 0
+    channel_numbers: bool = True
 
 
 class ApiError(Exception):
@@ -187,7 +188,7 @@ def set_channel(cfg: ApiConfig, body: dict) -> dict:
         channels.save(cfg.state_dir, choices)
         notes: list[str] = []
         entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, notes.append,
-                                   recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
+                                   recycle_after_days=cfg.recycle_numbers_after_days, numbered=cfg.channel_numbers)  # fmt: skip
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
     cfg.on_change()
     now = next((e for e in entries if e.key == entry.key), entry)
@@ -234,7 +235,7 @@ def remove_channel(cfg: ApiConfig, body: dict) -> dict:
         choices["removed"][entry.key] = channels.removal(entry)
         channels.save(cfg.state_dir, choices)
         channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, lambda m: None,
-                         recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
+                         recycle_after_days=cfg.recycle_numbers_after_days, numbered=cfg.channel_numbers)  # fmt: skip
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
     cfg.on_change()
     return channels.load(cfg.state_dir)
@@ -252,7 +253,7 @@ def put_back(cfg: ApiConfig, body: dict) -> dict:
         gone = choices["removed"].pop(key)
         channels.save(cfg.state_dir, choices)
         channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, lambda m: None,
-                         recycle_after_days=cfg.recycle_numbers_after_days, add=parse("#EXTM3U\n" + gone["entry"]))  # fmt: skip
+                         recycle_after_days=cfg.recycle_numbers_after_days, numbered=cfg.channel_numbers, add=parse("#EXTM3U\n" + gone["entry"]))  # fmt: skip
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
     cfg.on_change()
     return channels.load(cfg.state_dir)
@@ -262,7 +263,7 @@ def renumber(cfg: ApiConfig) -> dict:
     """Number every channel 1, 2, 3 in playlist order, once (kia renumber)."""
     with LOCK:
         entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, lambda m: None, renumber=True,
-                                   recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
+                                   recycle_after_days=cfg.recycle_numbers_after_days, numbered=cfg.channel_numbers)  # fmt: skip
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, lambda m: None)
     cfg.on_change()
     radio = sum(1 for e in entries if e.is_radio)
@@ -344,6 +345,10 @@ def add_source(cfg: ApiConfig, body: dict) -> dict:
 def remove_source(cfg: ApiConfig, url: str) -> dict:
     with LOCK:
         state = web_sources.load_state(cfg.state_dir)
+        text, catalog = _sources_texts(cfg)
+        rows = web_sources.listing(text, catalog, state, {})
+        if [r["url"] for r in rows if r["on"]] == [url.strip()]:
+            raise ApiError(409, "That's the last playlist kia uses. Turn another one on first.")
         try:
             web_sources.remove(state, url)
         except ValueError as exc:

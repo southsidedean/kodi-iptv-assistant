@@ -197,10 +197,11 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         sources=sources,
         sources_file=None if urls else sources_file,
         config_file=path.resolve(),
-        concurrency=_env_int("KIA_CHECK_CONCURRENCY", check.get("concurrency", 20)),
+        concurrency=_at_least_one("concurrency", _env_int("KIA_CHECK_CONCURRENCY", check.get("concurrency", 20))),
         timeout=check.get("timeout", 15.0),
-        per_host=check.get("per_host", 2),
-        per_host_limits=dict(check.get("per_host_limits", {})),
+        per_host=_at_least_one("per_host", check.get("per_host", 2)),
+        per_host_limits={host: _at_least_one(f"per_host_limits {host}", n)
+                         for host, n in dict(check.get("per_host_limits", {})).items()},
         host_delay_ms=check.get("host_delay_ms", 100),
         require_video=check.get("require_video", True),
         grace_failures=check.get("grace_failures", 2),
@@ -235,6 +236,13 @@ def _recycle_days(value: object) -> int:
         raise ValueError(f"recycle_numbers_after_days {value!r}: expected a whole number of days (0 = never)")
     if 0 < value < 60:
         raise ValueError("recycle_numbers_after_days: use 60 or more, so Kodi has forgotten the old channel")
+    return value
+
+
+def _at_least_one(name: str, value: object) -> int:
+    """Limits on streams tested at once: 0 would make the check wait forever."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"[check] {name} = {value!r}: expected a whole number, 1 or more")
     return value
 
 

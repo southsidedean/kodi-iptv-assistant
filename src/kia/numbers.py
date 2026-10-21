@@ -59,7 +59,7 @@ class ChannelNumbers:
                     e.pinned_number = None
                     continue
                 pins[n] = e.key
-                known[e.key] = {"number": n, "pinned": True}
+                known[e.key] = {"number": n, "pinned": e.pinned_by}
             # A channel that held a number now pinned to another channel gets a new one.
             for key, rec in list(known.items()):
                 if rec["number"] in pins and pins[rec["number"]] != key:
