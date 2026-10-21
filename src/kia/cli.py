@@ -1107,7 +1107,11 @@ def cmd_plex_tuners(args: argparse.Namespace) -> int:
             "outside a container. Use --address with this computer's network address otherwise.")  # fmt: skip
     base = Path(args.config).resolve().parent
     try:
-        plex.set_up(plex.Plex(url, token), plex.find_tuners(base, cfg.output_dir, host, log), log)
+        server, tuners = plex.Plex(url, token), plex.find_tuners(base, cfg.output_dir, host, log)
+        if args.remove:
+            plex.remove(server, tuners, log)
+        else:
+            plex.set_up(server, tuners, log)
     except plex.PlexError as exc:
         log(str(exc))
         return 1
@@ -1216,6 +1220,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--plex", help="Plex's address, e.g. http://192.168.1.20:32400 (default: KIA_PLEX_URL)")
     p.add_argument("--token", help="a Plex token (default: KIA_PLEX_TOKEN; .env keeps it out of your shell history)")
     p.add_argument("--address", help="this computer's address as Plex reaches it (default: from KIA_PUBLIC_URL)")
+    p.add_argument("--remove", action="store_true", help="delete the DVR with kia's Threadfins (only if it has nothing else)")
     p.set_defaults(func=cmd_plex_tuners)
 
     p = sub.add_parser("refresh-guide", help="refresh the guide from the quick sources only (between nightly runs)")

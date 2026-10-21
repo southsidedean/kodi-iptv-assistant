@@ -2,6 +2,14 @@
 
 ## 0.4.2 (unreleased)
 
+### Plex
+
+- New: `kia plex-tuners` adds kia's Threadfins to Plex for you. It puts them in one DVR of their own, each with its own guide named after its kia playlist, turns on every channel, and leaves any other DVR alone. Plex's own settings page can't do this when Plex already has a DVR, such as an antenna tuner. Running it again picks up new channels, and `--remove` deletes the Threadfin DVR. It needs Plex's address and a Plex token in `.env` (`KIA_PLEX_URL`, `KIA_PLEX_TOKEN`). See [Plex](docs/plex.md#let-kia-add-them).
+
+### Docs
+
+- The Plex guide said **Add Another Device** adds Threadfin to a DVR you already have. That works only when the DVR already uses an XMLTV guide; with Plex's own guide, Plex offers only antenna and cable lineups. The guide now says to use `kia plex-tuners` in that case.
+
 ## 0.4.1 (2026-10-21)
 
 ### Upgrading from 0.4.0

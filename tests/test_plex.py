@@ -48,6 +48,9 @@ class FakePlex:
             def do_PUT(self):
                 self.answer("PUT")
 
+            def do_DELETE(self):
+                self.answer("DELETE")
+
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.url = f"http://127.0.0.1:{self.server.server_port}"
@@ -65,6 +68,9 @@ class FakePlex:
             self.dvrs.append(dvr)
             return {"Dvr": [dvr]}
         parts = path.strip("/").split("/")
+        if method == "DELETE" and parts[:2] == ["livetv", "dvrs"]:
+            self.dvrs = [d for d in self.dvrs if d["key"] != parts[2]]
+            return {}
         if parts[:2] == ["livetv", "dvrs"] and parts[3:4] == ["lineups"]:
             self._dvr(parts[2])["Lineup"].append({"id": q["lineup"]})
         elif parts[:2] == ["livetv", "dvrs"] and parts[3:4] == ["devices"]:
@@ -141,6 +147,21 @@ def test_a_threadfin_added_under_another_address_is_recognised():
     renamed = [plex.Tuner(t.address.replace("192.168.1.20", "my-server.lan"), t.title, t.channels) for t in tuners()]
     plex.set_up(p, renamed, lambda m: None)
     assert len(fake.dvrs) == 1 and len(fake.dvrs[0]["Lineup"]) == 2 and len(fake.dvrs[0]["Device"]) == 2
+
+
+def test_remove_deletes_only_a_threadfin_dvr(antenna):
+    fake = FakePlex([antenna])
+    p = plex.Plex(fake.url, "secret")
+    plex.set_up(p, tuners(), lambda m: None)
+    assert plex.remove(p, tuners(), lambda m: None) is True
+    assert [d["key"] for d in fake.dvrs] == ["5"]
+    assert plex.remove(p, tuners(), lambda m: None) is False  # nothing left to remove
+    # A DVR that mixes in other tuners is never deleted.
+    plex.set_up(p, tuners(), lambda m: None)
+    fake.dvrs[1]["Device"].append(antenna["Device"][0])
+    with pytest.raises(plex.PlexError, match="other tuners"):
+        plex.remove(p, tuners(), lambda m: None)
+    assert len(fake.dvrs) == 2
 
 
 def test_a_wrong_token_or_no_threadfin_says_so():

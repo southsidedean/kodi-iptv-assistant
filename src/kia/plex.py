@@ -164,3 +164,27 @@ def set_up(plex: Plex, tuners: list[Tuner], log=print) -> dict:
     plex.call("POST", f"/livetv/dvrs/{dvr['key']}/reloadGuide")
     log("Plex is loading the guide now; the channels show under Live TV in a few minutes.")
     return dvr
+
+
+def remove(plex: Plex, tuners: list[Tuner], log=print) -> bool:
+    """Delete the DVR that holds kia's Threadfins, if it holds nothing else. Returns whether it did."""
+    addresses = {t.address for t in tuners}
+    keys = set()
+    for t in tuners:
+        device = (plex.call("POST", f"/media/grabbers/{GRABBER}/devices", {"uri": t.address}).get("MediaContainer", {})
+                  .get("Device") or [None])[0]  # fmt: skip
+        if device:
+            keys.add(str(device["key"]))
+    for dvr in plex.dvrs():
+        mine = [dv for dv in dvr.get("Device", []) if str(dv.get("key")) in keys]
+        if not mine:
+            continue
+        if len(mine) < len(dvr.get("Device", [])):
+            raise PlexError(f"DVR {dvr['key']} also has other tuners, so kia won't delete it. "
+                            "Remove kia's Threadfins from it on Plex's Live TV & DVR page instead.")  # fmt: skip
+        plex.call("DELETE", f"/livetv/dvrs/{dvr['key']}")
+        log(f"Deleted DVR {dvr['key']} ({', '.join(sorted(addresses))}). Your other DVRs are as they were.")
+        return True
+    log("Plex has no DVR with kia's Threadfins.")
+    return False
+
