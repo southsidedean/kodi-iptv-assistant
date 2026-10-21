@@ -75,20 +75,11 @@ So kia plays Pluto channels itself. The playlist points each Pluto channel at ki
 - copies each piece onto one steady clock, so players never see it start over. ffmpeg only copies (it doesn't re-encode), so this is light work.
 
 ```mermaid
-sequenceDiagram
-  participant P as Player
-  participant K as kia
-  participant T as Pluto TV
-  P->>K: Open the channel
-  K->>T: Start a session, with Pluto putting in the ads
-  T-->>K: The channel's list of pieces
-  K-->>P: kia's own list, in order, with steady numbering
-  loop Every few seconds
-    P->>K: Next piece
-    K->>T: Fetch it
-    K->>K: Skip repeats, move it onto one clock
-    K-->>P: The piece
-  end
+flowchart TB
+  open["A player opens<br>a Pluto TV channel"] --> session["kia starts its own<br>Pluto session,<br>with Pluto's ads in it"]
+  session --> list["kia keeps the pieces<br>in order, with no repeats"]
+  list --> piece["Every few seconds,<br>kia fetches a piece<br>and puts it on one clock"]
+  piece --> play["The player gets<br>one smooth stream"]
 ```
 
 kia fetches each piece from Pluto when a player first asks for it, so it uses about as much of your internet connection as watching Pluto directly. Everyone watching a channel shares its session and its pieces, and kia lets a channel go two minutes after the last player stops. When Pluto goes back to pieces kia already sent, kia waits for new ones instead of playing them again, so the picture can pause for up to half a minute. If Pluto won't open a session, kia plays Pluto's plain link instead, which may freeze at breaks, and tries again every five minutes. Timeshift (pausing and rewinding live TV) keeps working, because it happens in the player.

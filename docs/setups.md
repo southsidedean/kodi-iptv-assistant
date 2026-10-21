@@ -3,13 +3,10 @@
 The setups below differ only in who can reach kia and how much work the machine does. Each recipe lists the `.env` lines to change from `.env.example`.
 
 ```mermaid
-flowchart LR
-  subgraph home["At home"]
-    srv["kia on an always-on machine"]
-    tvs["TVs and streaming boxes"] --> srv
-    devices["Computers, phones, tablets"] --> srv
-  end
-  laptop["A laptop with its own kia"] -. "takes the guide from home<br>when it can reach it" .-> srv
+flowchart TB
+  tvs["TVs and<br>streaming boxes"] --> srv["kia on an<br>always-on machine"]
+  devices["Computers,<br>phones, tablets"] --> srv
+  laptop["A traveling laptop<br>with its own kia,<br>using the home guide"] -.-> srv
 ```
 
 ## Home server

@@ -5,10 +5,10 @@ Plex can't open a playlist by itself. It does live TV through tuners such as the
 Plex says watching through a tuner is free, and recording (DVR) needs [Plex Pass](https://www.plex.tv/plex-pass/). Plex changes its plans from time to time, so check its [Live TV & DVR](https://support.plex.tv/articles/225877347-live-tv-dvr/) page.
 
 ```mermaid
-flowchart LR
-  kia["kia<br>plex.m3u + guide"] -- "Docker network" --> tf["Threadfin<br>port 34400"]
-  tf -- "looks like an<br>HDHomeRun tuner" --> pms["Plex Media Server"]
-  pms --> apps["Plex apps<br>TV, phone, browser"]
+flowchart TB
+  kia["kia<br>plex.m3u and its guide"] --> tf["Threadfin, port 34400<br>looks like an<br>HDHomeRun tuner"]
+  tf --> pms["Plex Media Server"]
+  pms --> apps["Plex apps on your<br>TV, phone, and browser"]
 ```
 
 ## Before you start
@@ -18,10 +18,10 @@ flowchart LR
 - An idea of how many channels you want in Plex. **Plex takes at most 480 channels from each tuner.** Up to 480, you need one Threadfin. For more, run two, each with its own playlist; Plex shows both tuners' channels together in one guide.
 
 ```mermaid
-flowchart LR
-  kia["kia"] -- "plex-1.m3u<br>(up to 480)" --> tf1["Threadfin<br>port 34400"]
-  kia -- "plex-2.m3u<br>(up to 480)" --> tf2["Threadfin 2<br>port 34401"]
-  tf1 --> pms["Plex Media Server<br>one guide"]
+flowchart TB
+  kia["kia"] --> tf1["Threadfin<br>port 34400<br>plex-1.m3u<br>up to 480 channels"]
+  kia --> tf2["Threadfin 2<br>port 34401<br>plex-2.m3u<br>up to 480 channels"]
+  tf1 --> pms["Plex Media Server<br>both in one guide"]
   tf2 --> pms
 ```
 
