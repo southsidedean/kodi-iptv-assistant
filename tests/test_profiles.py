@@ -130,3 +130,13 @@ def test_renumber_and_own_guide(tmp_path: Path):
     assert profiles.rules(profiles.load_text('[k]\nrenumber = true\n')[0]) == {"renumber": True}
     with pytest.raises(ValueError, match="true or false"):
         profiles.load_text('[k]\nrenumber = "yes"\n')
+
+
+def test_exclude_channels_wins_over_everything():
+    from kia.m3u import Entry
+
+    items = [(Entry("A", "u1", {"tvg-id": "A.us", "group-title": "News"}), {"us"}),
+             (Entry("B", "u2", {"tvg-id": "B.us", "group-title": "News"}), {"us"})]  # fmt: skip
+    p = profiles.from_rules("news", {"groups": ["News"], "channels": ["B.us"], "exclude_channels": ["B.us"]})
+    assert [e.name for e in profiles.select(p, items)] == ["A"]
+    assert profiles.rules(p)["exclude_channels"] == ["B.us"]

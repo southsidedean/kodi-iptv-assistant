@@ -37,6 +37,7 @@ class Profile:
     # What to take out.
     exclude_groups: list[str] = field(default_factory=list)
     exclude_names: list[str] = field(default_factory=list)
+    exclude_channels: list[str] = field(default_factory=list)  # tvg-ids, always left out
     tv: bool = True
     radio: bool = True
     # Number this playlist's channels 1, 2, 3... instead of using the full list's numbers.
@@ -59,7 +60,7 @@ class Profile:
 # that list radio stations as TV channels. A profile of your own named "tv" replaces it.
 TV_ONLY = Profile("tv", title="TV only", radio=False)
 
-LISTS = ("groups", "sources", "names", "channels", "exclude_groups", "exclude_names")
+LISTS = ("groups", "sources", "names", "channels", "exclude_groups", "exclude_names", "exclude_channels")
 FLAGS = ("tv", "radio")  # on unless set to false
 SWITCHES = ("renumber",)  # off unless set to true
 
@@ -167,9 +168,12 @@ def select(profile: Profile, items: list[tuple[Entry, set[str]]]) -> list[Entry]
     exclude_groups = {g.casefold() for g in profile.exclude_groups}
     sources = set(profile.sources)
     pinned = set(profile.channels)
+    left_out = set(profile.exclude_channels)
     includes = bool(groups or sources or profile.names)
     out = []
     for entry, from_sources in items:
+        if entry.tvg_id and entry.tvg_id in left_out:
+            continue
         if entry.tvg_id and entry.tvg_id in pinned:
             out.append(entry)
             continue

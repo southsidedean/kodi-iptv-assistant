@@ -161,3 +161,34 @@ services:
     volumes:
       - ./threadfin/conf:/home/threadfin/conf
       - ./threadfin/cache:/home/threadfin/cache
+
+  # A second Plex tuner, for more channels than one tuner takes (Plex shows at most 480
+  # per tuner). Start both with: docker compose --profile plex --profile plex-2 up -d
+  threadfin-2:
+    profiles: ["plex-2"]
+    image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${KIA_BIND:-0.0.0.0}:${KIA_THREADFIN_2_PORT:-34401}:34400"
+    depends_on:
+      - web
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/34400"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ./threadfin-2/conf:/home/threadfin/conf
+      - ./threadfin-2/cache:/home/threadfin/cache

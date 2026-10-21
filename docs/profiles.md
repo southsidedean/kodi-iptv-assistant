@@ -81,10 +81,11 @@ When the status page saves, it rewrites the file and drops any comments you adde
 | `channels` | Include these channels by ID, whatever else the profile says | `["CNN.us@SD"]` |
 | `exclude_groups` | Leave out these categories | `["Shop"]` |
 | `exclude_names` | Leave out channels whose names contain these words | `["kids"]` |
+| `exclude_channels` | Leave out these channels by ID, whatever else the profile says | `["CNN.us@SD"]` |
 | `tv`, `radio` | Include TV channels, radio stations (both are included unless you say `false`) | `radio = false` |
 | `renumber` | Number this playlist's channels from 1 | `renumber = true` |
 
-If a profile names something to include (`groups`, `sources`, or `names`), it starts with just those channels; otherwise it starts with all of them. Anything in `exclude_groups` or `exclude_names` is then taken out. `channels` adds specific channels at the end, even ones the other rules left out.
+If a profile names something to include (`groups`, `sources`, or `names`), it starts with just those channels; otherwise it starts with all of them. Anything in `exclude_groups` or `exclude_names` is then taken out. `channels` adds specific channels, even ones the other rules left out, and `exclude_channels` takes specific channels out, even ones `channels` names.
 
 Categories are the ones in the full playlist, such as "News", "Kids", or "Sports". Each playlist's page on the status page shows every channel's category and number. Upper and lower case don't matter. `names` and `exclude_names` are patterns, so `"news"` also matches "Fox News Now" and "NewsNation"; to match a whole name exactly, write `"^CNN$"`.
 
