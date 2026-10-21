@@ -13,6 +13,7 @@
 
 ### Fixes
 
+- The Pluto TV relay writes the problems it meets (Pluto going back, errors, falling back to the plain link) to kia's log as well as the status page, so they can still be looked at after the channel stops. It also answers Kodi's request for the `/pluto/` folder instead of returning an error.
 - Pluto TV channels that reach kia through the Samsung TV Plus list now play through kia's Pluto relay too, so they keep playing across ad breaks.
 - A channel number chosen on the status page can be moved to another channel or cleared, and the change shows right away instead of after the next night.
 - With `channel_numbers = false`, changes on the status page no longer add numbers to the playlists.

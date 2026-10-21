@@ -173,9 +173,12 @@ class Stats:
     errors: int = 0
     fallbacks: int = 0
     problems: deque = field(default_factory=lambda: deque(maxlen=8))
+    # Problems also go to kia's log, which outlives the channel (pluto.json doesn't).
+    log: Callable[[str], None] = lambda text: None
 
     def problem(self, text: str) -> None:
         self.problems.append({"time": _now(), "text": text})
+        self.log(text)
 
 
 def parse_media(text: str, base: str) -> list[dict]:
@@ -260,7 +263,7 @@ class Channel:
         self.cache: dict[int, bytes] = {}
         self.keys: dict[str, bytes] = {}
         self.viewers: dict[str, float] = {}
-        self.stats = Stats()
+        self.stats = Stats(log=lambda text, cid=cid, relay=relay: relay.log(f"Pluto {cid}: {text}"))
 
     # Sessions
 
@@ -391,6 +394,7 @@ class Channel:
                 self.furthest[clip] = pos if back else max(pos, self.furthest.get(clip, -1))
         if went_back:
             self.stats.rewinds += 1
+            self.relay.log(f"Pluto {self.cid}: Pluto went back to pieces it already sent; holding them back")
         del self.pieces[:-KEEP]
         return added, went_back
 
@@ -556,6 +560,9 @@ class Relay:
 
     def handle(self, path: str, viewer: str) -> tuple[int, str, bytes]:
         """(status, content type, body) for /pluto/<id>.m3u8 or /pluto/<id>/<n>.ts."""
+        if path.split("?", 1)[0] in ("/pluto", "/pluto/"):
+            # Kodi looks at the folder above a stream it opens; answer instead of a 404.
+            return 200, "text/plain; charset=utf-8", b"Pluto TV channels that kia plays. See pluto.json.\n"
         m = re.fullmatch(r"/pluto/([0-9a-fA-F]{24})(?:\.m3u8|/(\d+)\.ts)", path.split("?", 1)[0])
         if not m:
             return 404, "text/plain", b"Not a Pluto channel address."
