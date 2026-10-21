@@ -128,9 +128,8 @@ services:
       - ./tls:/etc/kia-tls:ro
 
   # Optional: Threadfin shows kia's playlist and guide to Plex as a TV tuner, which is how
-  # Plex does live TV (docs/plex.md). Start it with kia, and after every restart, with:
-  #   docker compose --profile plex up -d
-  # It reads kia's files over Docker's own network (http://web/...), so its settings
+  # Plex does live TV (docs/plex.md). To start it with kia, add COMPOSE_PROFILES=plex to
+  # .env, then run docker compose up -d. It reads kia's files over Docker's own network (http://web/...), so its settings
   # keep working if this computer's address changes. Its settings live in threadfin/.
   threadfin:
     profiles: ["plex"]
@@ -163,8 +162,8 @@ services:
       - ./threadfin/conf:/home/threadfin/conf
       - ./threadfin/cache:/home/threadfin/cache
 
-  # A second Plex tuner, for more channels than one tuner takes (Plex shows at most 480
-  # per tuner). Start both with: docker compose --profile plex --profile plex-2 up -d
+  # A second Plex tuner, for more channels than one tuner takes (Plex takes at most 480
+  # from each). Start both with COMPOSE_PROFILES=plex,plex-2 in .env.
   threadfin-2:
     profiles: ["plex-2"]
     image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}
