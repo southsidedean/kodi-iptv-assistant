@@ -2,19 +2,10 @@
 
 Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide every few hours in between ([details](#4-build-the-guide-kia-guide)). You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
 
-```mermaid
-flowchart TB
-  src["Channel sources<br>playlists and radio"] --> check["1. Check streams"]
-  check --> map["2. Match channels<br>to guide sites"]
-  map --> grab["3. Download<br>guide data"]
-  grab --> build["4. Build the guide"]
-  check --> m3u["curated.m3u<br>and your playlists"]
-  build --> xml["guide.xml.gz<br>and their guides"]
-  m3u --> web["kia's web server<br>port 8780"]
-  xml --> web
-  web --> players["Kodi and<br>other players"]
-  web --> dash["The Dashboard"]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/nightly-steps-dark.svg">
+  <img alt="kia's nightly steps: channel sources go through checking streams, matching channels to guide sites, downloading guide data, and building the guide. The playlists and guides go to kia's web server, which serves Kodi, other players, and the Dashboard." src="../images/diagrams/nightly-steps-light.svg">
+</picture>
 
 ## 1. Check streams (`kia check`)
 
@@ -74,13 +65,10 @@ So kia plays Pluto channels itself. The playlist points each Pluto channel at ki
 - keeps its own list of the channel's pieces in time order, leaves out repeats and pieces Pluto already sent, and opens a new session if Pluto goes back;
 - copies each piece onto one steady clock, so players never see it start over. ffmpeg only copies (it doesn't re-encode), so this is light work.
 
-```mermaid
-flowchart TB
-  open["A player opens<br>a Pluto TV channel"] --> session["kia starts its own<br>Pluto session,<br>with Pluto's ads in it"]
-  session --> list["kia keeps the pieces<br>in order, with no repeats"]
-  list --> piece["Every few seconds,<br>kia fetches a piece<br>and puts it on one clock"]
-  piece --> play["The player gets<br>one smooth stream"]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/pluto-relay-dark.svg">
+  <img alt="How a Pluto TV channel plays through kia: a player opens the channel, kia starts its own Pluto session with Pluto's ads in it, keeps the pieces in order with no repeats, fetches a piece every few seconds and puts it on one clock, and the player gets one smooth stream." src="../images/diagrams/pluto-relay-light.svg">
+</picture>
 
 kia fetches each piece from Pluto when a player first asks for it, so it uses about as much of your internet connection as watching Pluto directly. Everyone watching a channel shares its session and its pieces, and kia lets a channel go two minutes after the last player stops. When Pluto goes back to pieces kia already sent, kia waits for new ones instead of playing them again, so the picture can pause for up to half a minute. If Pluto won't open a session, kia plays Pluto's plain link instead, which may freeze at breaks, and tries again every five minutes. Timeshift (pausing and rewinding live TV) keeps working, because it happens in the player.
 

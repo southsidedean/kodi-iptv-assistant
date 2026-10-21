@@ -33,4 +33,10 @@ To try a change end to end, run kia with Docker as the [install guide](docs/inst
 - If users will notice the change, add a line to `CHANGELOG.md` under the next version.
 - Never include private details (home addresses, host names, ntfy topics) in code, docs, screenshots, or commit messages.
 
+## Diagrams
+
+The docs' diagrams are images, made from Mermaid sources in `docs/diagrams/`. To change one, edit its `.mmd` file and run `scripts/diagrams.sh`, which needs [mermaid-cli](https://github.com/mermaid-js/mermaid-cli). It writes a light and a dark SVG to `images/diagrams/`, and a doc shows them with a `<picture>` tag (copy one from an existing doc). The tests fail if an image doesn't match its source.
+
+Diagrams read best on GitHub as top-to-bottom flowcharts, with the words inside the boxes and short lines broken with `<br>`.
+
 By contributing, you agree that your contribution is licensed under the project's [AGPL-3.0 license](LICENSE).

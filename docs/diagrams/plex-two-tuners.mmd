@@ -1,0 +1,5 @@
+flowchart TB
+  kia["kia"] --> tf1["Threadfin<br>port 34400<br>plex-1.m3u<br>up to 480 channels"]
+  kia --> tf2["Threadfin 2<br>port 34401<br>plex-2.m3u<br>up to 480 channels"]
+  tf1 --> pms["Plex Media Server<br>both in one guide"]
+  tf2 --> pms

@@ -1,0 +1,5 @@
+flowchart TB
+  players["Kodi and players<br>http, port 8780"] --> web["kia's web server"]
+  look["You, looking<br>http, port 8780"] --> web
+  change["You, changing things<br>https, port 8743<br>with the password"] --> web
+  web --> kia["kia<br>takes changes<br>only over https"]

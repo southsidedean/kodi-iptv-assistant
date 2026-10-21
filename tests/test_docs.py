@@ -6,12 +6,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "SECURITY.md", *sorted((ROOT / "docs").glob("*.md"))]
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)\s]+)\)")
+# Images in HTML (the diagrams' <picture> tags).
+HTML_SRC_RE = re.compile(r'(?:src|srcset)="([^"]+)"')
 
 
 def test_relative_links_and_images_exist():
     broken = []
     for doc in DOCS:
-        for target in LINK_RE.findall(doc.read_text()):
+        text = doc.read_text()
+        for target in LINK_RE.findall(text) + HTML_SRC_RE.findall(text):
             if re.match(r"[a-z]+:", target) or target.startswith("#"):
                 continue  # web links and same-page anchors
             path = target.split("#", 1)[0]
@@ -104,3 +107,32 @@ def test_every_folder_compose_mounts_is_in_the_repository():
     assert "threadfin/conf" in folders and "state" in folders
     missing = [f for f in folders if f"{f}/.gitkeep" not in tracked]
     assert not missing, missing
+
+
+def test_diagrams_are_images_made_from_their_current_source():
+    # docs/diagrams/<name>.mmd -> images/diagrams/<name>-light.svg and -dark.svg, made by
+    # scripts/diagrams.sh, which records each source's SHA-256 in its images.
+    import hashlib
+
+    sources = sorted((ROOT / "docs" / "diagrams").glob("*.mmd"))
+    assert sources
+    used = "".join(doc.read_text() for doc in DOCS)
+    stale, unused = [], []
+    for src in sources:
+        digest = hashlib.sha256(src.read_bytes()).hexdigest()
+        for theme in ("light", "dark"):
+            image = ROOT / "images" / "diagrams" / f"{src.stem}-{theme}.svg"
+            if not image.exists() or f"source sha256 {digest}" not in image.read_text():
+                stale.append(image.name)
+            if f"images/diagrams/{image.name}" not in used:
+                unused.append(image.name)
+    assert not stale, f"run scripts/diagrams.sh, these don't match their source: {stale}"
+    assert not unused, f"not used by any doc: {unused}"
+    made = {f"{src.stem}-{t}.svg" for src in sources for t in ("light", "dark")}
+    extra = sorted(p.name for p in (ROOT / "images" / "diagrams").glob("*.svg") if p.name not in made)
+    assert not extra, f"images with no source in docs/diagrams: {extra}"
+
+
+def test_docs_use_diagram_images_not_mermaid():
+    # GitHub puts pan and zoom buttons on Mermaid blocks; the docs show images instead.
+    assert not [doc.name for doc in DOCS if "```mermaid" in doc.read_text()]

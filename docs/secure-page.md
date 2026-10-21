@@ -9,13 +9,10 @@ kia's Dashboard is on two ports:
 
 Changes are accepted only on the secure (`https://`) page, so the password never crosses your network in the clear. Playlists and guides stay on plain HTTP because Kodi and most players refuse a certificate they don't trust, and kia's own certificate is one of those.
 
-```mermaid
-flowchart TB
-  players["Kodi and players<br>http, port 8780"] --> web["kia's web server"]
-  look["You, looking<br>http, port 8780"] --> web
-  change["You, changing things<br>https, port 8743<br>with the password"] --> web
-  web --> kia["kia<br>takes changes<br>only over https"]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/two-ports-dark.svg">
+  <img alt="Kodi, other players, and you looking at the Dashboard use http on port 8780. You making changes use https on port 8743 with the password. kia takes changes only over https." src="../images/diagrams/two-ports-light.svg">
+</picture>
 
 ## The browser warning
 
