@@ -1,6 +1,34 @@
 # Changelog
 
-## 0.4.1 (unreleased)
+## 0.4.1 (2026-10-21)
+
+### Upgrading from 0.4.0
+
+Update as usual (`git pull`, then `docker compose up -d --build`), then run `docker compose up -d --force-recreate web`. The web server has a new security setting, and it runs with its old settings until it's recreated. Bookmarks to the old Details page still work: it points to where each part went.
+
+### Dashboard
+
+- The status page is now the **Dashboard**, with a menu at the top of every page: **Dashboard**, **Playlists**, **Sources**, **Guide**, and **System**. The long Details page is split between them, and `details.html` points to where things went.
+- A **Documentation** button at the top right opens the docs, and every page ends with a link to the troubleshooting guide, in place of the Help card.
+- The Dashboard keeps what you check most: whether kia is working, the channel counts, alerts, and the playlist addresses. The counts open the full playlist and the Guide page.
+- Long playlist pages show your favorites and the first 200 channels, with **Show all**; the filter still searches every channel. **Hide channels without guide data** leaves out channels the guide has nothing for.
+- The Getting started checklist is shorter: finished steps fold to one line, and the heading counts how many are done.
+- Each group of settings on the System page folds away.
+- The two things called "Add a playlist" have their own names now: **Make a playlist** for the playlists you make for people and devices, and **Channel sources** (with **Add a channel source**) for the lists kia reads channels from.
+- Saving, errors, and test results show next to what you changed, not at the top of a long page; the Channel sources list no longer redraws and closes the sections you opened. Errors look like errors everywhere.
+- Changing a channel number says which channels moved and where; clicking away from the number box cancels instead of saving. The TV-only playlist's page no longer offers number changes.
+- On phones, each channel's Test button sits with its name. Removing a channel asks first, says where to put it back, and test failures are in plain words ("the stream's address doesn't exist any more").
+- The playlist editor shows pinned channels by name, can filter long category lists, asks before saving a playlist with no channels, says when it's saving, and confirms afterwards.
+- The password help matches where your password comes from, always says what to do if you forget it, and the System page and checklist update after you change it.
+- Empty states: a filter with no matches, a playlist with no channels, no guide yet, and pages opened as files each say so. A hidden Getting started can be brought back from a link on the Dashboard; a `localhost` address is no longer ticked as reachable by other devices.
+- Buttons and boxes have labels for screen readers, and keyboard focus stays where you were.
+
+### Plex
+
+- Threadfin, which shows kia's playlists to Plex as a TV tuner, can now run with kia: add `COMPOSE_PROFILES=plex` to `.env`. It starts and stops with kia, keeps its settings in the kia folder, and is part of kia's backups. `COMPOSE_PROFILES=plex,plex-2` runs a second one, because Plex takes at most 480 channels from each tuner. Their ports and image are set in `.env` (`KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT`, `KIA_THREADFIN_IMAGE`).
+- A new profile setting, **For Plex through Threadfin** (`threadfin = true`), writes channel names with a curly apostrophe. Threadfin turns a plain one into a double quote, which broke those channels' lines and their numbers.
+- A new profile setting, `exclude_channels`, leaves out channels by ID, whatever else the profile says. It keeps two Plex playlists from sharing channels.
+- Saving a playlist on the Dashboard no longer drops its `exclude_channels`.
 
 ### Security
 
@@ -27,40 +55,6 @@
 - Building kia sends only its code to Docker, never `.env`, `state/`, or `tls/`.
 - A test release tag (such as `v0.4.1-rc1`) no longer replaces the published `latest` image.
 
-### Plex
-
-- Threadfin, which shows kia's playlists to Plex as a TV tuner, can now run with kia: add `COMPOSE_PROFILES=plex` to `.env`. It starts and stops with kia, keeps its settings in the kia folder, and is part of kia's backups. `COMPOSE_PROFILES=plex,plex-2` runs a second one, because Plex takes at most 480 channels from each tuner. Their ports and image are set in `.env` (`KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT`, `KIA_THREADFIN_IMAGE`).
-- A new profile setting, **For Plex through Threadfin** (`threadfin = true`), writes channel names with a curly apostrophe. Threadfin turns a plain one into a double quote, which broke those channels' lines and their numbers.
-- A new profile setting, `exclude_channels`, leaves out channels by ID, whatever else the profile says. It keeps two Plex playlists from sharing channels.
-- Saving a playlist on the Dashboard no longer drops its `exclude_channels`.
-
-### Under the hood
-
-- Building and reading the guide keeps memory flat on large guides.
-- The test suite runs in about 7 seconds instead of 22, and its timing-dependent tests no longer fail on a busy machine.
-
-### The kia image
-
-- The image now runs as an ordinary user even without compose.yaml, and picks up Alpine's and npm's security fixes when it's built.
-- Every pull request scans the image for known vulnerabilities (Trivy) and checks kia's code with Ruff and Bandit, its scripts with ShellCheck, and its workflows with zizmor. The published image is scanned again every week, and the results show in the repository's Security tab.
-
-### Dashboard
-
-- The status page is now the **Dashboard**, with a menu at the top of every page: **Dashboard**, **Playlists**, **Sources**, **Guide**, and **System**. The long Details page is split between them, and `details.html` points to where things went.
-- A **Documentation** button at the top right opens the docs, and every page ends with a link to the troubleshooting guide, in place of the Help card.
-- The Dashboard keeps what you check most: whether kia is working, the channel counts, alerts, and the playlist addresses. The counts open the full playlist and the Guide page.
-- Long playlist pages show your favorites and the first 200 channels, with **Show all**; the filter still searches every channel. **Hide channels without guide data** leaves out channels the guide has nothing for.
-- The Getting started checklist is shorter: finished steps fold to one line, and the heading counts how many are done.
-- Each group of settings on the System page folds away.
-- The two things called "Add a playlist" have their own names now: **Make a playlist** for the playlists you make for people and devices, and **Channel sources** (with **Add a channel source**) for the lists kia reads channels from.
-- Saving, errors, and test results show next to what you changed, not at the top of a long page; the Channel sources list no longer redraws and closes the sections you opened. Errors look like errors everywhere.
-- Changing a channel number says which channels moved and where; clicking away from the number box cancels instead of saving. The TV-only playlist's page no longer offers number changes.
-- On phones, each channel's Test button sits with its name. Removing a channel asks first, says where to put it back, and test failures are in plain words ("the stream's address doesn't exist any more").
-- The playlist editor shows pinned channels by name, can filter long category lists, asks before saving a playlist with no channels, says when it's saving, and confirms afterwards.
-- The password help matches where your password comes from, always says what to do if you forget it, and the System page and checklist update after you change it.
-- Empty states: a filter with no matches, a playlist with no channels, no guide yet, and pages opened as files each say so. A hidden Getting started can be brought back from a link on the Dashboard; a `localhost` address is no longer ticked as reachable by other devices.
-- Buttons and boxes have labels for screen readers, and keyboard focus stays where you were.
-
 ### Docs
 
 - Diagrams show the nightly steps, how Pluto TV channels play through kia, the setups, the Dashboard's two ports, and profiles. The Dashboard screenshots are new.
@@ -69,6 +63,16 @@
 - The quick install now waits for the first refresh before setting up Kodi, explains how to open a terminal, and includes the Raspberry Pi settings. The installer prints full links to the guides.
 - New: what to do when kia won't start, how to change kia's address, and how to uninstall. kia doesn't run on Windows yet, and the docs now say so.
 - Corrections to the security policy, the profiles example, the files kia keeps (`state/` holds the password), the API overview, and the update steps, which now point to each version's upgrade notes.
+
+### The kia image
+
+- The image now runs as an ordinary user even without compose.yaml, and picks up Alpine's and npm's security fixes when it's built.
+- Every pull request scans the image for known vulnerabilities (Trivy) and checks kia's code with Ruff and Bandit, its scripts with ShellCheck, and its workflows with zizmor. The published image is scanned again every week, and the results show in the repository's Security tab.
+
+### Under the hood
+
+- Building and reading the guide keeps memory flat on large guides.
+- The test suite runs in about 7 seconds instead of 22, and its timing-dependent tests no longer fail on a busy machine.
 
 ## 0.4.0 (2026-10-20)
 
