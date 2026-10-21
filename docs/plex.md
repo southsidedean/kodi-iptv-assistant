@@ -96,7 +96,39 @@ For a second tuner, do the same at `http://<your address>:34401/web/` with `http
 
 ## 4. Add Threadfin to Plex
 
-In Plex, go to **Settings → Live TV & DVR** and choose **Set Up Plex Tuner**. If Plex already has a DVR (an antenna tuner, say), choose **Add Another Device** instead: Threadfin's channels join that DVR with their own guide, and your antenna channels stay as they are. In that case, step 2 starts with **Next**, and Plex then asks for the XMLTV guide.
+There are two ways. kia can add the tuners for you, which works whether or not Plex already has a DVR (an antenna tuner, say). Or you can add them in Plex's settings, which works only when Plex has no DVR yet: Plex won't add an XMLTV guide to a DVR that uses its own guide.
+
+### Let kia add them
+
+1. Find a Plex token by following Plex's [Finding an authentication token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/). The token works like your Plex password, so keep it to yourself.
+2. In kia's `.env`, set Plex's address and the token:
+
+   ```sh
+   KIA_PLEX_URL=http://192.168.1.20:32400
+   KIA_PLEX_TOKEN=your-token
+   ```
+
+3. Run:
+
+   ```sh
+   docker compose up -d
+   docker compose exec kia python3 -m kia plex-tuners
+   ```
+
+   ```text
+   Made a new DVR in Plex for kia's Threadfins (DVR 15).
+   Plex 1: Pluto and series: 340 channels, guide http://192.168.1.20:34400/xmltv/threadfin.xml
+   Plex 2: news, sports, and movies: 271 channels, guide http://192.168.1.20:34401/xmltv/threadfin.xml
+   Plex is loading the guide now; the channels show under Live TV in a few minutes.
+   ```
+
+kia puts all its Threadfins in one DVR of their own, each with its own guide, names each one after its kia playlist, and turns on every channel. A DVR you already have stays as it is. Running it again is safe: it updates the same DVR, and picks up channels your playlists have gained.
+
+Plex's **Settings → Live TV & DVR** page shows only your first DVR. If you already had one, the Threadfin DVR doesn't appear there, but its channels are under **Live TV** in every Plex app. To delete it, run `docker compose exec kia python3 -m kia plex-tuners --remove`; it deletes only a DVR that holds nothing but kia's Threadfins.
+
+### In Plex's settings
+
+When Plex has no DVR yet, go to **Settings → Live TV & DVR** and choose **Set Up Plex Tuner**.
 
 1. Choose **Don't see your HDHomeRun device? Enter its network address manually**, enter `<your address>:34400`, and choose **Connect**. Threadfin appears as a tuner with your channel count.
 
@@ -122,7 +154,7 @@ Use the kia computer's network address (such as `192.168.1.20`), not `localhost`
 
 kia refreshes the playlists and guide every few hours. Threadfin reads them again every night, and Plex refreshes its guide on its own schedule; **Refresh Guide** on Plex's Live TV & DVR page does it right away.
 
-When the playlist gains channels, Threadfin adds them, but Plex keeps the channel list it had at setup. To add the new ones, choose the tuner's channel count on Plex's Live TV & DVR page (such as **340 enabled**), then **Rescan**, then **Save**. To keep a channel out of Plex, leave it out of the playlist on kia's page rather than in Threadfin, so the change survives the next refresh.
+When the playlist gains channels, Threadfin adds them, but Plex keeps the channel list it had at setup. To add the new ones, run `kia plex-tuners` again, or on Plex's Live TV & DVR page choose the tuner's channel count (such as **340 enabled**), then **Rescan**, then **Save**. To keep a channel out of Plex, leave it out of the playlist on kia's page rather than in Threadfin, so the change survives the next refresh.
 
 To update Threadfin, set `KIA_THREADFIN_IMAGE` in `.env` to the version you want and run `docker compose up -d`.
 
