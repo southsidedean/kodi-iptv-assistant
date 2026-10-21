@@ -137,15 +137,22 @@ def parse(text: str, source: str = "") -> list[Entry]:
     return entries
 
 
+def _clean(text: str, quote: bool = False) -> str:
+    """One line of third-party text: no line breaks (which would start a new playlist
+    line, even a channel that was never checked), and in attributes no double quotes."""
+    text = " ".join(str(text).splitlines()).replace("\r", " ")
+    return text.replace('"', "'") if quote else text
+
+
 def write(entries: list[Entry], epg_url: str | None = None) -> str:
     header = "#EXTM3U"
     if epg_url:
-        header += f' x-tvg-url="{epg_url}"'
+        header += f' x-tvg-url="{_clean(epg_url, True)}"'
     lines = [header]
     for e in entries:
-        attrs = "".join(f' {k}="{v}"' for k, v in e.attrs.items())
-        lines.append(f"#EXTINF:{e.duration}{attrs},{e.name}")
-        lines.extend(f"#EXTVLCOPT:{k}={v}" for k, v in e.vlcopts.items())
-        lines.extend(f"#KODIPROP:{p}" for p in e.kodiprops)
-        lines.append(e.url)
+        attrs = "".join(f' {_clean(k, True)}="{_clean(v, True)}"' for k, v in e.attrs.items())
+        lines.append(f"#EXTINF:{_clean(e.duration)}{attrs},{_clean(e.name)}")
+        lines.extend(f"#EXTVLCOPT:{_clean(k)}={_clean(v)}" for k, v in e.vlcopts.items())
+        lines.extend(f"#KODIPROP:{_clean(p)}" for p in e.kodiprops)
+        lines.append(_clean(e.url))
     return "\n".join(lines) + "\n"

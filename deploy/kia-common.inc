@@ -12,6 +12,8 @@ gzip_types application/json text/css application/javascript;
 
 # Clients should always re-check; the guide changes several times a day.
 add_header Cache-Control "no-cache";
+# kia's pages are never shown inside another site's page.
+add_header X-Frame-Options "DENY";
 
 # Don't serve files that a run is still writing.
 location ~ \.tmp$ {

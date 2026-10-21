@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import shutil
 import tarfile
 import socket
@@ -831,7 +832,21 @@ def pluto_relay(cfg: Config) -> pluto.Relay | None:
                           "kia couldn't open a Pluto session of its own. It may freeze at ad breaks until kia can.",
                           cfg.state_dir, cfg.alerts, log)  # fmt: skip
 
-        _RELAY = pluto.Relay(cfg.output_dir / "pluto.json", log, on_fallback=fallback_alert)
+        curated = cfg.output_dir / "curated.m3u"
+        known: dict = {"stamp": None, "ids": set()}
+
+        def allowed() -> set[str]:
+            """The Pluto channels kia's playlists have, re-read when the playlist changes."""
+            try:
+                stamp = curated.stat().st_mtime_ns
+            except OSError:
+                return set()
+            if stamp != known["stamp"]:
+                known["ids"] = set(re.findall(r"/pluto/([0-9a-f]{24})\.m3u8", curated.read_text()))
+                known["stamp"] = stamp
+            return known["ids"]
+
+        _RELAY = pluto.Relay(cfg.output_dir / "pluto.json", log, on_fallback=fallback_alert, allowed=allowed)
         _RELAY.save_status(force=True)
         _RELAY.keep_status_fresh()
     return _RELAY

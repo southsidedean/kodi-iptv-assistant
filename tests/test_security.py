@@ -1,0 +1,140 @@
+"""The fixes from the 0.4.0 code review: each was a way to hurt or fool a kia install."""
+
+import io
+import json
+import socket
+import tarfile
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+import pytest
+
+from kia import api, auth, backup, m3u, pluto, radio, serve
+from kia.m3u import Entry
+
+
+@pytest.fixture
+def server(tmp_path: Path):
+    (tmp_path / "out").mkdir()
+    (tmp_path / "out" / "curated.m3u").write_text("#EXTM3U\n")
+    cfg = api.ApiConfig(tmp_path / "out", tmp_path / "state", tmp_path / "profiles.toml", None, auth.Auth(tmp_path / "state", "pw"))
+    srv = serve.serve_in_background(tmp_path / "out", "127.0.0.1", 0, api=cfg)
+    yield srv.server_address[1], cfg
+    srv.shutdown()
+
+
+def raw(port: int, request: bytes) -> bytes:
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+        s.sendall(request)
+        s.shutdown(socket.SHUT_WR)
+        return s.recv(4096)
+
+
+def test_bad_lengths_get_an_answer(server):
+    port, _ = server
+    for length in (b"-1", b"abc"):
+        reply = raw(port, b"POST /api/preview HTTP/1.1\r\nHost: x\r\nContent-Length: " + length + b"\r\n\r\n")
+        assert reply.startswith(b"HTTP/1.0 400") or reply.startswith(b"HTTP/1.1 400")
+
+
+def test_unexpected_errors_get_a_500(server, monkeypatch):
+    port, _ = server
+
+    def boom(*a, **k):
+        raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr(api, "handle", boom)
+    with pytest.raises(urllib.error.HTTPError) as err:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/api/profiles", timeout=5)
+    assert err.value.code == 500 and "error" in json.loads(err.value.read())
+
+
+def test_pages_cant_be_framed(server):
+    port, _ = server
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/curated.m3u", timeout=5) as r:
+        assert r.headers["X-Frame-Options"] == "DENY"
+
+
+def test_third_party_text_cant_add_playlist_lines():
+    e = Entry("Bad\nname", "http://a/1\n#EXTINF:-1,Sneaky\nhttp://evil/x.m3u8",
+              {"tvg-logo": 'x"\n#EXTINF:-1,Injected\nhttp://evil/ad.m3u8'})  # fmt: skip
+    text = m3u.write([e])
+    assert len(m3u.parse(text)) == 1
+    assert sum(line.startswith("#EXTINF") for line in text.splitlines()) == 1
+    assert [line for line in text.splitlines() if not line.startswith("#")] == ["http://a/1 #EXTINF:-1,Sneaky http://evil/x.m3u8"]
+
+
+def test_radio_logos_must_be_web_addresses():
+    station = {"name": "Jazz", "url_resolved": "http://a/s", "favicon": "javascript:alert(1)", "stationuuid": "u"}
+    entries = radio.to_entries([station], "radio")
+    assert "tvg-logo" not in entries[0].attrs
+
+
+def crafted(path: Path, name: str, data: bytes = b"x", mode: int = 0o755, listed: bool = True) -> Path:
+    with tarfile.open(path, "w:gz") as tar:
+        for n, body, m in [(backup.MANIFEST, json.dumps({"files": [name] if listed else []}).encode(), 0o644), (name, data, mode)]:
+            info = tarfile.TarInfo(n)
+            info.size, info.mode = len(body), m
+            tar.addfile(info, io.BytesIO(body))
+    return path
+
+
+def test_restore_only_writes_kias_own_files(tmp_path: Path):
+    base = tmp_path / "kia"
+    base.mkdir()
+    restored, _ = backup.restore(crafted(tmp_path / "a.tar.gz", "src/kia/api.py"), base, tmp_path / "safe")
+    assert restored == [] and not (base / "src").exists()
+    restored, _ = backup.restore(crafted(tmp_path / "b.tar.gz", "state/run.sh"), base, tmp_path / "safe")
+    assert restored == ["state/run.sh"] and (base / "state" / "run.sh").stat().st_mode & 0o111 == 0
+    restored, _ = backup.restore(crafted(tmp_path / "c.tar.gz", "sources.mine.txt"), base, tmp_path / "safe")
+    assert restored == ["sources.mine.txt"]  # your own sources file, named in the backup
+
+
+def test_backup_stores_what_symlinks_point_at(tmp_path: Path):
+    base = tmp_path / "kia"
+    (base / "tls").mkdir(parents=True)
+    (tmp_path / "real.pem").write_text("CERT")
+    (base / "tls" / "fullchain.pem").symlink_to(tmp_path / "real.pem")
+    backup.make(base, tmp_path / "b.tar.gz")
+    assert (tmp_path / "b.tar.gz").stat().st_mode & 0o077 == 0
+    other = tmp_path / "other"
+    other.mkdir()
+    restored, _ = backup.restore(tmp_path / "b.tar.gz", other, tmp_path / "safe")
+    assert restored == ["tls/fullchain.pem"] and (other / "tls" / "fullchain.pem").read_text() == "CERT"
+
+
+def test_relay_plays_only_kias_channels_and_only_so_many(monkeypatch):
+    allowed = {"66ba495ffe11e5000881f049"}
+    r = pluto.Relay(None, log=lambda m: None, fetcher=lambda u: (_ for _ in ()).throw(OSError("offline")),
+                    allowed=lambda: allowed)  # fmt: skip
+    status, _, body = r.handle("/pluto/5f7794162a4559000781fc12.m3u8", "x")
+    assert status == 404 and b"isn't in" in body and r.channels == {}
+    monkeypatch.setattr(pluto, "MAX_CHANNELS", 1)
+    allowed.add("5f7794162a4559000781fc12")
+    r.handle("/pluto/66ba495ffe11e5000881f049.m3u8", "x")
+    assert r.handle("/pluto/5f7794162a4559000781fc12.m3u8", "x")[0] == 503
+
+
+def test_relay_fetches_only_https():
+    for url in ("file:///etc/passwd", "http://192.168.1.1/admin"):
+        with pytest.raises(ValueError):
+            pluto.fetch(url)
+
+
+def test_relay_cache_stays_small(monkeypatch):
+    r = pluto.Relay(None, log=lambda m: None, fetcher=lambda u: (u, b"x"), remux_fn=lambda *a: b"TS")
+    ch = r.channel("66ba495ffe11e5000881f049")
+    from datetime import datetime, timezone
+
+    for n in range(60):
+        ch.pieces.append(pluto.Piece(n, datetime.now(timezone.utc), 5.0, f"https://p/{n}.ts", None, None, n, None, None, str(n), n * 5.0))
+    for n in reversed(range(60)):  # a viewer walking backwards
+        ch.piece(n, "x")
+    assert len(ch.cache) <= pluto.CACHE_PIECES
+
+
+def test_sources_hide_logins_outside_the_secure_page():
+    assert api.mask_url("https://user:secret@example.org/list.m3u?token=abc") == "https://•••@example.org/list.m3u?•••"
+    assert api.mask_url("https://example.org/list.m3u") == "https://example.org/list.m3u"
+    assert api.mask_url("radio-browser: country=US") == "radio-browser: country=US"

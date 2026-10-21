@@ -82,7 +82,7 @@ def to_entries(stations: list[dict], source: str, min_bitrate: int = 0) -> list[
         if not name or not url or (min_bitrate and (st.get("bitrate") or 0) < min_bitrate):
             continue
         attrs = {"tvg-id": f"radio.{st.get('stationuuid', '')}"}
-        if st.get("favicon"):
+        if str(st.get("favicon") or "").startswith(("http://", "https://")):
             attrs["tvg-logo"] = st["favicon"]
         attrs["group-title"] = genre(st.get("tags", ""))
         attrs["radio"] = "true"

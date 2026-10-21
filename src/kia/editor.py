@@ -137,7 +137,8 @@ SCRIPT = r"""
     var chips = el("ul", { class: "chips" });
     var preview = el("p", { class: "preview", "aria-live": "polite", text: "Counting…" });
     var error = el("p", { class: "error", hidden: true, role: "alert" });
-    var pass = el("input", { type: "password", id: "ed-pass", value: getPassword(), autocomplete: "current-password" });
+    var pass = el("input", { type: "password", id: "ed-pass", value: getPassword(), autocomplete: "current-password",
+      on: { change: function () { changed(); } } });
     var save = el("button", { type: "submit", class: "primary", text: "Save" });
 
     var form = el("form", { class: "editor", id: "editor", on: { submit: submit } }, [
@@ -211,8 +212,10 @@ SCRIPT = r"""
     var later = debounce(function () {
       var mine = counting;
       var s = settings();
-      api("POST", "preview", s).then(function (r) {
+      api("POST", "preview", s, pass.value || getPassword()).then(function (r) {
         if (mine !== counting) return;
+        if (r._status === 401 && (s.names || s.exclude_names)) { preview.className = "preview warn";
+          preview.textContent = "Enter the password below to count channels by name."; return; }
         if (r._status !== 200) { preview.className = "preview warn"; preview.textContent = r.error || "Can't count channels."; return; }
         var empty = pickRadio.checked && !s.groups && !s.sources && !s.names;
         preview.className = "preview" + (empty || !(r.tv + r.radio) ? " warn" : "");

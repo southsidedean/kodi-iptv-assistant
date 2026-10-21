@@ -44,7 +44,9 @@ def test_read_and_preview(cfg):
     assert {"name": "Kids", "count": 1} in data["groups"] and {"name": "kink", "count": 1} in data["sources"]
     assert call(cfg, "POST", "/api/preview", {"groups": ["kids"]})[1] == {"tv": 1, "radio": 0, "sample": ["Toons"]}
     assert call(cfg, "POST", "/api/preview", {"tv": False})[1]["radio"] == 1
-    assert call(cfg, "POST", "/api/preview", {"names": ["("]})[0] == 400
+    assert call(cfg, "POST", "/api/preview", {"names": ["("]})[0] == 401  # patterns need the password
+    assert call(cfg, "POST", "/api/preview", {"names": ["("]}, password="secret")[0] == 400
+    assert call(cfg, "POST", "/api/preview", {"names": ["cn"]}, password="secret")[1]["sample"] == ["CNN"]
     assert call(cfg, "GET", "/api/channels?q=cn")[1]["channels"] == [{"id": "CNN.us", "name": "CNN", "group": "News"}]
 
 
