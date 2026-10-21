@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.4.2 (unreleased)
+
 ## 0.4.1 (2026-10-21)
 
 ### Upgrading from 0.4.0
