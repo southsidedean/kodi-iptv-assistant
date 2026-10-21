@@ -41,6 +41,7 @@ Or by hand:
    git clone https://github.com/southsidedean/kodi-iptv-assistant.git
    cd kodi-iptv-assistant
    cp .env.example .env
+   chmod 600 .env
    ```
 
    Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`; [how to find it](docs/install.md#4-find-this-computers-address)) and `TZ` to your time zone.

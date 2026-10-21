@@ -44,3 +44,10 @@ def test_daemon_takes_the_run_time_from_the_environment(monkeypatch):
     monkeypatch.setenv("KIA_RUN_AT", "05:30")
     cli.main(["daemon"])
     assert seen["at"] == "05:30"
+
+
+def test_installer_keeps_env_private():
+    # .env holds the password: made with umask 077, and an older one is tightened too.
+    text = (ROOT / "scripts" / "install.sh").read_text()
+    made = text.index(".env.example >.env")
+    assert "umask 077" in text[made - 600:made] and "\nchmod 600 .env" in text[made:]

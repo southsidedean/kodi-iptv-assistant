@@ -335,13 +335,13 @@ def cmd_check(args: argparse.Namespace) -> int:
     with api_module.LOCK:
         choices = channels.load(cfg.state_dir)
         if choices["removed"] and not partial_run(args):
-            back = [c.entry.name for c in chosen if c.entry.key in choices["removed"] and c.status == "ok"]
-            chosen = [c for c in chosen if c.entry.key not in choices["removed"] or c.status == "ok"]
-            for c in chosen:
-                choices["removed"].pop(c.entry.key, None)
+            back = channels.count_good_nights(choices, {c.entry.key: c.status for c in chosen})
+            chosen = [c for c in chosen if c.entry.key not in choices["removed"] or c.entry.key in back]
+            names = [choices["removed"].pop(key)["name"] for key in back]
             channels.save(cfg.state_dir, choices)
-            if back:
-                log(f"Back in the playlists, because their streams work again: {', '.join(back)}")
+            if names:
+                log(f"Back in the playlists, because their streams worked {channels.BACK_AFTER_NIGHTS} nights "
+                    f"in a row: {', '.join(names)}")  # fmt: skip
         place = {id(e): i for i, e in enumerate(channels.apply([c.entry for c in chosen], choices))}
         chosen.sort(key=lambda c: place[id(c.entry)])
 
@@ -808,9 +808,19 @@ def secure_setup(cfg: Config) -> dict | None:
     return info
 
 
+def env_private(path: Path) -> bool | None:
+    """Whether .env (kia's password, alert and Plex settings) is readable only by its owner.
+    None when there's no .env (kia without Docker may not use one)."""
+    try:
+        return path.stat().st_mode & 0o077 == 0
+    except OSError:
+        return None
+
+
 def write_settings(cfg: Config, run_at: str | None, guide_every: float | None) -> None:
     """The settings kia is running with, for the Dashboard's System page (kia.settings)."""
-    shown = {"run_at": run_at, "guide_every": guide_every, "sections": settings.describe(cfg, run_at, guide_every)}
+    shown = {"run_at": run_at, "guide_every": guide_every, "sections": settings.describe(cfg, run_at, guide_every),
+             "env_private": env_private(cfg.state_dir.parent / ".env")}  # fmt: skip
     try:
         write_atomic(cfg.state_dir / "settings.json", json.dumps(shown, indent=1))
     except OSError as exc:

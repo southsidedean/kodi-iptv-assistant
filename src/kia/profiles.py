@@ -10,7 +10,9 @@ in every playlist, unless a profile says renumber = true.
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
+import os
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import replace
@@ -252,6 +254,46 @@ def write_guides(output_dir: Path, wanted: dict[str, set[str]]) -> set[str]:
     return set(wanted)
 
 
+def update_guides(output_dir: Path, wanted: dict[str, set[str]], before: dict[str, str | None],
+                  link_tv: bool = False) -> tuple[set[str], dict[str, str]]:  # fmt: skip
+    """Bring each profile's guide up to date, doing only the work that's needed: a guide is
+    rewritten only when its channels changed or guide.xml is newer, and kia's own TV-only
+    guide is the full guide under another name (a hard link: radio has almost no listings,
+    and players ignore channels they don't have). Returns (profiles with a guide, the
+    digest of each one's channel IDs, to compare next time)."""
+    full = output_dir / "guide.xml"
+    if not wanted or not full.exists():
+        return set(), {}
+    digests = {name: hashlib.sha256("\n".join(sorted(ids)).encode()).hexdigest()[:16] for name, ids in wanted.items()}
+    newest = full.stat().st_mtime
+    todo = {}
+    for name, ids in wanted.items():
+        target = output_dir / f"{name}.guide.xml.gz"
+        if link_tv and name == TV_ONLY.name and _link(output_dir / "guide.xml.gz", target):
+            continue
+        if target.exists() and before.get(name) == digests[name] and target.stat().st_mtime >= newest:
+            continue  # the same channels, and guide.xml hasn't changed since
+        todo[name] = ids
+    write_guides(output_dir, todo)
+    return set(wanted), digests
+
+
+def _link(source: Path, target: Path) -> bool:
+    """Make target the same file as source (a hard link), replacing it in one step."""
+    if not source.exists():
+        return False
+    try:
+        if target.exists() and os.path.samefile(source, target):
+            return True
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.unlink(missing_ok=True)
+        os.link(source, tmp)
+        tmp.replace(target)
+        return True
+    except OSError:
+        return False  # a file system without hard links: write a copy as before
+
+
 def profile_epg_url(epg_url: str | None, p: Profile) -> str | None:
     """The address of the profile's own guide, next to the full one."""
     if epg_url and epg_url.endswith("/guide.xml.gz"):
@@ -287,7 +329,12 @@ def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_u
         defined = [*defined, TV_ONLY]
         builtin.add(TV_ONLY.name)
     picks = {p.name: numbered(p, select(p, items)) for p in defined}
-    guides = write_guides(output_dir, {name: {e.tvg_id for e in picked if e.tvg_id} for name, picked in picks.items()})
+    try:
+        before = {p["name"]: p.get("guide_ids") for p in json.loads(summary_path.read_text()).get("profiles", [])}
+    except (OSError, ValueError):
+        before = {}
+    wanted = {name: {e.tvg_id for e in picked if e.tvg_id} for name, picked in picks.items()}
+    guides, digests = update_guides(output_dir, wanted, before, link_tv=TV_ONLY.name in builtin)
     summary = []
     for p in defined:
         picked = picks[p.name]
@@ -296,6 +343,8 @@ def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_u
         summary.append({"name": p.name, "title": p.label, "file": p.file, "tv": len(picked) - radio_count,
                         "radio": radio_count, "guide": p.guide if p.name in guides else None,
                         "builtin": p.name in builtin})  # fmt: skip
+        if p.name in digests:
+            summary[-1]["guide_ids"] = digests[p.name]  # which channels its guide has, to compare next time
         log(f"Profile {p.name}: {len(picked)} channels -> {output_dir / p.file}")
     keep = {"curated.m3u"} | {p.file for p in defined} | {p.guide for p in defined}
     for old_file in [*output_dir.glob("*.m3u"), *output_dir.glob("*.guide.xml.gz")]:

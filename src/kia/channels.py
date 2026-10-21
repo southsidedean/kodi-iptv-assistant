@@ -4,9 +4,10 @@ Kept in state/channels.json:
 
 - "favorites": channel keys. Favorites get the category "Favorites" (players show it as
   a group, and profiles can pick it) and come first in every playlist.
-- "removed": {key: {"when", "name", "entry"}}: channels taken out of every playlist from the
-  Dashboard because they don't play. The nightly check puts one back when its stream
-  works again; "entry" (its playlist lines) lets the page put it back by hand.
+- "removed": {key: {"when", "name", "entry", "good_nights"}}: channels taken out of every
+  playlist from the Dashboard because they don't play. The nightly check puts one back
+  after its stream works BACK_AFTER_NIGHTS nights in a row ("good_nights" counts them);
+  "entry" (its playlist lines) lets the page put it back by hand.
 - "numbers": {"tv": {key: n}, "radio": {key: n}}. A number chosen here pins the channel
   like a tvg-chno in your own playlist file does (kia.numbers); a pin in a file wins.
 
@@ -27,6 +28,10 @@ from kia.numbers import ChannelNumbers
 STATE_FILE = "channels.json"
 FAVORITES = "Favorites"
 MAX_NUMBER = 99999
+# A removed channel comes back on its own after its stream works this many nights in a row.
+# kia's check only opens the stream, and some streams that open still don't play well, so
+# one good night isn't enough to undo your choice.
+BACK_AFTER_NIGHTS = 3
 
 
 def load(state_dir: Path) -> dict:
@@ -68,6 +73,20 @@ def apply(entries: list[Entry], choices: dict) -> list[Entry]:
         else:
             e.attrs.pop("group-title", None)
     return sorted(entries, key=lambda e: (e.is_radio, e.key not in favorites, e.name.casefold()))
+
+
+def count_good_nights(choices: dict, statuses: dict[str, str]) -> list[str]:
+    """After a full nightly check: count another good night for each removed channel whose
+    stream worked, start again for the rest. Returns the keys due to come back."""
+    back = []
+    for key, rec in choices["removed"].items():
+        if statuses.get(key) == "ok":
+            rec["good_nights"] = rec.get("good_nights", 0) + 1
+            if rec["good_nights"] >= BACK_AFTER_NIGHTS:
+                back.append(key)
+        else:
+            rec["good_nights"] = 0
+    return back
 
 
 def removal(e: Entry) -> dict:

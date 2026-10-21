@@ -112,16 +112,18 @@ else
     if [ "$ADDRESS" = localhost ] || [ "$ADDRESS" = 127.0.0.1 ]; then
         bind=127.0.0.1  # only this computer
     fi
-    sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://$ADDRESS:$PORT|" \
+    # .env holds kia's password and other secrets: readable by you only, from the start.
+    (umask 077 && sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://$ADDRESS:$PORT|" \
         -e "s|^KIA_BIND=.*|KIA_BIND=$bind|" \
         -e "s|^KIA_PORT=.*|KIA_PORT=$PORT|" \
         -e "s|^KIA_HTTPS_PORT=.*|KIA_HTTPS_PORT=$HTTPS_PORT|" \
         -e "s|^TZ=.*|TZ=$TZ_NAME|" \
         -e "s|^PUID=.*|PUID=$(id -u)|" \
         -e "s|^PGID=.*|PGID=$(id -g)|" \
-        .env.example >.env
+        .env.example >.env)
     say "Made .env: address http://$ADDRESS:$PORT, time zone $TZ_NAME."
 fi
+chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.
 mkdir -p output state work vendor profiles tls
 

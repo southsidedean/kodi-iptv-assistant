@@ -242,3 +242,21 @@ def test_getting_started_checklist():
 def test_checklist_doesnt_tick_the_example_address():
     s = {"last_run": {"finished": None}, "playlist_url": "http://my-server.lan:8780/curated.m3u", "settings": []}
     assert not next(i for i in status.checklist(s) if i["id"] == "address")["done"]
+
+
+def test_a_readable_env_file_is_flagged(tmp_path: Path):
+    from kia import cli
+
+    env = tmp_path / ".env"
+    assert cli.env_private(env) is None  # no .env: nothing to say
+    env.write_text("KIA_ADMIN_PASSWORD=x\n")
+    env.chmod(0o644)
+    assert cli.env_private(env) is False
+    s = status.collect(tmp_path, tmp_path, {}, None)
+    s["env_private"] = False
+    assert "chmod 600 .env" in status.render_html(s)
+    env.chmod(0o600)
+    assert cli.env_private(env) is True
+    for value in (True, None):
+        s["env_private"] = value
+        assert 'id="env-warning"' not in status.render_html(s)
