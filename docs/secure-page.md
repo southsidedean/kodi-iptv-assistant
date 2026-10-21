@@ -9,6 +9,14 @@ kia's Dashboard is on two ports:
 
 Changes are accepted only on the secure (`https://`) page, so the password never crosses your network in the clear. Playlists and guides stay on plain HTTP because Kodi and most players refuse a certificate they don't trust, and kia's own certificate is one of those.
 
+```mermaid
+flowchart LR
+  players["Kodi and other players"] -- "http, port 8780" --> web["kia's web server"]
+  look["You, looking"] -- "http, port 8780" --> web
+  change["You, making changes"] -- "https, port 8743<br>with the password" --> web
+  web -- "changes, only from https" --> kia["kia"]
+```
+
 ## The browser warning
 
 The first time you open the secure page, your browser says the connection isn't private or the certificate isn't trusted. That's because kia made the certificate itself (it's "self-signed"), instead of getting it from a company your browser knows. The connection is still encrypted.
