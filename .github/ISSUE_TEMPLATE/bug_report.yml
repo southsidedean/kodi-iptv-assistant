@@ -24,7 +24,7 @@ body:
     id: version
     attributes:
       label: kia version
-      description: Shown at the bottom of the status page, or run `docker compose exec kia python3 -m kia --version`.
+      description: Shown at the bottom of the Dashboard, or run `docker compose exec kia python3 -m kia --version`.
     validations:
       required: true
   - type: dropdown

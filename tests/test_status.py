@@ -64,23 +64,42 @@ def test_old_alert_lines_and_escaping(tmp_path: Path):
     assert "<script>x</script>" not in page and "&lt;script&gt;x&lt;/script&gt;" in page
 
 
-def test_page_links_to_the_docs(tmp_path: Path):
-    page = status.render_html(status.collect(tmp_path, tmp_path, {}, None))
-    for url, name, _ in status.HELP:
-        assert f'href="{url}"' in page and name in page
-    # Each help link names a docs page that exists in this repository.
+def test_every_page_has_the_menu_and_help(tmp_path: Path):
+    from kia import htmlpage
+
+    s = status.collect(tmp_path, tmp_path, {}, None)
     root = Path(__file__).resolve().parent.parent
-    for url, _, _ in status.HELP:
-        assert (root / "docs" / url.rsplit("/", 1)[1]).exists(), url
+    for name, render in status.PAGES.items():
+        page = render(s)
+        for href, label in htmlpage.NAV:
+            assert f'href="{href}"' in page and f">{label}</a>" in page, (name, href)
+        assert f'href="{htmlpage.DOCS_URL}/README.md">Documentation</a>' in page
+        assert f'{htmlpage.DOCS_URL}/troubleshooting.md">troubleshooting guide</a>' in page
+        here = f'href="{name}" aria-current="page"'
+        assert (here in page) == (name != "details.html"), name
+    for doc in ("README.md", "troubleshooting.md"):
+        assert (root / "docs" / doc).exists()
+    # A playlist's page sits one folder down and marks Playlists in the menu.
+    pl = status.render_playlist(s, status._playlists(s)[0], [])
+    assert 'href="../playlists.html" aria-current="page"' in pl and 'href="../index.html"' in pl
+
+
+def test_details_points_to_the_new_pages(tmp_path: Path):
+    page = status.render_details(status.collect(tmp_path, tmp_path, {}, None))
+    assert "Details has moved" in page
+    for href, _, _ in status.MOVED:
+        assert f'<a href="{href}">' in page and href in status.PAGES
 
 
 def test_reports_link_html_and_markdown(tmp_path: Path):
     (tmp_path / "report.html").write_text("x")
     (tmp_path / "report.md").write_text("x")
     (tmp_path / "guide-report.html").write_text("x")  # no Markdown twin: no link to one
-    page = status.render_details(status.collect(tmp_path, tmp_path, {}, None))
+    s = status.collect(tmp_path, tmp_path, {}, None)
+    page = status.render_system(s)
     assert 'href="report.html"' in page and '(<a href="report.md">Markdown</a>)' in page
     assert 'href="guide-report.md"' not in page
+    assert 'href="guide-report.html"' in status.render_guide(s) and 'href="report.html"' not in status.render_guide(s)
 
 
 def test_coverage_and_playlist_counts(tmp_path: Path):
@@ -92,10 +111,12 @@ def test_coverage_and_playlist_counts(tmp_path: Path):
     s = status.collect(tmp_path, tmp_path, {"result": "alerts", "coverage": {"full": 5, "partial": 2, "none": 3}}, "http://tv.lan:8780")
     assert s["sources"] == [{"name": "us", "ok": 2, "flaky": 0, "dead": 1}, {"name": "samsung-us", "ok": 0, "flaky": 1, "dead": 0}]
     page = status.render_html(s)
-    assert "Working, with alerts" in page and 'href="details.html"' in page
+    assert "Working, with alerts" in page and 'href="guide.html"' in page and 'href="playlists.html"' in page
     assert 'data-copy="copy-0"' in page and "http://tv.lan:8780/curated.m3u" in page
-    details = status.render_details(s)
-    assert "Full guide: 5" in details and "2 working, 0 flaky, 1 dead" in details
+    assert "data-add" not in page  # making a playlist is on the Playlists page
+    assert "data-add" in status.render_playlists(s) and "http://tv.lan:8780/curated.m3u" in status.render_playlists(s)
+    assert "Full guide: 5" in status.render_guide(s)
+    assert "2 working, 0 flaky, 1 dead" in status.render_sources(s) and 'id="sources-editor"' in status.render_sources(s)
 
 
 def test_a_page_per_playlist(tmp_path: Path):
@@ -154,6 +175,22 @@ def test_guide_preview(tmp_path: Path):
     assert 'data-id="A.us"' in page and "guide-preview.json" in page and 'data-view="timeline"' in page
 
 
+def test_long_playlist_pages_show_favorites_and_the_first_channels(tmp_path: Path):
+    from kia.m3u import Entry
+
+    s = status.collect(tmp_path, tmp_path, {}, None)
+    entries = [Entry("Fave", "http://a/0", {"tvg-id": "F.us", "group-title": "News;Favorites"})]
+    entries += [Entry(f"C{i}", f"http://a/{i}", {"tvg-id": f"C{i}.us"}) for i in range(1, 300)]
+    page = status.render_playlist(s, status._playlists(s)[0], entries)
+    assert page.count(" data-fav") == 1 and '<tr data-id="F.us" data-key="F.us" data-fav>' in page
+    assert f'data-limit="{status.LIST_LIMIT}"' in page and "Show all" in page
+    assert "Hide channels without guide data" in page and 'data-filter="channels"' in page
+    # The guide view hears about rows the list hides, to keep its timeline in step.
+    from kia import guideview
+
+    assert 'new Event("rows-changed")' in page and 'addEventListener("rows-changed"' in guideview.SCRIPT
+
+
 def test_settings_on_details_hide_secrets(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.setenv("KIA_NTFY_URL", "https://ntfy.sh/very-secret-topic")
     monkeypatch.setenv("KIA_ALERT_COMMAND", "curl https://hooks.example/secret-token")
@@ -169,8 +206,9 @@ def test_settings_on_details_hide_secrets(tmp_path: Path, monkeypatch, capsys):
     assert rows["Left-out categories"]["change"] == ".env: KIA_EXCLUDE_GROUPS"
     assert rows["ntfy address"]["value"] == "set" and rows["Alert command"]["value"] == "set"
     assert rows["Password for changes"]["value"] == "your own, from .env"
-    details = (tmp_path / "output" / "details.html").read_text()
+    details = (tmp_path / "output" / "system.html").read_text()
     assert 'id="settings"' in details and "03:30" in details
+    assert "<details><summary>" in details  # each group of settings folds away
     assert cli.main(["settings", "-c", str(tmp_path / "kia.toml")]) == 0
     shown = capsys.readouterr().out
     assert "03:30" in shown and "KIA_RUN_AT" in shown
@@ -182,7 +220,7 @@ def test_settings_on_details_hide_secrets(tmp_path: Path, monkeypatch, capsys):
 def test_details_without_settings(tmp_path: Path):
     cfg = cli.load(make_instance(tmp_path))
     status.update(cfg.output_dir, cfg.state_dir, cfg.public_url)
-    assert 'id="settings"' not in (tmp_path / "output" / "details.html").read_text()
+    assert 'id="settings"' not in (tmp_path / "output" / "system.html").read_text()
 
 
 def test_getting_started_checklist():

@@ -26,9 +26,9 @@ curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/m
 
 (To open a terminal: on macOS, open the *Terminal* app from Applications → Utilities; on Linux, it's usually called *Terminal* in your apps menu.)
 
-It asks you to confirm the address and time zone, and at the end prints the status page's address and the password for making changes. Running it again is safe; it keeps your settings. On a Raspberry Pi, add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi) to `.env` in the `kodi-iptv-assistant` folder and run `docker compose up -d` there.
+It asks you to confirm the address and time zone, and at the end prints the Dashboard's address and the password for making changes. Running it again is safe; it keeps your settings. On a Raspberry Pi, add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi) to `.env` in the `kodi-iptv-assistant` folder and run `docker compose up -d` there.
 
-kia then starts its first refresh, which takes up to an hour. Wait for it to finish and check the status page, as the end of [step 6](#6-start-kia) describes, then set up Kodi in [step 7](#7-set-up-kodi).
+kia then starts its first refresh, which takes up to an hour. Wait for it to finish and check the Dashboard, as the end of [step 6](#6-start-kia) describes, then set up Kodi in [step 7](#7-set-up-kodi).
 
 To do it by hand instead, or to see what it does, follow the steps below.
 
@@ -104,7 +104,7 @@ TZ=America/New_York
 
 Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). On a Raspberry Pi, also add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory. If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
 
-Choosing playlists is optional: the USA list is on by default, which is enough to start. You can change it any time, most easily on the status page once kia is running ([choosing playlists on the status page](configuration.md#choosing-channel-sources-on-the-status-page)). To choose now instead, make your own copy of the list, so updating kia never touches your choices:
+Choosing playlists is optional: the USA list is on by default, which is enough to start. You can change it any time, most easily on the Dashboard once kia is running ([choosing playlists on the Dashboard](configuration.md#choosing-channel-sources-on-the-dashboard)). To choose now instead, make your own copy of the list, so updating kia never touches your choices:
 
 ```sh
 cp sources.txt sources.local.txt
@@ -120,13 +120,13 @@ docker compose up -d --build
 
 The first time, this downloads and builds kia (a few minutes), then starts the first run right away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia` (press Ctrl+C to stop watching; kia keeps running).
 
-When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [status page](how-it-works.md#the-status-page), with the channel counts and your playlist's address. If another device will use kia, open that address on it too.
+When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [Dashboard](how-it-works.md#the-dashboard), with the channel counts and your playlist's address. If another device will use kia, open that address on it too.
 
-kia also made a password for changing things on the status page, such as [playlists for people and devices](profiles.md). It's in `state/admin-password.txt` in the kia folder; [the secure status page](secure-page.md) explains it.
+kia also made a password for changing things on the Dashboard, such as [playlists for people and devices](profiles.md). It's in `state/admin-password.txt` in the kia folder; [the secure Dashboard](secure-page.md) explains it.
 
 If other devices can't connect (more in [troubleshooting](troubleshooting.md#other-devices-cant-connect)):
 
-- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and `sudo ufw allow 8743/tcp` (the secure status page).
+- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and `sudo ufw allow 8743/tcp` (the secure Dashboard).
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
 
 From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Between runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`). Kodi picks up each update within two hours, with the setting in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in* setting).

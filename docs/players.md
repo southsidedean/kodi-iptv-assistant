@@ -12,7 +12,7 @@ kia works with any app that can open an M3U playlist. Most also show kia's progr
 | Android phone or tablet | Televizo | Yes | Free | [Phones and tablets](phones.md) |
 | Computer, phone, or tablet, for a quick look | VLC | No | Free | [VLC](vlc.md) |
 
-Every app needs the same two addresses, which kia's status page shows with Copy buttons:
+Every app needs the same two addresses, which kia's Dashboard shows with Copy buttons:
 
 - The **playlist**: `http://<your address>:8780/curated.m3u`, or a [profile's](profiles.md) playlist such as `http://<your address>:8780/kids.m3u`.
 - The **guide**: `http://<your address>:8780/guide.xml.gz`, or a profile's own guide such as `http://<your address>:8780/kids.guide.xml.gz`. Kodi and many apps find it through the playlist; others ask for it.

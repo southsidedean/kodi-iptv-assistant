@@ -270,7 +270,7 @@ PREVIEW_HOURS = 14
 
 
 def write_preview(guide: Path, out_path: Path, now: datetime, hours: int = PREVIEW_HOURS) -> int:
-    """guide-preview.json for the status page's "On now" and "Next": each channel's real
+    """guide-preview.json for the Dashboard's "On now" and "Next": each channel's real
     listings (not name blocks) from now to `hours` ahead, as [start, stop, title] with Unix
     times. Small enough for a browser; the page works out "now" itself. Returns the count."""
     import json

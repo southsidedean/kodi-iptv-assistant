@@ -53,7 +53,7 @@ services:
       KIA_RADIO_PLACEHOLDERS: ${KIA_RADIO_PLACEHOLDERS:-}
       KIA_EPG_GIT_URL: ${KIA_EPG_GIT_URL:-}
       KIA_EPG_GIT_REF: ${KIA_EPG_GIT_REF:-}
-      # Editing on the secure status page: the password (kia makes one if this is empty),
+      # Editing on the secure Dashboard: the password (kia makes one if this is empty),
       # editing on or off, the secure port, and the names its certificate covers.
       KIA_ADMIN_PASSWORD: ${KIA_ADMIN_PASSWORD:-}
       KIA_EDITING: ${KIA_EDITING:-}
@@ -81,9 +81,9 @@ services:
       - ./state:/data/state
       - ./work:/data/work
       - ./vendor:/data/vendor
-      # Profiles, so the status page can save them.
+      # Profiles, so the Dashboard can save them.
       - ./profiles:/data/profiles
-      # The secure status page's certificate (kia makes and renews its own).
+      # The secure Dashboard's certificate (kia makes and renews its own).
       - ./tls:/data/tls
 
   web:
@@ -107,11 +107,11 @@ services:
     ports:
       # KIA_BIND=127.0.0.1 keeps the server to this machine (e.g. Kodi on the same laptop).
       - "${KIA_BIND:-0.0.0.0}:${KIA_PORT:-8780}:80"
-      # The secure status page, for making changes.
+      # The secure Dashboard, for making changes.
       - "${KIA_BIND:-0.0.0.0}:${KIA_HTTPS_PORT:-8743}:443"
     depends_on:
       - kia
-    # Healthy while nginx serves the status page.
+    # Healthy while nginx serves the Dashboard.
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
       interval: 60s

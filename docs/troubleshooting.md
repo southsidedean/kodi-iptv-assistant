@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with kia's [status page](how-it-works.md#the-status-page) at `http://<your address>:8780/`. It shows whether the last refresh worked, when the next one is, the channel counts, and the alerts from the last run. Most of the problems below show up there first.
+Start with kia's [Dashboard](how-it-works.md#the-dashboard) at `http://<your address>:8780/`. It shows whether the last refresh worked, when the next one is, the channel counts, and the alerts from the last run. Most of the problems below show up there first.
 
 The commands on this page run in a terminal, in the kia folder, on the computer that runs kia.
 
@@ -12,13 +12,13 @@ Open `http://<your address>:8780/curated.m3u` in a browser on the same network a
 
 - If it doesn't download, Kodi can't reach kia either. See [other devices can't connect](#other-devices-cant-connect).
 - If it downloads, check the add-on's **M3U playlist URL** in Kodi ([Kodi setup](kodi.md#3-point-it-at-the-playlist)), then restart Kodi.
-- If the status page says *Waiting for the first refresh*, kia's first run is still going. It can take up to an hour.
+- If the Dashboard says *Waiting for the first refresh*, kia's first run is still going. It can take up to an hour.
 
 ### Channels, but the guide is empty
 
 Give it a couple of minutes, then restart Kodi. If it's still empty, open the playlist URL in a browser. Its first line shows the guide address (`x-tvg-url`) that Kodi uses. That address comes from `KIA_PUBLIC_URL` in `.env`, so it must be one this Kodi device can reach. If it's wrong, fix `KIA_PUBLIC_URL`, run `docker compose up -d`, then [refresh now](configuration.md#when-changes-take-effect).
 
-Some channels have no guide data anywhere. They show their own name in the guide instead of programs. `guide-report.html`, linked from the status page's Details page, shows which channels have guide data and where it comes from.
+Some channels have no guide data anywhere. They show their own name in the guide instead of programs. `guide-report.html`, linked from the Dashboard's **Guide** page, shows which channels have guide data and where it comes from.
 
 ### A channel shows another channel's programs
 
@@ -28,7 +28,7 @@ Most likely kia matched it to a guide by name, and the name belongs to a differe
 
 Free streams come and go. The nightly check drops a stream once it has failed a few nights in a row, so a stream that has just broken can stay in the list for a couple of days. `report.html` shows each stream's last result.
 
-To check one now, open the playlist's page on the secure status page, enter the password, and choose **Test** on the channel's row. kia tries the stream right away, as the nightly check does:
+To check one now, open the playlist's page on the secure Dashboard, enter the password, and choose **Test** on the channel's row. kia tries the stream right away, as the nightly check does:
 
 - If it plays from kia, the problem is more likely the device or the app. Try the channel in another player, such as VLC.
 - If it doesn't play, choose **Remove it until it works**. kia takes it out of every playlist now, and the nightly check puts it back when its stream works again. Removed channels are listed on the Everything page, each with **Put back**.
@@ -40,7 +40,7 @@ Pluto TV's streams break most players at ad breaks: the picture goes black or fr
 If a Pluto channel still misbehaves:
 
 - Open the playlist URL in a browser and look for the channel. Its address should be `http://<your address>:8780/pluto/<id>.m3u8`. If it still starts with `https://jmp2.uk/`, the relay is off, or the playlist was made before you turned it on; it changes at the next refresh.
-- Look at **Pluto TV** on the status page's Details page while the channel plays. It shows each channel playing through kia and any recent problems, such as Pluto's servers not answering.
+- Look at **Pluto TV** on the Dashboard's **System** page while the channel plays. It shows each channel playing through kia and any recent problems, such as Pluto's servers not answering.
 - If the home page says Pluto channels are playing without kia's fix, kia couldn't open a Pluto session of its own, so it's using Pluto's plain link for now. kia tries again every five minutes. Turn on the `pluto_fallback` [alert](alerts.md) to hear about it.
 - If you updated kia from 0.3.0 or earlier and Pluto channels don't play at all, run `docker compose up -d --force-recreate web` so the web server picks up its new settings.
 
@@ -68,7 +68,7 @@ Turn on **Use channel numbers from backend** in Kodi ([Kodi setup, step 5](kodi.
 
 Set IPTV Simple Client's **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120 ([Kodi setup, step 3](kodi.md#3-point-it-at-the-playlist)).
 
-## On the status page
+## On the Dashboard
 
 ### The browser warns the connection isn't private
 
@@ -120,11 +120,11 @@ A DHCP reservation in your router keeps the address from changing again.
 ### Other devices can't connect
 
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d`.
-- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and, for the secure status page, `sudo ufw allow 8743/tcp`.
+- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and, for the secure Dashboard, `sudo ufw allow 8743/tcp`.
 - Check that kia is running: `docker compose ps` should list `kia` and `web` as running and `(healthy)`. If one isn't running, run `docker compose up -d`. If one says `(unhealthy)`, it's running but not answering: `docker compose logs --tail 50 kia` (or `web`) usually says why, and `docker compose restart kia` often fixes it.
 - If the computer's address changed (after a restart, for example), update `KIA_PUBLIC_URL` and the playlist URL in Kodi. A DHCP reservation in your router keeps the address fixed.
 
-### The status page says the refresh failed
+### The Dashboard says the refresh failed
 
 The log says why. To see the end of it:
 
@@ -158,10 +158,10 @@ A run usually takes 15 minutes to an hour, depending on how many playlists you'v
 [Alerts](alerts.md) explains each one. What to do about them:
 
 - `dns_local`: this computer's DNS can't find names that public DNS can, so Kodi may have the same trouble. Check your router or ad-blocker. To test a name from inside kia: `docker compose exec kia getent hosts <name>`. kia doesn't raise this alert when only a site's IPv6 lookup fails while the IPv4 one works; that's usually the site's own DNS, and the log says so.
-- `run_failed`: see [the refresh failed](#the-status-page-says-the-refresh-failed).
+- `run_failed`: see [the refresh failed](#the-dashboard-says-the-refresh-failed).
 - `channels_drop`: open `report.html`. If one playlist accounts for most of the drop, it probably broke upstream; it often comes back within days. If streams from every playlist failed, the internet connection probably had trouble during the run.
 - `guide_drop`: open `guide-report.html` to see which site lost channels. A site that stays broken can be skipped with `KIA_EXCLUDE_SITES`.
-- `pluto_fallback`: kia couldn't open a Pluto session of its own for a while, so Pluto channels are playing without kia's fix and may freeze at ad breaks. kia tries again every five minutes and goes back to its own session when Pluto lets it. The Pluto TV section on the Details page shows the errors.
+- `pluto_fallback`: kia couldn't open a Pluto session of its own for a while, so Pluto channels are playing without kia's fix and may freeze at ad breaks. kia tries again every five minutes and goes back to its own session when Pluto lets it. The Pluto TV section on the Dashboard's **System** page shows the errors.
 - `site_failing`: the alert names the site and its log file under `work/logs/`. If the site stays broken, add it to `KIA_EXCLUDE_SITES`; its channels use other sites where they can.
 
 ## Still stuck?

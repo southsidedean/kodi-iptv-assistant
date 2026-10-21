@@ -1,7 +1,7 @@
-"""The certificate for the status page's secure (HTTPS) port.
+"""The certificate for the Dashboard's secure (HTTPS) port.
 
 Playlists and guides stay on plain HTTP, because Kodi and most players refuse a
-self-signed certificate. The status page is on HTTPS too, and changes (profiles, the
+self-signed certificate. The Dashboard is on HTTPS too, and changes (profiles, the
 password) are accepted only there.
 
 The certificate is tls/fullchain.pem with its key, tls/privkey.pem. kia makes a
@@ -130,15 +130,15 @@ def ensure(tls_dir: Path, hosts: list[str], log=print, now: datetime | None = No
             return current  # your own certificate
         why = None
         if not current:
-            why = "made a certificate for the secure status page"
+            why = "made a certificate for the secure Dashboard"
         elif current["expires"] and datetime.fromisoformat(current["expires"]) - now < RENEW_BEFORE:
-            why = "renewed the secure status page's certificate, which was about to expire"
+            why = "renewed the secure Dashboard's certificate, which was about to expire"
         elif not set(hosts) <= set(current["names"]):
-            why = f"made a new certificate for the secure status page, for {', '.join(hosts)}"
+            why = f"made a new certificate for the secure Dashboard, for {', '.join(hosts)}"
         if why:
             make_self_signed(tls_dir, hosts)
             log(f"TLS: {why} (self-signed, valid {DAYS} days)")
         return info(tls_dir)
     except TlsError as exc:
-        log(f"TLS: {exc}; the secure status page won't work until this is fixed")
+        log(f"TLS: {exc}; the secure Dashboard won't work until this is fixed")
         return None

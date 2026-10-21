@@ -1,11 +1,11 @@
-"""Favorites and channel numbers chosen on the status page.
+"""Favorites and channel numbers chosen on the Dashboard.
 
 Kept in state/channels.json:
 
 - "favorites": channel keys. Favorites get the category "Favorites" (players show it as
   a group, and profiles can pick it) and come first in every playlist.
 - "removed": {key: {"when", "name", "entry"}}: channels taken out of every playlist from the
-  status page because they don't play. The nightly check puts one back when its stream
+  Dashboard because they don't play. The nightly check puts one back when its stream
   works again; "entry" (its playlist lines) lets the page put it back by hand.
 - "numbers": {"tv": {key: n}, "radio": {key: n}}. A number chosen here pins the channel
   like a tvg-chno in your own playlist file does (kia.numbers); a pin in a file wins.

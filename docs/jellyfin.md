@@ -4,7 +4,7 @@ Jellyfin and Emby can use kia's playlist and guide directly, and then show live 
 
 ## Before you start: the TV-only playlist
 
-Jellyfin lists kia's radio stations as TV channels. kia numbers radio separately from TV, both starting at 1, so you'd see two channel 1s. Use kia's TV-only playlist instead, which kia makes whenever your list has radio stations. It's on the status page as **TV only**, with these two addresses:
+Jellyfin lists kia's radio stations as TV channels. kia numbers radio separately from TV, both starting at 1, so you'd see two channel 1s. Use kia's TV-only playlist instead, which kia makes whenever your list has radio stations. It's on the Dashboard as **TV only**, with these two addresses:
 
 - Playlist: `http://<your address>:8780/tv.m3u`
 - Guide: `http://<your address>:8780/tv.guide.xml.gz`

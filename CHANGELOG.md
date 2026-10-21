@@ -4,7 +4,7 @@
 
 ### Security
 
-- A crafted name pattern in the playlist editor's preview could keep kia busy for hours, stopping playback and the status page for everyone. Previews that use name patterns now need the password, like saving.
+- A crafted name pattern in the playlist editor's preview could keep kia busy for hours, stopping playback and the Dashboard for everyone. Previews that use name patterns now need the password, like saving.
 - A crafted backup could have written files outside kia's own settings when restored. Restore now writes only kia's settings files and folders, never as programs, and backs up linked certificates as real files.
 - Text from radio-browser.info, which anyone can edit, could add an unchecked channel to your playlists. Playlist lines are now always one line each.
 - kia's own server answers bad or unexpected requests with an error instead of hanging or dropping the connection, lets go of clients that go quiet, and checks one password at a time.
@@ -15,13 +15,13 @@
 
 ### Fixes
 
-- The Pluto TV relay writes the problems it meets (Pluto going back, errors, falling back to the plain link) to kia's log as well as the status page, so they can still be looked at after the channel stops. It also answers Kodi's request for the `/pluto/` folder instead of returning an error.
+- The Pluto TV relay writes the problems it meets (Pluto going back, errors, falling back to the plain link) to kia's log as well as the Dashboard, so they can still be looked at after the channel stops. It also answers Kodi's request for the `/pluto/` folder instead of returning an error.
 - Pluto TV channels that reach kia through the Samsung TV Plus list now play through kia's Pluto relay too, so they keep playing across ad breaks.
-- A channel number chosen on the status page can be moved to another channel or cleared, and the change shows right away instead of after the next night.
-- With `channel_numbers = false`, changes on the status page no longer add numbers to the playlists.
-- The nightly run and changes made on the status page at the same moment can't undo each other, and "Check now" no longer rewrites the stream history.
-- When a nightly run can't start (a mistake in `kia.toml`, say), kia now marks it failed on the status page and sends the `run_failed` alert, instead of only logging it.
-- The last playlist kia uses can't be removed from the status page, and `concurrency` or `per_host` of 0 in `kia.toml` is refused instead of making the check wait forever.
+- A channel number chosen on the Dashboard can be moved to another channel or cleared, and the change shows right away instead of after the next night.
+- With `channel_numbers = false`, changes on the Dashboard no longer add numbers to the playlists.
+- The nightly run and changes made on the Dashboard at the same moment can't undo each other, and "Check now" no longer rewrites the stream history.
+- When a nightly run can't start (a mistake in `kia.toml`, say), kia now marks it failed on the Dashboard and sends the `run_failed` alert, instead of only logging it.
+- The last playlist kia uses can't be removed from the Dashboard, and `concurrency` or `per_host` of 0 in `kia.toml` is refused instead of making the check wait forever.
 - New installs start with `KIA_PUBLIC_URL` empty instead of an example address that looked real, so the guide and Pluto TV links can't point at a computer that doesn't exist. The Getting started checklist doesn't count the old example as set.
 - "Check now" could miss a finished check's result; it now tells a new report from the old one reliably.
 - Building kia sends only its code to Docker, never `.env`, `state/`, or `tls/`.
@@ -44,15 +44,21 @@
 - The image now runs as an ordinary user even without compose.yaml, and picks up Alpine's and npm's security fixes when it's built.
 - Every pull request scans the image for known vulnerabilities (Trivy) and checks kia's code with Ruff and Bandit, its scripts with ShellCheck, and its workflows with zizmor. The published image is scanned again every week, and the results show in the repository's Security tab.
 
-### Status page
+### Dashboard
 
+- The status page is now the **Dashboard**, with a menu at the top of every page: **Dashboard**, **Playlists**, **Sources**, **Guide**, and **System**. The long Details page is split between them, and `details.html` points to where things went.
+- A **Documentation** button at the top right opens the docs, and every page ends with a link to the troubleshooting guide, in place of the Help card.
+- The Dashboard keeps what you check most: whether kia is working, the channel counts, alerts, and the playlist addresses. The counts open the full playlist and the Guide page.
+- Long playlist pages show your favorites and the first 200 channels, with **Show all**; the filter still searches every channel. **Hide channels without guide data** leaves out channels the guide has nothing for.
+- The Getting started checklist is shorter: finished steps fold to one line, and the heading counts how many are done.
+- Each group of settings on the System page folds away.
 - The two things called "Add a playlist" have their own names now: **Make a playlist** for the playlists you make for people and devices, and **Channel sources** (with **Add a channel source**) for the lists kia reads channels from.
 - Saving, errors, and test results show next to what you changed, not at the top of a long page; the Channel sources list no longer redraws and closes the sections you opened. Errors look like errors everywhere.
 - Changing a channel number says which channels moved and where; clicking away from the number box cancels instead of saving. The TV-only playlist's page no longer offers number changes.
 - On phones, each channel's Test button sits with its name. Removing a channel asks first, says where to put it back, and test failures are in plain words ("the stream's address doesn't exist any more").
 - The playlist editor shows pinned channels by name, can filter long category lists, asks before saving a playlist with no channels, says when it's saving, and confirms afterwards.
-- The password help matches where your password comes from, always says what to do if you forget it, and the Details page and checklist update after you change it.
-- Empty states: a filter with no matches, a playlist with no channels, no guide yet, and pages opened as files each say so. A hidden Getting started can be brought back from Help; a `localhost` address is no longer ticked as reachable by other devices.
+- The password help matches where your password comes from, always says what to do if you forget it, and the System page and checklist update after you change it.
+- Empty states: a filter with no matches, a playlist with no channels, no guide yet, and pages opened as files each say so. A hidden Getting started can be brought back from a link on the Dashboard; a `localhost` address is no longer ticked as reachable by other devices.
 - Buttons and boxes have labels for screen readers, and keyboard focus stays where you were.
 
 ### Docs

@@ -6,7 +6,7 @@ ARG NODE_IMAGE=node:lts-alpine
 FROM ${NODE_IMAGE}
 
 # curl is for alert commands (e.g. ntfy notifications); see [alerts] in kia.toml.
-# openssl makes the secure status page's self-signed certificate (kia.tls).
+# openssl makes the secure Dashboard's self-signed certificate (kia.tls).
 # apk upgrade and the newest npm pick up security fixes released since the base image was
 # built (the image scan in CI fails on fixable high or critical CVEs).
 RUN apk upgrade --no-cache \

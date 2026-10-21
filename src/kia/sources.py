@@ -1,12 +1,12 @@
-"""Choosing playlists on the status page.
+"""Choosing playlists on the Dashboard.
 
 The sources file (sources.txt, or your own copy in KIA_SOURCES_FILE) stays the place for
 choices made by hand. With Docker, kia can't write to it, so choices made on the status
 page are kept in state/sources.json and applied on top of it at every run:
 
 - "on": playlists to use that the file lists but leaves turned off (a "#" line)
-- "off": playlists the file uses that the status page turned off
-- "added": playlists added on the status page, with their name and whether they're radio
+- "off": playlists the file uses that the Dashboard turned off
+- "added": playlists added on the Dashboard, with their name and whether they're radio
 
 The page lists every playlist kia uses, and every one the sources file and sources.txt
 offer turned off, grouped by the file's "# --- Section ---" headings.
@@ -99,7 +99,7 @@ def _key(url: str) -> str:
 
 
 def apply(sources: list[Source], offers: list[Offered], state: dict) -> list[Source]:
-    """The sources file's playlists with the status page's choices applied."""
+    """The sources file's playlists with the Dashboard's choices applied."""
     off = {_key(u) for u in state["off"]}
     out = [s for s in sources if _key(s.url) not in off]
     have = {_key(s.url) for s in out}
@@ -135,7 +135,7 @@ def apply(sources: list[Source], offers: list[Offered], state: dict) -> list[Sou
 
 
 def listing(sources_text: str, catalog_text: str | None, state: dict, counts: dict[str, dict]) -> list[dict]:
-    """Everything for the status page: each playlist with where it comes from, whether
+    """Everything for the Dashboard: each playlist with where it comes from, whether
     it's in use, and its streams from the last check (by name)."""
     offers = offered(sources_text)
     seen = {_key(o.url) for o in offers}
@@ -158,7 +158,7 @@ def listing(sources_text: str, catalog_text: str | None, state: dict, counts: di
         k = _key(a["url"])
         if k in seen:
             continue
-        rows.append({"url": a["url"], "name": a.get("name") or "", "label": "", "section": "Added on the status page",
+        rows.append({"url": a["url"], "name": a.get("name") or "", "label": "", "section": "Added on the Dashboard",
                      "radio": bool(a.get("radio")), "on": k not in off, "origin": "added", "changed": True,
                      "streams": counts.get(a.get("name") or "")})  # fmt: skip
     return rows
@@ -180,7 +180,7 @@ def set_on(state: dict, url: str, on: bool, in_file: bool, known: bool) -> dict:
 
 
 def check_new(url: str, name: str, taken: set[str]) -> tuple[str, str]:
-    """Check a playlist someone adds on the status page: (url, name)."""
+    """Check a playlist someone adds on the Dashboard: (url, name)."""
     url = url.strip()
     name = name.strip().lower()
     if not _PLAYLIST_RE.match(url) or (" " in url and not url.startswith("radio-browser:")):
@@ -209,7 +209,7 @@ def add(state: dict, url: str, name: str, radio: bool) -> dict:
 def remove(state: dict, url: str) -> dict:
     k = _key(url)
     if not any(_key(a["url"]) == k for a in state["added"]):
-        raise ValueError("Only playlists added on the status page can be removed here.")
+        raise ValueError("Only playlists added on the Dashboard can be removed here.")
     state["added"] = [a for a in state["added"] if _key(a["url"]) != k]
     state["off"] = [u for u in state["off"] if _key(u) != k]
     return state

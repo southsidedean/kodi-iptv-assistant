@@ -210,7 +210,7 @@ def write_profiles(cfg: Config, chosen: list[Checked] | None = None) -> None:
     which playlists each kept channel came from; after a guide build it's left out."""
     from kia import api
 
-    with api.LOCK:  # not while the status page is saving a profile
+    with api.LOCK:  # not while the Dashboard is saving a profile
         if chosen is not None:
             profiles.save_sources(cfg.state_dir, [(c.entry, {c.entry.source} | {e.source for e in c.also}) for c in chosen])
         profiles.rebuild(cfg.output_dir, cfg.state_dir, cfg.profiles_file, cfg.epg_url, log)
@@ -327,8 +327,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         rec = history.get(e.url)
         checked.append(Checked(e, r, classify(r, rec, cfg.grace_failures), r.height or rec.get("height")))
     chosen = select(checked, {s.name: i for i, s in enumerate(cfg.sources)}, cfg.merge_duplicates)
-    # Favorites and numbers chosen on the status page (kia.channels).
-    # Choices, numbers, and the playlist are written together, never while the status page
+    # Favorites and numbers chosen on the Dashboard (kia.channels).
+    # Choices, numbers, and the playlist are written together, never while the Dashboard
     # is saving a change (kia.api.LOCK), so neither undoes the other.
     from kia import api as api_module
 
@@ -606,7 +606,7 @@ def build_guide(
         f"-> {out} (+ .gz), report in {cfg.output_dir / 'guide-report.md'}"
     )
     write_profiles(cfg)  # the profiles' own guides, from the new one
-    xmltv.write_preview(out, cfg.output_dir / "guide-preview.json", now)  # "On now" on the status page
+    xmltv.write_preview(out, cfg.output_dir / "guide-preview.json", now)  # "On now" on the Dashboard
     drop_alert = check_count_drop(cfg, "guide_channels", with_data, "guide_drop", "channels with guide data")
     update_status(cfg, guide_updated=now_iso(), coverage=xmltv.coverage(entries, choices))
     return EXIT_ALERT if drop_alert else 0
@@ -708,11 +708,11 @@ def run_pipeline(config: str, update_epg: bool) -> int:
 
 
 def update_status(cfg: Config, **run: object) -> None:
-    """Rewrite the status page; a failure here never stops a run."""
+    """Rewrite the Dashboard; a failure here never stops a run."""
     try:
         status.update(cfg.output_dir, cfg.state_dir, cfg.public_url, **run)
     except (OSError, ValueError) as exc:
-        log(f"Couldn't update the status page: {exc}")
+        log(f"Couldn't update the Dashboard: {exc}")
 
 
 def run_and_report(config: str, update_epg: bool) -> int:
@@ -799,7 +799,7 @@ def api_config(cfg: Config):
 
 def secure_setup(cfg: Config) -> dict | None:
     """Make the admin password and the certificate if needed, and note the certificate and
-    the secure page's address in state/secure.json for the status page."""
+    the secure page's address in state/secure.json for the Dashboard."""
     auth.from_env(cfg.state_dir).ensure(log)
     names = tls.names(cfg.public_url, cfg.tls_names)
     info = tls.ensure(cfg.tls_dir, names, log)
@@ -809,17 +809,17 @@ def secure_setup(cfg: Config) -> dict | None:
 
 
 def write_settings(cfg: Config, run_at: str | None, guide_every: float | None) -> None:
-    """The settings kia is running with, for the status page's Details (kia.settings)."""
+    """The settings kia is running with, for the Dashboard's System page (kia.settings)."""
     shown = {"run_at": run_at, "guide_every": guide_every, "sections": settings.describe(cfg, run_at, guide_every)}
     try:
         write_atomic(cfg.state_dir / "settings.json", json.dumps(shown, indent=1))
     except OSError as exc:
-        log(f"Couldn't save the settings for the status page: {exc}")
+        log(f"Couldn't save the settings for the Dashboard: {exc}")
 
 
 def refresh_settings_and_status(cfg: Config) -> None:
-    """After a change on the status page (a new password, say): the settings shown on
-    Details and the Getting started checklist read them, so rewrite both."""
+    """After a change on the Dashboard (a new password, say): the settings shown on
+    the System page and the Getting started checklist read them, so rewrite both."""
     try:
         saved = json.loads((cfg.state_dir / "settings.json").read_text())
     except (OSError, ValueError):
@@ -884,7 +884,7 @@ def serve_secure(cfg: Config, bind: str, port: int | None):
         return None
     server = serve.serve_in_background(cfg.output_dir, bind, port, api_config(cfg), tls_dir=cfg.tls_dir,
                                        relay=pluto_relay(cfg))  # fmt: skip
-    log(f"Serving the secure status page at https://{bind}:{port}/")
+    log(f"Serving the secure Dashboard at https://{bind}:{port}/")
     return server
 
 
@@ -982,7 +982,7 @@ def cmd_password(args: argparse.Namespace) -> int:
         log("The password is set by KIA_ADMIN_PASSWORD in .env; change it there and restart kia.")
         return 1
     if not args.reset:
-        shown = "is in " + str(a.shown) if a.shown.exists() else "was changed on the status page"
+        shown = "is in " + str(a.shown) if a.shown.exists() else "was changed on the Dashboard"
         log(f"The password {shown}. To replace it: kia password --reset")
         return 0
     a.reset(log)
@@ -1103,7 +1103,7 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
     )
     p.add_argument("--port", type=int, default=int(os.environ.get("KIA_PORT") or 8780), help="default: KIA_PORT or 8780")
     p.add_argument("--https-port", type=int, default=int(os.environ.get("KIA_HTTPS_PORT") or 8743),
-                   help="the secure status page's port (default: KIA_HTTPS_PORT or 8743; 0 = none)")  # fmt: skip
+                   help="the secure Dashboard's port (default: KIA_HTTPS_PORT or 8743; 0 = none)")  # fmt: skip
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1152,12 +1152,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--update", action="store_true", help="git pull the epg checkout first")
     p.set_defaults(func=cmd_run)
 
-    p = sub.add_parser("tls", help="show the secure status page's certificate, or make a new self-signed one")
+    p = sub.add_parser("tls", help="show the secure Dashboard's certificate, or make a new self-signed one")
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--self-signed", action="store_true", help="replace the certificate with a new self-signed one")
     p.set_defaults(func=cmd_tls)
 
-    p = sub.add_parser("password", help="make a new password for editing on the status page")
+    p = sub.add_parser("password", help="make a new password for editing on the Dashboard")
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--reset", action="store_true", help="replace the password with a new one and print it")
     p.set_defaults(func=cmd_password)
@@ -1210,7 +1210,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
     p.add_argument("--api-port", type=int, default=int(os.environ.get("KIA_API_PORT") or 0),
-                   help="serve the status page's profile editor API on this port (Docker sets 8781)")  # fmt: skip
+                   help="serve the Dashboard's profile editor API on this port (Docker sets 8781)")  # fmt: skip
     p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
     add_serve_args(p)
     p.set_defaults(func=cmd_daemon)
