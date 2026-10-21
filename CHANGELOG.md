@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.4.3 (unreleased)
+## 0.4.3 (2026-10-21)
+
+### Upgrading from 0.4.2
+
+Update as usual: `git pull`, then `docker compose up -d --build`. If the Dashboard then warns that others can read `.env`, run `chmod 600 .env` in the kia folder.
 
 ### Faster on small computers
 
