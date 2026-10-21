@@ -4,12 +4,10 @@ Plex can't open a playlist by itself. It does live TV through tuners such as the
 
 Plex says watching through a tuner is free, and recording (DVR) needs [Plex Pass](https://www.plex.tv/plex-pass/). Plex changes its plans from time to time, so check its [Live TV & DVR](https://support.plex.tv/articles/225877347-live-tv-dvr/) page.
 
-```mermaid
-flowchart TB
-  kia["kia<br>plex.m3u and its guide"] --> tf["Threadfin, port 34400<br>looks like an<br>HDHomeRun tuner"]
-  tf --> pms["Plex Media Server"]
-  pms --> apps["Plex apps on your<br>TV, phone, and browser"]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/plex-one-tuner-dark.svg">
+  <img alt="kia's plex.m3u and its guide go to Threadfin on port 34400, which looks like an HDHomeRun tuner to Plex Media Server, which serves the Plex apps on your TV, phone, and browser." src="../images/diagrams/plex-one-tuner-light.svg">
+</picture>
 
 ## Before you start
 
@@ -17,13 +15,10 @@ flowchart TB
 - Plex Media Server on a computer in the same home network. It can be the kia computer or another one, installed any way you like (a package, an app, or a container).
 - An idea of how many channels you want in Plex. **Plex takes at most 480 channels from each tuner.** Up to 480, you need one Threadfin. For more, run two, each with its own playlist; Plex shows both tuners' channels together in one guide.
 
-```mermaid
-flowchart TB
-  kia["kia"] --> tf1["Threadfin<br>port 34400<br>plex-1.m3u<br>up to 480 channels"]
-  kia --> tf2["Threadfin 2<br>port 34401<br>plex-2.m3u<br>up to 480 channels"]
-  tf1 --> pms["Plex Media Server<br>both in one guide"]
-  tf2 --> pms
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/plex-two-tuners-dark.svg">
+  <img alt="kia feeds Threadfin on port 34400 with plex-1.m3u and Threadfin 2 on port 34401 with plex-2.m3u, up to 480 channels each. Plex Media Server shows both in one guide." src="../images/diagrams/plex-two-tuners-light.svg">
+</picture>
 
 ## 1. Make a playlist for Plex
 

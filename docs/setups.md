@@ -2,12 +2,10 @@
 
 The setups below differ only in who can reach kia and how much work the machine does. Each recipe lists the `.env` lines to change from `.env.example`.
 
-```mermaid
-flowchart TB
-  tvs["TVs and<br>streaming boxes"] --> srv["kia on an<br>always-on machine"]
-  devices["Computers,<br>phones, tablets"] --> srv
-  laptop["A traveling laptop<br>with its own kia,<br>using the home guide"] -.-> srv
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/setups-dark.svg">
+  <img alt="TVs, streaming boxes, computers, phones, and tablets all use kia on an always-on machine at home. A traveling laptop runs its own kia, using the home guide." src="../images/diagrams/setups-light.svg">
+</picture>
 
 ## Home server
 

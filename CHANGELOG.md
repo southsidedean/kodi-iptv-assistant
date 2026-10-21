@@ -2,6 +2,10 @@
 
 ## 0.5.0 (unreleased)
 
+### Docs
+
+- The diagrams are easier to read on GitHub, in light and dark mode: no more labels on grey or text hidden behind GitHub's zoom buttons. They're now images, made from sources in `docs/diagrams/` by `scripts/diagrams.sh`, so they look the same everywhere.
+
 ## 0.4.3 (2026-10-21)
 
 ### Upgrading from 0.4.2

@@ -1,0 +1,11 @@
+flowchart TB
+  src["Channel sources<br>playlists and radio"] --> check["1. Check streams"]
+  check --> map["2. Match channels<br>to guide sites"]
+  map --> grab["3. Download<br>guide data"]
+  grab --> build["4. Build the guide"]
+  check --> m3u["curated.m3u<br>and your playlists"]
+  build --> xml["guide.xml.gz<br>and their guides"]
+  m3u --> web["kia's web server<br>port 8780"]
+  xml --> web
+  web --> players["Kodi and<br>other players"]
+  web --> dash["The Dashboard"]
