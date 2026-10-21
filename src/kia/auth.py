@@ -76,10 +76,12 @@ class Auth:
         self.reset(log)
 
     def reset(self, log=print) -> str:
+        """A new password, saved in state/admin-password.txt (readable only by you). It's
+        never printed, so it can't land in a log others can read."""
         password = generate()
         self._save(password, generated=True)
         _write_private(self.shown, password + "\n")
-        log(f"Made a password for editing on the status page: {password} (also in {self.shown})")
+        log(f"Made a new password for editing on the status page; it's in {self.shown}")
         return password
 
     def _save(self, password: str, generated: bool) -> None:

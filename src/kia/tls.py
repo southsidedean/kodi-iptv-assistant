@@ -13,7 +13,9 @@ fingerprint it notes in tls/kia-generated.
 
 from __future__ import annotations
 
+
 import ipaddress
+import os
 import re
 import shutil
 import subprocess
@@ -80,7 +82,9 @@ def make_self_signed(tls_dir: Path, hosts: list[str]) -> None:
         "-addext", "extendedKeyUsage=serverAuth",
         "-keyout", str(key), "-out", str(cert),
     )  # fmt: skip
-    key.chmod(0o644)  # nginx runs as another user and must read it; the folder isn't served
+    # With Docker, nginx runs as another user and must read the key (compose sets
+    # KIA_TLS_SHARED); the folder is never served. Otherwise only you can read it.
+    key.chmod(0o644 if os.environ.get("KIA_TLS_SHARED", "").lower() in ("1", "true", "yes") else 0o600)
     key.replace(tls_dir / KEY)
     cert.replace(tls_dir / CERT)
     (tls_dir / MARK).write_text(fingerprint(tls_dir / CERT) + "\n")

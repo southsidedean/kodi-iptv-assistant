@@ -59,6 +59,8 @@ services:
       KIA_EDITING: ${KIA_EDITING:-}
       KIA_HTTPS_PORT: ${KIA_HTTPS_PORT:-8743}
       KIA_TLS_NAMES: ${KIA_TLS_NAMES:-}
+      # nginx (another user) reads kia's certificate key from tls/.
+      KIA_TLS_SHARED: "true"
       # nginx forwards /api/ and /pluto/ to this port (not published).
       KIA_API_PORT: "8781"
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.

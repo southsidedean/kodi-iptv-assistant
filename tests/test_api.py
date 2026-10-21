@@ -118,7 +118,8 @@ def test_generated_password_can_be_changed(cfg, tmp_path):
     logged = []
     a.ensure(logged.append)
     shown = a.shown.read_text().strip()
-    assert a.source == "generated" and shown in logged[0] and a.check(shown) and not a.check("nope")
+    assert a.source == "generated" and a.check(shown) and not a.check("nope")
+    assert shown not in logged[0] and str(a.shown) in logged[0]  # the log says where it is, never what
     assert len(shown) == 14 and all(c in auth.ALPHABET + "-" for c in shown)
     assert (a.saved.stat().st_mode & 0o777) == 0o600 and shown not in a.saved.read_text()
     a.ensure(logged.append)
