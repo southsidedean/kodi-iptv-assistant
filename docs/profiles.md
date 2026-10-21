@@ -6,6 +6,13 @@ Each profile also gets its own program guide with only its channels, so a slow d
 
 You can make profiles on kia's Dashboard or by editing a file. Both change the same file, `profiles/profiles.toml`, so you can switch between them.
 
+```mermaid
+flowchart LR
+  all["Everything<br>curated.m3u"] --> kids["kids.m3u<br>and its guide"]
+  all --> lr["living-room.m3u<br>and its guide"]
+  all --> tv["tv.m3u<br>TV only"]
+```
+
 ## On the Dashboard
 
 1. Find kia's password. kia made one when it first started; in the kia folder, run:
@@ -31,7 +38,7 @@ You can make profiles on kia's Dashboard or by editing a file. Both change the s
 
 5. On the device, use that address as the **M3U playlist URL** in IPTV Simple Client (or your player), instead of `curated.m3u`. Kodi finds the playlist's own guide by itself. If another player asks for a guide address, it's on the same page.
 
-![A playlist's page on the Dashboard: its playlist and guide addresses with Copy buttons, and its channels numbered from 1](../images/kia-playlist-screenshot.png)
+![A playlist's page on the Dashboard: its playlist and guide addresses with Copy buttons, and its channels with what's on now and next](../images/kia-playlist-screenshot.png)
 
 To change or delete a playlist later, open it from the secure Dashboard and choose **Edit this playlist**. The browser tab remembers the password until you close it.
 

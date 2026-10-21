@@ -63,6 +63,7 @@
 
 ### Docs
 
+- Diagrams show the nightly steps, how Pluto TV channels play through kia, the setups, the Dashboard's two ports, and profiles. The Dashboard screenshots are new.
 - The Plex guide is rewritten and tested end to end: Threadfin started with kia, one or two tuners, the Threadfin settings that work (including FFmpeg options that pass on one stream instead of every quality at once), adding the tuners in Plex, diagrams and screenshots, and fixes for what goes wrong, such as a Plex Web bug in Firefox.
 - The 48 kHz audio note covers Kodi's Fixed output setting, and a TV left at the wrong rate after Kodi quits.
 - The quick install now waits for the first refresh before setting up Kodi, explains how to open a terminal, and includes the Raspberry Pi settings. The installer prints full links to the guides.

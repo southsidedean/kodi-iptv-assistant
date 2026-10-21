@@ -2,6 +2,20 @@
 
 Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide every few hours in between ([details](#4-build-the-guide-kia-guide)). You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
 
+```mermaid
+flowchart TB
+  src["Channel sources<br>playlists and radio"] --> check["1. Check streams"]
+  check --> map["2. Match channels<br>to guide sites"]
+  map --> grab["3. Download<br>guide data"]
+  grab --> build["4. Build the guide"]
+  check --> m3u["curated.m3u<br>and your playlists"]
+  build --> xml["guide.xml.gz<br>and their guides"]
+  m3u --> web["kia's web server<br>port 8780"]
+  xml --> web
+  web --> players["Kodi and<br>other players"]
+  web --> dash["The Dashboard"]
+```
+
 ## 1. Check streams (`kia check`)
 
 Every stream in your playlists is opened with `ffprobe`. A TV stream counts as working if it opens and has video; a radio station needs only audio. Some servers turn away anything that isn't a media player, or more than a couple of connections from one place, so kia introduces itself as VLC (the player most widely accepted), tests at most two streams per server at a time, and starts tests on the same server at least a tenth of a second apart. jmp2.uk, which carries about 750 Pluto TV, Samsung TV Plus, and Plex streams, allows six at a time (`per_host_limits`). Streams that fail a name lookup or time out get a second, slower try before they count as failed. Only network addresses (`http`, `https`, `rtmp`, `rtsp`) are tested; anything else in a playlist, such as a file on this computer, is marked dead.
@@ -60,6 +74,23 @@ So kia plays Pluto channels itself. The playlist points each Pluto channel at ki
 - keeps its own list of the channel's pieces in time order, leaves out repeats and pieces Pluto already sent, and opens a new session if Pluto goes back;
 - copies each piece onto one steady clock, so players never see it start over. ffmpeg only copies (it doesn't re-encode), so this is light work.
 
+```mermaid
+sequenceDiagram
+  participant P as Player
+  participant K as kia
+  participant T as Pluto TV
+  P->>K: Open the channel
+  K->>T: Start a session, with Pluto putting in the ads
+  T-->>K: The channel's list of pieces
+  K-->>P: kia's own list, in order, with steady numbering
+  loop Every few seconds
+    P->>K: Next piece
+    K->>T: Fetch it
+    K->>K: Skip repeats, move it onto one clock
+    K-->>P: The piece
+  end
+```
+
 kia fetches each piece from Pluto when a player first asks for it, so it uses about as much of your internet connection as watching Pluto directly. Everyone watching a channel shares its session and its pieces, and kia lets a channel go two minutes after the last player stops. When Pluto goes back to pieces kia already sent, kia waits for new ones instead of playing them again, so the picture can pause for up to half a minute. If Pluto won't open a session, kia plays Pluto's plain link instead, which may freeze at breaks, and tries again every five minutes. Timeshift (pausing and rewinding live TV) keeps working, because it happens in the player.
 
 The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every device that plays them must be able to reach it; when it isn't set, Pluto channels keep their own links. `KIA_PLUTO_RELAY=false` in `.env` turns this off, and the playlist then has Pluto's own links. While Pluto channels play, the Dashboard's **System** page shows each one, its session, and any recent problems. The same is in `pluto.json` for scripts.
@@ -81,7 +112,7 @@ The menu at the top leads to the other pages:
 
 Every page has the same menu at the top, a **Documentation** button that opens these docs, and a link to the [troubleshooting guide](troubleshooting.md) at the bottom.
 
-![kia's Dashboard showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
+![kia's Dashboard: the menu, a banner saying everything's working, the Getting started checklist, the channel counts, and four playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 

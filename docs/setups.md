@@ -2,6 +2,16 @@
 
 The setups below differ only in who can reach kia and how much work the machine does. Each recipe lists the `.env` lines to change from `.env.example`.
 
+```mermaid
+flowchart LR
+  subgraph home["At home"]
+    srv["kia on an always-on machine"]
+    tvs["TVs and streaming boxes"] --> srv
+    devices["Computers, phones, tablets"] --> srv
+  end
+  laptop["A laptop with its own kia"] -. "takes the guide from home<br>when it can reach it" .-> srv
+```
+
 ## Home server
 
 One always-on machine (a Linux box, NAS, or mini PC) serves every TV, phone, and computer in the house, including ones that can't run anything themselves, like Fire TV, Android TV, or Apple TV.
