@@ -30,7 +30,7 @@ def test_env_settings_reach_docker_and_docs():
     config_doc = (ROOT / "docs" / "configuration.md").read_text()
     settings = env_example_settings()
     assert "KIA_PUBLIC_URL" in settings and len(settings) > 10
-    missing_compose = [s for s in settings if "${" + s not in compose]
+    missing_compose = [s for s in settings if "${" + s not in compose and not s.startswith("COMPOSE_")]  # COMPOSE_*: read by Docker Compose itself
     missing_docs = [s for s in settings if f"`{s}`" not in config_doc]
     assert not missing_compose, f"not used in compose.yaml: {missing_compose}"
     assert not missing_docs, f"not documented in docs/configuration.md: {missing_docs}"

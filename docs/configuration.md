@@ -52,6 +52,9 @@ To see the settings kia is running with, open **Details** on the status page, or
 | `KIA_RADIO_PLACEHOLDERS` | false | The same for radio stations, so Kodi's radio guide lists each station's name. Almost no station has guide data, so this fills the radio guide with name blocks. |
 | `KIA_EPG_GIT_URL`, `KIA_EPG_GIT_REF` | iptv-org/epg, `latest` | Use a fork of iptv-org/epg, or pin a branch, tag, or commit. See [versions](#versions). |
 | `KIA_NODE_IMAGE`, `KIA_NGINX_IMAGE` | `node:lts-alpine`, `nginx:alpine` | Docker images for kia and the web server. See [versions](#versions). |
+| `COMPOSE_PROFILES` | | `plex` starts Threadfin with kia, for [Plex](plex.md); `plex,plex-2` starts two, for more than 480 channels. |
+| `KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT` | `34400`, `34401` | Threadfin's web pages, and the tuner addresses Plex uses. |
+| `KIA_THREADFIN_IMAGE` | `fyb3roptik/threadfin:1.2.37` | Threadfin's version. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.

@@ -23,7 +23,7 @@ from pathlib import Path, PurePosixPath
 from kia import __version__
 
 FILES = (".env", "kia.toml", "sources.txt", "sources.local.txt")
-FOLDERS = ("playlists", "profiles", "state", "tls")
+FOLDERS = ("playlists", "profiles", "state", "tls", "threadfin", "threadfin-2")
 MANIFEST = "kia-backup.json"
 
 
