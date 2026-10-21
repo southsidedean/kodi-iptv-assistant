@@ -30,8 +30,20 @@
 - The image now runs as an ordinary user even without compose.yaml, and picks up Alpine's and npm's security fixes when it's built.
 - Every pull request scans the image for known vulnerabilities (Trivy) and checks kia's code with Ruff and Bandit, its scripts with ShellCheck, and its workflows with zizmor. The published image is scanned again every week, and the results show in the repository's Security tab.
 
+### Status page
+
+- The two things called "Add a playlist" have their own names now: **Make a playlist** for the playlists you make for people and devices, and **Channel sources** (with **Add a channel source**) for the lists kia reads channels from.
+- Saving, errors, and test results show next to what you changed, not at the top of a long page; the Channel sources list no longer redraws and closes the sections you opened. Errors look like errors everywhere.
+- Changing a channel number says which channels moved and where; clicking away from the number box cancels instead of saving. The TV-only playlist's page no longer offers number changes.
+- On phones, each channel's Test button sits with its name. Removing a channel asks first, says where to put it back, and test failures are in plain words ("the stream's address doesn't exist any more").
+- The playlist editor shows pinned channels by name, can filter long category lists, asks before saving a playlist with no channels, says when it's saving, and confirms afterwards.
+- The password help matches where your password comes from, always says what to do if you forget it, and the Details page and checklist update after you change it.
+- Empty states: a filter with no matches, a playlist with no channels, no guide yet, and pages opened as files each say so. A hidden Getting started can be brought back from Help; a `localhost` address is no longer ticked as reachable by other devices.
+- Buttons and boxes have labels for screen readers, and keyboard focus stays where you were.
+
 ### Docs
 
+- The 48 kHz audio note covers Kodi's Fixed output setting, and a TV left at the wrong rate after Kodi quits.
 - The quick install now waits for the first refresh before setting up Kodi, explains how to open a terminal, and includes the Raspberry Pi settings. The installer prints full links to the guides.
 - New: what to do when kia won't start, how to change kia's address, and how to uninstall. kia doesn't run on Windows yet, and the docs now say so.
 - Corrections to the security policy, the profiles example, the files kia keeps (`state/` holds the password), the API overview, and the update steps, which now point to each version's upgrade notes.
@@ -74,7 +86,7 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 
 ### Choosing playlists on the status page
 
-- The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-playlists-on-the-status-page).
+- The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-channel-sources-on-the-status-page).
 - **Check now** tests every stream in one playlist straight away and shows how many work, without changing your playlists.
 - The same is in the API: `GET`, `PUT`, `POST`, and `DELETE /api/sources`, and `/api/sources/check`.
 

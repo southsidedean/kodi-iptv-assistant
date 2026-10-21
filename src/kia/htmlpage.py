@@ -158,17 +158,26 @@ FILTER_SCRIPT = """
 <script>
 document.querySelectorAll("input[data-filter]").forEach(function (box) {
   var table = document.getElementById(box.dataset.filter);
+  // The rows' text as written, before any buttons are added to them.
+  Array.prototype.forEach.call(table.querySelectorAll("tbody tr"), function (row) { row._text = row.textContent.toLowerCase(); });
+  var none = document.createElement("p");
+  none.className = "muted"; none.hidden = true; none.setAttribute("role", "status");
+  table.parentNode.before(none);
+  box.setAttribute("aria-label", box.placeholder);
   box.addEventListener("input", function () {
-    var q = box.value.toLowerCase();
+    var q = box.value.toLowerCase(), total = 0;
     Array.prototype.forEach.call(table.tBodies, function (body) {
       var shown = 0, head = body.querySelector("tr.group-head");
       Array.prototype.forEach.call(body.rows, function (row) {
-        if (row === head) return;
-        row.hidden = q && row.textContent.toLowerCase().indexOf(q) < 0;
+        if (row === head || row._text === undefined) return;
+        row.hidden = q && row._text.indexOf(q) < 0;
         if (!row.hidden) shown++;
       });
       if (head) head.hidden = !shown;
+      total += shown;
     });
+    none.hidden = !q || total > 0;
+    none.textContent = "No channels match \u201c" + box.value + "\u201d.";
   });
 });
 </script>

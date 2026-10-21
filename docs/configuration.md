@@ -2,7 +2,7 @@
 
 Three files, from most to least often changed:
 
-- `sources.txt`: which playlists and radio stations to check. The easiest way to choose them is on the status page ([choosing playlists](#choosing-playlists-on-the-status-page)). In the file:
+- `sources.txt`: which playlists and radio stations to check. The easiest way to choose them is on the status page ([choosing playlists](#choosing-channel-sources-on-the-status-page)). In the file:
   - Remove `#` to turn a line on. Add your own URLs or file paths, one per line.
   - Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio.
   - With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer.
@@ -13,7 +13,7 @@ Three files, from most to least often changed:
 
 When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists are the exception: `.env` adds to `kia.toml`'s list instead of replacing it.
 
-To see the settings kia is running with, open **Details** on the status page, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-playlists-on-the-status-page)), settings can't be changed from the status page.
+To see the settings kia is running with, open **Details** on the status page, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-channel-sources-on-the-status-page)), settings can't be changed from the status page.
 
 ## `.env`
 
@@ -56,11 +56,11 @@ To see the settings kia is running with, open **Details** on the status page, or
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.
 
-## Choosing playlists on the status page
+## Choosing channel sources on the status page
 
-The secure status page's **Details** page has a **Choose playlists** card. It lists every playlist kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a playlist** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
+The secure status page's **Details** page has a **Channel sources** card: the playlists kia reads channels from. It lists every one kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a channel source** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
 
-**Check now** tests every stream in one playlist right away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing.
+**Check now** tests every stream in one source right away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing.
 
 kia doesn't change your sources file (with Docker, it can't), so it keeps the choices made on the page in `state/sources.json` and applies them on top of the file at every run. The file stays yours to edit by hand. If you use your own copy (`KIA_SOURCES_FILE`), the page still offers everything in `sources.txt`. Like changes to the file, choices made on the page take effect at the next refresh.
 

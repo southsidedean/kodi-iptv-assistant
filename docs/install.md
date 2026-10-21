@@ -104,7 +104,7 @@ TZ=America/New_York
 
 Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). On a Raspberry Pi, also add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory. If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
 
-Choosing playlists is optional: the USA list is on by default, which is enough to start. You can change it any time, most easily on the status page once kia is running ([choosing playlists on the status page](configuration.md#choosing-playlists-on-the-status-page)). To choose now instead, make your own copy of the list, so updating kia never touches your choices:
+Choosing playlists is optional: the USA list is on by default, which is enough to start. You can change it any time, most easily on the status page once kia is running ([choosing playlists on the status page](configuration.md#choosing-channel-sources-on-the-status-page)). To choose now instead, make your own copy of the list, so updating kia never touches your choices:
 
 ```sh
 cp sources.txt sources.local.txt

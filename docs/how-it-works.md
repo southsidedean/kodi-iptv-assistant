@@ -74,7 +74,7 @@ The pages:
 
 - **A playlist's page** (Everything, TV only, and each profile) has its playlist and guide addresses and its channels, TV and radio under their own headings, with their numbers, categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide, in your device's time zone. A profile's page also has **Edit this playlist**.
 - **On the secure page**, each channel also has a star for [favorites](configuration.md#favorites-and-your-own-channel-numbers) and a **Test** button that tries its stream now ([a channel won't play](troubleshooting.md#a-channel-wont-play)). On Everything you can change channel numbers.
-- **Details** has the guide coverage, how each source playlist's streams are doing, the full reports, the [Pluto TV](#pluto-tv) channels playing right now, the playlists kia checks (which you can [choose](configuration.md#choosing-playlists-on-the-status-page) on the secure page), and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
+- **Details** has the guide coverage, how each source playlist's streams are doing, the full reports, the [Pluto TV](#pluto-tv) channels playing right now, the playlists kia checks (which you can [choose](configuration.md#choosing-channel-sources-on-the-status-page) on the secure page), and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
 ![kia's status page showing everything working, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 

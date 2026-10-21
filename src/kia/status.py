@@ -231,12 +231,12 @@ def _counts(pl: dict) -> str:
     return f"{_n(pl['tv'])} TV channels" + (f", {_n(pl['radio'])} radio stations" if pl["radio"] else "")
 
 
-def _address(i: int | str, url: str | None, file: str, root: str = "") -> str:
+def _address(i: int | str, url: str | None, file: str, root: str = "", what: str = "address") -> str:
     if not url:
         return f'<a href="{escape(root + file)}">{escape(file)}</a>'
     return (
         f'<div class="copy"><code id="copy-{i}">{escape(url)}</code>'
-        f'<button type="button" data-copy="copy-{i}">Copy</button></div>'
+        f'<button type="button" data-copy="copy-{i}" aria-label="Copy the {escape(what)}">Copy</button></div>'
     )
 
 
@@ -255,7 +255,7 @@ def _playlists_card(s: dict) -> str:
     for i, pl in enumerate(_playlists(s)):
         items.append(
             f'<div class="playlist"><div><a class="pl-title" href="{escape(pl["page"])}">{escape(pl["title"])}</a> '
-            f'<span class="muted">{_counts(pl)}</span></div>{_address(i, pl["url"], pl["file"])}</div>'
+            f'<span class="muted">{_counts(pl)}</span></div>{_address(i, pl["url"], pl["file"], what=pl["title"] + " playlist address")}</div>'
         )
     return (
         f'<section class="card" id="playlists" data-add{_secure_attr(s)}><h2>Playlists</h2>'
@@ -345,7 +345,7 @@ def checklist(s: dict) -> list[dict]:
     return [
         {"id": "refresh", "title": "kia finishes its first refresh", "done": bool(s["last_run"].get("finished")),
          "text": "It checks every stream and builds the guide. It takes up to an hour, and this page updates when it's done."},
-        {"id": "address", "title": "Other devices can reach kia", "done": bool(url),
+        {"id": "address", "title": "Other devices can reach kia", "done": bool(url) and not local_only, "manual": local_only,
          "text": "This computer only (KIA_PUBLIC_URL is localhost). That's right if you watch on this computer; "
                  "for other devices, set KIA_PUBLIC_URL in .env to this computer's network address." if local_only
                  else "Set KIA_PUBLIC_URL in .env to this computer's address, e.g. http://192.168.1.20:8780, "
@@ -358,7 +358,7 @@ def checklist(s: dict) -> list[dict]:
                  "or set KIA_ADMIN_PASSWORD in .env.", "doc": "secure-page.md#the-password"},
         {"id": "playlists", "title": "Choose your playlists (optional)", "manual": True,
          "text": "Add other countries, streaming services, or radio on the secure page's Details page.",
-         "doc": "configuration.md#choosing-playlists-on-the-status-page"},
+         "doc": "configuration.md#choosing-channel-sources-on-the-status-page"},
         {"id": "alerts", "title": "Get alerts when something breaks (optional)", "done": alerts,
          "text": "A message on your phone or by email if the nightly refresh fails.", "doc": "alerts.md"},
     ]  # fmt: skip
@@ -405,7 +405,12 @@ CHECKLIST_SCRIPT = """
   function load() { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; } }
   function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} }
   var state = load();
-  if (state.hidden) { card.hidden = true; return; }
+  var again = document.querySelector("a.show-steps");
+  if (again) again.addEventListener("click", function (ev) {
+    ev.preventDefault(); state.hidden = false; save(state); card.hidden = false; again.hidden = true;
+    card.scrollIntoView({ block: "start" });
+  });
+  if (state.hidden) { card.hidden = true; if (again) again.hidden = false; }
   function allDone() { return !card.querySelector("li:not([data-done])"); }
   card.querySelectorAll("li[data-manual]").forEach(function (li) {
     var old = li.querySelector(".tick"), b = document.createElement("button");
@@ -421,7 +426,8 @@ CHECKLIST_SCRIPT = """
     old.replaceWith(b); draw();
   });
   if (allDone()) card.hidden = true;
-  card.querySelector("button.hide").addEventListener("click", function () { state.hidden = true; save(state); card.hidden = true; });
+  card.querySelector("button.hide").addEventListener("click", function () {
+    state.hidden = true; save(state); card.hidden = true; if (again) again.hidden = false; });
 })();
 </script>
 """
@@ -501,7 +507,9 @@ def _footer(s: dict, root: str = "") -> str:
 
 def _help_card() -> str:
     links = "".join(f'<li><a href="{escape(url)}">{escape(name)}</a><span>{escape(what)}</span></li>' for url, name, what in HELP)
-    return f'<section class="card"><h2>Help</h2><ul class="links">{links}</ul></section>'
+    again = ('<li><a href="index.html#getting-started" class="show-steps" hidden>Getting started</a>'
+             "<span>the setup checklist, if you hid it</span></li>")
+    return f'<section class="card"><h2>Help</h2><ul class="links">{links}{again}</ul></section>'
 
 
 def render_html(s: dict) -> str:
@@ -559,7 +567,7 @@ def render_details(s: dict) -> str:
         )
         sources = f'<section class="card"><h2>Streams by playlist</h2><div class="sources">{rows}</div></section>'
     choose = (
-        f'<section class="card" id="sources-editor"{_secure_attr(s)} hidden><h2>Choose playlists</h2>'
+        f'<section class="card" id="sources-editor"{_secure_attr(s)} hidden><h2>Channel sources</h2>'
         '<div class="body"></div></section>'
     )
 
@@ -587,6 +595,9 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
     root = "../"
     # kia's own TV-only playlist has no settings to edit.
     tag = f' data-profile="{escape(pl["name"])}"' if pl["name"] and not pl.get("builtin") else ""
+    if pl.get("builtin"):
+        tag = " data-builtin"
+
     def row(e) -> str:
         return (
             f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"><td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td>'
@@ -605,6 +616,10 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         for kind, title, group in (("tv", "TV channels", tv), ("radio", "Radio stations", radio))
         if group
     )
+    if not entries:
+        bodies = ('<tbody><tr><td colspan="9" class="muted">No channels match this playlist\'s settings'
+                  + (", so it's empty. Edit this playlist to pick other categories or names." if pl["name"] and not pl.get("builtin")
+                     else " yet. They appear after kia's first refresh.") + "</td></tr></tbody>")
     filter_box = (
         f'<input type="search" placeholder="Filter these {len(entries):,} channels" data-filter="channels">'
         if len(entries) > FILTER_ROWS
@@ -621,10 +636,10 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         f"{_profiles_error(s) if pl['name'] else ''}"
         "<h2>Playlist address</h2>"
         "<p>Use this as the <strong>M3U playlist URL</strong> in IPTV Simple Client or your player.</p>"
-        f'{_address("playlist", pl["url"], pl["file"], root)}'
+        f'{_address("playlist", pl["url"], pl["file"], root, "playlist address")}'
         "<h2>Guide address</h2>"
         f"<p>{guide_note} Kodi finds it through the playlist; some other players ask for it separately.</p>"
-        f'{_address("guide", pl["guide_url"], pl["guide"], root)}'
+        f'{_address("guide", pl["guide_url"], pl["guide"], root, "guide address")}'
         "</section>"
         f'<section class="card" id="whats-on" data-root="{root}"><h2>Channels</h2>{filter_box}'
         '<div class="view" hidden><button type="button" data-view="list" aria-pressed="true">On now</button>'
