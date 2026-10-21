@@ -126,3 +126,70 @@ services:
       - ./deploy/kia-api.inc:/etc/nginx/conf.d/kia-api.inc:ro
       - ./deploy/nginx-tls.sh:/docker-entrypoint.d/90-kia-tls.sh:ro
       - ./tls:/etc/kia-tls:ro
+
+  # Optional: Threadfin shows kia's playlist and guide to Plex as a TV tuner, which is how
+  # Plex does live TV (docs/plex.md). To start it with kia, add COMPOSE_PROFILES=plex to
+  # .env, then run docker compose up -d. It reads kia's files over Docker's own network (http://web/...), so its settings
+  # keep working if this computer's address changes. Its settings live in threadfin/.
+  threadfin:
+    profiles: ["plex"]
+    image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${KIA_BIND:-0.0.0.0}:${KIA_THREADFIN_PORT:-34400}:34400"
+    depends_on:
+      - web
+    mem_limit: 1g
+    # Healthy while Threadfin answers on its port (its image has no curl or wget).
+    healthcheck:
+      # Threadfin listens on the container's own address, not 127.0.0.1.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/$$(hostname -i | cut -d' ' -f1)/34400"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ./threadfin/conf:/home/threadfin/conf
+      - ./threadfin/cache:/home/threadfin/cache
+
+  # A second Plex tuner, for more channels than one tuner takes (Plex takes at most 480
+  # from each). Start both with COMPOSE_PROFILES=plex,plex-2 in .env.
+  threadfin-2:
+    profiles: ["plex-2"]
+    image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${KIA_BIND:-0.0.0.0}:${KIA_THREADFIN_2_PORT:-34401}:34400"
+    depends_on:
+      - web
+    mem_limit: 1g
+    healthcheck:
+      # Threadfin listens on the container's own address, not 127.0.0.1.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/$$(hostname -i | cut -d' ' -f1)/34400"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ./threadfin-2/conf:/home/threadfin/conf
+      - ./threadfin-2/cache:/home/threadfin/cache

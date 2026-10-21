@@ -37,10 +37,13 @@ class Profile:
     # What to take out.
     exclude_groups: list[str] = field(default_factory=list)
     exclude_names: list[str] = field(default_factory=list)
+    exclude_channels: list[str] = field(default_factory=list)  # tvg-ids, always left out
     tv: bool = True
     radio: bool = True
     # Number this playlist's channels 1, 2, 3... instead of using the full list's numbers.
     renumber: bool = False
+    # Write ’ for ' so Threadfin reads the playlist right (it turns ' into ", which breaks the line).
+    threadfin: bool = False
 
     @property
     def label(self) -> str:
@@ -59,9 +62,9 @@ class Profile:
 # that list radio stations as TV channels. A profile of your own named "tv" replaces it.
 TV_ONLY = Profile("tv", title="TV only", radio=False)
 
-LISTS = ("groups", "sources", "names", "channels", "exclude_groups", "exclude_names")
+LISTS = ("groups", "sources", "names", "channels", "exclude_groups", "exclude_names", "exclude_channels")
 FLAGS = ("tv", "radio")  # on unless set to false
-SWITCHES = ("renumber",)  # off unless set to true
+SWITCHES = ("renumber", "threadfin")  # off unless set to true
 
 
 def load(path: Path) -> list[Profile]:
@@ -167,9 +170,12 @@ def select(profile: Profile, items: list[tuple[Entry, set[str]]]) -> list[Entry]
     exclude_groups = {g.casefold() for g in profile.exclude_groups}
     sources = set(profile.sources)
     pinned = set(profile.channels)
+    left_out = set(profile.exclude_channels)
     includes = bool(groups or sources or profile.names)
     out = []
     for entry, from_sources in items:
+        if entry.tvg_id and entry.tvg_id in left_out:
+            continue
         if entry.tvg_id and entry.tvg_id in pinned:
             out.append(entry)
             continue
@@ -200,10 +206,15 @@ def save_sources(state_dir: Path, items: list[tuple[Entry, set[str]]]) -> None:
 
 
 def numbered(profile: Profile, picked: list[Entry]) -> list[Entry]:
-    """The profile's channels with the numbers its playlist shows."""
-    if not profile.renumber:
-        return picked
-    return [replace(e, attrs={**e.attrs, "tvg-chno": str(i)}) for i, e in enumerate(picked, 1)]
+    """The profile's channels as its playlist shows them: their numbers, and for Threadfin, ’ for '."""
+    if profile.renumber:
+        picked = [replace(e, attrs={**e.attrs, "tvg-chno": str(i)}) for i, e in enumerate(picked, 1)]
+    if profile.threadfin:
+        picked = [replace(e, name=e.name.replace("'", "\u2019"),
+                          attrs={k: v if k == "tvg-id" or "://" in v else v.replace("'", "\u2019")
+                                 for k, v in e.attrs.items()})
+                  for e in picked]  # fmt: skip
+    return picked
 
 
 def write_guides(output_dir: Path, wanted: dict[str, set[str]]) -> set[str]:

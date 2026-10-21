@@ -30,7 +30,7 @@ def test_env_settings_reach_docker_and_docs():
     config_doc = (ROOT / "docs" / "configuration.md").read_text()
     settings = env_example_settings()
     assert "KIA_PUBLIC_URL" in settings and len(settings) > 10
-    missing_compose = [s for s in settings if "${" + s not in compose]
+    missing_compose = [s for s in settings if "${" + s not in compose and not s.startswith("COMPOSE_")]  # COMPOSE_*: read by Docker Compose itself
     missing_docs = [s for s in settings if f"`{s}`" not in config_doc]
     assert not missing_compose, f"not used in compose.yaml: {missing_compose}"
     assert not missing_docs, f"not documented in docs/configuration.md: {missing_docs}"
@@ -89,3 +89,18 @@ def test_env_example_leaves_settings_to_their_defaults():
         if line and not line.startswith("#") and "=" in line:
             name, value = line.split("=", 1)
             assert not value or name in allowed, f".env.example sets {name}={value}"
+
+
+def test_every_folder_compose_mounts_is_in_the_repository():
+    # Docker creates a missing folder as root, and kia and Threadfin, which run as your
+    # user, then can't write to it. So each one ships in the repository with a .gitkeep.
+    import re
+    import subprocess
+
+    root = Path(__file__).resolve().parent.parent
+    tracked = set(subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True, check=True).stdout.split())
+    mounts = re.findall(r"^\s+- \./([^:\s]*):", (root / "compose.yaml").read_text(), re.M)
+    folders = [m.rstrip("/") for m in mounts if m and "." not in Path(m).name]
+    assert "threadfin/conf" in folders and "state" in folders
+    missing = [f for f in folders if f"{f}/.gitkeep" not in tracked]
+    assert not missing, missing

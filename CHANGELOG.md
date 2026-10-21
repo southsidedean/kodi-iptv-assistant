@@ -27,6 +27,13 @@
 - Building kia sends only its code to Docker, never `.env`, `state/`, or `tls/`.
 - A test release tag (such as `v0.4.1-rc1`) no longer replaces the published `latest` image.
 
+### Plex
+
+- Threadfin, which shows kia's playlists to Plex as a TV tuner, can now run with kia: add `COMPOSE_PROFILES=plex` to `.env`. It starts and stops with kia, keeps its settings in the kia folder, and is part of kia's backups. `COMPOSE_PROFILES=plex,plex-2` runs a second one, because Plex takes at most 480 channels from each tuner. Their ports and image are set in `.env` (`KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT`, `KIA_THREADFIN_IMAGE`).
+- A new profile setting, **For Plex through Threadfin** (`threadfin = true`), writes channel names with a curly apostrophe. Threadfin turns a plain one into a double quote, which broke those channels' lines and their numbers.
+- A new profile setting, `exclude_channels`, leaves out channels by ID, whatever else the profile says. It keeps two Plex playlists from sharing channels.
+- Saving a playlist on the Dashboard no longer drops its `exclude_channels`.
+
 ### Under the hood
 
 - Building and reading the guide keeps memory flat on large guides.
@@ -50,6 +57,7 @@
 
 ### Docs
 
+- The Plex guide is rewritten and tested end to end: Threadfin started with kia, one or two tuners, the Threadfin settings that work (including FFmpeg options that pass on one stream instead of every quality at once), adding the tuners in Plex, diagrams and screenshots, and fixes for what goes wrong, such as a Plex Web bug in Firefox.
 - The 48 kHz audio note covers Kodi's Fixed output setting, and a TV left at the wrong rate after Kodi quits.
 - The quick install now waits for the first refresh before setting up Kodi, explains how to open a terminal, and includes the Raspberry Pi settings. The installer prints full links to the guides.
 - New: what to do when kia won't start, how to change kia's address, and how to uninstall. kia doesn't run on Windows yet, and the docs now say so.
