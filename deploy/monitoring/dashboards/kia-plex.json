@@ -361,7 +361,8 @@
    ],
    "fieldConfig": {
     "defaults": {
-     "unit": "short"
+     "unit": "short",
+     "noValue": "Nothing playing"
     },
     "overrides": []
    },
@@ -440,13 +441,35 @@
     "defaults": {
      "unit": "short",
      "custom": {
-      "fillOpacity": 25,
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
       "lineWidth": 2,
+      "fillOpacity": 25,
+      "gradientMode": "none",
       "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
       "stacking": {
-       "mode": "normal"
+       "mode": "normal",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
       }
-     }
+     },
+     "noValue": "Nothing played in this time"
     },
     "overrides": []
    },
@@ -491,13 +514,35 @@
     "defaults": {
      "unit": "short",
      "custom": {
-      "fillOpacity": 25,
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
       "lineWidth": 2,
+      "fillOpacity": 25,
+      "gradientMode": "none",
       "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
       "stacking": {
-       "mode": "normal"
+       "mode": "normal",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
       }
-     }
+     },
+     "noValue": "Nothing played in this time"
     },
     "overrides": []
    },
@@ -542,11 +587,32 @@
     "defaults": {
      "unit": "bps",
      "custom": {
-      "fillOpacity": 8,
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
       "lineWidth": 2,
+      "fillOpacity": 8,
+      "gradientMode": "none",
       "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
       "stacking": {
-       "mode": "none"
+       "mode": "none",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
       }
      }
     },
