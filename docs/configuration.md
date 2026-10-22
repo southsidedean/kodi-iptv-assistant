@@ -173,14 +173,7 @@ By default kia uses the latest version of each thing it depends on:
 | kia's base image | [Wolfi](https://github.com/wolfi-dev) (`cgr.dev/chainguard/wolfi-base:latest`), with Python, ffmpeg, and Node.js 24 (`KIA_NODE_VERSION`) | When you update kia (below) |
 | nginx (the web server) | `nginx:alpine`, the latest release | When you update kia (below) |
 
-To update kia and both images:
-
-```sh
-git pull
-docker compose build --pull
-docker compose pull --ignore-buildable
-docker compose up -d
-```
+To update kia and both images, run `scripts/update.sh` in the kia folder ([updating](../README.md#updating-and-stopping)).
 
 To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions of iptv-org/epg, the base image, and nginx into it. Threadfin is already pinned (`KIA_THREADFIN_IMAGE`); Plex and the monitoring images follow their latest release unless you set `KIA_PLEX_IMAGE`, `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, or `KIA_NODE_EXPORTER_IMAGE` to a version. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, an exact image in `KIA_BASE_IMAGE` or `KIA_NGINX_IMAGE`, by digest (e.g. `nginx:alpine@sha256:...`), and a Node.js major version in `KIA_NODE_VERSION` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). Pinned versions don't receive fixes until you change them.
 
@@ -194,15 +187,9 @@ Instead of building kia on your computer, you can use the image published with e
 KIA_IMAGE=ghcr.io/southsidedean/kodi-iptv-assistant:latest
 ```
 
-Then, to start or update kia:
+Then start it with `docker compose up -d`, and update it with `scripts/update.sh`, which pulls the image instead of building it.
 
-```sh
-git pull
-docker compose pull
-docker compose up -d
-```
-
-`latest` follows each release. To stay on one, use its version instead, such as `:0.4.0`; `:main` has what's merged since the last release. Keep `git pull` in the steps either way, because the image doesn't include the settings files and the web server's settings in the kia folder. Running `docker compose up -d --build` builds kia locally again, under the image's name, until the next `docker compose pull`.
+`latest` follows each release. To stay on one, use its version instead, such as `:0.4.0`, and move the kia folder to the same release with `scripts/update.sh v0.4.0`: the image doesn't include the settings files and the web server's settings in the folder, so the two should match. `:main` has what's merged since the last release (`scripts/update.sh --main`). Running `docker compose up -d --build` builds kia locally again, under the image's name, until the next `docker compose pull`.
 
 Each image is scanned for known vulnerabilities before it's published, and from 0.5.1 on it comes with a signed record of how and where it was built. To check that an image really came from kia's repository, with GitHub's `gh` command: `gh attestation verify oci://ghcr.io/southsidedean/kodi-iptv-assistant:latest --owner southsidedean`.
 

@@ -106,16 +106,13 @@ If something breaks that needs you, such as your network's DNS failing or the ni
 
 kia refreshes everything every night at 4:00, and the guide every 4 hours in between. To change those, set `KIA_RUN_AT` and `KIA_GUIDE_REFRESH_HOURS` in `.env`. Changes to your playlists or settings show up after the next run; to refresh right away, see [when changes take effect](docs/configuration.md#when-changes-take-effect).
 
-To update kia, first read the *Upgrading* notes for the new version in the [changelog](CHANGELOG.md); some versions need an extra step. Then run these in the kia folder:
+To update kia, first read the *Upgrading* notes for the new version in the [changelog](CHANGELOG.md); some versions need an extra step. Then, in the kia folder:
 
 ```sh
-git pull
-docker compose build --pull
-docker compose pull --ignore-buildable
-docker compose up -d
+scripts/update.sh
 ```
 
-This also brings the latest images kia uses (its Wolfi base, nginx, and Plex, Prometheus, and Grafana if you use them); to stay on fixed versions, see [versions](docs/configuration.md#versions). If you use kia's [published image](docs/configuration.md#the-published-image) instead of building it, run `git pull`, `docker compose pull`, and `docker compose up -d`. Your `.env`, your own playlist list, and the stream history are kept. If you edited `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
+It moves kia to its newest release, rebuilds it, and restarts it. If someone is watching through Pluto TV or Plex's Live TV, it asks first, since a restart cuts them off. It also brings the latest images kia uses (its Wolfi base, nginx, and Plex, Prometheus, and Grafana if you use them); to stay on fixed versions, see [versions](docs/configuration.md#versions). `scripts/update.sh v0.5.1` goes to a given release, and `--main` follows what's merged since the last one. Your `.env`, your own playlist list, and the stream history are kept. If you edited one of kia's own files (`sources.txt` or `kia.toml`, say), it stops and says so: keep your changes in `sources.local.txt` and `.env` instead.
 
 To save your settings, playlists, and choices in one file, or to move kia to another computer, see [backing up](docs/configuration.md#backing-up-and-moving-to-another-computer).
 

@@ -18,7 +18,7 @@ If you plan to run kia on a different computer from the one you watch on, do ste
 
 ## The quick way
 
-Once Docker and Git are installed (steps 1 and 2 below), one command does steps 3 to 6: it downloads kia to a `kodi-iptv-assistant` folder in your home folder, finds this computer's address and time zone, makes `.env`, opens the firewall ports if it can, and starts kia. Open a terminal and run:
+Once Docker and Git are installed (steps 1 and 2 below), one command does steps 3 to 6: it downloads kia's newest release to a `kodi-iptv-assistant` folder in your home folder, finds this computer's address and time zone, makes `.env`, opens the firewall ports if it can, and starts kia. Open a terminal and run:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
@@ -74,9 +74,10 @@ In the terminal, go to the folder where you want kia to live (your home folder i
 ```sh
 git clone https://github.com/southsidedean/kodi-iptv-assistant.git
 cd kodi-iptv-assistant
+scripts/update.sh --no-restart
 ```
 
-The rest of the commands in this guide run from inside this `kodi-iptv-assistant` folder.
+The last line moves the copy to kia's newest release, rather than what's been merged since. The rest of the commands in this guide run from inside this `kodi-iptv-assistant` folder.
 
 ## 4. Find this computer's address
 
