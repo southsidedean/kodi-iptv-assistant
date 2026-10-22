@@ -10,6 +10,12 @@
 - `kia plex-tuners` works with Plex in the stack without a token (it uses Plex's own), reaches the Threadfins by name on Docker's network, and gets a brand-new Plex its codecs first. Without them Plex can't play any Live TV channel ("Could not tune channel"), and Live TV alone never makes it download them.
 - With `KIA_PLEX_URL` set, kia keeps Plex up to date after each refresh, so new channels arrive in Plex by themselves.
 
+### Dashboard
+
+- The guide timeline works on phones: 3 hours that fit the screen instead of 6 that scroll sideways, with the channel names kept in view. Tap or click a show to see its full title and times. The button is now called **Timeline**.
+- **Stop** on a running **Check now**, for a big playlist that's taking too long. It ends the check's stream tests too.
+- Easier to read and to tap: buttons and text boxes have darker edges, the green text and the coverage bar's amber have more contrast, and on touch screens every button is at least 44 pixels tall. A test keeps the colours at WCAG AA contrast in both themes.
+
 ### Docs
 
 - The diagrams are easier to read on GitHub, in light and dark mode: no more labels on grey or text hidden behind GitHub's zoom buttons. They're now images, made from sources in `docs/diagrams/` by `scripts/diagrams.sh`, so they look the same everywhere.

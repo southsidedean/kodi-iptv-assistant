@@ -82,7 +82,7 @@ The page shows how kia is doing: whether the last refresh worked and when the ne
 
 The menu at the top leads to the other pages:
 
-- **A playlist's page** (Everything, TV only, and each profile) has its playlist and guide addresses and its channels, TV and radio under their own headings, with their numbers, categories, what's on now, and what's next. **Next 6 hours** switches the list to a timeline, like a TV guide, in your device's time zone. A profile's page also has **Edit this playlist**.
+- **A playlist's page** (Everything, TV only, and each profile) has its playlist and guide addresses and its channels, TV and radio under their own headings, with their numbers, categories, what's on now, and what's next. **Timeline** switches the list to a TV guide of the next 6 hours (3 on a phone) in your device's time zone; tap a show for its full title and times. A profile's page also has **Edit this playlist**.
 - **On the secure page**, each channel also has a star for [favorites](configuration.md#favorites-and-your-own-channel-numbers) and a **Test** button that tries its stream now ([a channel won't play](troubleshooting.md#a-channel-wont-play)). On Everything you can change channel numbers.
 - **Playlists** lists every playlist with its address, and on the secure page has **Make a playlist**.
 - **Sources** has the playlists kia checks (which you can [choose](configuration.md#choosing-channel-sources-on-the-dashboard) on the secure page) and how each one's streams did in the last check.

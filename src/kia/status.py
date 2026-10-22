@@ -708,7 +708,7 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         "</section>"
         f'<section class="card" id="whats-on" data-root="{root}"><h2>Channels</h2>{filter_box}'
         '<div class="view" hidden><button type="button" data-view="list" aria-pressed="true">On now</button>'
-        '<button type="button" data-view="timeline" aria-pressed="false">Next 6 hours</button></div>'
+        '<button type="button" data-view="timeline" aria-pressed="false">Timeline</button></div>'
         '<p class="guide-age bad-note" hidden></p>'
         '<div class="wide"><table id="channels">'
         '<thead><tr><th class="num">No.</th><th class="name">Channel</th><th class="now" hidden>On now</th>'

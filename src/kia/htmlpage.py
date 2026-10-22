@@ -46,9 +46,10 @@ STYLE = """
 :root {
   color-scheme: light dark;
   --bg: #f6f7fa; --card: #ffffff; --fg: #1b2033; --muted: #5d6478; --line: #dde1ea; --note: #fff4e5;
-  --good: #1b7f3b; --good-bg: #e6f4ea; --warn: #8f5400; --warn-bg: #fdf1dc; --bad: #b3261e; --bad-bg: #fbe4e2;
+  --good: #1a7a39; --good-bg: #e6f4ea; --warn: #8f5400; --warn-bg: #fdf1dc; --bad: #b3261e; --bad-bg: #fbe4e2;
   --info: #2f4fb5; --info-bg: #e5eafb;
-  --bar-full: #2f6f4f; --bar-part: #e5a52e; --bar-none: #c9ccd6; --bar-dead: #d9534f;
+  --control: #878da0;  /* the edge of a box or button: 3:1 against the page, so it's easy to see */
+  --bar-full: #2f6f4f; --bar-part: #c4860f; --bar-none: #c9ccd6; --bar-dead: #d9534f;
   --logo-screen: #1f2b4d; --logo-rows: #cfd8f0; --logo-now: #e5a52e;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -61,6 +62,7 @@ STYLE = """
     --bg: #121418; --card: #1c1f26; --fg: #eef0f5; --muted: #a3a9b8; --line: #2e3340; --note: #3a2c14;
     --good: #7ee2a0; --good-bg: #14301f; --warn: #f2c26b; --warn-bg: #3a2c14; --bad: #ff8a80; --bad-bg: #3d1a18;
     --info: #9fb3ff; --info-bg: #1c2447;
+    --control: #6b7180;
     --bar-full: #4fb07f; --bar-part: #f2b84b; --bar-none: #474b57; --bar-dead: #e2726e;
     --logo-screen: #33447a; --logo-rows: #e3e9fb; --logo-now: #f2b84b;
   }
@@ -84,7 +86,7 @@ footer { color: var(--muted); font-size: var(--step--1); margin-top: var(--space
 .brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none;
   font-weight: 700; font-size: 2.6rem; line-height: 1; letter-spacing: -.01em; min-height: 44px; }
 .brand svg { width: 4.25rem; height: 4.25rem; }
-.docs-button { display: inline-flex; align-items: center; min-height: 44px; padding: .45rem 1rem; border: 1px solid var(--line);
+.docs-button { display: inline-flex; align-items: center; min-height: 44px; padding: .45rem 1rem; border: 1px solid var(--control);
   border-radius: var(--radius-small); background: var(--card); text-decoration: none; font-weight: 600; }
 nav.menu { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
 nav.menu a { display: inline-flex; align-items: center; min-height: 44px; padding: .4rem .8rem; text-decoration: none;
@@ -106,7 +108,7 @@ table.settings td:last-child { width: 32%; font-size: .9em; overflow-wrap: anywh
 #settings summary { cursor: pointer; font-weight: 600; min-height: 44px; display: list-item; padding-top: .55rem; }
 #settings summary .n { color: var(--muted); font-weight: 400; font-size: var(--step--1); margin-left: .4rem; }
 blockquote { background: var(--note); border-radius: var(--radius-small); margin: var(--space-3) 0; padding: .6rem .9rem; }
-input[type=search] { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-small); color: var(--fg);
+input[type=search] { background: var(--card); border: 1px solid var(--control); border-radius: var(--radius-small); color: var(--fg);
   font: inherit; margin: var(--space-1) 0; padding: .55rem .7rem; width: 100%; min-height: 44px; }
 
 /* Dashboard */
@@ -139,7 +141,7 @@ a.tile:hover { border-color: var(--info); }
 .alerts { margin: 0; padding-left: 1.1rem; display: grid; gap: .3rem; }
 .copy { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
 .copy code { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-small); padding: .5rem .65rem; min-width: 0; }
-button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: var(--radius-small); border: 1px solid var(--line);
+button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: var(--radius-small); border: 1px solid var(--control);
   background: var(--card); color: var(--fg); cursor: pointer; }
 .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); align-items: start; }
 .playlists { display: grid; gap: var(--space-3); }

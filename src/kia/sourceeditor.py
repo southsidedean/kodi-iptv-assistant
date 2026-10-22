@@ -20,6 +20,8 @@ STYLE = """
 .src .btns { display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end; }
 .src .btns button { min-height: 40px; padding: .2rem .8rem; font-size: var(--step--1); }
 .src-result { grid-column: 2 / 4; margin: 0; }
+.src-result button { min-height: 40px; padding: .2rem .8rem; font-size: var(--step--1); }
+@media (pointer: coarse) { .src .btns button, .src-result button { min-height: 44px; } }
 @media (max-width: 34rem) { .src { grid-template-columns: auto 1fr; } .src .btns { grid-column: 2; justify-content: flex-start; } .src-result { grid-column: 1 / 3; } }
 """
 
@@ -124,9 +126,16 @@ SCRIPT = r"""
     where.className = "src-result " + (c.error ? "error" : c.running ? "muted" : "preview");
     if (c.running) {
       var secs = Math.round(Date.now() / 1000 - (c.started || Date.now() / 1000));
-      where.textContent = "Checking every stream in it… " + Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0");
+      var text = "Checking every stream in it… " + Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0") + " ";
+      var span = where.querySelector(".clock");
+      if (span) { span.textContent = text; return; }  // keep the Stop button (and its focus) as it is
+      where.textContent = "";
+      where.appendChild(el("span", { class: "clock", text: text }));
+      if (can) where.appendChild(el("button", { type: "button", text: "Stop", "aria-label": "Stop checking " + (c.name || "it"),
+        on: { click: function (e) { e.target.disabled = true; stop(where); } } }));
       return;
     }
+    where.textContent = "";
     if (c.error) { where.textContent = c.error; return; }
     var r = c.result || {};
     where.textContent = n(r.total) + " streams: " + n(r.ok) + " working, " + n(r.flaky) + " flaky, " + n(r.dead) + " dead." +
@@ -136,6 +145,14 @@ SCRIPT = r"""
 
   function check(p, where) {
     api("POST", "sources/check", { url: p.url }).then(function (r) {
+      if (r._status !== 200) return failed(where, r);
+      setPassword(pass.value);
+      data.check = r.check; showCheck(r.check, where); poll(where);
+    }, function () { say(where, DOWN, true); });
+  }
+
+  function stop(where) {
+    api("DELETE", "sources/check").then(function (r) {
       if (r._status !== 200) return failed(where, r);
       setPassword(pass.value);
       data.check = r.check; showCheck(r.check, where); poll(where);
