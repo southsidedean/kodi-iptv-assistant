@@ -158,9 +158,9 @@ def test_pieces_are_decrypted_once_for_every_viewer():
     fake = FakePluto([media([(0, SHOW.format(part=part, n=0))], seq=99, key=KEY.format(part=part))])
     r, calls = relay(fake)
     look(r)
-    status, kind, body = r.handle(f"/pluto/{CID}/0.ts", "192.168.1.30")
+    status, kind, body = r.handle(f"/pluto/{CID}/0.ts", "192.0.2.30")
     assert status == 200 and kind == "video/mp2t" and body.startswith(b"TSpiece:")
-    r.handle(f"/pluto/{CID}/0.ts", "192.168.1.31")
+    r.handle(f"/pluto/{CID}/0.ts", "192.0.2.31")
     assert len(calls) == 1
     assert calls[0]["key"] == bytes(range(16)).hex() and calls[0]["iv"] == "0" * 30 + "63"
     assert calls[0]["t0"] == pluto.START and calls[0]["dur"] == 5.0
