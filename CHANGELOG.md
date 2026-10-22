@@ -27,7 +27,9 @@
 
 ### Metrics
 
-- kia publishes its numbers for Prometheus at `/metrics` ([metrics](docs/metrics.md)): the last refresh, channels, guide coverage, streams per source, playlists, the Pluto relay's viewers and problems, and kia's processor and memory use.
+- kia publishes its numbers for Prometheus at `/metrics` ([metrics](docs/metrics.md)): the last refresh, channels, guide coverage, streams per source, playlists, the Pluto relay's viewers and problems, Plex's sessions (with `KIA_PLEX_URL` set), and kia's processor and memory use.
+- New cookbook, [Graphs for your TV stack](docs/cookbooks/observability.md): Prometheus, Grafana, and cAdvisor in kia's stack (`COMPOSE_PROFILES=...,monitoring`, plus `monitoring-node` for node-exporter), with three dashboards: kia, TV stack, and Plex. Grafana is on port 8788 and Prometheus on 8789, away from the busy 3000 and 9090.
+- With monitoring on, the Dashboard has a **Graphs** button that opens Grafana (or set `KIA_GRAFANA_URL`).
 
 ### Computers that are off at night
 
