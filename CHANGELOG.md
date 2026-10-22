@@ -31,6 +31,15 @@
 - Searching for a channel to add shows only the latest search's results.
 - The **Getting started** ticks are easier to tap (44 pixels). The Pluto TV table and the Sources page explain themselves in plainer words, and "Remove it until it works" is now **Take it out until it works**.
 
+### Install and docs
+
+- On a Raspberry Pi, or any computer with less than 6 GB of memory, `scripts/install.sh` now writes the lighter settings into `.env` itself, so the first refresh doesn't run out of memory before you've read about them.
+- **Uninstalling** warns that the kia folder can hold your movies and Plex library (the home TV box) and the graphs' history, before you delete it.
+- **Troubleshooting** no longer asks you to post your `.env`, which holds your passwords: `kia settings` shows the same without them.
+- One set of update steps everywhere (the README's), so the base images get updated too.
+- "Add these lines to `.env`" is now "set these lines": the lines are already in `.env`, and an added line can be quietly overridden by the empty one further down.
+- Corrections: the default alert events, which folders kia can write to and what the optional services can reach (SECURITY.md), what `scripts/pin-versions.sh` pins, the Docker form of `kia backup` and `kia plex-tuners`, how often Plex's playlists refresh, the time zone and email port defaults, the Dashboard's pages, and smaller fixes.
+
 ## 0.5.0 (2026-10-22)
 
 ### Upgrading from 0.4
@@ -75,7 +84,7 @@
 
 ### Logs
 
-- Docker keeps at most 30 MB of each container's log: 3 files of 10 MB, oldest lines first (`KIA_LOG_MAX_SIZE`, `KIA_LOG_MAX_FILES`). Before, it kept every line until the container was recreated, which can fill a disk over months. The next `docker compose up -d` recreates every container once to apply it.
+- Docker keeps at most 30 MB of each container's log: 3 files of 10 MB, dropping the oldest lines first (`KIA_LOG_MAX_SIZE`, `KIA_LOG_MAX_FILES`). Before, it kept every line until the container was recreated, which can fill a disk over months. The next `docker compose up -d` recreates every container once to apply it.
 
 ### Docs
 
@@ -226,7 +235,7 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 
 ### Choosing playlists on the status page
 
-- The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-channel-sources-on-the-status-page).
+- The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-channel-sources-on-the-dashboard).
 - **Check now** tests every stream in one playlist straight away and shows how many work, without changing your playlists.
 - The same is in the API: `GET`, `PUT`, `POST`, and `DELETE /api/sources`, and `/api/sources/check`.
 

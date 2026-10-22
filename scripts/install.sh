@@ -122,6 +122,14 @@ else
         -e "s|^PGID=.*|PGID=$(id -g)|" \
         .env.example >.env)
     say "Made .env: address http://$ADDRESS:$PORT, time zone $TZ_NAME."
+    # A Raspberry Pi, or any computer with less than 6 GB of memory: settings that keep
+    # the first refresh from running out of memory (docs/setups.md#raspberry-pi).
+    memory_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
+    if grep -qs "Raspberry Pi" /proc/device-tree/model || { [ "${memory_kb:-0}" -gt 0 ] && [ "$memory_kb" -lt 6000000 ]; }; then
+        (umask 077 && sed -e "s|^KIA_PARALLEL_SITES=.*|KIA_PARALLEL_SITES=1|" -e "s|^KIA_CHECK_CONCURRENCY=.*|KIA_CHECK_CONCURRENCY=8|" \
+            -e "s|^KIA_MEMORY_LIMIT=.*|KIA_MEMORY_LIMIT=2g|" .env >.env.tmp) && mv .env.tmp .env
+        say "This computer has little memory (or is a Raspberry Pi), so .env uses the lighter settings from docs/setups.md#raspberry-pi."
+    fi
 fi
 chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.

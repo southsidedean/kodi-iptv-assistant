@@ -24,7 +24,7 @@ Plex says watching through a tuner is free, and recording (DVR) needs [Plex Pass
 
 ## 1. Make a playlist for Plex
 
-A shorter list is quicker for Plex to load and easier to browse. On kia's secure page ([how to open it](profiles.md)), choose **Make a playlist**:
+A shorter list is quicker for Plex to load and easier to browse. On kia's secure page ([how to open it](secure-page.md)), choose **Make a playlist**:
 
 1. Name it `plex`.
 2. Choose **Only the channels I pick** and tick the categories you watch, such as News, Movies, and Sports.
@@ -35,7 +35,7 @@ For two tuners, make two playlists named `plex-1` and `plex-2`, each with **For 
 
 ## 2. Start Threadfin with kia
 
-In kia's folder, add this line to the `.env` file:
+In kia's folder, set this line in the `.env` file (it's already there, empty):
 
 ```sh
 COMPOSE_PROFILES=plex
@@ -153,13 +153,13 @@ For a second tuner, go back to **Settings → Live TV & DVR**, choose **Add Anot
 
 ![Plex's Live TV & DVR page with two Threadfin tuners and their guides](../images/plex/plex-two-tuners.png)
 
-Use the kia computer's network address (such as `192.168.1.20`), not `localhost`. If Plex runs in a container on the same computer, `localhost` would mean the Plex container itself, unless it uses host networking.
+Use the kia computer's network address (such as `192.168.1.20`), not `localhost`. If Plex runs in a container on the same computer, `localhost` would mean the Plex container itself, unless that container shares the computer's own network (Docker's `network_mode: host`).
 
 ## Keeping it up to date
 
-kia refreshes the playlists and guide every few hours. Threadfin reads them again every night, and Plex refreshes its guide on its own schedule; **Refresh Guide** on Plex's Live TV & DVR page does it right away.
+kia refreshes the playlists every night and the guide every few hours. Threadfin reads them again every night, and Plex refreshes its guide on its own schedule; **Refresh Guide** on Plex's Live TV & DVR page does it right away.
 
-When the playlist gains channels, Threadfin adds them, but Plex keeps the channel list it had at setup. kia adds the new ones after each refresh when `KIA_PLEX_URL` is set; otherwise run `kia plex-tuners` again, or on Plex's Live TV & DVR page choose the tuner's channel count (such as **340 enabled**), then **Rescan**, then **Save**. To keep a channel out of Plex, leave it out of the playlist on kia's page rather than in Threadfin, so the change survives the next refresh.
+When the playlist gains channels, Threadfin adds them, but Plex keeps the channel list it had at setup. kia adds the new ones after each refresh when `KIA_PLEX_URL` is set; otherwise run `docker compose exec kia python3 -m kia plex-tuners` again, or on Plex's Live TV & DVR page choose the tuner's channel count (such as **340 enabled**), then **Rescan**, then **Save**. To keep a channel out of Plex, leave it out of the playlist on kia's page rather than in Threadfin, so the change survives the next refresh.
 
 To update Threadfin, set `KIA_THREADFIN_IMAGE` in `.env` to the version you want and run `docker compose up -d`.
 
@@ -174,7 +174,7 @@ sudo chown -R "$(id -u):$(id -g)" threadfin threadfin-2
 docker compose up -d
 ```
 
-**Plex shows no channels.** Look at Threadfin's **Mapping** page. Channels only appear there after a filter picks them (**Filter → New** in step 3).
+**Plex shows no channels.** Look at Threadfin's **Mapping** page. Channels only appear there after a filter picks them (**Filter → New**, step 3 of [setting it up by hand](#setting-it-up-by-hand)).
 
 **Channels have no guide, or Mapping shows `-` for their XMLTV file.** Threadfin saw the channels before it had the guide, and it doesn't match them again later. Have it start over (your playlist, guide, filter, and settings stay):
 

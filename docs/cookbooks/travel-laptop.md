@@ -20,7 +20,7 @@ Follow [Kodi and kia on one computer](kodi-computer.md), steps 1 to 3. That give
 
 ## 2. Point the laptop at the home server
 
-In the laptop's kia folder, add these lines to `.env`, with your server's address:
+In the laptop's kia folder, set these lines in `.env`, with your server's address (they're already in it, empty: fill those in rather than adding new lines, or the empty ones further down win):
 
 ```ini
 KIA_UPSTREAM_URL=http://192.168.1.20:8780

@@ -37,7 +37,7 @@ Plex takes at most 480 channels from each tuner, so make a playlist of the chann
 3. Under **Plex**, tick **For Plex through Threadfin**.
 4. Save, and check the count is 480 or fewer.
 
-For more than 480 channels, make two playlists, `plex` and `plex-2`; the [Plex guide](../plex.md#1-make-a-playlist-for-plex) shows how to split them.
+For more than 480 channels, make two playlists, `plex-1` and `plex-2`; the [Plex guide](../plex.md#1-make-a-playlist-for-plex) shows how to split them.
 
 ## 3. Get a claim code from Plex
 
@@ -45,7 +45,7 @@ A claim code links the new Plex to your account the first time it starts. Sign i
 
 ## 4. Turn on Plex
 
-In the kia folder, add these lines to `.env`:
+In the kia folder, set these lines in `.env` (they're already in it, empty: fill those in rather than adding new lines, or the empty ones further down win):
 
 ```sh
 COMPOSE_PROFILES=plex,plex-server
@@ -54,7 +54,7 @@ KIA_PLEX_ADVERTISE=http://192.168.1.20:32400/
 KIA_PLEX_URL=http://plex:32400
 ```
 
-For two tuners, use `COMPOSE_PROFILES=plex,plex-2,plex-server`. To use your own media folder (a second disk, say), add `KIA_MEDIA_DIR=/path/to/your/media`. The server is called `kia-tv-box` in Plex apps; `KIA_PLEX_NAME` changes that.
+For two tuners, use `COMPOSE_PROFILES=plex,plex-2,plex-server`. To use your own media folder (a second disk, say), set `KIA_MEDIA_DIR=/path/to/your/media`. The server is called `kia-tv-box` in Plex apps; `KIA_PLEX_NAME` changes that.
 
 Then start everything:
 
@@ -92,9 +92,9 @@ To add your own movies and shows, put them in the media folder, organized the wa
 ## Keeping it running
 
 - Everything starts again when the computer restarts.
-- **Updating kia:** `git pull`, then `docker compose up -d --build`.
+- **Updating kia:** follow the steps in the [README](../../README.md#updating-and-stopping): they bring the newest images too, Plex's included. Update when nobody's watching: Plex and Threadfin restart.
 - **Updating Plex:** `docker compose pull plex`, then `docker compose up -d`.
-- **Backups:** `kia backup` saves kia's and Threadfin's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Plex's own settings in `plex/config` can be large; Plex explains [what to back up](https://support.plex.tv/articles/201539237-backing-up-plex-media-server-data/).
+- **Backups:** `docker compose exec kia python3 -m kia backup` saves kia's and Threadfin's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Plex's own settings in `plex/config` can be large; Plex explains [what to back up](https://support.plex.tv/articles/201539237-backing-up-plex-media-server-data/).
 
 ## If something's wrong
 

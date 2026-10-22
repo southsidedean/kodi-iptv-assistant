@@ -22,7 +22,7 @@ Some channels have no guide data anywhere. They show their own name in the guide
 
 ### A channel shows another channel's programs
 
-Most likely kia matched it to a guide by name, and the name belongs to a different channel. `mapping-report.html` lists every channel matched by name, with the name the guide site uses. Add the channel's tvg-id to `ignore_name_matches` under `[epg]` in `kia.toml`, for example `ignore_name_matches = ["News12.us@SD"]`. From the next run, the channel uses another guide source or shows its own name.
+Most likely kia matched it to a guide by name, and the name belongs to a different channel. `mapping-report.html` lists every channel matched by name, with the name the guide site uses. Add the channel's guide ID (its `tvg-id`, shown in the report, such as `CNN.us`) to `ignore_name_matches` under `[epg]` in `kia.toml`, for example `ignore_name_matches = ["News12.us@SD"]`. From the next run, the channel uses another guide source or shows its own name.
 
 ### A channel won't play
 
@@ -136,7 +136,7 @@ Common causes:
 
 - Many guide sites `FAILED`, or the log stops suddenly while downloading guides: kia probably ran out of memory. Lower `KIA_PARALLEL_SITES` (each guide site uses up to about 0.7 GB), or raise `KIA_MEMORY_LIMIT` if the computer has memory to spare.
 - `Permission denied`: see [file permission errors](#file-permission-errors).
-- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, and `tls/`, so keep those settings as they are ([why](configuration.md#versions)).
+- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, so keep those settings as they are ([why](configuration.md#versions)).
 - An error about `.env` or `kia.toml`: the message names the setting. Fix it, run `docker compose up -d`, and [refresh now](configuration.md#when-changes-take-effect).
 
 ### File permission errors
@@ -166,4 +166,4 @@ A run usually takes 15 minutes to an hour, depending on how many playlists you'v
 
 ## Still stuck?
 
-Open an issue on [GitHub](https://github.com/southsidedean/kodi-iptv-assistant/issues) with what you see, the end of `docker compose logs kia`, and your `.env` with addresses and ntfy topics removed.
+Open an issue on [GitHub](https://github.com/southsidedean/kodi-iptv-assistant/issues) with what you see, the end of `docker compose logs kia`, and what `docker compose exec kia python3 -m kia settings` prints (it shows only whether each password is set). Please don't post your `.env`: it holds your passwords and tokens.
