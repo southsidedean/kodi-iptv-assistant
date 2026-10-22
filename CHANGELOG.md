@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.5.1 (unreleased)
+## 0.5.1 (2026-10-22)
+
+### Upgrading from 0.5.0
+
+Update as usual (the README's steps), when nobody is watching: kia restarts, and Grafana with monitoring on. The first refresh afterwards compiles iptv-org's scripts for Node's sandbox, which takes a few seconds. Without Docker, the sandbox needs Node.js 20 or newer; with an older one, kia runs the guide downloader as before and says so in its log. A Grafana that's already set up keeps its password.
 
 ### Security
 
