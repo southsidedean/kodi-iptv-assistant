@@ -4,7 +4,7 @@
 
 ### Security
 
-- iptv-org's guide downloader is third-party code that changes every day. kia now runs it in Node.js's sandbox: it can read only its own folder and the channel list, write only the guide it makes and a temporary folder, and start no other programs. It also no longer sees kia's settings, so a bad change to iptv-org's code couldn't read your Plex token, email password, or Dashboard password. kia compiles iptv-org's scripts first, with iptv-org's own esbuild, so they run without starting a compiler inside the sandbox. Without Docker this needs Node.js 20 or newer.
+- iptv-org's guide downloader is third-party code that changes every day. kia now runs it in Node.js's sandbox: it can read only its own folder and the channel list, write only the guide it makes and a temporary folder, and start no other programs. It also no longer sees kia's settings, so a bad change upstream couldn't read your Plex token, email password, or Dashboard password. kia compiles the downloader's scripts first, with the esbuild that comes with it, because compiling them inside the sandbox would mean starting another program. Without Docker this needs Node.js 20 or newer.
 - Channel source addresses can hold a provider's user name and password. **Check now** showed the address it was checking in full to anyone on your network, on the plain (http) port too. Now the logins are hidden there, and on the secure page they show only after the password.
 - Grafana no longer starts with the password `admin` when `KIA_GRAFANA_PASSWORD` is empty: it makes a random one on its first start and saves it in `monitoring/grafana/admin-password.txt`. A Grafana that's already set up keeps its password.
 - `scripts/pin-versions.sh` and `scripts/install-service.sh` keep `.env` (and its backups) readable only by you.
@@ -21,7 +21,7 @@
 
 ### Dashboard
 
-- The Timeline no longer freezes the page. With a big playlist it rebuilt every row once a minute (up to two seconds on a fast computer), losing your place and the keyboard focus each time. Now it fills in shows only for the rows on screen and as you scroll, moves the "now" line each minute, and rebuilds only when the half hour changes, keeping your place and focus. Its hour labels stay in view as you scroll down, and on a phone a tap anywhere in a row's height opens the show at that time.
+- The Timeline no longer freezes the page. With a big playlist it rebuilt every row once a minute (up to two seconds on a fast computer), losing your place and the keyboard focus each time. Now it fills in shows only for the rows on screen and as you scroll, moves the "now" line each minute, and rebuilds only when the half hour changes, without losing your place. Its hour labels stay in view as you scroll down, and on a phone a tap anywhere in a row's height opens the show at that time.
 - Things that should be hidden stayed visible because of their styles: the "On now / Timeline" buttons and "Hide channels without guide data" before there's a guide, an empty Pluto TV table on phones, and the playlist editor's channel filter, which didn't filter.
 - **Copy** works on the plain (http) address too, where browsers don't offer the clipboard; if even that fails, the address is selected for you to copy. Screen readers hear the result.
 - **Check now** keeps going when kia doesn't answer for a moment (it says so and tries again), instead of showing "0 streams". Its clock is no longer read aloud every two seconds.
@@ -33,7 +33,7 @@
 
 ### Install and docs
 
-- On a Raspberry Pi, or any computer with less than 6 GB of memory, `scripts/install.sh` now writes the lighter settings into `.env` itself, so the first refresh doesn't run out of memory before you've read about them.
+- On a Raspberry Pi, or any computer with less than 6 GB of memory, `scripts/install.sh` now writes the lighter settings into `.env` itself, so the first refresh doesn't run out of memory.
 - **Uninstalling** warns that the kia folder can hold your movies and Plex library (the home TV box) and the graphs' history, before you delete it.
 - **Troubleshooting** no longer asks you to post your `.env`, which holds your passwords: `kia settings` shows the same without them.
 - One set of update steps everywhere (the README's), so the base images get updated too.

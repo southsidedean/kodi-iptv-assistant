@@ -45,7 +45,7 @@ A claim code links the new Plex to your account the first time it starts. Sign i
 
 ## 4. Turn on Plex
 
-In the kia folder, set these lines in `.env` (they're already in it, empty: fill those in rather than adding new lines, or the empty ones further down win):
+In the kia folder, set these lines in `.env` (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
 
 ```sh
 COMPOSE_PROFILES=plex,plex-server
@@ -92,7 +92,7 @@ To add your own movies and shows, put them in the media folder, organized the wa
 ## Keeping it running
 
 - Everything starts again when the computer restarts.
-- **Updating kia:** follow the steps in the [README](../../README.md#updating-and-stopping): they bring the newest images too, Plex's included. Update when nobody's watching: Plex and Threadfin restart.
+- **Updating kia:** follow the steps in the [README](../../README.md#updating-and-stopping), which also update the images, Plex's included. Do it when nobody's watching, because Plex and Threadfin restart.
 - **Updating Plex:** `docker compose pull plex`, then `docker compose up -d`.
 - **Backups:** `docker compose exec kia python3 -m kia backup` saves kia's and Threadfin's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Plex's own settings in `plex/config` can be large; Plex explains [what to back up](https://support.plex.tv/articles/201539237-backing-up-plex-media-server-data/).
 

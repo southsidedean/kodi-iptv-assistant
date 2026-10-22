@@ -20,7 +20,7 @@ Follow [Kodi and kia on one computer](kodi-computer.md), steps 1 to 3. That give
 
 ## 2. Point the laptop at the home server
 
-In the laptop's kia folder, set these lines in `.env`, with your server's address (they're already in it, empty: fill those in rather than adding new lines, or the empty ones further down win):
+In the laptop's kia folder, set these lines in `.env`, with your server's address (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
 
 ```ini
 KIA_UPSTREAM_URL=http://192.168.1.20:8780

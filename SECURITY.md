@@ -14,7 +14,7 @@ Fixes go into the latest release. Update with the steps in the [README](README.m
 
 ## How kia limits the damage
 
-iptv-org's guide downloader runs in Node.js's sandbox (`node --permission`): it can read only its own folder and the channel list it's given, write only the guide it makes and a temporary folder, and can't start other programs. It sees none of kia's settings either, so no passwords or tokens. Without Docker, this needs Node.js 20 or newer; kia's log says when it can't be used.
+iptv-org's guide downloader runs in Node.js's sandbox (`node --permission`): it can read only its own folder and the channel list it's given, write only the guide it makes and a temporary folder, and can't start other programs. It also sees none of kia's settings, so it can't read your passwords or tokens. Without Docker, this needs Node.js 20 or newer; kia's log says when it can't be used.
 
 Both containers run with a read-only system and no extra privileges. kia can write only to its `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/` folders, and the web server can read only `output/` and the certificate in `tls/`. The optional services are looser where they have to be: Plex in the stack starts as root to set itself up; cAdvisor (with the `monitoring` profile) reads Docker's own folders and socket to measure each container, which amounts to full access to the computer; node-exporter sees the computer's processes and network. Turn on only what you use. [Configuration](docs/configuration.md#versions) explains why, and how to pin versions you've checked instead of following the latest.
 
