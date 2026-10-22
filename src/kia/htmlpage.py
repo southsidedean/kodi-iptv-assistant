@@ -69,6 +69,10 @@ STYLE = """
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
+/* hidden means hidden, even for an element whose class sets display: flex or block */
+[hidden] { display: none !important; }
+/* text for screen readers only */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { background: var(--bg); color: var(--fg); font: var(--step-0)/1.5 var(--font); margin: 0 auto; max-width: 60rem;
   padding-inline: max(var(--space-3), env(safe-area-inset-left)); padding-block: var(--space-4) var(--space-5); }

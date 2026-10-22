@@ -102,6 +102,7 @@ SCRIPT = r"""
   }).catch(function () {});
 
   function open(name) {
+    var opener = document.activeElement;  // Cancel brings focus back here
     var old = document.getElementById("editor");
     if (old) old.remove();
     var p = name ? data.profiles.filter(function (x) { return x.name === name; })[0] || { name: name } : {};
@@ -192,7 +193,10 @@ SCRIPT = r"""
           set: "The one set on the System page." }[data.password] || "kia's admin password.") + " This browser tab remembers it until you close it." })]), pass,
       error,
       el("div", { class: "actions" }, [save,
-        el("button", { type: "button", text: "Cancel", on: { click: function () { form.remove(); } } }),
+        el("button", { type: "button", text: "Cancel", on: { click: function () {
+          form.remove();
+          if (opener && opener.isConnected) opener.focus();
+        } } }),
         name ? el("button", { type: "button", class: "danger", text: "Delete playlist", on: { click: remove } }) : null])]);
 
     function mode() { picks.hidden = !pickRadio.checked; changed(); }
@@ -219,11 +223,14 @@ SCRIPT = r"""
           text: (known[id] || id) + " ✕", on: { click: function () { pinned.splice(pinned.indexOf(id), 1); drawChips(); changed(); } } })]));
       });
     }
+    var asking = 0;  // only the newest search's answer is shown (an older one can arrive later)
     function find() {
-      var q = search.value.trim();
+      var q = search.value.trim(), mine = ++asking;
       found.textContent = "";
       if (q.length < 2) return;
       api("GET", "channels?q=" + encodeURIComponent(q)).then(function (r) {
+        if (mine !== asking) return;
+        if (r._status && r._status !== 200) { found.appendChild(el("li", { class: "muted", text: r.error || "Couldn't search just now." })); return; }
         (r.channels || []).forEach(function (c) {
           known[c.id] = c.name;
           if (pinned.indexOf(c.id) >= 0) return;
@@ -231,7 +238,7 @@ SCRIPT = r"""
             on: { click: function () { pinned.push(c.id); drawChips(); changed(); find(); } } }),
             " " + c.name + " ", el("span", { class: "muted", text: c.group || "" })]));
         });
-      });
+      }, function () { if (mine === asking) found.appendChild(el("li", { class: "muted", text: "kia didn't answer. Is it running?" })); });
     }
     var counting = 0, lastCount = null;
     function changed() { counting++; later(); }
@@ -274,14 +281,18 @@ SCRIPT = r"""
         if (name) location.reload(); else location.href = root + "playlists/" + n + ".html";
       }, function () { fail({ error: "kia didn't answer. Is it running?" }); });
     }
+    var deleting = false;  // one Delete at a time
     function remove() {
+      if (deleting) return;
       if (!confirm("Delete the " + (p.title || name) + " playlist? Devices using its address will stop getting channels.")) return;
+      deleting = true;
       api("DELETE", "profiles/" + encodeURIComponent(name), null, pass.value).then(function (r) {
+        deleting = false;
         if (r._status !== 200) return fail(r);
         setPassword(pass.value);
         try { sessionStorage.setItem("kia-saved", "Deleted the " + (p.title || name) + " playlist."); } catch (e) {}
         location.href = root + "playlists.html";
-      }, function () { fail({ error: "kia didn't answer. Is it running?" }); });
+      }, function () { deleting = false; fail({ error: "kia didn't answer. Is it running?" }); });
     }
 
     drawChips();

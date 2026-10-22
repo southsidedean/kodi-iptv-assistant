@@ -20,6 +20,8 @@ STYLE = """
 .src .btns { display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end; }
 .src .btns button { min-height: 40px; padding: .2rem .8rem; font-size: var(--step--1); }
 .src-result { grid-column: 2 / 4; margin: 0; }
+/* empty messages take no room but stay in place, so screen readers notice when one appears */
+.src-result:empty, #sources-editor p[role=status]:empty { margin: 0; padding: 0; }
 .src-result button { min-height: 40px; padding: .2rem .8rem; font-size: var(--step--1); }
 @media (pointer: coarse) { .src .btns button, .src-result button { min-height: 44px; } }
 @media (max-width: 34rem) { .src { grid-template-columns: auto 1fr; } .src .btns { grid-column: 2; justify-content: flex-start; } .src-result { grid-column: 1 / 3; } }
@@ -56,7 +58,6 @@ SCRIPT = r"""
   function n(x) { return (x || 0).toLocaleString(); }
   // A message in a given place: next to the row or inside the form it's about.
   function say(where, text, bad) {
-    where.hidden = !text;
     where.className = (where.classList.contains("src-result") ? "src-result " : "") + (bad ? "error" : "preview");
     where.textContent = text || "";
   }
@@ -65,6 +66,13 @@ SCRIPT = r"""
     if (r._status === 401) { setPassword(""); pass.focus(); }
   }
   var DOWN = "kia didn't answer. Is it running?";
+  // A button that's already working ignores more clicks (each would start the work again).
+  function once(button, work) {
+    if (button.dataset.busy) return;
+    button.dataset.busy = "1"; button.setAttribute("aria-busy", "true");
+    var done = function () { delete button.dataset.busy; button.removeAttribute("aria-busy"); };
+    work().then(done, done);
+  }
 
   function label(p) {
     // "Canada  264" -> "Canada · 264 channels"; other comments as they are.
@@ -83,7 +91,7 @@ SCRIPT = r"""
   }
 
   function row(p) {
-    var result = el("p", { class: "src-result", hidden: true, role: "status" });
+    var result = el("p", { class: "src-result", role: "status" });
     var box = el("input", { type: "checkbox", checked: p.on, disabled: !can, "aria-label": "Use " + label(p),
       on: { change: function () {
         box.disabled = true;
@@ -101,17 +109,24 @@ SCRIPT = r"""
     var btns = el("div", { class: "btns" });
     if (can) {
       btns.appendChild(el("button", { type: "button", text: "Check now", "aria-label": "Check " + label(p) + " now",
-        on: { click: function () { check(p, result); } } }));
+        on: { click: function (e) { once(e.currentTarget, function () { return check(p, result); }); } } }));
       if (p.origin === "added") btns.appendChild(el("button", { type: "button", class: "danger", text: "Remove",
-        "aria-label": "Remove " + label(p), on: { click: function () {
+        "aria-label": "Remove " + label(p), on: { click: function (e) {
+          if (e.currentTarget.dataset.busy) return;
           if (!confirm("Remove " + label(p) + "? Its channels leave your playlists at the next refresh.")) return;
-          api("DELETE", "sources?url=" + encodeURIComponent(p.url)).then(function (r) {
-            if (r._status !== 200) return failed(result, r);
-            setPassword(pass.value);
-            data.playlists = data.playlists.filter(function (x) { return x.url !== p.url; });
-            sections[p.section].list = sections[p.section].list.filter(function (x) { return x.url !== p.url; });
-            rows[p.url].remove(); count(p.section);
-          }, function () { say(result, DOWN, true); });
+          once(e.currentTarget, function () {
+            return api("DELETE", "sources?url=" + encodeURIComponent(p.url)).then(function (r) {
+              if (r._status !== 200) return failed(result, r);
+              setPassword(pass.value);
+              data.playlists = data.playlists.filter(function (x) { return x.url !== p.url; });
+              sections[p.section].list = sections[p.section].list.filter(function (x) { return x.url !== p.url; });
+              // Focus moves on to the next source (or the section), not back to the top of the page.
+              var gone = rows[p.url], next = gone.nextElementSibling || gone.previousElementSibling;
+              var target = next && next.querySelector("input, button") || sections[p.section].el.querySelector("summary");
+              gone.remove(); delete rows[p.url]; count(p.section);
+              if (target) target.focus();
+            }, function () { say(result, DOWN, true); });
+          });
         } } }));
     }
     var c = data.check || {};
@@ -122,7 +137,6 @@ SCRIPT = r"""
   }
 
   function showCheck(c, where) {
-    where.hidden = false;
     where.className = "src-result " + (c.error ? "error" : c.running ? "muted" : "preview");
     if (c.running) {
       var secs = Math.round(Date.now() / 1000 - (c.started || Date.now() / 1000));
@@ -130,7 +144,9 @@ SCRIPT = r"""
       var span = where.querySelector(".clock");
       if (span) { span.textContent = text; return; }  // keep the Stop button (and its focus) as it is
       where.textContent = "";
-      where.appendChild(el("span", { class: "clock", text: text }));
+      // Read aloud once; the clock that counts up isn't, or it would be every two seconds.
+      where.appendChild(el("span", { class: "visually-hidden", text: "Checking every stream in it." }));
+      where.appendChild(el("span", { class: "clock", "aria-hidden": "true", text: text }));
       if (can) where.appendChild(el("button", { type: "button", text: "Stop", "aria-label": "Stop checking " + (c.name || "it"),
         on: { click: function (e) { e.target.disabled = true; stop(where); } } }));
       return;
@@ -144,7 +160,7 @@ SCRIPT = r"""
   }
 
   function check(p, where) {
-    api("POST", "sources/check", { url: p.url }).then(function (r) {
+    return api("POST", "sources/check", { url: p.url }).then(function (r) {
       if (r._status !== 200) return failed(where, r);
       setPassword(pass.value);
       data.check = r.check; showCheck(r.check, where); poll(where);
@@ -159,15 +175,27 @@ SCRIPT = r"""
     }, function () { say(where, DOWN, true); });
   }
 
-  function poll(where) {
+  // Every two seconds while a check runs. If kia doesn't answer for a moment (it's
+  // restarting, say), keep trying, less often, rather than showing a result it never sent.
+  function poll(where, wait) {
     clearTimeout(polling);
     polling = setTimeout(function () {
+      var lost = function () {
+        var span = where.querySelector(".clock");
+        if (span) span.textContent = "Lost touch with kia, trying again… ";
+        poll(where, Math.min((wait || 2000) * 2, 30000));
+      };
       api("GET", "sources/check").then(function (r) {
-        data.check = r.check || {};
+        if (r._status !== 200 || !r.check) return lost();
+        data.check = r.check;
         showCheck(data.check, where);
         if (data.check.running) poll(where);
-      }, function () { say(where, DOWN, true); });
-    }, 2000);
+      }, lost);
+    }, wait || 2000);
+  }
+  function resumePoll() {
+    var c = data.check;
+    if (c && c.running && rows[c.url]) poll(rows[c.url].querySelector(".src-result"));
   }
 
   function section(name) {
@@ -187,8 +215,8 @@ SCRIPT = r"""
     }
     body.appendChild(el("p", {}, [el("span", { class: "used" }), " " +
       (can ? "Tick a source to use its channels, untick it to stop. " : "") +
-      "Changes take effect at the next refresh. Choices made here are kept apart from " + data.file +
-      ", which you can still edit by hand."]));
+      "Changes take effect at the next refresh. You can also edit " + data.file + " by hand; what you choose here applies on top of it. " +
+      "A flaky stream worked at some checks and not at others."]));
     if (can) {
       pass = el("input", { type: "password", id: "src-pass", autocomplete: "current-password", value: getPassword() });
       body.appendChild(el("div", { class: "editor" }, [el("label", { class: "field", for: "src-pass" }, [el("strong", { text: "Password" }),
@@ -210,7 +238,7 @@ SCRIPT = r"""
   function unlockForm() {
     var input = el("input", { type: "password", id: "src-unlock", autocomplete: "current-password" });
     var button = el("button", { type: "submit", class: "primary", text: "Show and change sources" });
-    var result = el("p", { role: "status", hidden: true });
+    var result = el("p", { role: "status" });
     var form = el("form", { class: "editor" }, [el("label", { class: "field", for: "src-unlock" }, [el("strong", { text: "Password" }),
       el("span", { class: "hint", text: "Logins in the addresses stay hidden until you enter it. This tab remembers it until you close it." })]),
       input, result, el("div", { class: "actions" }, [button])]);
@@ -230,7 +258,7 @@ SCRIPT = r"""
     var name = el("input", { type: "text", id: "src-name", placeholder: "e.g. extras", maxlength: "40", spellcheck: "false" });
     var radio = el("input", { type: "checkbox", id: "src-radio" });
     var button = el("button", { type: "submit", class: "primary", text: "Add the source" });
-    var result = el("p", { role: "status", hidden: true });
+    var result = el("p", { role: "status" });
     var form = el("form", { class: "editor" }, [el("h3", { text: "Add a channel source" }),
       el("label", { class: "field", for: "src-url" }, [el("strong", { text: "Address" }),
         el("span", { class: "hint", text: "An M3U playlist on the internet (http:// or https://)." })]), url,
@@ -248,7 +276,9 @@ SCRIPT = r"""
         setPassword(pass.value);
         data = r; sections = {}; rows = {}; draw();
         var added = data.playlists.filter(function (p) { return p.url === url.value.trim(); })[0];
+        resumePoll();
         if (added) { var s = sections[added.section]; s.el.open = true; rows[added.url].scrollIntoView({ block: "center" });
+          rows[added.url].querySelector("input").focus();
           say(rows[added.url].querySelector(".src-result"), "Added. Its channels join your playlists at the next refresh."); }
       }, function () { button.disabled = false; button.textContent = "Add the source"; say(result, DOWN, true); });
     });
@@ -270,7 +300,7 @@ SCRIPT = r"""
       can = d.editable && d.secure && d.unlocked;
       card.hidden = false;
       draw();
-      if (d.check && d.check.running && rows[d.check.url]) poll(rows[d.check.url].querySelector(".src-result"));
+      resumePoll();
       return d.unlocked || !d.secure;
     });
   }

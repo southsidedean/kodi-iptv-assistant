@@ -19,6 +19,18 @@
 - The Pluto relay follows redirects only to https addresses, and **Test** only tries stream addresses, as the nightly check does.
 - kia's password file stays private even if kia stopped while writing it.
 
+### Dashboard
+
+- The Timeline no longer freezes the page. With a big playlist it rebuilt every row once a minute (up to two seconds on a fast computer), losing your place and the keyboard focus each time. Now it fills in shows only for the rows on screen and as you scroll, moves the "now" line each minute, and rebuilds only when the half hour changes, keeping your place and focus. Its hour labels stay in view as you scroll down, and on a phone a tap anywhere in a row's height opens the show at that time.
+- Things that should be hidden stayed visible because of their styles: the "On now / Timeline" buttons and "Hide channels without guide data" before there's a guide, an empty Pluto TV table on phones, and the playlist editor's channel filter, which didn't filter.
+- **Copy** works on the plain (http) address too, where browsers don't offer the clipboard; if even that fails, the address is selected for you to copy. Screen readers hear the result.
+- **Check now** keeps going when kia doesn't answer for a moment (it says so and tries again), instead of showing "0 streams". Its clock is no longer read aloud every two seconds.
+- Buttons that start something (**Test**, **Check now**, **Remove**, **Put back**, **Renumber everything**, **Delete playlist**) ignore more clicks until it's done.
+- After **Cancel**, adding a channel source, or removing one, the keyboard focus stays where you were instead of going back to the top of the page. Messages are read out more reliably by screen readers.
+- Leaving a channel's number box saves the new number; on a phone, the keyboard's Done key used to throw it away. Escape still cancels.
+- Searching for a channel to add shows only the latest search's results.
+- The **Getting started** ticks are easier to tap (44 pixels). The Pluto TV table and the Sources page explain themselves in plainer words, and "Remove it until it works" is now **Take it out until it works**.
+
 ## 0.5.0 (2026-10-22)
 
 ### Upgrading from 0.4

@@ -58,13 +58,26 @@ SCRIPT = r"""
   }
   function getPassword() { try { return sessionStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
   function setPassword(v) { try { if (v) sessionStorage.setItem(KEY, v); else sessionStorage.removeItem(KEY); } catch (e) {} }
+  // Read aloud from one region that's always in the page (a region that appears together
+  // with its text often isn't read out).
+  var announce = el("p", { class: "visually-hidden", role: "status" });
+  document.body.appendChild(announce);
+  function tell(text) { announce.textContent = ""; setTimeout(function () { announce.textContent = text; }, 50); }
+  // A busy button ignores more clicks: each would start the work again.
+  function busy(button, work) {
+    if (button.getAttribute("aria-busy")) return;
+    button.setAttribute("aria-busy", "true");  // stays focusable, unlike disabled
+    var done = function () { button.removeAttribute("aria-busy"); };
+    work().then(done, done);
+  }
   // A message right under the row it's about (or, with no row, above the list).
   function rowSay(row, text, bad, extra) {
+    if (text) tell(text);
     if (!row) { msg.hidden = !text; msg.className = bad ? "error" : "preview"; msg.textContent = text || ""; return; }
     var old = row.nextElementSibling;
     if (old && old.classList.contains("test-result")) old.remove();
     if (!text) return;
-    var cell = el("td", { colspan: "9" }, [el("p", { class: bad ? "error" : "preview", role: "status", text: text })]);
+    var cell = el("td", { colspan: "9" }, [el("p", { class: bad ? "error" : "preview", text: text })]);
     (extra || []).forEach(function (x) { cell.appendChild(x); });
     var line = el("tr", { class: "test-result" }, [cell]);
     row.after(line);
@@ -92,24 +105,28 @@ SCRIPT = r"""
   function name(row) { return row.querySelector("td.name").firstChild.textContent; }
 
   function testRow(row, key, button) {
+    busy(button, function () { return runTest(row, key); });
+  }
+  function runTest(row, key) {
     rowSay(row, "Testing… this takes up to 20 seconds.");
-    button.setAttribute("aria-busy", "true");
-    call("POST", "channel/test", { key: key }).then(function (r) {
-      button.removeAttribute("aria-busy");
+    return call("POST", "channel/test", { key: key }).then(function (r) {
       if (r._status !== 200) return failed(row, r);
       setPassword(pass.value);
       if (r.ok) return rowSay(row, "It plays from here (" + (r.height ? r.height + "p, " : "") + r.seconds + " s). If it won't play on a device, " +
         "the problem may be that device or the app; try it in another player.");
-      var remove = el("button", { type: "button", text: "Remove it until it works", on: { click: function () {
+      var remove = el("button", { type: "button", text: "Take it out until it works", on: { click: function () {
+        if (remove.getAttribute("aria-busy")) return;
         if (!confirm("Take " + name(row) + " out of every playlist? The nightly check puts it back after it works three nights in a row.")) return;
-        call("POST", "channel/remove", { key: key }).then(function (res) {
-          if (res._status !== 200) return failed(row, res);
-          flash("", "Removed " + name(row) + " from every playlist. " + (everything ? "It's listed above, with Put back." : "To put it back, use Everything."));
-          location.reload();
-        }, function () { rowSay(row, DOWN, true); });
+        busy(remove, function () {
+          return call("POST", "channel/remove", { key: key }).then(function (res) {
+            if (res._status !== 200) return failed(row, res);
+            flash("", "Removed " + name(row) + " from every playlist. " + (everything ? "It's listed above, with Put back." : "To put it back, use Everything."));
+            location.reload();
+          }, function () { rowSay(row, DOWN, true); });
+        });
       } } });
       rowSay(row, "It didn't play: " + plain(r.error) + ".", true, [remove]);
-    }, function () { button.removeAttribute("aria-busy"); rowSay(row, DOWN, true); });
+    }, function () { rowSay(row, DOWN, true); });
   }
 
   Promise.all([
@@ -125,19 +142,23 @@ SCRIPT = r"""
     head.insertBefore(el("th", { class: "fav", "aria-label": "Favorite" }), head.querySelector("th.name"));
     if (can) {
       pass = el("input", { type: "password", id: "ch-pass", autocomplete: "current-password", value: getPassword() });
-      msg = el("p", { role: "status", hidden: true });
+      msg = el("p", { hidden: true });
       var tools = el("div", { class: "chan-tools" }, [
         el("p", { class: "muted", text: "Star a channel to make it a favorite: favorites get their own Favorites group in your players. " +
           "Test tries a channel's stream now." +
           (everything ? " Choose a channel's number to change it everywhere; a channel already on that number moves to a free one." : "") }),
         el("label", { for: "ch-pass" }, [el("strong", { text: "Password" }), pass]), msg]);
       if (everything) tools.appendChild(el("div", { class: "actions" }, [el("button", { type: "button", text: "Renumber everything",
-        on: { click: function () {
+        on: { click: function (ev) {
+          var button = ev.currentTarget;
+          if (button.getAttribute("aria-busy")) return;
           if (!confirm("Number every channel 1, 2, 3 down this list (TV and radio apart), keeping the numbers you chose? " +
             "Channel numbers change on every device. Afterwards, clear Kodi's TV data on each one (Settings > PVR & Live TV > General > Clear data).")) return;
-          call("POST", "renumber").then(function (r) { if (r._status !== 200) return failed(null, r); setPassword(pass.value);
-            flash("", "Renumbered. Now clear Kodi's TV data on each device so it picks up the new numbers."); location.reload(); },
-            function () { rowSay(null, DOWN, true); });
+          busy(button, function () {
+            return call("POST", "renumber").then(function (r) { if (r._status !== 200) return failed(null, r); setPassword(pass.value);
+              flash("", "Renumbered. Now clear Kodi's TV data on each device so it picks up the new numbers."); location.reload(); },
+              function () { rowSay(null, DOWN, true); });
+          });
         } } })]));
       var removed = Object.keys(choices.removed || {});
       if (everything && removed.length) {
@@ -145,9 +166,11 @@ SCRIPT = r"""
         removed.forEach(function (k) {
           var r = choices.removed[k];
           list.appendChild(el("li", {}, [el("strong", { text: r.name }), el("span", { text: " removed " + new Date(r.when).toLocaleDateString() + " " }),
-            el("button", { type: "button", text: "Put back", "aria-label": "Put back " + r.name, on: { click: function () {
-              call("POST", "channel/restore", { key: k }).then(function (res) { if (res._status !== 200) return failed(null, res); setPassword(pass.value);
-                flash(k, "Put back."); location.reload(); }, function () { rowSay(null, DOWN, true); });
+            el("button", { type: "button", text: "Put back", "aria-label": "Put back " + r.name, on: { click: function (ev) {
+              busy(ev.currentTarget, function () {
+                return call("POST", "channel/restore", { key: k }).then(function (res) { if (res._status !== 200) return failed(null, res); setPassword(pass.value);
+                  flash(k, "Put back."); location.reload(); }, function () { rowSay(null, DOWN, true); });
+              });
             } } })]));
         });
         tools.appendChild(el("div", {}, [el("h3", { text: "Removed because they didn't play" }),
@@ -200,7 +223,7 @@ SCRIPT = r"""
           }, function () { back(); rowSay(row, DOWN, true); });
         }
         box.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); done(true); } if (ev.key === "Escape") done(false); });
-        box.addEventListener("blur", function () { done(false); });  // clicking away cancels; Enter saves
+        box.addEventListener("blur", function () { done(true); });  // leaving the box saves a change (a phone's Done key does that); Escape cancels
         num.textContent = ""; num.appendChild(box); box.focus(); box.select();
       } } });
       num.textContent = ""; num.appendChild(edit);
