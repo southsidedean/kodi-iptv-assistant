@@ -56,3 +56,47 @@ def test_the_server_answers_metrics(tmp_path: Path):
             assert "kia_channels_with_guide 966" in resp.read().decode()
     finally:
         srv.shutdown()
+
+
+class FakePlex:
+    def __init__(self):
+        self.playing = [
+            {"player": "Kitchen", "player_id": "abc123", "product": "Plex for Roku", "kind": "live", "video": "copy", "location": "lan", "state": "playing"},
+            {"player": "Grandma's iPad", "player_id": "def456", "product": "Plex for iOS", "kind": "movie", "video": "transcode", "location": "wan", "state": "paused"},
+        ]  # fmt: skip
+
+    def sessions(self):
+        return [dict(x) for x in self.playing]
+
+
+def test_plex_players_appear_by_pseudonym_only(tmp_path: Path):
+    state = tmp_path / "state"
+    out = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    assert "Kitchen" not in out and "Grandma" not in out
+    names = re.findall(r'kia_plex_session_info\{player="(player-[0-9a-f]{6})"', out)
+    assert len(set(names)) == 2
+    assert 'kia_plex_sessions{kind="live",video="copy",location="lan"} 1' in out
+    # The same device keeps its pseudonym, after a restart too (the key is kept in state/).
+    again = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    assert re.findall(r'kia_plex_session_info\{player="(player-[0-9a-f]{6})"', again) == names
+    assert (state / "metrics-key").stat().st_mode & 0o077 == 0
+    # Which is which, for the secure page only.
+    known = {p["pseudonym"]: p["name"] for p in metrics.known_players(state)}
+    assert sorted(known.values()) == ["Grandma's iPad", "Kitchen"] and set(known) == set(names)
+    assert (state / metrics.PLAYERS_FILE).stat().st_mode & 0o077 == 0
+
+
+def test_players_names_need_the_password(tmp_path: Path):
+    from kia import api, auth
+
+    state = tmp_path / "state"
+    metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    cfg = api.ApiConfig(tmp_path, state, tmp_path / "profiles.toml", None, auth.Auth(state, "secret"), 8743)
+
+    def call(password, secure):
+        headers = {"Host": "tv.lan:8743", **({"X-Kia-Password": password} if password else {})}
+        return api.handle(cfg, "GET", "/api/players", headers, b"", secure)
+
+    assert call(None, True)[0] == 401 and call("secret", False)[0] == 403
+    status, body = call("secret", True)
+    assert status == 200 and {p["name"] for p in body["players"]} == {"Kitchen", "Grandma's iPad"}

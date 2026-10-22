@@ -335,7 +335,7 @@
    "id": 7,
    "type": "table",
    "title": "Playing now",
-   "description": "Every Plex player now, what it's playing, and how.",
+   "description": "Every Plex player now, what it's playing, and how. Players are shown by a pseudonym; kia's System page (the secure one) shows which is which.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"

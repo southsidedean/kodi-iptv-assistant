@@ -209,7 +209,8 @@ def plex() -> Board:
     b.stat("Converting video", "Players Plex is converting video for (transcoding), which takes the most processor time.",
            'sum(kia_plex_sessions{video="transcode"}) or vector(0)', w=5)  # fmt: skip
     b.stat("Away from home", "Players outside your home network.", 'sum(kia_plex_sessions{location="wan"}) or vector(0)', w=5)
-    b.table("Playing now", "Every Plex player now, what it's playing, and how.", "kia_plex_session_info",
+    b.table("Playing now", "Every Plex player now, what it's playing, and how. Players are shown by a pseudonym; "
+            "kia's System page (the secure one) shows which is which.", "kia_plex_session_info",
             ["player", "product", "kind", "video", "location", "state"], no_value="Nothing playing")  # fmt: skip
     b.row("Over time")
     b.graph("Sessions by kind", "Live TV, movies, episodes, and music.", [('sum by (kind) (kia_plex_sessions{kind!="none"})', "{{kind}}")],

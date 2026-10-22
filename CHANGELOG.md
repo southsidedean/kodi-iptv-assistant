@@ -14,6 +14,10 @@ Update as usual, then restart the Threadfins once, when nobody is watching, so t
 - New setting `KIA_NODE_EXPORTER_LISTEN`, to keep node-exporter off the rest of your network.
 - Threadfin's page had no login, so anyone on your network could change its playlist or FFmpeg settings. kia now gives each Threadfin without a login one: the user `admin`, with a random password in `threadfin/conf/admin-password.txt` (and `threadfin-2/conf/`). Plex's access to the tuner, playlist, and guide is unchanged. For a Threadfin that's already running, the login starts with its next restart (see *Upgrading*); one that already has users of its own is left alone.
 
+### Privacy
+
+- `/metrics` showed each Plex player by its name, which is often a room's or a person's, to anyone on your network. Now each player has a pseudonym, such as `player-3fa2c1`: the same for a device every time, and impossible to work back from without a secret kia keeps in `state/`. The System page on the secure Dashboard shows which is which, after the password (or `GET /api/players`). Graphs recorded before keep the names until Prometheus lets them go (30 days by default); to drop them now, delete `monitoring/prometheus/` while Prometheus is stopped.
+
 ### Sturdier
 
 - Only one refresh runs at a time. A refresh started by hand (`docker compose exec kia python3 -m kia run`) could run alongside the nightly one, or the one a new install starts by itself, and the two could overwrite each other's files. Now the second says a refresh is already running, and since when, and stops; the nightly run skips its turn if one started by hand is still going. Saving on the Dashboard also waits for a refresh's writes in another process, not only in its own.
