@@ -286,3 +286,21 @@ def test_counters_keep_counting_after_a_channel_goes_idle(monkeypatch):
     monkeypatch.setattr(pluto, "IDLE_AFTER", -1)
     c = r.counters()
     assert (c["playing"], c["viewers"], c["sessions"], c["pieces"]) == (0, {}, 1, 1)  # totals only grow
+
+
+def test_a_piece_that_failed_is_tried_again():
+    part = "162136-698541"
+    fake = FakePluto([media([(0, SHOW.format(part=part, n=0))], seq=99, key=KEY.format(part=part))])
+    tries = []
+
+    def flaky_remux(body, key, iv, dur, t0):
+        tries.append(1)
+        return b"" if len(tries) == 1 else b"TS" + body  # a network blip, then it works
+
+    r = pluto.Relay(None, log=lambda m: None, fetcher=fake, remux_fn=flaky_remux)
+    look(r)
+    assert r.handle(f"/pluto/{CID}/0.ts", "192.0.2.30")[0] == 502
+    status, _, body = r.handle(f"/pluto/{CID}/0.ts", "192.0.2.31")  # the next viewer, or the same one again
+    assert status == 200 and body.startswith(b"TSpiece:") and len(tries) == 2
+    r.handle(f"/pluto/{CID}/0.ts", "192.0.2.30")
+    assert len(tries) == 2  # once it worked, it's shared

@@ -20,9 +20,8 @@ import zlib
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from xml.sax.saxutils import escape, quoteattr
 
-from kia.m3u import Entry
+from kia.m3u import Entry, xml_attr, xml_text
 from kia.native import fetch, filter_xmltv
 
 PREFIX = "playlist-"
@@ -109,7 +108,7 @@ def download(
     with open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
         for tid in ours:
-            out.write(f"  <channel id={quoteattr(tid)}><display-name>{escape(tid)}</display-name></channel>\n")
+            out.write(f"  <channel id={xml_attr(tid)}><display-name>{xml_text(tid)}</display-name></channel>\n")
         for url in info["urls"]:
             t0 = time.monotonic()
             try:

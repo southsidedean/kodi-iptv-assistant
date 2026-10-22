@@ -120,12 +120,25 @@ def for_players(entries: list[Entry], base_url: str | None) -> list[Entry]:
     return out
 
 
+class _HttpsOnly(urllib.request.HTTPRedirectHandler):
+    """Follows redirects only to https addresses, so a redirect can't point the relay at
+    something on your network."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.lower().startswith("https://"):
+            raise urllib.error.HTTPError(newurl, code, "redirect to an address that isn't https", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = urllib.request.build_opener(_HttpsOnly)
+
+
 def fetch(url: str, timeout: float = TIMEOUT) -> tuple[str, bytes]:
     """(final address, body). Only https: the addresses come from Pluto's playlists."""
     if not url.lower().startswith("https://"):
         raise ValueError(f"not an https address: {url[:80]}")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with _OPENER.open(req, timeout=timeout) as r:
         return r.geturl(), r.read()
 
 
@@ -425,13 +438,16 @@ class Channel:
         if p is None:
             return None
         with self.remux_lock:
-            if seq not in self.cache:
-                self.cache[seq] = self._remux(p)
-                if self.trace:
-                    self.trace(f"{self.cid[:6]} sent {seq} at {p.t0:.3f} ({len(self.cache[seq])} bytes) to {viewer}")
+            if seq in self.cache:
+                return self.cache[seq]
+            data = self._remux(p)
+            if self.trace:
+                self.trace(f"{self.cid[:6]} sent {seq} at {p.t0:.3f} ({len(data)} bytes) to {viewer}")
+            if data:  # a piece that failed is tried again on the next request, not kept
+                self.cache[seq] = data
                 while len(self.cache) > CACHE_PIECES:
                     del self.cache[next(iter(self.cache))]  # the oldest one in
-            return self.cache[seq]
+            return data
 
     def _key(self, uri: str) -> bytes:
         if uri not in self.keys:

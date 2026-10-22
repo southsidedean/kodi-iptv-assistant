@@ -163,3 +163,29 @@ def test_kias_own_key_is_private_without_docker(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("KIA_TLS_SHARED", "true")  # with Docker, nginx reads it
     tls.make_self_signed(tmp_path / "b", ["kia.lan"])
     assert (tmp_path / "b" / tls.KEY).stat().st_mode & 0o044 == 0o044
+
+
+def test_the_relay_wont_follow_a_redirect_off_https():
+    handler = pluto._HttpsOnly()
+    req = urllib.request.Request("https://stitcher.pluto.tv/x.m3u8")
+    for target in ("http://192.168.1.20/admin", "file:///etc/passwd"):
+        with pytest.raises(urllib.error.HTTPError):
+            handler.redirect_request(req, io.BytesIO(), 302, "Found", {}, target)
+    assert handler.redirect_request(req, io.BytesIO(), 302, "Found", {}, "https://cdn.pluto.tv/y.m3u8") is not None
+
+
+def test_test_only_tries_stream_addresses(monkeypatch):
+    for url in ("file:///etc/passwd", "-i /etc/passwd"):
+        monkeypatch.setattr(api, "_entry", lambda cfg, body, u=url: Entry("X", u))
+        with pytest.raises(api.ApiError) as err:
+            api.test_channel(None, {"key": "x"})
+        assert err.value.status == 400
+
+
+def test_a_leftover_temp_file_cant_make_the_password_file_public(tmp_path: Path):
+    target = tmp_path / "admin.json"
+    leftover = tmp_path / "admin.json.tmp"
+    leftover.write_text("from a crash")
+    leftover.chmod(0o644)
+    auth._write_private(target, "{}")
+    assert target.stat().st_mode & 0o077 == 0

@@ -218,3 +218,24 @@ def test_logins_in_addresses_show_only_with_the_password(cfg, monkeypatch):
 
 def test_a_bad_port_doesnt_break_the_list():
     assert api.mask_url("http://user:pw@host:99999/x.m3u") == "•••"
+
+
+def test_stop_right_after_start_still_stops(cfg, monkeypatch):
+    real, started, go = api.subprocess.Popen, threading.Event(), threading.Event()
+
+    def slow_start(cmd, **kw):  # the process takes a moment to start, and Stop comes first
+        started.set()
+        go.wait(5)
+        return real([sys.executable, "-c", "import time; time.sleep(60)"], **kw)
+
+    monkeypatch.setattr(api.subprocess, "Popen", slow_start)
+    assert call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})[0] == 200
+    started.wait(5)
+    assert call(cfg, "DELETE", "/api/sources/check")[0] == 200  # not "No check is running"
+    go.set()
+    pause = threading.Event().wait
+    for _ in range(200):
+        if not api.CHECK["running"]:
+            break
+        pause(0.05)
+    assert not api.CHECK["running"] and api.CHECK["error"] == "Stopped. Nothing changed."

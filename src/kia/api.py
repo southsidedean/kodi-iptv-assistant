@@ -226,10 +226,13 @@ def test_channel(cfg: ApiConfig, body: dict) -> dict:
     """Try a channel's stream now, the way the nightly check does."""
     import asyncio
 
+    from kia.cli import is_stream_url
     from kia.config import DEFAULT_USER_AGENT
     from kia.probe import probe
 
     entry = _entry(cfg, body)
+    if not is_stream_url(stream_url(entry.url)):  # as the nightly check: only stream addresses
+        raise ApiError(400, "That channel's address isn't a stream kia can test.")
     r = asyncio.run(probe(stream_url(entry.url), timeout=20, user_agent=entry.user_agent or DEFAULT_USER_AGENT,
                           referrer=entry.referrer, require_video=not entry.is_radio))  # fmt: skip
     return {"key": entry.key, "name": entry.name, "ok": r.ok, "error": r.error, "seconds": round(r.elapsed, 1),
@@ -451,7 +454,11 @@ def _run_check(cfg: ApiConfig, line: str) -> None:
         # Its own process group, so Stop ends the ffprobe runs it starts as well.
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                 start_new_session=True)  # fmt: skip
-        CHECK_PROC["proc"] = proc
+        with LOCK:
+            CHECK_PROC["proc"] = proc
+            stopped = CHECK.get("stopped")
+        if stopped:  # Stop came before the process had started
+            _end(proc)
         try:
             out, err = proc.communicate(timeout=1800)
         except subprocess.TimeoutExpired:
@@ -475,23 +482,26 @@ def _run_check(cfg: ApiConfig, line: str) -> None:
 
 
 def _end(proc) -> None:
-    """End a check and everything it started."""
-    try:
-        os.killpg(proc.pid, signal.SIGTERM)
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        pass
+    """End a check and everything it started: politely, then for sure."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(proc.pid, sig)
+            proc.wait(timeout=10)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+        except (ProcessLookupError, PermissionError):  # it ended by itself meanwhile
+            return
 
 
 def stop_check() -> dict:
     with LOCK:
         proc = CHECK_PROC.get("proc")
-        if not CHECK.get("running") or proc is None:
+        if not CHECK.get("running"):
             raise ApiError(409, "No check is running.")
-        CHECK["stopped"] = True
-    _end(proc)
+        CHECK["stopped"] = True  # one that's only starting ends as soon as it has started
+    if proc is not None:
+        _end(proc)
     return {"check": check_state(unlocked=True)}
 
 

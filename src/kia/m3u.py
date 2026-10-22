@@ -4,6 +4,21 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from xml.sax.saxutils import escape, quoteattr
+
+# Characters XML doesn't allow, which have no place in a name or address anyway. One of
+# them in a channel name from someone's playlist would make the whole guide unreadable.
+CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufffe\uffff]")
+
+
+def xml_text(text: str) -> str:
+    """Third-party text, safe inside an XML element."""
+    return escape(CONTROL.sub("", text))
+
+
+def xml_attr(text: str) -> str:
+    """Third-party text as a quoted XML attribute."""
+    return quoteattr(CONTROL.sub("", text))
 
 _ATTR_RE = re.compile(r'\s*([A-Za-z0-9_-]+)="([^"]*)"')
 _EXTINF_RE = re.compile(r"#EXTINF:\s*(-?\d+(?:\.\d+)?)(.*)")
@@ -111,7 +126,7 @@ def parse(text: str, source: str = "") -> list[Entry]:
     entries: list[Entry] = []
     pending: Entry | None = None
     for raw in text.removeprefix("\ufeff").splitlines():
-        line = raw.strip()
+        line = CONTROL.sub("", raw).strip()
         if not line or line.startswith("#EXTM3U"):
             continue
         if line.startswith("#EXTINF"):
@@ -138,7 +153,7 @@ def parse(text: str, source: str = "") -> list[Entry]:
 def _clean(text: str, quote: bool = False) -> str:
     """One line of third-party text: no line breaks (which would start a new playlist
     line, even a channel that was never checked), and in attributes no double quotes."""
-    text = " ".join(str(text).splitlines()).replace("\r", " ")
+    text = CONTROL.sub("", " ".join(str(text).splitlines()).replace("\r", " "))
     return text.replace('"', "'") if quote else text
 
 
