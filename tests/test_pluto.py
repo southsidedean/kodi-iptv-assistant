@@ -273,3 +273,16 @@ def test_problems_reach_kias_log_and_the_folder_answers():
     assert r.handle("/pluto/", "x")[0] == 200
     r.handle(f"/pluto/{CID}.m3u8", "x")
     assert any(m.startswith(f"Pluto {CID}: ") and "jmp2.uk link failed" in m for m in said)
+
+
+def test_counters_keep_counting_after_a_channel_goes_idle(monkeypatch):
+    r, _ = relay(FakePluto([media([(0, SHOW.format(part="p", n=0))])]))
+    playlist = look(r)
+    piece = numbers(playlist)[0]
+    status, _, body = r.handle(f"/pluto/{piece}", "tv")
+    assert status == 200
+    c = r.counters()
+    assert (c["playing"], c["viewers"], c["sessions"], c["pieces"], c["bytes"]) == (1, {CID: 1}, 1, 1, len(body))
+    monkeypatch.setattr(pluto, "IDLE_AFTER", -1)
+    c = r.counters()
+    assert (c["playing"], c["viewers"], c["sessions"], c["pieces"]) == (0, {}, 1, 1)  # totals only grow

@@ -40,3 +40,11 @@ location ^~ /pluto/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_read_timeout 60s;
 }
+
+# kia's numbers for Prometheus (docs/metrics.md), answered by kia.
+location = /metrics {
+    resolver 127.0.0.11 valid=10s;
+    set $kia http://kia:8781;
+    proxy_pass $kia;
+    proxy_set_header Host $http_host;
+}

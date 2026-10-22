@@ -25,6 +25,10 @@
 - **Stop** on a running **Check now**, for a big playlist that's taking too long. It ends the check's stream tests too, and kia's container now runs a small init (`init: true`) that cleans up after them.
 - Easier to read and to tap: buttons and text boxes have darker edges, the green text and the coverage bar's amber have more contrast, and on touch screens every button is at least 44 pixels tall. A test keeps the colours at WCAG AA contrast in both themes.
 
+### Metrics
+
+- kia publishes its numbers for Prometheus at `/metrics` ([metrics](docs/metrics.md)): the last refresh, channels, guide coverage, streams per source, playlists, the Pluto relay's viewers and problems, and kia's processor and memory use.
+
 ### Computers that are off at night
 
 - When kia starts and finds it missed the last nightly run, because the computer was off at that time, it refreshes straight away instead of waiting a day. A laptop or desktop no longer needs `KIA_RUN_ON_START`, which refreshes at every start.

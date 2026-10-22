@@ -16,12 +16,13 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from pathlib import Path
 from urllib.parse import urlparse
 
 import xml.etree.ElementTree as ET
 
-from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, playlistguide, profiles, radio, serve, status, upstream, xmltv
+from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
 from kia import alerts, auth, channels, pluto, settings, tls
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -1041,15 +1042,17 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     secure_setup(cfg)
     write_settings(cfg, args.at, args.guide_every)
     update_status(cfg)
+    relay = pluto_relay(cfg) if args.serve or args.api_port else None
+    numbers = partial(metrics.render, cfg.output_dir, relay)  # /metrics, for Prometheus
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
-        serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=pluto_relay(cfg))
+        serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=relay, metrics=numbers)
         log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/")
     elif args.api_port:
-        # With Docker, nginx serves the files (HTTP and HTTPS) and forwards /api/ here; this
-        # port isn't published, and nginx tells it which requests came over HTTPS.
+        # With Docker, nginx serves the files (HTTP and HTTPS) and forwards /api/, /pluto/,
+        # and /metrics here; this port isn't published, and nginx says which came over HTTPS.
         serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg), trust_proxy=True,  # noqa: S104  # nosec B104
-                                  relay=pluto_relay(cfg))  # fmt: skip
+                                  relay=relay, metrics=numbers)  # fmt: skip
         log(f"Profile editor API and Pluto relay on port {args.api_port}")
     run_now = (
         args.run_now

@@ -14,6 +14,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from kia import api as api_module
+from kia import metrics as metrics_module
 from kia import tls
 
 
@@ -106,8 +107,27 @@ class OutputHandler(SimpleHTTPRequestHandler):
             pass  # the player moved on
         return True
 
+    # kia's numbers for Prometheus (kia.metrics), when the server was given them.
+    metrics = None
+
+    def _metrics(self) -> bool:
+        if not self.metrics or self.path.split("?", 1)[0] != "/metrics":
+            return False
+        try:
+            body = self.metrics().encode()
+            status = 200
+        except Exception:  # never drop the connection without an answer
+            traceback.print_exc()
+            body, status = b"kia couldn't gather its numbers; its log has the details.\n", 500
+        self.send_response(status)
+        self.send_header("Content-Type", metrics_module.CONTENT_TYPE)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return True
+
     def do_GET(self):
-        if not self._pluto() and not self._api("GET"):
+        if not self._pluto() and not self._metrics() and not self._api("GET"):
             super().do_GET()
 
     def do_POST(self):
@@ -149,10 +169,11 @@ class TlsServer(ThreadingHTTPServer):
 
 
 def make_server(directory: Path, bind: str, port: int, api=None, tls_dir: Path | None = None,
-                trust_proxy: bool = False, relay=None) -> ThreadingHTTPServer:  # fmt: skip
+                trust_proxy: bool = False, relay=None, metrics=None) -> ThreadingHTTPServer:  # fmt: skip
     directory.mkdir(parents=True, exist_ok=True)
     handler = type("Handler", (OutputHandler,),
-                   {"api": api, "secure": tls_dir is not None, "trust_proxy": trust_proxy, "relay": relay})  # fmt: skip
+                   {"api": api, "secure": tls_dir is not None, "trust_proxy": trust_proxy, "relay": relay,
+                    "metrics": metrics and staticmethod(metrics)})  # fmt: skip
     factory = partial(handler, directory=str(directory))
     if tls_dir is not None:
         return TlsServer((bind, port), factory, tls_dir)
@@ -160,7 +181,7 @@ def make_server(directory: Path, bind: str, port: int, api=None, tls_dir: Path |
 
 
 def serve_in_background(directory: Path, bind: str, port: int, api=None, tls_dir: Path | None = None,
-                        trust_proxy: bool = False, relay=None) -> ThreadingHTTPServer:  # fmt: skip
-    server = make_server(directory, bind, port, api, tls_dir, trust_proxy, relay)
+                        trust_proxy: bool = False, relay=None, metrics=None) -> ThreadingHTTPServer:  # fmt: skip
+    server = make_server(directory, bind, port, api, tls_dir, trust_proxy, relay, metrics)
     threading.Thread(target=server.serve_forever, daemon=True, name="kia-serve").start()
     return server
