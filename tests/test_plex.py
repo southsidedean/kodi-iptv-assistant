@@ -91,7 +91,7 @@ class FakePlex:
 
 @pytest.fixture
 def antenna():
-    return {"key": "5", "Device": [{"key": "1", "uri": "http://192.168.1.50:5004", "model": "WinTV"}],
+    return {"key": "5", "Device": [{"key": "1", "uri": "http://192.0.2.50:5004", "model": "WinTV"}],
             "Lineup": [{"id": "lineup://tv.plex.providers.epg.cloud/abc#Local"}]}  # fmt: skip
 
 

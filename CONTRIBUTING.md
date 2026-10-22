@@ -22,6 +22,8 @@ shellcheck scripts/*.sh deploy/*.sh
 
 CI also scans the Docker image for known vulnerabilities (CVEs) with [Trivy](https://trivy.dev), and fails on fixable high or critical ones. Known exceptions, each with a reason and an end date, are in `.trivyignore`.
 
+Keep your own network out of the repository: files, screenshots, commit messages and pull requests. Examples use `192.168.1.20` for kia, `192.0.2.x` for anything else, `my-server.lan` and `you@example.com`. `tests/test_privacy.py` checks the text files. Nothing can check screenshots, so before adding one, look at all of it for addresses, device and account names, and anything personal.
+
 To try a change end to end, run kia with Docker as the [install guide](docs/install.md) describes, then `docker compose up -d --build`.
 
 ## Making a change

@@ -117,7 +117,7 @@ def test_relay_plays_only_kias_channels_and_only_so_many(monkeypatch):
 
 
 def test_relay_fetches_only_https():
-    for url in ("file:///etc/passwd", "http://192.168.1.1/admin"):
+    for url in ("file:///etc/passwd", "http://192.168.1.20/admin"):
         with pytest.raises(ValueError):
             pluto.fetch(url)
 
