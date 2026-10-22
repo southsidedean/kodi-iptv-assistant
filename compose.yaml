@@ -5,6 +5,14 @@
 # Both containers run locked down: no extra privileges, a read-only system, and write
 # access only to the folders they need. kia runs iptv-org's guide downloader, which is
 # third-party code, so it can't change kia's own files or settings.
+# Each container keeps at most 3 log files of 10 MB (KIA_LOG_MAX_SIZE, KIA_LOG_MAX_FILES);
+# without a limit, Docker keeps every line until the container is recreated.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${KIA_LOG_MAX_SIZE:-10m}
+    max-file: "${KIA_LOG_MAX_FILES:-3}"
+
 services:
   kia:
     build:
@@ -16,6 +24,7 @@ services:
     # ghcr.io/southsidedean/kodi-iptv-assistant:latest (docs/configuration.md, "Versions").
     image: ${KIA_IMAGE:-kodi-iptv-assistant:latest}
     restart: unless-stopped
+    logging: *logging
     # A small init as process 1 cleans up after the stream tests (ffprobe) a stopped
     # "Check now" leaves behind; kia itself doesn't.
     init: true
@@ -104,6 +113,7 @@ services:
   web:
     image: ${KIA_NGINX_IMAGE:-nginx:alpine}
     restart: unless-stopped
+    logging: *logging
     read_only: true
     tmpfs:
       - /run
@@ -168,6 +178,7 @@ services:
       KIA_COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
     command: ["threadfin-setup"]
     restart: "no"
+    logging: *logging
     volumes:
       - ./:/data:ro
       - ./threadfin/conf:/data/threadfin/conf
@@ -177,6 +188,7 @@ services:
     profiles: ["plex"]
     image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}
     restart: unless-stopped
+    logging: *logging
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
     tmpfs:
@@ -213,6 +225,7 @@ services:
     profiles: ["plex-2"]
     image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}
     restart: unless-stopped
+    logging: *logging
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
     tmpfs:
@@ -252,6 +265,7 @@ services:
     # Plex names the server after this; it shows in every Plex app.
     hostname: ${KIA_PLEX_NAME:-kia-tv-box}
     restart: unless-stopped
+    logging: *logging
     environment:
       TZ: ${TZ:-UTC}
       # From https://plex.tv/claim, on the first start only; it links this Plex to your
@@ -277,6 +291,7 @@ services:
     profiles: ["monitoring"]
     image: ${KIA_PROMETHEUS_IMAGE:-prom/prometheus:latest}
     restart: unless-stopped
+    logging: *logging
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
     cap_drop: [ALL]
@@ -303,6 +318,7 @@ services:
     profiles: ["monitoring"]
     image: ${KIA_GRAFANA_IMAGE:-grafana/grafana:latest}
     restart: unless-stopped
+    logging: *logging
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
     tmpfs: [/tmp]
@@ -331,6 +347,7 @@ services:
     profiles: ["monitoring"]
     image: ${KIA_CADVISOR_IMAGE:-ghcr.io/google/cadvisor:latest}
     restart: unless-stopped
+    logging: *logging
     security_opt: ["no-new-privileges:true"]
     # Docker containers only, every 30 seconds, with only the numbers the dashboards use:
     # it costs far less processor time that way.
@@ -350,6 +367,7 @@ services:
     profiles: ["monitoring-node"]
     image: ${KIA_NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
     restart: unless-stopped
+    logging: *logging
     # On this computer's own network and processes, to see them rather than a container's.
     network_mode: host
     pid: host

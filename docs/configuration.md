@@ -46,6 +46,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PARALLEL_SITES` | 4 | Guide sites downloaded at once. Each peaks around 0.7 GB of memory. |
 | `KIA_CHECK_CONCURRENCY` | 20 | Streams tested at once. |
 | `KIA_MEMORY_LIMIT` | `4g` | Memory limit for kia. |
+| `KIA_LOG_MAX_SIZE`, `KIA_LOG_MAX_FILES` | `10m`, `3` | How much of each container's log Docker keeps (what `docker compose logs` shows): this many files of this size, so at most 30 MB per container by default. The oldest lines go first. |
 | `KIA_EXCLUDE_SITES` | | Guide sites to skip, comma-separated. Site names are listed in `mapping-report.html`. |
 | `KIA_EXCLUDE_GROUPS` | | Channel categories to leave out, e.g. `Religious,Shop`. |
 | `KIA_PLACEHOLDERS` | true | Show the channel's name in the guide when there's no guide data. |

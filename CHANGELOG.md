@@ -40,6 +40,10 @@
 - New cookbook, [A laptop that travels](docs/cookbooks/travel-laptop.md): the laptop checks the streams where you are and copies the guide from your home server, with what happens away from home.
 - New cookbook, [A TV in every room](docs/cookbooks/every-room.md): one server for the house, a player on each device, and a playlist for each room or person.
 
+### Logs
+
+- Docker keeps at most 30 MB of each container's log: 3 files of 10 MB, oldest lines first (`KIA_LOG_MAX_SIZE`, `KIA_LOG_MAX_FILES`). Before, it kept every line until the container was recreated, which can fill a disk over months. The next `docker compose up -d` recreates every container once to apply it.
+
 ### Docs
 
 - The diagrams are easier to read on GitHub, in light and dark mode: no more labels on grey or text hidden behind GitHub's zoom buttons. They're now images, made from sources in `docs/diagrams/` by `scripts/diagrams.sh`, so they look the same everywhere.
