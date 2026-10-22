@@ -156,15 +156,35 @@ def _when(iso: str | None) -> str:
 
 COPY_SCRIPT = """
 <script>
-document.querySelectorAll("button[data-copy]").forEach(function (b) {
-  b.addEventListener("click", function () {
-    var text = document.getElementById(b.dataset.copy).textContent;
-    var done = function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1500); };
-    var select = function () { var r = document.createRange(); r.selectNodeContents(document.getElementById(b.dataset.copy));
-      var s = getSelection(); s.removeAllRanges(); s.addRange(r); };
-    if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done, select); } else { select(); }
+// The clipboard API works only on https (or this computer); on the plain http address the
+// older copy command does the job, and failing that the address is selected for Ctrl+C.
+(function () {
+  var say = document.createElement("p");
+  say.className = "visually-hidden"; say.setAttribute("role", "status");
+  document.body.appendChild(say);
+  document.querySelectorAll("button[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var code = document.getElementById(b.dataset.copy), text = code.textContent;
+      var label = function (short, long) {
+        b.textContent = short; say.textContent = long || short;
+        setTimeout(function () { b.textContent = "Copy"; }, 2500);
+      };
+      var select = function () {
+        var r = document.createRange(); r.selectNodeContents(code);
+        var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        return s;
+      };
+      var fallback = function () {
+        var s = select(), ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        if (ok) { s.removeAllRanges(); label("Copied"); }
+        else label("Press Ctrl+C", "The address is selected: press Ctrl+C, or Cmd+C on a Mac, to copy it.");
+      };
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { label("Copied"); }, fallback);
+      else fallback();
+    });
   });
-});
+})();
 </script>
 """
 
@@ -385,7 +405,13 @@ CHECKLIST_STYLE = """
 .steps li[data-done] strong { text-decoration: line-through; color: var(--muted); }
 .steps li[data-done] div span { display: none; }
 #getting-started h2 .progress { font-size: var(--step--1); font-weight: 400; margin-left: .4rem; }
-.steps button.tick { cursor: pointer; }
+/* The button is 44 pixels, easy to tap; the circle drawn inside it stays small. */
+.steps button.tick { cursor: pointer; width: 44px; height: 44px; margin: calc((1.5rem - 44px) / 2);
+  border: 0; background: none; position: relative; isolation: isolate; }
+.steps button.tick::before { content: ""; position: absolute; inset: calc((44px - 1.5rem) / 2); z-index: -1;
+  border: 2px solid var(--line); border-radius: 50%; }
+.steps li[data-done] button.tick { background: none; }
+.steps li[data-done] button.tick::before { background: var(--good); border-color: var(--good); }
 """
 
 CHECKLIST_SCRIPT = """
@@ -442,7 +468,7 @@ def _pluto_card(s: dict) -> str:
         f'<a href="{escape(DOCS_URL)}/troubleshooting.md#pluto-tv-channels-freeze-or-jump-at-ad-breaks">More about this</a>.</p>'
         '<p class="pluto-note bad-note" hidden></p>'
         '<p class="pluto-idle muted">Nothing playing right now.</p>'
-        '<div class="wide"><table class="settings pluto-table" hidden><thead><tr><th>Channel</th><th>Session</th>'
+        '<div class="wide"><table class="settings pluto-table" hidden><thead><tr><th>Channel</th><th>How it plays</th>'
         "<th>Today</th></tr></thead><tbody></tbody></table></div>"
         '<h3 class="pluto-problems-title" hidden>Recent problems</h3><ul class="alerts pluto-problems" hidden></ul>'
         "</section>"
@@ -491,10 +517,14 @@ PLUTO_SCRIPT = """
       var tr = document.createElement("tr");
       var who = c.viewers === 1 ? "1 viewer" : c.viewers + " viewers";
       tr.appendChild(el("td", (names[c.id] || c.id) + " (" + who + ")"));
-      var session = !c.own_session ? "plain jmp2.uk link for " + c.fallback_minutes + " min"
-        : "kia's own, " + c.session_hours + " h old" + (c.next_refresh_hours !== null ? ", fresh one in " + c.next_refresh_hours + " h" : "");
-      tr.appendChild(el("td", session + (c.suspicious ? ", flagged by Pluto" : "")));
-      tr.appendChild(el("td", c.rewinds + " rewinds caught, " + c.sessions + " sessions, " + c.errors + " errors, " + c.fallbacks + " fallbacks"));
+      var session = !c.own_session ? "Using Pluto's shared stream for " + c.fallback_minutes + " min (ad breaks may freeze it)"
+        : "Playing through kia's fix" + (c.next_refresh_hours !== null ? ", renewed in " + c.next_refresh_hours + " h" : "");
+      tr.appendChild(el("td", session + (c.suspicious ? "; Pluto flagged this connection" : "")));
+      var today = [];
+      if (c.rewinds) today.push("kept it from jumping back " + c.rewinds + (c.rewinds === 1 ? " time" : " times"));
+      if (c.errors) today.push(c.errors + (c.errors === 1 ? " piece" : " pieces") + " of video couldn't be passed on");
+      if (c.fallbacks) today.push("fell back to Pluto's shared stream " + c.fallbacks + (c.fallbacks === 1 ? " time" : " times"));
+      tr.appendChild(el("td", today.length ? today.join("; ") : "No problems"));
       rows.appendChild(tr);
       (c.problems || []).forEach(function (x) { problems.appendChild(el("li", when(x.time) + ", " + (names[c.id] || c.id) + ": " + x.text)); });
     });
