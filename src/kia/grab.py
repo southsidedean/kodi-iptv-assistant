@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import os
 import signal
 import subprocess
@@ -14,6 +15,73 @@ from pathlib import Path
 from kia.config import EpgConfig
 from kia import playlistguide
 from kia.native import NATIVE_GRABBERS
+
+# iptv-org/epg is third-party code: its site configs change every day and come from many
+# contributors. Without Docker's own container (the "local" runner, which kia's image
+# uses), kia runs it in Node's sandbox: compiled to plain JavaScript first (tsx would need
+# to start esbuild, a separate program), then run with `node --permission`, which lets it
+# read only the checkout and the channel list, write only its output and a temp folder,
+# and start no programs, threads, or add-ons. It also sees none of kia's settings: only
+# the environment variables below.
+SCRIPTS = {"grab": "scripts/commands/epg/grab.ts", "api-load": "scripts/commands/api/load.ts"}
+PASS_ENV = ("PATH", "LANG", "LC_ALL", "TZ", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy",
+            "https_proxy", "no_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR")  # fmt: skip
+
+
+def epg_env(cfg: EpgConfig, home: bool = False) -> dict[str, str]:
+    """The environment iptv-org's code runs with. `home` keeps HOME (npm's cache)."""
+    env = {k: os.environ[k] for k in PASS_ENV if k in os.environ}
+    tmp = str(temp_dir(cfg))
+    env.update(TMPDIR=tmp, HOME=os.environ.get("HOME", tmp) if home else tmp)
+    return env
+
+
+def temp_dir(cfg: EpgConfig) -> Path:
+    tmp = cfg.work_dir.resolve() / "epg-tmp"
+    tmp.mkdir(parents=True, exist_ok=True)
+    return tmp
+
+
+@functools.cache
+def node_permission() -> tuple[str, ...] | None:
+    """The flags that turn on Node's sandbox here, or None if this Node.js has none."""
+    for flags in (("--permission", "--allow-net"), ("--permission",), ("--experimental-permission",)):
+        try:
+            if subprocess.run(["node", *flags, "-e", ""], capture_output=True, timeout=30, check=False).returncode == 0:
+                return flags
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+    return None
+
+
+def build_scripts(cfg: EpgConfig, log: Callable[[str], None]) -> bool:
+    """Compile the grabber's scripts into .kia/ in the checkout. False if that can't be done."""
+    repo = cfg.repo_dir.resolve()
+    esbuild = repo / "node_modules" / ".bin" / "esbuild"
+    if not esbuild.exists() or not all((repo / src).exists() for src in SCRIPTS.values()):
+        log("Can't compile iptv-org/epg's scripts (no esbuild or scripts in the checkout); its grabber runs without Node's sandbox")
+        return False
+    try:
+        for name, src in SCRIPTS.items():
+            subprocess.run([str(esbuild), src, "--bundle", "--platform=node", "--format=cjs", "--packages=external",
+                            f"--outfile=.kia/{name}.cjs", "--log-level=error"],
+                           cwd=repo, env=epg_env(cfg), check=True, capture_output=True, timeout=300)  # fmt: skip
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        log(f"Couldn't compile iptv-org/epg's scripts ({exc}); its grabber runs without Node's sandbox")
+        return False
+    return True
+
+
+def sandboxed(cfg: EpgConfig, name: str, reads: list[Path], writes: list[Path], args: list[str]) -> list[str] | None:
+    """The command that runs compiled script `name` in Node's sandbox, or None if it can't."""
+    repo = cfg.repo_dir.resolve()
+    script = repo / ".kia" / f"{name}.cjs"
+    if cfg.runner != "local" or not script.exists() or (flags := node_permission()) is None:
+        return None
+    allow = [f"--allow-fs-read={p.resolve()}" for p in (repo, *reads)]
+    allow += [f"--allow-fs-write={p.resolve()}" for p in (temp_dir(cfg), *writes)]
+    return ["node", "--no-warnings", *flags, *allow, str(script), *args]
+
 
 @dataclass
 class GrabResult:
@@ -95,17 +163,34 @@ def _update_repo(cfg: EpgConfig, fresh: bool, log: Callable[[str], None]) -> Non
         install_deps(cfg, log)
     else:
         # Same dependencies; just refresh the iptv-org API data (channel logos, feeds).
-        subprocess.run([*runner_prefix(cfg), "npm", "run", "api:load"], cwd=repo, check=True)
+        api_load(cfg, log)
+
+
+def _env(cfg: EpgConfig, home: bool = False) -> dict:
+    """subprocess arguments: the small environment, except for Docker (which runs it apart)."""
+    return {"env": epg_env(cfg, home)} if cfg.runner == "local" else {}
 
 
 def install_deps(cfg: EpgConfig, log: Callable[[str], None]) -> None:
     log("Installing epg dependencies (npm ci)...")
-    prefix = runner_prefix(cfg)
     # --ignore-scripts skips husky, a git hook installer that fails without git (the node
-    # image has none). It also skips the postinstall step, which downloads iptv-org's
-    # channel data, so run that separately.
-    subprocess.run([*prefix, "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=cfg.repo_dir, check=True)
-    subprocess.run([*prefix, "npm", "run", "api:load"], cwd=cfg.repo_dir, check=True)
+    # image has none), and every package's install scripts, so no third-party code runs
+    # here. It also skips the postinstall step, which downloads iptv-org's channel data,
+    # so run that separately.
+    subprocess.run([*runner_prefix(cfg), "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+                   cwd=cfg.repo_dir, check=True, **_env(cfg, home=True))  # fmt: skip
+    api_load(cfg, log)
+
+
+def api_load(cfg: EpgConfig, log: Callable[[str], None]) -> None:
+    """Download iptv-org's API data into the checkout's temp/ folder (in the sandbox)."""
+    if cfg.runner == "local":
+        build_scripts(cfg, log)
+    data = cfg.repo_dir.resolve() / "temp"
+    cmd = sandboxed(cfg, "api-load", [], [data], [])
+    if cmd:
+        data.mkdir(exist_ok=True)
+    subprocess.run(cmd or [*runner_prefix(cfg), "npm", "run", "api:load"], cwd=cfg.repo_dir, check=True, **_env(cfg))
 
 
 def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
@@ -139,17 +224,19 @@ def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
 def _run_epg_grab(cfg: EpgConfig, channels_file: Path, staged: Path, log_path: Path) -> int:
     site = channels_file.name.removesuffix(".channels.xml")
     container = f"kia-grab-{os.getpid()}-{site}"[:63]
-    cmd = runner_prefix(cfg, container if cfg.runner == "docker" else None) + [
-        "npm", "run", "grab", "--",
+    args = [
         f"--channels={channels_file.resolve()}",
         f"--output={staged}",
         f"--days={cfg.days}",
         f"--maxConnections={cfg.site_connections.get(site, cfg.max_connections)}",
         *([f"--delay={cfg.site_delay_ms[site]}"] if cfg.site_delay_ms.get(site) else []),
     ]  # fmt: skip
+    cmd = sandboxed(cfg, "grab", [channels_file], [staged.parent], args)
+    if cmd is None:
+        cmd = runner_prefix(cfg, container if cfg.runner == "docker" else None) + ["npm", "run", "grab", "--", *args]
     with open(log_path, "w") as logf:
         # Its own process group, so a stop reaches npm's Node.js children too.
-        proc = subprocess.Popen(cmd, cwd=cfg.repo_dir, stdout=logf, stderr=subprocess.STDOUT, start_new_session=True)
+        proc = subprocess.Popen(cmd, cwd=cfg.repo_dir, stdout=logf, stderr=subprocess.STDOUT, start_new_session=True, **_env(cfg))
         try:
             return proc.wait(timeout=cfg.site_time_limit * 60 if cfg.site_time_limit else None)
         except subprocess.TimeoutExpired:
@@ -185,6 +272,10 @@ def grab_all(cfg: EpgConfig, sites: list[str] | None, log: Callable[[str], None]
         except (subprocess.CalledProcessError, OSError) as exc:
             # Those sites fail below and keep their previous guide; i.mjh.nz still works.
             log(f"Couldn't install the epg dependencies ({exc})")
+    elif needs_node and cfg.runner == "local":
+        build_scripts(cfg, log)  # the checkout may be from before kia compiled them
+    if needs_node and cfg.runner == "local" and not sandboxed(cfg, "grab", [], [], []):
+        log("iptv-org's grabber runs without Node's sandbox (Node.js 20 or newer and the compiled scripts are needed), so it can read kia's files")
 
     log(f"Grabbing {cfg.days} days from {len(channel_files)} sites, {cfg.parallel_sites} at a time...")
     results = []

@@ -325,10 +325,25 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     depends_on: [prometheus]
+    # The admin password: KIA_GRAFANA_PASSWORD, or else a random one made on the first start
+    # and saved in monitoring/grafana/admin-password.txt. Never Grafana's default "admin".
+    # Grafana reads it only when it sets itself up, the first time it starts.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        f=/var/lib/grafana/admin-password.txt
+        if [ -z "$$KIA_GRAFANA_PASSWORD" ]; then
+          [ -s "$$f" ] || (umask 077; head -c 18 /dev/urandom | base64 | tr -d '/+=' > "$$f")
+          KIA_GRAFANA_PASSWORD=$$(cat "$$f")
+        fi
+        export GF_SECURITY_ADMIN_PASSWORD="$$KIA_GRAFANA_PASSWORD"
+        unset KIA_GRAFANA_PASSWORD
+        exec /run.sh "$$@"
+      - grafana
     environment:
       TZ: ${TZ:-UTC}
-      # The admin password; empty means "admin", which Grafana asks you to change.
-      GF_SECURITY_ADMIN_PASSWORD: ${KIA_GRAFANA_PASSWORD:-admin}
+      KIA_GRAFANA_PASSWORD: ${KIA_GRAFANA_PASSWORD:-}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"

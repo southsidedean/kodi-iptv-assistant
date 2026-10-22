@@ -298,20 +298,41 @@ def _counts(cfg: ApiConfig) -> dict[str, dict]:
     return {c["name"]: {k: c[k] for k in ("ok", "flaky", "dead")} for c in source_counts(cfg.output_dir / "report.json")}
 
 
-def get_sources(cfg: ApiConfig, secure: bool = False) -> dict:
+def get_sources(cfg: ApiConfig, secure: bool = False, unlocked: bool = False) -> dict:
+    """The channel sources. Addresses can carry a provider's user name and password, so
+    they're shown in full only with kia's password, on the secure page."""
     text, catalog = _sources_texts(cfg)
     rows = web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), _counts(cfg))
-    if not secure:
-        # Addresses can carry a provider's user name and password; show those only on the secure page.
+    unlocked = unlocked and secure
+    if not unlocked:
         for r in rows:
             r["url"] = mask_url(r["url"])
     return {
         "editable": cfg.auth.source != "off",
         "secure": secure,
+        "unlocked": unlocked,
         "file": cfg.sources_file.name,
         "playlists": rows,
-        "check": dict(CHECK),
+        "check": check_state(unlocked),
     }
+
+
+def check_state(unlocked: bool = False) -> dict:
+    state = dict(CHECK)
+    if "url" in state and not unlocked:
+        state["url"] = mask_url(state["url"])
+    return state
+
+
+def password_ok(cfg: ApiConfig, given: str | None, secure: bool) -> bool:
+    """check_password without the error: for reading what only the password may show."""
+    if not given:
+        return False
+    try:
+        check_password(cfg, given, secure)
+    except ApiError:
+        return False
+    return True
 
 
 def set_source(cfg: ApiConfig, body: dict) -> dict:
@@ -330,7 +351,7 @@ def set_source(cfg: ApiConfig, body: dict) -> dict:
         except ValueError as exc:
             raise ApiError(404, str(exc)) from None
         web_sources.save_state(cfg.state_dir, state)
-    return get_sources(cfg, True)
+    return get_sources(cfg, True, unlocked=True)
 
 
 def add_source(cfg: ApiConfig, body: dict) -> dict:
@@ -348,7 +369,7 @@ def add_source(cfg: ApiConfig, body: dict) -> dict:
             raise ApiError(400, str(exc)) from None
         web_sources.add(state, url, name, bool(body.get("radio")))
         web_sources.save_state(cfg.state_dir, state)
-    return get_sources(cfg, True)
+    return get_sources(cfg, True, unlocked=True)
 
 
 def remove_source(cfg: ApiConfig, url: str) -> dict:
@@ -363,7 +384,7 @@ def remove_source(cfg: ApiConfig, url: str) -> dict:
         except ValueError as exc:
             raise ApiError(404, str(exc)) from None
         web_sources.save_state(cfg.state_dir, state)
-    return get_sources(cfg, True)
+    return get_sources(cfg, True, unlocked=True)
 
 
 def mask_url(url: str) -> str:
@@ -372,12 +393,13 @@ def mask_url(url: str) -> str:
 
     try:
         u = urlsplit(url)
-    except ValueError:
-        return url
+        port = u.port
+    except ValueError:  # not an address, or a port like 99999
+        return "•••"
     if not u.scheme.startswith("http"):
         return url
     host = u.hostname or ""
-    netloc = ("•••@" if u.username or u.password else "") + host + (f":{u.port}" if u.port else "")
+    netloc = ("•••@" if u.username or u.password else "") + host + (f":{port}" if port else "")
     return urlunsplit((u.scheme, netloc, u.path, "•••" if u.query else "", ""))
 
 
@@ -420,7 +442,7 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
     if row["radio"] and not url.startswith("radio-browser:"):
         line += " radio"
     threading.Thread(target=_run_check, args=(cfg, line), daemon=True, name="kia-check-now").start()
-    return {"check": dict(CHECK)}
+    return {"check": check_state(unlocked=True)}
 
 
 def _run_check(cfg: ApiConfig, line: str) -> None:
@@ -470,7 +492,7 @@ def stop_check() -> dict:
             raise ApiError(409, "No check is running.")
         CHECK["stopped"] = True
     _end(proc)
-    return {"check": dict(CHECK)}
+    return {"check": check_state(unlocked=True)}
 
 
 def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
@@ -536,9 +558,9 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, set_channel(cfg, data)
         if parts == ["sources"] and method == "GET":
-            return 200, get_sources(cfg, secure)
+            return 200, get_sources(cfg, secure, password_ok(cfg, headers.get("X-Kia-Password"), secure))
         if parts == ["sources", "check"] and method == "GET":
-            return 200, {"check": dict(CHECK)}
+            return 200, {"check": check_state()}
         if parts and parts[0] == "sources" and method in ("PUT", "POST", "DELETE"):
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             if parts == ["sources"] and method == "PUT":

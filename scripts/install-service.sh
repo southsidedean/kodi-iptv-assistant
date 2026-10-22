@@ -104,7 +104,8 @@ if ! [ -f .env ]; then
         address=$(hostname -I 2>/dev/null | awk '{print $1}')
         zone=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || true)
     fi
-    sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://${address:-localhost}:8780|" -e "s|^TZ=.*|TZ=${zone:-Etc/UTC}|" .env.example >.env
+    # .env holds passwords, so only you can read it.
+    (umask 077 && sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://${address:-localhost}:8780|" -e "s|^TZ=.*|TZ=${zone:-Etc/UTC}|" .env.example >.env)
     say "Made .env with address http://${address:-localhost}:8780 and time zone ${zone:-Etc/UTC}. Edit it to change them, then run this again."
 fi
 mkdir -p output state work/logs vendor profiles tls "$(dirname "$target")"

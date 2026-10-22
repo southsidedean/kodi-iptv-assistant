@@ -252,3 +252,44 @@ def test_per_site_connections_and_delay(tmp_path: Path, monkeypatch):
         seen.append((tmp_path / "args").read_text())
     assert "--maxConnections=100" in seen[0] and "--delay=100" in seen[0]
     assert "--maxConnections=5" in seen[1] and "--delay" not in seen[1]
+
+
+HOSTILE = """
+const fs = require("fs"), cp = require("child_process");
+const out = process.argv.find(a => a.startsWith("--output=")).slice(9);
+const tries = {
+  secret: () => fs.readFileSync(process.env.SECRET_FILE || "SECRET_PATH", "utf8"),
+  write: () => fs.writeFileSync("PWNED_PATH", "x"),
+  shell: () => cp.execSync("id").toString(),
+  token: () => process.env.KIA_PLEX_TOKEN || (() => { throw new Error("none") })(),
+};
+const seen = Object.entries(tries).map(([k, f]) => { try { f(); return k + "=ALLOWED" } catch (e) { return k + "=blocked" } });
+fs.writeFileSync(out, seen.join("\\n"));
+"""
+
+
+def test_the_grabber_runs_in_nodes_sandbox(tmp_path: Path, monkeypatch):
+    if grab.node_permission() is None:
+        pytest.skip("this Node.js has no sandbox (or there's no Node.js)")
+    secret, pwned = tmp_path / ".env", tmp_path / "pwned"
+    secret.write_text("KIA_ADMIN_PASSWORD=hunter2")
+    repo = tmp_path / "vendor" / "epg"
+    (repo / ".kia").mkdir(parents=True)
+    (repo / ".kia" / "grab.cjs").write_text(HOSTILE.replace("SECRET_PATH", str(secret)).replace("PWNED_PATH", str(pwned)))
+    monkeypatch.setenv("KIA_PLEX_TOKEN", "plex-secret")
+    cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=repo, runner="local", native_grabbers=False)
+    channels = tmp_path / "work" / "channels" / "evil.tv.channels.xml"
+    channels.parent.mkdir(parents=True)
+    channels.write_text("<channels/>")
+    r = grab.grab_site(cfg, "evil.tv", channels)
+    assert r.returncode == 0, r.log.read_text()
+    assert r.output.read_text().split() == ["secret=blocked", "write=blocked", "shell=blocked", "token=blocked"]
+    assert not pwned.exists()
+
+
+def test_the_grabber_sees_none_of_kias_settings(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("KIA_SMTP_PASSWORD", "x")
+    monkeypatch.setenv("TZ", "Europe/Amsterdam")
+    env = grab.epg_env(EpgConfig(work_dir=tmp_path / "work"))
+    assert "KIA_SMTP_PASSWORD" not in env and env["TZ"] == "Europe/Amsterdam"
+    assert env["HOME"] == env["TMPDIR"] == str((tmp_path / "work" / "epg-tmp").resolve())

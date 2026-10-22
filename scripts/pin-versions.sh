@@ -7,6 +7,7 @@
 # Pins the base (Wolfi) and nginx images by digest and iptv-org/epg by commit. .env is backed
 # up first. Apply with: docker compose up -d --build
 set -eu
+umask 077  # .env and its backups hold passwords: only you can read them
 cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "No .env here; copy .env.example to .env first." >&2; exit 1; }
 

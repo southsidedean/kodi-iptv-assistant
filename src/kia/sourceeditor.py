@@ -180,6 +180,7 @@ SCRIPT = r"""
 
   function draw() {
     body.textContent = "";
+    if (!can && data.editable && data.secure) body.appendChild(unlockForm());
     if (!can && data.editable && card.dataset.secureUrl) {
       body.appendChild(el("p", {}, [el("a", { href: new URL("sources.html#sources-editor", card.dataset.secureUrl).href,
         text: "Turn sources on or off, or add one, on the secure page" }), el("span", { class: "muted", text: " (https://)." })]));
@@ -202,6 +203,26 @@ SCRIPT = r"""
       count(name);
     });
     if (can) body.appendChild(addForm());
+  }
+
+  // On the secure page, addresses (which can hold a provider's login) show in full only
+  // with kia's password.
+  function unlockForm() {
+    var input = el("input", { type: "password", id: "src-unlock", autocomplete: "current-password" });
+    var button = el("button", { type: "submit", class: "primary", text: "Show and change sources" });
+    var result = el("p", { role: "status", hidden: true });
+    var form = el("form", { class: "editor" }, [el("label", { class: "field", for: "src-unlock" }, [el("strong", { text: "Password" }),
+      el("span", { class: "hint", text: "Logins in the addresses stay hidden until you enter it. This tab remembers it until you close it." })]),
+      input, result, el("div", { class: "actions" }, [button])]);
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      button.disabled = true;
+      load(input.value).then(function (ok) {
+        button.disabled = false;
+        if (!ok) { say(result, "Wrong password.", true); input.select(); }
+      }, function () { button.disabled = false; say(result, DOWN, true); });
+    });
+    return form;
   }
 
   function addForm() {
@@ -234,17 +255,26 @@ SCRIPT = r"""
     return form;
   }
 
-  fetch("api/sources").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-    if (!d || !d.playlists) {
-      if (location.protocol === "file:") { card.hidden = false; body.textContent = "Open this page through kia's address to see and change the channel sources."; }
-      return;
-    }
-    data = d;
-    can = d.editable && d.secure;
-    card.hidden = false;
-    draw();
-    if (d.check && d.check.running && rows[d.check.url]) poll(rows[d.check.url].querySelector(".src-result"));
-  }).catch(function () {});
+  // Resolves true once the sources show in full (the password was right, or isn't needed).
+  function load(password) {
+    var headers = password ? { "X-Kia-Password": password } : {};
+    return fetch("api/sources", { headers: headers }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !d.playlists) {
+        if (location.protocol === "file:") { card.hidden = false; body.textContent = "Open this page through kia's address to see and change the channel sources."; }
+        return false;
+      }
+      if (password && !d.unlocked && data) return false;  // a wrong password: keep the page as it is
+      if (d.unlocked) setPassword(password);
+      else if (password) setPassword("");
+      data = d; sections = {}; rows = {};
+      can = d.editable && d.secure && d.unlocked;
+      card.hidden = false;
+      draw();
+      if (d.check && d.check.running && rows[d.check.url]) poll(rows[d.check.url].querySelector(".src-result"));
+      return d.unlocked || !d.secure;
+    });
+  }
+  load(getPassword()).catch(function () {});
 })();
 </script>
 """
