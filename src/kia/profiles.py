@@ -334,7 +334,11 @@ def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_u
     except (OSError, ValueError):
         before = {}
     wanted = {name: {e.tvg_id for e in picked if e.tvg_id} for name, picked in picks.items()}
-    guides, digests = update_guides(output_dir, wanted, before, link_tv=TV_ONLY.name in builtin)
+    try:
+        guides, digests = update_guides(output_dir, wanted, before, link_tv=TV_ONLY.name in builtin)
+    except ET.ParseError as exc:  # the playlists still work, with the full guide
+        log(f"Playlist guides not updated: guide.xml can't be read ({exc})")
+        guides, digests = set(), {}
     summary = []
     for p in defined:
         picked = picks[p.name]

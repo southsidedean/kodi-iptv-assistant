@@ -18,9 +18,9 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from xml.sax.saxutils import escape, quoteattr
 
 from kia import __version__
+from kia.m3u import xml_attr, xml_text
 from kia.xmltv import format_time, parse_time
 
 IMJH_BASE = "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master"
@@ -103,7 +103,7 @@ def grab_imjh(
     with open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
         for tvg_id, name in sorted(names.items()):
-            out.write(f"  <channel id={quoteattr(tvg_id)}><display-name>{escape(name)}</display-name></channel>\n")
+            out.write(f"  <channel id={xml_attr(tvg_id)}><display-name>{xml_text(name)}</display-name></channel>\n")
         for path, wanted in sorted(by_path.items()):
             t0 = time.monotonic()
             try:
@@ -172,13 +172,13 @@ def grab_kink(
     with open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
         for tid in tvg_ids:
-            out.write(f"  <channel id={quoteattr(tid)}><display-name>KINK</display-name></channel>\n")
+            out.write(f"  <channel id={xml_attr(tid)}><display-name>KINK</display-name></channel>\n")
         for tid in tvg_ids:
             for a, b, title, dj in kept:
-                desc = f"<desc>{escape(dj)}</desc>" if dj else ""
+                desc = f"<desc>{xml_text(dj)}</desc>" if dj else ""
                 out.write(
-                    f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
-                    f"channel={quoteattr(tid)}><title>{escape(title)}</title>{desc}</programme>\n"
+                    f"  <programme start={xml_attr(format_time(a))} stop={xml_attr(format_time(b))} "
+                    f"channel={xml_attr(tid)}><title>{xml_text(title)}</title>{desc}</programme>\n"
                 )
         out.write("</tv>\n")
 

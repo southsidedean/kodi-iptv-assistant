@@ -1,4 +1,7 @@
+import time
 from pathlib import Path
+
+import pytest
 
 from kia.curate import Checked, classify, is_excluded, select
 from kia.history import History
@@ -224,3 +227,52 @@ def test_radio_playlist(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
     found = cli.load_entries(load(tmp_path / "kia.toml"), None)
     assert [(e.name, e.is_radio, e.group) for e in found] == [("Cool Jazz", True, "jazz"), ("Smooth FM", True, "Smooth")]
+
+
+def test_a_download_that_fails_is_tried_again(monkeypatch):
+    import io
+    import urllib.error
+
+    from kia import cli
+
+    answers = [OSError("timed out"), urllib.error.HTTPError("u", 503, "busy", {}, None), b"#EXTM3U\n"]
+    waits = []
+
+    def urlopen(req, timeout):
+        a = answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return io.BytesIO(a)
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(cli.time, "sleep", waits.append)
+    assert cli.fetch("https://x/list.m3u") == "#EXTM3U\n" and waits == list(cli.FETCH_WAITS)
+
+    answers[:] = [urllib.error.HTTPError("u", 404, "not found", {}, None)]  # not worth trying again
+    with pytest.raises(urllib.error.HTTPError):
+        cli.fetch("https://x/gone.m3u")
+    assert waits == list(cli.FETCH_WAITS)
+
+
+def test_a_source_that_cant_be_downloaded_uses_its_last_copy(tmp_path: Path, monkeypatch):
+    import os
+
+    from kia import cli
+    from kia.config import load
+
+    (tmp_path / "sources.txt").write_text("https://x/us.m3u us\n")
+    (tmp_path / "kia.toml").write_text("")
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    cfg = load(tmp_path / "kia.toml")
+    monkeypatch.setattr(cli, "fetch", lambda url: "#EXTM3U\n#EXTINF:-1,News\nhttp://a/1\n")
+    assert [e.name for e in cli.load_entries(cfg, None)] == ["News"]
+
+    def down(url):
+        raise OSError("GitHub is down")
+
+    monkeypatch.setattr(cli, "fetch", down)
+    assert [e.name for e in cli.load_entries(cfg, None)] == ["News"]  # last night's copy
+    saved = cfg.epg.work_dir / "sources" / "us.m3u"
+    week = time.time() - (cli.SAVED_COPY_DAYS + 1) * 86400
+    os.utime(saved, (week, week))
+    assert cli.load_entries(cfg, None) == []  # too old: skipped, and the channels_drop alert says so

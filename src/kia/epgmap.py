@@ -7,9 +7,9 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from xml.sax.saxutils import escape, quoteattr
 
 from kia.config import EpgConfig
+from kia.m3u import xml_attr, xml_text
 
 
 @dataclass
@@ -260,8 +260,8 @@ def write_channel_files(candidates: dict[str, list[Candidate]], out_dir: Path) -
         for c in sorted(cands, key=lambda c: c.tvg_id):
             sc = c.channel
             attrs = {"site": sc.site, "site_id": sc.site_id, "lang": sc.lang, "xmltv_id": c.tvg_id, **sc.attrs}
-            attr_text = " ".join(f"{k}={quoteattr(v)}" for k, v in attrs.items())
-            lines.append(f"  <channel {attr_text}>{escape(sc.name)}</channel>")
+            attr_text = " ".join(f"{k}={xml_attr(v)}" for k, v in attrs.items())
+            lines.append(f"  <channel {attr_text}>{xml_text(sc.name)}</channel>")
         lines.append("</channels>")
         (out_dir / f"{site}.channels.xml").write_text("\n".join(lines) + "\n")
     return {site: len(cands) for site, cands in sorted(by_site.items())}

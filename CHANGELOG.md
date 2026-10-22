@@ -10,6 +10,15 @@
 - `scripts/pin-versions.sh` and `scripts/install-service.sh` keep `.env` (and its backups) readable only by you.
 - A channel source with an impossible port number no longer breaks the Sources page.
 
+### Sturdier
+
+- A control character in a channel's name (from someone else's playlist) made the whole guide unreadable for every channel, night after night, and the playlists' own guides failed to build. kia now drops those characters when it reads a playlist, and again when it writes the guide.
+- When a channel source couldn't be downloaded (a timeout at 4 a.m.), all of its channels left your playlists until the next night. kia now tries twice more, after 10 and 30 seconds, and if it still can't, uses the copy it downloaded last time (up to a week old). Its streams are still checked that night.
+- The Pluto TV relay kept a piece of video that failed to download, so every player stalled at it. Now it tries that piece again.
+- **Stop** on a **Check now** that had only just started said nothing was running. It also could answer with an error if the check ended at the same moment.
+- The Pluto relay follows redirects only to https addresses, and **Test** only tries stream addresses, as the nightly check does.
+- kia's password file stays private even if kia stopped while writing it.
+
 ## 0.5.0 (2026-10-22)
 
 ### Upgrading from 0.4

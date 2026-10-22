@@ -242,3 +242,19 @@ def test_accepted_suggestions_are_used(tmp_path: Path, monkeypatch):
     report = (out / "mapping-report.md").read_text()
     assert "| CBN News | `CBNNews.us@SD` | tvpassport.com | CBN News Channel |" in report and "Possible matches" not in report
     assert 'site_id="c2"' in (tmp_path / "work" / "channels" / "tvpassport.com.channels.xml").read_text()
+
+
+def test_a_control_character_in_a_name_cant_break_the_guide(tmp_path: Path):
+    from kia import m3u
+
+    text = '#EXTM3U\n#EXTINF:-1 tvg-id="Bad.us" tvg-logo="http://x/\x02.png" group-title="N\x1bews",Bad\x01Name\nhttp://x/1.m3u8\n'
+    entries = m3u.parse(text)
+    assert entries[0].name == "BadName" and entries[0].group == "News"
+    now = datetime(2026, 10, 16, 12, tzinfo=timezone.utc)
+    # Even an entry made some other way: what goes into the guide is cleaned on the way out.
+    raw = Entry("Raw\x08One", "u", {"tvg-id": "Raw\x0b.us"})
+    out = tmp_path / "guide.xml"
+    xmltv.write_guide(out, [*entries, raw], xmltv.choose_sources(["Bad.us", "Raw\x0b.us"], {}, {}, now), {},
+                      placeholders=True, days=1, now=now)  # fmt: skip
+    names = [d.text for d in ET.parse(out).getroot().iter("display-name")]  # parses: the guide is valid XML
+    assert names == ["BadName", "RawOne"]

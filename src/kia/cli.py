@@ -13,6 +13,7 @@ import tarfile
 import socket
 import sys
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -37,13 +38,51 @@ def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
+# A download that fails is tried again after these waits (a server that answers "not
+# found" or "forbidden" isn't: trying again won't change that).
+FETCH_WAITS = (10, 30)
+# When a channel source still can't be downloaded, kia uses its last good copy, up to a week
+# old, rather than dropping all of its channels until the next night.
+SAVED_COPY_DAYS = 7
+
+
 def fetch(url: str) -> str:
     path = Path(url)
     if path.exists():
         return decode_text(path.read_bytes())
     req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return decode_text(resp.read())
+    for wait in (*FETCH_WAITS, None):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return decode_text(resp.read())
+        except urllib.error.HTTPError as exc:
+            if (exc.code < 500 and exc.code != 429) or wait is None:
+                raise
+        except OSError:
+            if wait is None:
+                raise
+        time.sleep(wait)
+    raise AssertionError("unreachable")
+
+
+def fetch_source(cfg: Config, src) -> str:
+    """A channel source's playlist; its last good copy if it can't be downloaded now."""
+    if src.is_local_file:
+        return fetch(src.url)
+    saved = cfg.epg.work_dir / "sources" / f"{src.name}.m3u"
+    try:
+        text = fetch(src.url)
+    except (OSError, ValueError) as exc:
+        age = time.time() - saved.stat().st_mtime if saved.exists() else None
+        if age is None or age > SAVED_COPY_DAYS * 86400:
+            raise
+        log(f"{src.name}: could not download ({exc}); using the copy from {age / 3600:.0f} hours ago")
+        return saved.read_text(encoding="utf-8")
+    saved.parent.mkdir(parents=True, exist_ok=True)
+    tmp = saved.with_suffix(".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(saved)
+    return text
 
 
 def decode_text(data: bytes) -> str:
@@ -64,7 +103,7 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
             if src.is_radio_browser:
                 found = radio.load(src.params, src.name)
             else:
-                text = fetch(src.url)
+                text = fetch_source(cfg, src)
                 found = m3u.parse(text, source=src.name)
                 if src.radio:
                     for e in found:

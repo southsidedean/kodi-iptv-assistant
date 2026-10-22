@@ -10,10 +10,9 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from xml.sax.saxutils import escape, quoteattr
 
 from kia.history import readable
-from kia.m3u import Entry
+from kia.m3u import Entry, xml_attr, xml_text
 import contextlib
 
 # Marks programmes kia generated for channels without guide data. Kodi ignores unknown
@@ -136,8 +135,8 @@ def _placeholders(tvg_id: str, title: str, start: datetime, days: int, hours: in
         a = start + timedelta(hours=i * hours)
         b = a + timedelta(hours=hours)
         out.append(
-            f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
-            f'channel={quoteattr(tvg_id)} {PLACEHOLDER_ATTR}="1"><title>{escape(title)}</title></programme>'
+            f"  <programme start={xml_attr(format_time(a))} stop={xml_attr(format_time(b))} "
+            f'channel={xml_attr(tvg_id)} {PLACEHOLDER_ATTR}="1"><title>{xml_text(title)}</title></programme>'
         )
     return out
 
@@ -153,8 +152,8 @@ def _fill(tvg_id: str, title: str, start: datetime, end: datetime, day_start: da
         b = min(boundary, end)
         if b - a >= timedelta(minutes=5):  # skip slivers
             out.append(
-                f"  <programme start={quoteattr(format_time(a))} stop={quoteattr(format_time(b))} "
-                f'channel={quoteattr(tvg_id)} {PLACEHOLDER_ATTR}="1"><title>{escape(title)}</title></programme>'
+                f"  <programme start={xml_attr(format_time(a))} stop={xml_attr(format_time(b))} "
+                f'channel={xml_attr(tvg_id)} {PLACEHOLDER_ATTR}="1"><title>{xml_text(title)}</title></programme>'
             )
         a, boundary = b, boundary + step
     return out
@@ -182,10 +181,10 @@ def write_guide(
     with open(tmp, "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="kodi-iptv-assistant">\n')
         for e in entries:
-            f.write(f"  <channel id={quoteattr(e.tvg_id)}>")
-            f.write(f"<display-name>{escape(display_name(e))}</display-name>")
+            f.write(f"  <channel id={xml_attr(e.tvg_id)}>")
+            f.write(f"<display-name>{xml_text(display_name(e))}</display-name>")
             if logo := e.attrs.get("tvg-logo"):
-                f.write(f"<icon src={quoteattr(logo)}/>")
+                f.write(f"<icon src={xml_attr(logo)}/>")
             f.write("</channel>\n")
 
         for site, ids in sorted(wanted.items()):
