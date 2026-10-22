@@ -27,11 +27,9 @@ A desktop, laptop, or Linux box that both runs kia and plays TV. Nothing is expo
 ```ini
 KIA_PUBLIC_URL=http://localhost:8780
 KIA_BIND=127.0.0.1
-# Computers that sleep at night refresh when kia starts
-KIA_RUN_ON_START=true
 ```
 
-The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking.
+The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A run missed while the computer was asleep happens within a minute of waking, and one missed while it was off happens when kia starts. The [laptop or desktop cookbook](cookbooks/kodi-computer.md) walks through this setup from the start.
 
 ## Laptop that travels (with a home server)
 
@@ -40,7 +38,6 @@ The laptop tests streams itself, because what plays depends on where you are. It
 ```ini
 KIA_PUBLIC_URL=http://localhost:8780
 KIA_BIND=127.0.0.1
-KIA_RUN_ON_START=true
 # Your home server
 KIA_UPSTREAM_URL=http://192.168.1.20:8780
 # Away from home: reuse the last guide (or "grab" a fresh one)

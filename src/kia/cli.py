@@ -769,6 +769,18 @@ def next_run_local(at: str, now: datetime | None = None) -> datetime:
     return next_run(now or datetime.now(), at).astimezone()
 
 
+def missed_run(cfg: Config, at: str, now: datetime | None = None) -> bool:
+    """Whether the last scheduled run didn't happen, because kia wasn't running then (a
+    computer that's off at night). kia then refreshes when it starts, instead of a day later.
+    now: local time, without a time zone (for tests)."""
+    last_due = (next_run(now or datetime.now(), at) - timedelta(days=1)).astimezone()
+    try:
+        started = json.loads((cfg.state_dir / "run.json").read_text())["started"]
+        return datetime.fromisoformat(started) < last_due - timedelta(minutes=5)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False  # no record of a run: a new install, which runs anyway when it has no guide
+
+
 def wait_until(when: datetime, poll: float = 60.0) -> None:
     """Sleep until a wall-clock time. Polling (rather than one long sleep) means a laptop
     that was asleep or suspended at the scheduled time catches up within a minute of waking."""
@@ -1032,6 +1044,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         args.run_now
         or env_bool("KIA_RUN_ON_START", False)
         or not (cfg.output_dir / "guide.xml.gz").exists()
+        or missed_run(cfg, args.at)
     )
     every = timedelta(hours=args.guide_every) if args.guide_every > 0 else None
     while True:

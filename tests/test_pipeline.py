@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 import pytest
@@ -50,3 +51,22 @@ def test_next_run_keeps_wall_clock_time_across_dst(monkeypatch):
     finally:
         monkeypatch.delenv("TZ")
         time.tzset()
+
+
+def test_a_run_missed_while_the_computer_was_off_happens_at_start(tmp_path):
+    state = tmp_path / "state"
+    state.mkdir()
+    cfg = type("Cfg", (), {"state_dir": state})()
+    now = datetime(2026, 10, 22, 9, 30)  # local time; the 04:00 run was due this morning
+
+    def ran(when: datetime) -> None:
+        (state / "run.json").write_text(json.dumps({"started": when.astimezone().isoformat(timespec="seconds")}))
+
+    assert not cli.missed_run(cfg, "04:00", now)  # no run yet: a new install runs anyway, when it has no guide
+    ran(datetime(2026, 10, 22, 4, 0))
+    assert not cli.missed_run(cfg, "04:00", now)  # this morning's run happened
+    ran(datetime(2026, 10, 21, 4, 0))
+    assert cli.missed_run(cfg, "04:00", now)  # off at 04:00 today: run now, not tomorrow
+    assert not cli.missed_run(cfg, "04:00", datetime(2026, 10, 22, 3, 0))  # before today's run was due
+    (state / "run.json").write_text("{")
+    assert not cli.missed_run(cfg, "04:00", now)
