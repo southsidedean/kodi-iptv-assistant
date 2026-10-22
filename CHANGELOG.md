@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.5.1 (unreleased)
+
 ## 0.5.0 (2026-10-22)
 
 ### Upgrading from 0.4
