@@ -51,7 +51,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PLACEHOLDERS` | true | Show the channel's name in the guide when there's no guide data. |
 | `KIA_RADIO_PLACEHOLDERS` | false | The same for radio stations, so Kodi's radio guide lists each station's name. Almost no station has guide data, so this fills the radio guide with name blocks. |
 | `KIA_EPG_GIT_URL`, `KIA_EPG_GIT_REF` | iptv-org/epg, `latest` | Use a fork of iptv-org/epg, or pin a branch, tag, or commit. See [versions](#versions). |
-| `KIA_NODE_IMAGE`, `KIA_NGINX_IMAGE` | `node:lts-alpine`, `nginx:alpine` | Docker images for kia and the web server. See [versions](#versions). |
+| `KIA_BASE_IMAGE`, `KIA_NODE_VERSION`, `KIA_NGINX_IMAGE` | `cgr.dev/chainguard/wolfi-base:latest`, `24`, `nginx:alpine` | kia's base image, the Node.js major version on it, and the web server's image. See [versions](#versions). |
 | `COMPOSE_PROFILES` | | `plex` starts Threadfin with kia, for [Plex](plex.md); `plex,plex-2` starts two, for more than 480 channels. |
 | `KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT` | `34400`, `34401` | Threadfin's web pages, and the tuner addresses Plex uses. |
 | `KIA_THREADFIN_IMAGE` | `fyb3roptik/threadfin:1.2.37` | Threadfin's version. |
@@ -66,7 +66,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex in the stack. Plex can read them but not change them. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
-After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_NODE_IMAGE`.
+After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.
 
 ## Choosing channel sources on the Dashboard
 
@@ -160,7 +160,7 @@ By default kia uses the latest version of each thing it depends on:
 | Part | Default | Updated |
 |---|---|---|
 | iptv-org/epg (the guide downloader) | `latest`, its main branch | Every night, so fixes for guide sites arrive by themselves |
-| Node.js (inside the kia image) | `node:lts-alpine`, the latest long-term-support release | When you update kia (below) |
+| kia's base image | [Wolfi](https://github.com/wolfi-dev) (`cgr.dev/chainguard/wolfi-base:latest`), with Python, ffmpeg, and Node.js 24 (`KIA_NODE_VERSION`) | When you update kia (below) |
 | nginx (the web server) | `nginx:alpine`, the latest release | When you update kia (below) |
 
 To update kia and both images:
@@ -172,7 +172,7 @@ docker compose pull --ignore-buildable
 docker compose up -d
 ```
 
-To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions into it. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, and an exact image in `KIA_NODE_IMAGE` or `KIA_NGINX_IMAGE`, e.g. `node:22.23.3-alpine3.24` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). An image can also be pinned by digest, e.g. `nginx:alpine@sha256:...`. Pinned versions don't receive fixes until you change them.
+To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions into it. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, an exact image in `KIA_BASE_IMAGE` or `KIA_NGINX_IMAGE`, by digest (e.g. `nginx:alpine@sha256:...`), and a Node.js major version in `KIA_NODE_VERSION` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). Pinned versions don't receive fixes until you change them.
 
 Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, and `tls/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, where it can't change kia itself, your settings, or anything else on the computer. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
 

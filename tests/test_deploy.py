@@ -234,7 +234,7 @@ def test_pin_versions_script(tmp_path: Path):
     proj = tmp_path / "kia"
     (proj / "scripts").mkdir(parents=True)
     shutil.copy(root / "scripts" / "pin-versions.sh", proj / "scripts")
-    (proj / ".env").write_text("KIA_PUBLIC_URL=http://tv.lan:8780\nKIA_NODE_IMAGE=\nKIA_NGINX_IMAGE=\nKIA_EPG_GIT_REF=\n")
+    (proj / ".env").write_text("KIA_PUBLIC_URL=http://tv.lan:8780\nKIA_BASE_IMAGE=\nKIA_NGINX_IMAGE=\nKIA_EPG_GIT_REF=\n")
     (proj / "vendor" / "epg").mkdir(parents=True)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -246,9 +246,9 @@ def test_pin_versions_script(tmp_path: Path):
     run = lambda *a: subprocess.run(["sh", "scripts/pin-versions.sh", *a], cwd=proj, env=env, capture_output=True, text=True)
     assert run().returncode == 0
     text = (proj / ".env").read_text()
-    assert "KIA_NODE_IMAGE=node@sha256:abc123" in text and "KIA_NGINX_IMAGE=nginx@sha256:abc123" in text
+    assert "KIA_BASE_IMAGE=cgr.dev/chainguard/wolfi-base@sha256:abc123" in text and "KIA_NGINX_IMAGE=nginx@sha256:abc123" in text
     assert "KIA_EPG_GIT_REF=0123456789abcdef" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text
     assert list(proj.glob(".env.bak-*"))
     assert run("--unpin").returncode == 0
     text = (proj / ".env").read_text()
-    assert "KIA_NODE_IMAGE=\n" in text and "KIA_EPG_GIT_REF=\n" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text
+    assert "KIA_BASE_IMAGE=\n" in text and "KIA_EPG_GIT_REF=\n" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text

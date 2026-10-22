@@ -2,6 +2,15 @@
 
 ## 0.5.0 (unreleased)
 
+### Upgrading from 0.4
+
+- kia's image is now built on [Wolfi](https://github.com/wolfi-dev) instead of Alpine. Run `git pull` and `docker compose up -d --build`. If you pinned `KIA_NODE_IMAGE` in `.env`, it's no longer used: run `scripts/pin-versions.sh` again to pin the new base (`KIA_BASE_IMAGE`), or delete the line.
+
+### A safer image
+
+- kia's image is built on Wolfi, whose packages get security fixes quickly. It matters most for ffmpeg, which reads streams from anywhere on the internet: Wolfi ships ffmpeg 9.0 (Alpine 8.1). Grype finds 7 known CVEs in the new image against 46 in the old one; Trivy finds none in either. The image is about 80 MB bigger. A full refresh gave the same results in the same time.
+- New settings: `KIA_BASE_IMAGE` (the base, by default `cgr.dev/chainguard/wolfi-base:latest`) and `KIA_NODE_VERSION` (the Node.js major version, default 24). `scripts/pin-versions.sh` pins the base by digest.
+
 ### A home TV box with Plex
 
 - New cookbook, [A home TV box](docs/cookbooks/plex-box.md): kia, Threadfin, and Plex Media Server together in Docker on one computer, set up from one `.env`. It's the first of the [cookbooks](docs/cookbooks/README.md), which each take one goal from start to finish.

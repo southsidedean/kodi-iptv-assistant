@@ -10,7 +10,8 @@ services:
     build:
       context: .
       args:
-        NODE_IMAGE: ${KIA_NODE_IMAGE:-node:lts-alpine}
+        BASE_IMAGE: ${KIA_BASE_IMAGE:-cgr.dev/chainguard/wolfi-base:latest}
+        NODE_VERSION: ${KIA_NODE_VERSION:-24}
     # Built here by default. KIA_IMAGE can name kia's published image instead, e.g.
     # ghcr.io/southsidedean/kodi-iptv-assistant:latest (docs/configuration.md, "Versions").
     image: ${KIA_IMAGE:-kodi-iptv-assistant:latest}
@@ -148,7 +149,8 @@ services:
     build:  # kia's own image (built once, shared with the kia service)
       context: .
       args:
-        NODE_IMAGE: ${KIA_NODE_IMAGE:-node:lts-alpine}
+        BASE_IMAGE: ${KIA_BASE_IMAGE:-cgr.dev/chainguard/wolfi-base:latest}
+        NODE_VERSION: ${KIA_NODE_VERSION:-24}
     image: ${KIA_IMAGE:-kodi-iptv-assistant:latest}
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
