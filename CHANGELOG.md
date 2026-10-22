@@ -2,12 +2,17 @@
 
 ## 0.5.2 (unreleased)
 
+### Upgrading from 0.5.1
+
+Update as usual, then restart the Threadfins once, when nobody is watching, so they start asking for the login: `docker compose restart threadfin threadfin-2` (just `threadfin` with one).
+
 ### Security
 
 - kia believed any container on Docker's network that said a request came through the secure page. Threadfin, Grafana, or Plex could reach kia directly and say so too (the password was still needed). Now kia believes only its own web server.
 - kia's certificate key could be read by every user of the computer, so that nginx could read it. Now only you and your group can, and the web server's container joins your group. An existing key is fixed when kia starts. If you use your own certificate, the [secure page guide](docs/secure-page.md#using-your-own-certificate) now uses `chmod 640` for its key.
 - Plex in the stack keeps only the capabilities it needs to start and stop (tested: a clean stop still takes seconds), and can't gain more. cAdvisor gets a read-only system, no capabilities, and only Docker's socket instead of all of `/var/run`, with the same numbers as before.
 - New setting `KIA_NODE_EXPORTER_LISTEN`, to keep node-exporter off the rest of your network.
+- Threadfin's page had no login, so anyone on your network could change its playlist or FFmpeg settings. kia now gives each Threadfin without a login one: the user `admin`, with a random password in `threadfin/conf/admin-password.txt` (and `threadfin-2/conf/`). Plex's access to the tuner, playlist, and guide is unchanged. For a Threadfin that's already running, the login starts with its next restart (see *Upgrading*); one that already has users of its own is left alone.
 
 ### Sturdier
 
