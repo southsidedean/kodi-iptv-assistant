@@ -70,3 +70,14 @@ def test_a_run_missed_while_the_computer_was_off_happens_at_start(tmp_path):
     assert not cli.missed_run(cfg, "04:00", datetime(2026, 10, 22, 3, 0))  # before today's run was due
     (state / "run.json").write_text("{")
     assert not cli.missed_run(cfg, "04:00", now)
+
+
+def test_a_refresh_cut_short_runs_again(tmp_path):
+    state = tmp_path / "state"
+    state.mkdir()
+    cfg = type("Cfg", (), {"state_dir": state})()
+    assert not cli.interrupted_run(cfg)
+    (state / "run.json").write_text(json.dumps({"result": "running", "started": "2026-10-22T04:00:00-05:00"}))
+    assert cli.interrupted_run(cfg)  # kia stopped part way: it runs again when it starts
+    (state / "run.json").write_text(json.dumps({"result": "ok"}))
+    assert not cli.interrupted_run(cfg)

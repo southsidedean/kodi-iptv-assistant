@@ -781,6 +781,16 @@ def missed_run(cfg: Config, at: str, now: datetime | None = None) -> bool:
         return False  # no record of a run: a new install, which runs anyway when it has no guide
 
 
+def interrupted_run(cfg: Config) -> bool:
+    """Whether a refresh was cut short: still marked as running when kia starts (the
+    computer was shut down or kia stopped part way). Only the daemon runs refreshes, so
+    none can be running yet."""
+    try:
+        return json.loads((cfg.state_dir / "run.json").read_text()).get("result") == "running"
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def wait_until(when: datetime, poll: float = 60.0) -> None:
     """Sleep until a wall-clock time. Polling (rather than one long sleep) means a laptop
     that was asleep or suspended at the scheduled time catches up within a minute of waking."""
@@ -1027,6 +1037,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     """Run the pipeline daily at --at (local time; set TZ), forever."""
     next_run(datetime.now(), args.at)  # validate --at before sleeping
     cfg = load_config(args)
+    cut_short = interrupted_run(cfg)  # before anything updates the run state
     secure_setup(cfg)
     write_settings(cfg, args.at, args.guide_every)
     update_status(cfg)
@@ -1045,7 +1056,10 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         or env_bool("KIA_RUN_ON_START", False)
         or not (cfg.output_dir / "guide.xml.gz").exists()
         or missed_run(cfg, args.at)
+        or cut_short
     )
+    if cut_short:
+        log("The last refresh didn't finish (kia was stopped part way), so it runs again now.")
     every = timedelta(hours=args.guide_every) if args.guide_every > 0 else None
     while True:
         if not run_now:
