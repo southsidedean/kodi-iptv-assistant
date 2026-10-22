@@ -240,6 +240,8 @@ services:
   plex:
     profiles: ["plex-server"]
     image: ${KIA_PLEX_IMAGE:-plexinc/pms-docker:latest}
+    # Plex names the server after this; it shows in every Plex app.
+    hostname: ${KIA_PLEX_NAME:-kia-tv-box}
     restart: unless-stopped
     environment:
       TZ: ${TZ:-UTC}

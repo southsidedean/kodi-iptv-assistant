@@ -60,6 +60,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `PLEX_CLAIM` | | For Plex in the same stack ([the home TV box](cookbooks/plex-box.md)): a code from [plex.tv/claim](https://plex.tv/claim) that links the new Plex to your account on its first start. It works for 4 minutes. |
 | `KIA_PLEX_ADVERTISE` | | The address Plex apps on your network use to reach Plex in the stack, such as `http://192.168.1.20:32400/`. |
 | `KIA_PLEX_PORT` | `32400` | Plex's port, for Plex in the stack. |
+| `KIA_PLEX_NAME` | `kia-tv-box` | The server's name in Plex apps, for Plex in the stack: letters, digits, and dashes. |
 | `KIA_PLEX_IMAGE` | `plexinc/pms-docker:latest` | Plex's version, for Plex in the stack. |
 | `KIA_PLEX_CONFIG`, `KIA_PLEX_TRANSCODE` | `plex/config`, `plex/transcode` | Where Plex in the stack keeps its settings and database, and its temporary files while converting video. Both survive restarts and updates. |
 | `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex in the stack. Plex can read them but not change them. |
