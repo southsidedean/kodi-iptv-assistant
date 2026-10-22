@@ -63,14 +63,29 @@ until [ "$(compose ps --format '{{.Service}}={{.Health}}' | grep -c '=healthy')"
 done
 ok "kia and web are healthy"
 
-echo "== One full refresh"
+# A new install refreshes as soon as kia starts (it has no guide yet), possibly before the
+# web server serving the test stream was up. Let that finish, then refresh again.
+echo "== Wait for kia's own first refresh"
+tries=0
+until python3 -c "import json, sys, urllib.request
+s = json.load(urllib.request.urlopen('http://localhost:$port/status.json', timeout=10))
+sys.exit(0 if s.get('result') not in (None, 'running') else 1)" 2>/dev/null; do
+    tries=$((tries + 1))
+    [ $tries -gt 120 ] && fail "kia's first refresh didn't finish in 10 minutes"
+    sleep 5
+done
+ok "the first refresh finished"
+
+echo "== One full refresh, checked"
 compose exec -T kia python3 -m kia run >"$work/run.log" 2>&1 || { cat "$work/run.log" >&2; fail "the refresh failed"; }
 tail -5 "$work/run.log"
 if grep -q "without Node's sandbox" "$work/run.log"; then
     cat "$work/run.log" >&2
     fail "iptv-org's grabber would run without Node's sandbox"
 fi
-[ -f vendor/epg/.kia/grab.cjs ] && [ -f vendor/epg/.kia/api-load.cjs ] || fail "iptv-org's scripts weren't compiled for the sandbox"
+if [ ! -f vendor/epg/.kia/grab.cjs ] || [ ! -f vendor/epg/.kia/api-load.cjs ]; then
+    fail "iptv-org's scripts weren't compiled for the sandbox"
+fi
 ok "the refresh finished, with iptv-org's scripts compiled for the sandbox"
 
 echo "== What kia serves"
