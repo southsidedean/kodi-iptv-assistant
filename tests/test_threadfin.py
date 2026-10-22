@@ -22,7 +22,8 @@ def test_new_threadfins_get_kias_playlist_guide_filter_and_options(tmp_path: Pat
     two = json.loads((tmp_path / "threadfin-2" / "conf" / "settings.json").read_text())
     assert next(iter(two["files"]["m3u"].values()))["file.source"] == "http://web/sports.m3u"
     # A playlist that doesn't exist yet: it says how to finish.
-    assert "no playlist named sports" in said[1] and "restart threadfin-2" in said[1]
+    note = next(m for m in said if m.startswith("threadfin-2: set up"))
+    assert "no playlist named sports" in note and "restart threadfin-2" in note
 
 
 def test_only_the_threadfins_that_run_are_set_up(tmp_path: Path, monkeypatch):
@@ -31,12 +32,40 @@ def test_only_the_threadfins_that_run_are_set_up(tmp_path: Path, monkeypatch):
     assert not (tmp_path / "threadfin-2" / "conf" / "settings.json").exists()
 
 
-def test_existing_threadfin_settings_are_never_changed(tmp_path: Path):
+def test_existing_threadfin_settings_are_kept_and_it_gets_a_login(tmp_path: Path):
     conf = tmp_path / "threadfin" / "conf"
     conf.mkdir(parents=True)
-    (conf / "settings.json").write_text('{"mine": true}')
+    (conf / "settings.json").write_text('{"mine": true, "authentication.pms": false}')
     assert threadfin.set_up(tmp_path, tmp_path, lambda m: None) == ["threadfin-2"]
-    assert (conf / "settings.json").read_text() == '{"mine": true}'
+    # Only the page's login is new; Plex's access stays open.
+    assert json.loads((conf / "settings.json").read_text()) == {"mine": True, "authentication.pms": False, "authentication.web": True}
+
+
+def test_the_login_is_threadfins_own_kind(tmp_path: Path):
+    import base64
+    import hashlib
+    import hmac
+
+    conf = tmp_path / "conf"
+    conf.mkdir()
+    (conf / "settings.json").write_text("{}")
+    assert threadfin.secure_login(conf, "threadfin", lambda m: None)
+    password = (conf / "admin-password.txt").read_text().strip()
+    assert len(password) >= 20 and (conf / "admin-password.txt").stat().st_mode & 0o077 == 0
+    db = json.loads((conf / "authentication.json").read_text())
+    (uid, user), = db["users"].items()
+
+    def threadfin_hash(secret):  # Threadfin 1.2.37, src/internal/authentication: SHA256()
+        return base64.b64encode(hmac.new(secret.encode(), b"_remote_db", hashlib.sha256).digest()).decode()
+
+    assert uid == user["_id"] and uid.startswith("id-") and len(uid) == 13 and len(user["_salt"]) == 20
+    assert user["_username"] == threadfin_hash("admin") and user["_password"] == threadfin_hash(password)
+    assert user["data"]["authentication.web"] and user["data"]["authentication.pms"] and not user["data"]["authentication.api"]
+    assert (conf / "authentication.json").stat().st_mode & 0o077 == 0
+    # A Threadfin whose login someone set up already is left alone.
+    before = (conf / "authentication.json").read_text()
+    assert not threadfin.secure_login(conf, "threadfin", lambda m: None)
+    assert (conf / "authentication.json").read_text() == before
 
 
 def test_the_default_playlist_is_plex_unless_only_plex_1_exists(tmp_path: Path):

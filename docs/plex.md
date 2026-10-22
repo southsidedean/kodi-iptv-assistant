@@ -50,7 +50,7 @@ docker compose ps
 
 `docker compose ps` lists `threadfin` (and `threadfin-2`) next to kia, and after a minute each says `healthy`. From now on Threadfin starts whenever kia does, including after the computer restarts. Its settings are kept in the `threadfin/` folder (and `threadfin-2/`).
 
-Threadfin's page is at `http://<your address>:34400/web/`, and the second one's is at port 34401. To use other ports, set `KIA_THREADFIN_PORT` and `KIA_THREADFIN_2_PORT` in `.env` ([settings](configuration.md)).
+Threadfin's page is at `http://<your address>:34400/web/`, and the second one's is at port 34401. To use other ports, set `KIA_THREADFIN_PORT` and `KIA_THREADFIN_2_PORT` in `.env` ([settings](configuration.md)). It asks for a login: the user is `admin`, and the password is in `threadfin/conf/admin-password.txt` in the kia folder (`threadfin-2/conf/` for the second). kia makes them the first time, so no one else on your network can change Threadfin's settings; Plex's own access doesn't need them.
 
 ## 3. Check Threadfin
 
