@@ -36,7 +36,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[dev]"
-      - run: python -m pytest -q
+      - name: pytest, with coverage (kia's lines the tests never run are listed, for reading, not enforced)
+        run: python -m pytest -q --cov=kia --cov-report=term-missing:skip-covered
 
   lint:
     name: lint and security checks
@@ -67,8 +68,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: compose.yaml is valid with the example settings
-        run: cp .env.example .env && docker compose config --quiet
+      - name: compose.yaml is valid with the example settings, with every set of profiles
+        run: |
+          cp .env.example .env
+          for profiles in "" plex plex,plex-2 plex,plex-server monitoring monitoring,monitoring-node plex,plex-2,plex-server,monitoring,monitoring-node; do
+            echo "COMPOSE_PROFILES=$profiles"
+            COMPOSE_PROFILES="$profiles" docker compose config --quiet
+          done
       - name: kia image builds from the latest base image
         run: docker compose build --pull kia
       - name: kia runs in the image
@@ -82,3 +88,32 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
           exit-code: "1"
+      # A second opinion: Grype matches some packages Trivy doesn't (it found a high ffmpeg CVE
+      # Trivy missed). For reading only: it doesn't fail the build, since many of its matches
+      # have no fix yet.
+      - name: Grype (report only)
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: kodi-iptv-assistant:latest
+          fail-build: false
+          severity-cutoff: high
+          output-format: table
+          output-file: grype.txt
+      - name: Grype's findings
+        if: always()
+        run: |
+          if [ -f grype.txt ]; then
+            cat grype.txt
+            { echo '### Grype (report only)'; echo '```'; cat grype.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  smoke:
+    name: end-to-end smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # kia's whole stack, one full refresh with a test stream, and what it serves afterwards.
+      - run: scripts/smoke-test.sh

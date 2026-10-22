@@ -1,14 +1,12 @@
 name: image scan
 
-# Scans the published image (ghcr.io/southsidedean/kodi-iptv-assistant:latest) every week
-# and after each release, so CVEs found after a release show up in the repository's
-# Security tab (Code scanning) even when nothing in kia changed.
+# Scans the published image (ghcr.io/southsidedean/kodi-iptv-assistant:latest) every week,
+# so CVEs found after a release show up in the repository's Security tab (Code scanning)
+# even when nothing in kia changed. Each newly pushed image is scanned by images.yml.
 
 on:
   schedule:
     - cron: "41 6 * * 2"
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
