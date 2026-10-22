@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import os
+import signal
 import subprocess
 import sys
 
@@ -383,6 +385,7 @@ def mask_url(url: str) -> str:
 # and leaves the playlists players use alone.
 CHECK: dict = {"running": False}
 CHECK_REPORT: dict = {}  # the test report's file time when the check started
+CHECK_PROC: dict = {}  # the running check's process, so Stop can end it
 
 
 def _summary(report: Path) -> dict:
@@ -408,7 +411,7 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
         pass
     with LOCK:
         if CHECK.get("running"):
-            raise ApiError(409, f"kia is already checking {CHECK.get('name')}. Wait for it to finish.")
+            raise ApiError(409, f"kia is already checking {CHECK.get('name')}. Wait for it to finish, or stop it.")
         CHECK.clear()
         before = cfg.test_report.stat().st_mtime_ns if cfg.test_report and cfg.test_report.exists() else None
         CHECK.update({"running": True, "url": url, "name": row["name"], "started": time.time()})
@@ -423,19 +426,51 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
 def _run_check(cfg: ApiConfig, line: str) -> None:
     cmd = [sys.executable, "-m", "kia", "check", "-c", str(cfg.config_file), "-u", line]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, check=False)
+        # Its own process group, so Stop ends the ffprobe runs it starts as well.
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)  # fmt: skip
+        CHECK_PROC["proc"] = proc
+        try:
+            out, err = proc.communicate(timeout=1800)
+        except subprocess.TimeoutExpired:
+            _end(proc)
+            raise
+        if CHECK.get("stopped"):
+            CHECK["error"] = "Stopped. Nothing changed."
         # A new report: there was none, or it changed (file times are too coarse to compare to time.time()).
-        if cfg.test_report and cfg.test_report.exists() and cfg.test_report.stat().st_mtime_ns != CHECK_REPORT.get("before"):
+        elif cfg.test_report and cfg.test_report.exists() and cfg.test_report.stat().st_mtime_ns != CHECK_REPORT.get("before"):
             CHECK["result"] = _summary(cfg.test_report)
         else:
-            last = (proc.stdout + proc.stderr).strip().splitlines()[-1:] or ["no report"]
+            last = (out + err).strip().splitlines()[-1:] or ["no report"]
             CHECK["error"] = f"The check didn't finish: {last[0][:200]}"
     except subprocess.TimeoutExpired:
         CHECK["error"] = "The check took more than 30 minutes and was stopped."
     except Exception as exc:  # report, never crash the server
         CHECK["error"] = f"The check couldn't run: {exc}"
+    CHECK_PROC.pop("proc", None)
     CHECK["running"] = False
     CHECK["finished"] = time.time()
+
+
+def _end(proc) -> None:
+    """End a check and everything it started."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def stop_check() -> dict:
+    with LOCK:
+        proc = CHECK_PROC.get("proc")
+        if not CHECK.get("running") or proc is None:
+            raise ApiError(409, "No check is running.")
+        CHECK["stopped"] = True
+    _end(proc)
+    return {"check": dict(CHECK)}
 
 
 def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
@@ -514,6 +549,8 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
                 return 200, remove_source(cfg, parse_qs(url.query).get("url", [""])[0])
             if parts == ["sources", "check"] and method == "POST":
                 return 200, start_check(cfg, data)
+            if parts == ["sources", "check"] and method == "DELETE":
+                return 200, stop_check()
         if parts == ["password"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, change_password(cfg, data)

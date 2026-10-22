@@ -72,7 +72,7 @@ After changing `.env`, apply it with `docker compose up -d`. Add `--build` if yo
 
 The secure Dashboard's **Sources** page has a **Channel sources** card: the playlists kia reads channels from. It lists every one kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a channel source** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
 
-**Check now** tests every stream in one source right away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing.
+**Check now** tests every stream in one source right away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing. **Stop** ends a check that's taking too long.
 
 kia doesn't change your sources file (with Docker, it can't), so it keeps the choices made on the page in `state/sources.json` and applies them on top of the file at every run. The file stays yours to edit by hand. If you use your own copy (`KIA_SOURCES_FILE`), the page still offers everything in `sources.txt`. Like changes to the file, choices made on the page take effect at the next refresh.
 

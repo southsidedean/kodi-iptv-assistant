@@ -10,23 +10,27 @@ STYLE = """
 /* Favorites and numbers; TV and radio under their own headings */
 #channels tr.group-head th { font-size: var(--step-0); font-weight: 600; color: var(--fg); text-align: left; padding-top: var(--space-3); }
 #channels .fav { width: 2rem; text-align: center; padding-right: 0; }
-#channels .fav button { min-height: 32px; min-width: 32px; padding: 0; border: none; background: none; font-size: 1.15rem;
+#channels .fav button { min-height: 40px; min-width: 40px; padding: 0; border: none; background: none; font-size: 1.15rem;
   color: var(--muted); cursor: pointer; line-height: 1; }
 #channels .fav button[aria-pressed=true] { color: var(--warn); }
 #channels .fav span { color: var(--warn); }
 #channels td.name button.test { min-height: 32px; margin-left: .5rem; padding: .1rem .6rem; font-size: var(--step--1); }
-#channels .fav button { min-width: 40px; min-height: 40px; }
 #channels tr.test-result td { padding-top: 0; }
 #channels tr.test-result p { margin: 0 0 var(--space-1); }
 #channels td.num button { min-height: 36px; padding: 0 .4rem; border: 1px dashed var(--muted); background: none; color: var(--fg);
   font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
-#channels td.num input { width: 5.5rem; min-height: 32px; font: inherit; padding: 0 .3rem; }
+#channels td.num input { width: 5.5rem; min-height: 32px; font: inherit; padding: 0 .3rem; border: 1px solid var(--control); }
 /* On a phone, the guide columns go so the channel and its buttons fit. */
 @media (max-width: 34rem) { #channels td.next, #channels th.next { display: none; } }
 .chan-tools { display: grid; gap: var(--space-2); margin: var(--space-2) 0; }
 .chan-tools label { display: grid; gap: .25rem; max-width: 22rem; }
-.chan-tools input { min-height: 40px; font: inherit; padding: .4rem .6rem; border: 1px solid var(--line); border-radius: var(--radius-small);
+.chan-tools input { min-height: 40px; font: inherit; padding: .4rem .6rem; border: 1px solid var(--control); border-radius: var(--radius-small);
   background: var(--card); color: var(--fg); }
+/* Touch screens: every control at least 44px, so it's easy to hit with a finger. */
+@media (pointer: coarse) {
+  #channels .fav button { min-width: 44px; min-height: 44px; }
+  #channels td.name button.test, #channels td.num button, #channels td.num input, .chan-tools input { min-height: 44px; }
+}
 """
 
 SCRIPT = r"""

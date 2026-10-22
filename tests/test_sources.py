@@ -1,4 +1,7 @@
 import json
+import os
+import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -127,15 +130,15 @@ def test_check_now_runs_one_playlist(cfg, monkeypatch):
     ran = []
 
     class Done:
-        stdout, stderr = "", ""
+        def __init__(self, cmd, **kw):
+            ran.append(cmd)
+            cfg.test_report.parent.mkdir(parents=True)
+            cfg.test_report.write_text(json.dumps({"streams": [{"name": "Rock", "status": "ok"}, {"name": "Gone", "status": "dead"}]}))
 
-    def fake_run(cmd, **kw):
-        ran.append(cmd)
-        cfg.test_report.parent.mkdir(parents=True)
-        cfg.test_report.write_text(json.dumps({"streams": [{"name": "Rock", "status": "ok"}, {"name": "Gone", "status": "dead"}]}))
-        return Done()
+        def communicate(self, timeout):
+            return "", ""
 
-    monkeypatch.setattr(api.subprocess, "run", fake_run)
+    monkeypatch.setattr(api.subprocess, "Popen", Done)
     monkeypatch.setattr(api.threading, "Thread", lambda target, args, **kw: type("T", (), {"start": lambda self: target(*args)})())
     status, _data = call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})
     assert status == 200
@@ -143,6 +146,39 @@ def test_check_now_runs_one_playlist(cfg, monkeypatch):
     check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]
     assert not check["running"] and check["result"] == {"total": 2, "ok": 1, "flaky": 0, "dead": 1, "sample": ["Rock"]}
     assert call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"}, secure=False)[0] == 403
+
+
+def test_a_check_can_be_stopped(cfg, monkeypatch):
+    real = api.subprocess.Popen
+    # A check that would run for a minute, and a child of it, like the ffprobe runs a check starts.
+    slow = [sys.executable, "-c", "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', "
+            "'import time; time.sleep(60)']); time.sleep(60)"]  # fmt: skip
+    monkeypatch.setattr(api.subprocess, "Popen", lambda cmd, **kw: real(slow, **kw))
+    assert call(cfg, "DELETE", "/api/sources/check")[0] == 409  # nothing to stop
+    assert call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"})[0] == 200
+    pause = threading.Event().wait  # the fixture turns time.sleep off
+    for _ in range(100):
+        if "proc" in api.CHECK_PROC:
+            break
+        pause(0.05)
+    proc = api.CHECK_PROC["proc"]
+    assert call(cfg, "DELETE", "/api/sources/check", secure=False)[0] == 403
+    assert call(cfg, "DELETE", "/api/sources/check")[0] == 200
+    for _ in range(100):
+        if not api.CHECK["running"]:
+            break
+        pause(0.05)
+    check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]
+    assert not check["running"] and check["error"] == "Stopped. Nothing changed." and "result" not in check
+    assert proc.returncode is not None
+    for _ in range(100):  # the whole group goes, the child too
+        try:
+            os.killpg(proc.pid, 0)
+        except ProcessLookupError:
+            break
+        pause(0.05)
+    else:
+        pytest.fail("the check's child is still running")
 
 
 def test_no_check_during_a_refresh(cfg):

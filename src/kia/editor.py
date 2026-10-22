@@ -16,7 +16,7 @@ STYLE = """
 .editor legend { font-weight: 600; padding: 0 .3rem; }
 .editor label.field { display: grid; gap: .25rem; }
 .editor input[type=text], .editor input[type=password], .editor textarea {
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-small); color: var(--fg);
+  background: var(--card); border: 1px solid var(--control); border-radius: var(--radius-small); color: var(--fg);
   font: inherit; padding: .55rem .7rem; width: 100%; min-height: 44px; }
 .editor textarea { min-height: 4.5rem; font-family: var(--mono); font-size: .92em; }
 .editor input:focus-visible, .editor textarea:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
@@ -34,6 +34,7 @@ STYLE = """
 .preview { background: var(--info-bg); border-radius: var(--radius-small); padding: .6rem .8rem; margin: 0; }
 .preview.warn { background: var(--warn-bg); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+@media (pointer: coarse) { .checks label, .choice, .chips button, .found button { min-height: 44px; } }
 button.primary { background: var(--info); border-color: var(--info); color: var(--card); font-weight: 600; }
 button.danger { color: var(--bad); }
 button:disabled { opacity: .55; cursor: default; }

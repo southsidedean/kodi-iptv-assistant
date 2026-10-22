@@ -49,6 +49,7 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `DELETE /api/sources?url=...` | Removes a playlist added through the API or the Dashboard | password, HTTPS |
 | `POST /api/sources/check` | Tests every stream in one playlist now: send `{"url": "..."}`. One check runs at a time, and none during a refresh. | password, HTTPS |
 | `GET /api/sources/check` | The check's progress: `running`, then `result` (`total`, `ok`, `flaky`, `dead`, and a `sample` of working channel names) or `error` | |
+| `DELETE /api/sources/check` | Stops the check that's running. Its `error` then says it was stopped. | password, HTTPS |
 
 A profile's settings are the ones in [what a profile can say](profiles.md#what-a-profile-can-say), as JSON:
 
