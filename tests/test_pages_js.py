@@ -21,8 +21,8 @@ def scripts() -> list[tuple[str, str]]:
             continue
         module = importlib.import_module(f"kia.{path.stem}")
         for name, value in sorted(vars(module).items()):
-            if isinstance(value, str) and "<script>" in value:
-                for i, body in enumerate(re.findall(r"<script>(.*?)</script>", value, re.S)):
+            if isinstance(value, str) and "<script>" in value.lower():
+                for i, body in enumerate(re.findall(r"<script>(.*?)</script>", value, re.S | re.I)):
                     found.append((f"{path.stem}.{name}#{i}", body))
     return found
 
