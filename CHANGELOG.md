@@ -1,10 +1,11 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 0.5.0 (2026-10-22)
 
 ### Upgrading from 0.4
 
 - kia's image is now built on [Wolfi](https://github.com/wolfi-dev) instead of Alpine. Run `git pull` and `docker compose up -d --build`. If you pinned `KIA_NODE_IMAGE` in `.env`, it's no longer used: run `scripts/pin-versions.sh` again to pin the new base (`KIA_BASE_IMAGE`), or delete the line.
+- That `docker compose up -d` recreates every container once, Threadfin and Plex too, to apply the new log limits. Pick a time when nobody's watching.
 
 ### A safer image
 
