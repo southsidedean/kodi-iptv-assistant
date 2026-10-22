@@ -32,6 +32,7 @@ With `localhost`, kia is reachable only from this computer. On a Mac, also open 
 ```sh
 git clone https://github.com/southsidedean/kodi-iptv-assistant.git
 cd kodi-iptv-assistant
+scripts/update.sh --no-restart  # the newest release
 cp .env.example .env
 chmod 600 .env
 ```
@@ -85,7 +86,7 @@ On the secure Dashboard, `https://localhost:8743/` (your browser warns about kia
 
 **After changing `.env`.** In the kia folder, with Docker: `docker compose up -d`. Without Docker: `scripts/install-service.sh` again.
 
-**Updating kia.** With Docker, follow the steps in the [README](../../README.md#updating-and-stopping). Without Docker: `git pull` in the kia folder, then `scripts/install-service.sh` again on a Mac, or `systemctl --user restart kia` on Linux.
+**Updating kia.** In the kia folder, `scripts/update.sh` with Docker, or `scripts/update.sh --no-docker` without ([updating](../../README.md#updating-and-stopping)).
 
 **Watching on other devices later.** To let a TV, phone, or another computer in the house use this kia, change the two lines in `.env` to this computer's network address and `KIA_BIND=0.0.0.0`, as in [setups → home server](../setups.md#home-server), and apply the change. A computer that sleeps makes a poor server, though: the other devices lose their channels while it's asleep.
 

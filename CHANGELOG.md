@@ -22,6 +22,11 @@ Update as usual, then restart the Threadfins once, when nobody is watching, so t
 
 - Only one refresh runs at a time. A refresh started by hand (`docker compose exec kia python3 -m kia run`) could run alongside the nightly one, or the one a new install starts by itself, and the two could overwrite each other's files. Now the second says a refresh is already running, and since when, and stops; the nightly run skips its turn if one started by hand is still going. Saving on the Dashboard also waits for a refresh's writes in another process, not only in its own.
 
+### Updating
+
+- `scripts/install.sh` now installs kia's newest release, instead of whatever was merged since (`--main` still follows that).
+- New `scripts/update.sh` updates kia in one step: it moves to the newest release (or `v0.5.2`, or `--main`), rebuilds or pulls the images, and restarts. If someone is watching through Pluto TV or Plex's Live TV, it asks first. It stops if one of kia's own files was changed, instead of losing the change. Without Docker, `scripts/update.sh --no-docker`. The README and the other docs now use it.
+
 ## 0.5.1 (2026-10-22)
 
 ### Upgrading from 0.5.0

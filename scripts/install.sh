@@ -14,6 +14,7 @@
 #   --tz ZONE       time zone, e.g. America/New_York
 #   --port N        port for playlists and the Dashboard (default 8780)
 #   --https-port N  port for the secure Dashboard (default 8743)
+#   --main          follow what's merged since the last release, instead of the release
 #   --yes           don't ask; accept what it finds
 set -eu
 
@@ -24,6 +25,7 @@ TZ_NAME=""
 PORT=8780
 HTTPS_PORT=8743
 YES=0
+MAIN=no
 
 say() { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
@@ -36,8 +38,9 @@ while [ $# -gt 0 ]; do
         --tz) TZ_NAME=$2; shift 2 ;;
         --port) PORT=$2; shift 2 ;;
         --https-port) HTTPS_PORT=$2; shift 2 ;;
+        --main) MAIN=yes; shift ;;
         --yes|-y) YES=1; shift ;;
-        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --yes. See the top of scripts/install.sh."; exit 0 ;;
+        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --main, --yes. See the top of scripts/install.sh."; exit 0 ;;
         *) die "unknown option $1 (try --help)" ;;
     esac
 done
@@ -84,7 +87,13 @@ elif [ -e "$DIR" ]; then
     die "$DIR exists but isn't a copy of kia. Use --dir to pick another folder."
 else
     git clone --quiet "$REPO" "$DIR"
-    say "Downloaded kia to $DIR"
+    if [ "$MAIN" = no ]; then
+        # The newest release (version tags without a suffix such as -rc1), not what's
+        # merged since: scripts/update.sh moves to the next one.
+        release=$(git -C "$DIR" tag --list 'v[0-9]*' --sort=-version:refname | grep -v -- '-' | head -n 1)
+        [ -n "$release" ] && git -C "$DIR" -c advice.detachedHead=false checkout --quiet "$release"
+    fi
+    say "Downloaded kia $(git -C "$DIR" describe --tags --always) to $DIR"
 fi
 cd "$DIR"
 

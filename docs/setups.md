@@ -71,7 +71,7 @@ scripts/install-service.sh
 On Linux it installs a systemd user service (`deploy/kia.service`); on macOS, a launchd agent (`deploy/kia.plist`). It makes `.env` with this computer's address and time zone if there isn't one, starts kia, and prints the Dashboard's address and the password. Settings work as with Docker: `.env` and `kia.toml`. kia serves the playlists, the Dashboard, and the secure page itself, and plays [Pluto TV channels](how-it-works.md#pluto-tv) itself too.
 
 - After changing `.env`, run the script again (on macOS it copies the settings into the agent).
-- After `git pull`, restart kia: `systemctl --user restart kia` on Linux, or run the script again on macOS.
+- To update: `scripts/update.sh --no-docker`, which moves kia to its newest release and runs the script again.
 - On Linux, a user service runs only while you're logged in, unless you run `sudo loginctl enable-linger $USER` once; the script reminds you.
 - The log: `journalctl --user -u kia -f` on Linux, `work/logs/kia.log` on macOS.
 - `scripts/install-service.sh --uninstall` removes the service and keeps your settings and data.
