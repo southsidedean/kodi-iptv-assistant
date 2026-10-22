@@ -54,6 +54,13 @@ def compose_service(name: str) -> str:
     return match.group(1)
 
 
+def test_every_container_limits_its_log():
+    services = re.findall(r"^  ([a-z0-9-]+):\n", (ROOT / "compose.yaml").read_text().split("\nservices:\n", 1)[1], flags=re.M)
+    assert len(services) > 5
+    unlimited = [name for name in services if "logging: *logging" not in compose_service(name)]
+    assert not unlimited, f"no log limit: {unlimited}"
+
+
 def test_containers_stay_locked_down():
     for name in ("kia", "web"):
         service = compose_service(name)
