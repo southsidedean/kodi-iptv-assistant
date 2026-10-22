@@ -13,7 +13,7 @@
 ### Dashboard
 
 - The guide timeline works on phones: 3 hours that fit the screen instead of 6 that scroll sideways, with the channel names kept in view. Tap or click a show to see its full title and times. The button is now called **Timeline**.
-- **Stop** on a running **Check now**, for a big playlist that's taking too long. It ends the check's stream tests too.
+- **Stop** on a running **Check now**, for a big playlist that's taking too long. It ends the check's stream tests too, and kia's container now runs a small init (`init: true`) that cleans up after them.
 - Easier to read and to tap: buttons and text boxes have darker edges, the green text and the coverage bar's amber have more contrast, and on touch screens every button is at least 44 pixels tall. A test keeps the colours at WCAG AA contrast in both themes.
 
 ### Docs

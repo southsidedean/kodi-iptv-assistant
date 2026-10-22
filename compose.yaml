@@ -15,6 +15,9 @@ services:
     # ghcr.io/southsidedean/kodi-iptv-assistant:latest (docs/configuration.md, "Versions").
     image: ${KIA_IMAGE:-kodi-iptv-assistant:latest}
     restart: unless-stopped
+    # A small init as process 1 cleans up after the stream tests (ffprobe) a stopped
+    # "Check now" leaves behind; kia itself doesn't.
+    init: true
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
     tmpfs:
