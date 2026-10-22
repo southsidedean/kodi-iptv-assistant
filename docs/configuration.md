@@ -89,7 +89,7 @@ kia reads `sources.txt` (or your own copy), the playlists chosen on the Dashboar
 
 To refresh now instead of waiting:
 
-1. Run `docker compose exec kia python3 -m kia run`. It takes as long as a nightly run, up to an hour.
+1. Run `docker compose exec kia python3 -m kia run`. It takes as long as a nightly run, up to an hour. If a refresh is already running (the nightly one, say), it says so and stops: one refresh at a time.
 2. In Kodi, restart Kodi. If channels you removed still show, clear Kodi's TV data as described in [troubleshooting](troubleshooting.md#old-missing-or-mixed-up-channels).
 
 To try out a change first, `docker compose exec kia python3 -m kia check --limit 50` tests the first 50 streams. Test runs like this one (also with `-s` or `-u`) write their results to `work/check-test/` and leave the playlist Kodi uses alone.
