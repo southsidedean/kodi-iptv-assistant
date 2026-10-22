@@ -16,6 +16,15 @@
 - **Stop** on a running **Check now**, for a big playlist that's taking too long. It ends the check's stream tests too, and kia's container now runs a small init (`init: true`) that cleans up after them.
 - Easier to read and to tap: buttons and text boxes have darker edges, the green text and the coverage bar's amber have more contrast, and on touch screens every button is at least 44 pixels tall. A test keeps the colours at WCAG AA contrast in both themes.
 
+### Computers that are off at night
+
+- When kia starts and finds it missed the last nightly run, because the computer was off at that time, it refreshes straight away instead of waiting a day. A laptop or desktop no longer needs `KIA_RUN_ON_START`, which refreshes at every start.
+- Without Docker on a Mac, `scripts/install-service.sh` waits and tries again when launchd won't restart kia straight away. Before, it could stop with kia not running.
+- A refresh cut short (the computer shut down, or kia stopped part way) runs again when kia starts. Before, the Dashboard kept saying it was refreshing, and **Check now** refused, until the next night.
+- New cookbook, [Kodi and kia on one computer](docs/cookbooks/kodi-computer.md): a laptop or desktop that finds the channels and plays them, with nothing open to the network. The installer no longer opens firewall ports for a kia that only this computer uses (`localhost`).
+- New cookbook, [A laptop that travels](docs/cookbooks/travel-laptop.md): the laptop checks the streams where you are and copies the guide from your home server, with what happens away from home.
+- New cookbook, [A TV in every room](docs/cookbooks/every-room.md): one server for the house, a player on each device, and a playlist for each room or person.
+
 ### Docs
 
 - The diagrams are easier to read on GitHub, in light and dark mode: no more labels on grey or text hidden behind GitHub's zoom buttons. They're now images, made from sources in `docs/diagrams/` by `scripts/diagrams.sh`, so they look the same everywhere.

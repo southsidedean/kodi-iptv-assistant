@@ -18,7 +18,7 @@ KIA_PUBLIC_URL=http://192.168.1.20:8780
 KIA_BIND=0.0.0.0
 ```
 
-Give the machine a fixed address (a DHCP reservation in your router) so the address in your players keeps working.
+Give the machine a fixed address (a DHCP reservation in your router) so the address in your players keeps working. The [TV in every room](cookbooks/every-room.md) cookbook walks through it, with a playlist for each room or person.
 
 ## Same machine as Kodi
 
@@ -27,11 +27,9 @@ A desktop, laptop, or Linux box that both runs kia and plays TV. Nothing is expo
 ```ini
 KIA_PUBLIC_URL=http://localhost:8780
 KIA_BIND=127.0.0.1
-# Computers that sleep at night refresh when kia starts
-KIA_RUN_ON_START=true
 ```
 
-The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A missed run (the computer was asleep) happens within a minute of waking.
+The nightly run uses a fair amount of CPU, network, and memory for up to an hour, so keep `KIA_RUN_AT` at a time you're not watching. A run missed while the computer was asleep happens within a minute of waking, and one missed while it was off happens when kia starts. The [laptop or desktop cookbook](cookbooks/kodi-computer.md) walks through this setup from the start.
 
 ## Laptop that travels (with a home server)
 
@@ -40,14 +38,13 @@ The laptop tests streams itself, because what plays depends on where you are. It
 ```ini
 KIA_PUBLIC_URL=http://localhost:8780
 KIA_BIND=127.0.0.1
-KIA_RUN_ON_START=true
 # Your home server
 KIA_UPSTREAM_URL=http://192.168.1.20:8780
 # Away from home: reuse the last guide (or "grab" a fresh one)
 KIA_UPSTREAM_FALLBACK=cached
 ```
 
-Use the same playlist list as the home server, so its guide covers the same channels. Kodi on the laptop points at `http://localhost:8780/curated.m3u`.
+Use the same playlist list as the home server, so its guide covers the same channels. Kodi on the laptop points at `http://localhost:8780/curated.m3u`. The [traveling laptop cookbook](cookbooks/travel-laptop.md) walks through it, with the choice between `cached` and `grab`.
 
 ## Raspberry Pi
 

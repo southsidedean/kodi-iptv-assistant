@@ -33,7 +33,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_ADMIN_PASSWORD` | made by kia | The password for making changes on the Dashboard. When it's empty, kia makes one and saves it in `state/admin-password.txt`, and you can change it on the Dashboard. |
 | `KIA_EDITING` | true | `false` turns off changes from the Dashboard. |
 | `KIA_PLUTO_RELAY` | true | Pluto TV channels play through kia, so they keep going across ad breaks. `false` gives players Pluto's own links, which freeze or jump back at breaks in most players. See [Pluto TV](how-it-works.md#pluto-tv). |
-| `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. |
+| `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. Without it, kia still refreshes at start when it missed the last nightly run (the computer was off). |
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |
 | `KIA_NTFY_URL` | | Send alerts to your phone through ntfy (see [alerts](alerts.md)). |
