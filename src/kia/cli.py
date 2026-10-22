@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, channels, pluto, settings, tls
+from kia import alerts, auth, channels, locks, pluto, settings, tls
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
@@ -250,6 +250,7 @@ def write_profiles(cfg: Config, chosen: list[Checked] | None = None) -> None:
     which playlists each kept channel came from; after a guide build it's left out."""
     from kia import api
 
+    api.LOCK.configure(cfg.state_dir)
     with api.LOCK:  # not while the Dashboard is saving a profile
         if chosen is not None:
             profiles.save_sources(cfg.state_dir, [(c.entry, {c.entry.source} | {e.source for e in c.also}) for c in chosen])
@@ -372,6 +373,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     # is saving a change (kia.api.LOCK), so neither undoes the other.
     from kia import api as api_module
 
+    api_module.LOCK.configure(cfg.state_dir)
     with api_module.LOCK:
         choices = channels.load(cfg.state_dir)
         if choices["removed"] and not partial_run(args):
@@ -1032,6 +1034,7 @@ def cmd_renumber(args: argparse.Namespace) -> int:
         return 1
     from kia import api
 
+    api.LOCK.configure(cfg.state_dir)
     with api.LOCK:
         entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, log, renumber=True,
                                    recycle_after_days=cfg.recycle_numbers_after_days)  # fmt: skip
@@ -1077,6 +1080,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     """Run the pipeline daily at --at (local time; set TZ), forever."""
     next_run(datetime.now(), args.at)  # validate --at before sleeping
     cfg = load_config(args)
+    from kia import api
+
+    api.LOCK.configure(cfg.state_dir)  # the Dashboard's saves and the refreshes take turns
     cut_short = interrupted_run(cfg)  # before anything updates the run state
     secure_setup(cfg)
     write_settings(cfg, args.at, args.guide_every)
@@ -1122,8 +1128,11 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         try:
             secure_setup(cfg)  # renews kia's own certificate before it expires
             write_settings(load_config(args), args.at, args.guide_every)  # kia.toml may have changed
-            run_and_report(args.config, update_epg=True)
+            with locks.refresh(cfg.state_dir, "the nightly refresh"):
+                run_and_report(args.config, update_epg=True)
             keep_plex_in_step(args.config)
+        except locks.Busy as busy:  # one started by hand is running; it does the same job
+            log(f"Skipped this refresh: another one is running ({busy}).")
         except (Exception, SystemExit) as exc:  # e.g. the config became invalid; keep the daemon alive
             log(f"Run could not start: {type(exc).__name__}: {exc}")
             try:
@@ -1254,6 +1263,11 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
                    help="the secure Dashboard's port (default: KIA_HTTPS_PORT or 8743; 0 = none)")  # fmt: skip
 
 
+# Commands that refresh kia's files; one runs at a time (kia.locks).
+REFRESHES = {cmd_run, cmd_refresh_guide, cmd_check, cmd_map, cmd_grab, cmd_guide, cmd_sync}
+EXIT_BUSY = 75  # another refresh is running (EX_TEMPFAIL)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="kia", description=__doc__)
     parser.add_argument("--version", action="version", version=__version__)
@@ -1376,4 +1390,11 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_daemon)
 
     args = parser.parse_args(argv)
+    if args.func in REFRESHES and not getattr(args, "url", None):
+        try:
+            with locks.refresh(load_config(args).state_dir, f"kia {args.command}"):
+                return args.func(args)
+        except locks.Busy as busy:
+            log(f"A refresh is already running ({busy}). Try again when it's done; the Dashboard shows when that is.")
+            return EXIT_BUSY
     return args.func(args)

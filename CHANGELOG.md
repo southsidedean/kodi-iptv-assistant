@@ -2,6 +2,10 @@
 
 ## 0.5.2 (unreleased)
 
+### Sturdier
+
+- Only one refresh runs at a time. A refresh started by hand (`docker compose exec kia python3 -m kia run`) could run alongside the nightly one, or the one a new install starts by itself, and the two could overwrite each other's files. Now the second says a refresh is already running, and since when, and stops; the nightly run skips its turn if one started by hand is still going. Saving on the Dashboard also waits for a refresh's writes in another process, not only in its own.
+
 ## 0.5.1 (2026-10-22)
 
 ### Upgrading from 0.5.0

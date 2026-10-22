@@ -28,13 +28,14 @@ import signal
 import subprocess
 import sys
 
-from kia import channels, profiles
+from kia import channels, locks, profiles
 from kia import sources as web_sources
 from kia.auth import Auth
 from kia.m3u import parse
 
 # One change at a time, and none while kia check rebuilds the profiles.
-LOCK = threading.RLock()
+# Writing kia's state: shared with a refresh, even one in another process (kia.locks).
+LOCK = locks.FilesLock()
 PASSWORD_LOCK = threading.Lock()
 
 
