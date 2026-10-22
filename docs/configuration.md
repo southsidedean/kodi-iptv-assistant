@@ -65,7 +65,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PLEX_IMAGE` | `plexinc/pms-docker:latest` | Plex's version, for Plex in the stack. |
 | `KIA_PLEX_CONFIG`, `KIA_PLEX_TRANSCODE` | `plex/config`, `plex/transcode` | Where Plex in the stack keeps its settings and database, and its temporary files while converting video. Both survive restarts and updates. |
 | `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex in the stack. Plex can read them but not change them. |
-| `KIA_GRAFANA_PASSWORD` | `admin` | Grafana's admin password, with the `monitoring` profile ([graphs for your TV stack](cookbooks/observability.md)). Grafana reads it on its first start only. |
+| `KIA_GRAFANA_PASSWORD` | made by Grafana | Grafana's admin password, with the `monitoring` profile ([graphs for your TV stack](cookbooks/observability.md)). When it's empty, Grafana makes one on its first start and saves it in `monitoring/grafana/admin-password.txt`. Grafana reads it on its first start only. |
 | `KIA_GRAFANA_PORT`, `KIA_PROMETHEUS_PORT` | `8788`, `8789` | Grafana's port, and Prometheus's, which is open to this computer only. |
 | `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
 | `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. |

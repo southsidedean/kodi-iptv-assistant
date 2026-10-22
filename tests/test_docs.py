@@ -163,3 +163,9 @@ def test_grafana_dashboards_match_their_script(tmp_path, monkeypatch):
         assert all(t["datasource"]["uid"] == "prometheus" for p in board["panels"] for t in p.get("targets", []))
     assert sorted(p.name for p in (ROOT / "deploy" / "monitoring" / "dashboards").glob("*.json")) == sorted(
         p.name for p in tmp_path.glob("*.json"))
+
+
+def test_grafana_never_starts_with_the_default_password():
+    grafana = compose_service("grafana")
+    assert "GF_SECURITY_ADMIN_PASSWORD:" not in grafana and ":-admin" not in grafana
+    assert "admin-password.txt" in grafana and 'exec /run.sh "$$@"' in grafana

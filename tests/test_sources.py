@@ -193,3 +193,28 @@ def test_the_last_playlist_cant_be_removed_either(cfg):
     call(cfg, "PUT", "/api/sources", {"url": us, "on": False})
     status, data = call(cfg, "DELETE", "/api/sources?url=https%3A%2F%2Fexample.org%2Fx.m3u")
     assert status == 409 and "last playlist" in data["error"]
+
+
+def test_logins_in_addresses_show_only_with_the_password(cfg, monkeypatch):
+    secret = "https://user:hunter2@example.com/get.php?username=u&password=p"
+    assert call(cfg, "POST", "/api/sources", {"url": secret, "name": "paid", "radio": False})[0] == 200
+
+    def addresses(**kw):
+        return [r["url"] for r in call(cfg, "GET", "/api/sources", **kw)[1]["playlists"] if r["name"] == "paid"]
+
+    assert addresses(password=None, secure=False) == ["https://•••@example.com/get.php?•••"]
+    assert addresses(password="secret", secure=False) == ["https://•••@example.com/get.php?•••"]  # http: never
+    assert addresses(password=None) == ["https://•••@example.com/get.php?•••"]  # https, no password
+    assert addresses(password="nope") == ["https://•••@example.com/get.php?•••"]
+    assert addresses() == [secret]
+    assert call(cfg, "GET", "/api/sources")[1]["unlocked"] and not call(cfg, "GET", "/api/sources", password=None)[1]["unlocked"]
+
+    # Check now's progress is public: it never shows the login, even while it runs.
+    monkeypatch.setitem(api.CHECK, "url", secret)
+    for kw in ({"password": None, "secure": False}, {"password": "secret"}):
+        assert "hunter2" not in json.dumps(call(cfg, "GET", "/api/sources/check", **kw)[1])
+    assert "hunter2" not in json.dumps(call(cfg, "GET", "/api/sources", password=None, secure=False)[1])
+
+
+def test_a_bad_port_doesnt_break_the_list():
+    assert api.mask_url("http://user:pw@host:99999/x.m3u") == "•••"

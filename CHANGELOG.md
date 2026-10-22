@@ -2,6 +2,14 @@
 
 ## 0.5.1 (unreleased)
 
+### Security
+
+- iptv-org's guide downloader is third-party code that changes every day. kia now runs it in Node.js's sandbox: it can read only its own folder and the channel list, write only the guide it makes and a temporary folder, and start no other programs. It also no longer sees kia's settings, so a bad change to iptv-org's code couldn't read your Plex token, email password, or Dashboard password. kia compiles iptv-org's scripts first, with iptv-org's own esbuild, so they run without starting a compiler inside the sandbox. Without Docker this needs Node.js 20 or newer.
+- Channel source addresses can hold a provider's user name and password. **Check now** showed the address it was checking in full to anyone on your network, on the plain (http) port too. Now the logins are hidden there, and on the secure page they show only after the password.
+- Grafana no longer starts with the password `admin` when `KIA_GRAFANA_PASSWORD` is empty: it makes a random one on its first start and saves it in `monitoring/grafana/admin-password.txt`. A Grafana that's already set up keeps its password.
+- `scripts/pin-versions.sh` and `scripts/install-service.sh` keep `.env` (and its backups) readable only by you.
+- A channel source with an impossible port number no longer breaks the Sources page.
+
 ## 0.5.0 (2026-10-22)
 
 ### Upgrading from 0.4

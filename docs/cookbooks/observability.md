@@ -22,7 +22,7 @@ kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and yo
 
 ## 1. Turn it on
 
-In the kia folder, add `monitoring` to `COMPOSE_PROFILES` in `.env`, and choose a password for Grafana:
+In the kia folder, add `monitoring` to `COMPOSE_PROFILES` in `.env`. You can also choose a password for Grafana; without one, Grafana makes one up on its first start (step 2 says where to find it):
 
 ```sh
 COMPOSE_PROFILES=plex,monitoring
@@ -41,7 +41,7 @@ docker compose up -d
 
 ## 2. Open Grafana
 
-Go to `http://192.168.1.20:8788`, with your kia's address, and sign in as `admin` with the password from step 1. The kia dashboard opens first; the buttons at the top lead to the other two. kia's own Dashboard also gets a **Graphs** button that opens it.
+Go to `http://192.168.1.20:8788`, with your kia's address, and sign in as `admin` with the password from step 1. If you didn't choose one, it's in `monitoring/grafana/admin-password.txt` in the kia folder. The kia dashboard opens first; the buttons at the top lead to the other two. kia's own Dashboard also gets a **Graphs** button that opens it.
 
 The graphs start when Prometheus does, so they fill in over the following hours, and the refreshes over the following nights.
 
@@ -82,4 +82,4 @@ Prometheus picks new files up within a few minutes, without a restart.
 
 **The Plex dashboard says "Not answering".** kia can't reach Plex, or the token is wrong. Check `KIA_PLEX_URL` and `KIA_PLEX_TOKEN` in `.env`; the [Plex guide](../plex.md#4-add-threadfin-to-plex) shows how to find a token. After a change, run `docker compose up -d`.
 
-**Forgot Grafana's password, or changed `KIA_GRAFANA_PASSWORD`.** Grafana reads that setting only the first time it starts. Set the one you want, then run `docker compose exec grafana grafana cli admin reset-admin-password "$(grep ^KIA_GRAFANA_PASSWORD= .env | cut -d= -f2-)"`.
+**Forgot Grafana's password, or changed `KIA_GRAFANA_PASSWORD`.** Grafana reads that setting (or makes `monitoring/grafana/admin-password.txt`) only the first time it starts. Set the one you want, then run `docker compose exec grafana grafana cli admin reset-admin-password "$(grep ^KIA_GRAFANA_PASSWORD= .env | cut -d= -f2-)"`.
