@@ -11,7 +11,7 @@ kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and yo
 |---|---|
 | **kia** | The nightly refresh (OK or failed, how long it took), the guide's age, channels and guide coverage, working and dead streams per source, channels per playlist, the Pluto TV relay's viewers and problems, and kia's own processor and memory use |
 | **TV stack** | Processor, memory, and network for each container (kia, the web server, the Threadfins, Plex in the stack), and the computer's processor, memory, disk, and network |
-| **Plex** | Who's watching now and what (Live TV, movies, episodes), whether Plex copies or converts the video, and players away from home |
+| **Plex** | What's playing now (Live TV, movies, episodes) on each player, whether Plex copies or converts the video, and players away from home. Players show by a pseudonym; the System page tells you which is which |
 
 ![The kia dashboard in Grafana: the last refresh OK, the guide's age, channel counts, and graphs of channels, guide coverage, and streams per source](../../images/cookbooks/observability-kia.png)
 

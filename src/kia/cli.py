@@ -1152,7 +1152,7 @@ def plex_sessions(config: str):
         return None
     base = Path(config).resolve().parent
     token = os.environ.get("KIA_PLEX_TOKEN", "") or (plex.own_token(base) if plex.in_stack(url) else None) or ""
-    return metrics.PlexSessions(plex.Plex(url, token, timeout=5))
+    return metrics.PlexSessions(plex.Plex(url, token, timeout=5), state_dir=load(Path(config)).state_dir)
 
 
 def keep_plex_in_step(config: str) -> None:

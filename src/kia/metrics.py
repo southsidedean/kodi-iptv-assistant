@@ -1,18 +1,24 @@
 """/metrics: kia's numbers for Prometheus (docs/metrics.md).
 
 Read from status.json (the refresh, channels, guide, sources, playlists) and, live, from
-the Pluto relay and this process. Nothing here is secret: the same numbers are on the
-Dashboard. Prometheus's text format, version 0.0.4.
+the Pluto relay, Plex, and this process. Nothing here is secret: the same numbers are on
+the Dashboard. Plex players appear by a pseudonym, such as player-3fa2c1, not by their
+names (often a room or a person's); the secure System page shows which is which.
+Prometheus's text format, version 0.0.4.
 """
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import os
 import resource
+import secrets
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from kia import __version__
@@ -60,13 +66,86 @@ def _rss_bytes() -> int | None:
     return peak if sys.platform == "darwin" else peak * 1024
 
 
-class PlexSessions:
-    """Plex's sessions for /metrics, asked at most every 15 seconds."""
+PLAYERS_FILE = "plex-players.json"
+KEEP_PLAYERS_DAYS = 90
 
-    def __init__(self, server, every: float = 15) -> None:
+
+class Players:
+    """Pseudonyms for Plex players: an HMAC of Plex's id for the device with a secret kept
+    in state/ (metrics-key), so the same device always gets the same one and nobody can
+    work back from it. Which pseudonym is which device is kept in state/plex-players.json,
+    for the secure System page."""
+
+    def __init__(self, state_dir: Path | None) -> None:
+        self.state_dir = state_dir
+        self.key: bytes | None = None
+        self.known: dict[str, dict] | None = None
+
+    def _key(self) -> bytes:
+        if self.key is None:
+            path = self.state_dir / "metrics-key" if self.state_dir else None
+            try:
+                self.key = bytes.fromhex(path.read_text().strip()) if path else b""
+            except (OSError, ValueError):
+                self.key = b""
+            if not self.key:
+                self.key = secrets.token_bytes(32)
+                if path:
+                    _write_private(path, self.key.hex() + "\n")
+        return self.key
+
+    def name(self, player_id: str) -> str:
+        return "player-" + hmac.new(self._key(), player_id.encode(), hashlib.sha256).hexdigest()[:6]
+
+    def note(self, sessions: list[dict]) -> None:
+        """Remember who each pseudonym is, writing only when something new is seen today."""
+        if not self.state_dir:
+            return
+        path = self.state_dir / PLAYERS_FILE
+        if self.known is None:
+            try:
+                self.known = json.loads(path.read_text())
+            except (OSError, ValueError):
+                self.known = {}
+        today, changed = datetime.now().astimezone().date().isoformat(), False
+        for x in sessions:
+            seen = {"name": x["player"], "product": x["product"], "seen": today}
+            if self.known.get(x["pseudonym"]) != seen:
+                self.known[x["pseudonym"]], changed = seen, True
+        if changed:
+            cutoff = (datetime.now().astimezone() - timedelta(days=KEEP_PLAYERS_DAYS)).date().isoformat()
+            self.known = {k: v for k, v in self.known.items() if v.get("seen", "") >= cutoff}
+            _write_private(path, json.dumps(self.known, indent=1, sort_keys=True) + "\n")
+
+
+def _write_private(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.unlink(missing_ok=True)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    tmp.replace(path)
+
+
+def known_players(state_dir: Path) -> list[dict]:
+    """Which pseudonym is which Plex player, newest first (for the secure System page)."""
+    try:
+        known = json.loads((state_dir / PLAYERS_FILE).read_text())
+    except (OSError, ValueError):
+        return []
+    return sorted(({"pseudonym": k, **v} for k, v in known.items()), key=lambda p: (p.get("seen", ""), p["pseudonym"]), reverse=True)
+
+
+class PlexSessions:
+    """Plex's sessions for /metrics, asked at most every 15 seconds, with each player's
+    pseudonym in place of its name."""
+
+    def __init__(self, server, every: float = 15, state_dir: Path | None = None) -> None:
         self.server, self.every = server, every
         self.at, self.value = -1e9, None
         self.lock = threading.Lock()
+        self.players = Players(state_dir)
 
     def get(self) -> list[dict] | None:
         """The sessions, or None when Plex didn't answer."""
@@ -74,6 +153,9 @@ class PlexSessions:
             if time.monotonic() - self.at >= self.every:
                 try:
                     self.value = self.server.sessions()
+                    for x in self.value:
+                        x["pseudonym"] = self.players.name(x.get("player_id") or x["player"])
+                    self.players.note(self.value)
                 except Exception:  # Plex down, or a bad token: kia_plex_up says so
                     self.value = None
                 self.at = time.monotonic()
@@ -92,8 +174,9 @@ def _plex(out: _Out, plex: PlexSessions) -> None:
     out.metric("kia_plex_sessions", "gauge", "Plex sessions now, by kind (live is Live TV), video (copy, transcode, directplay), and location.",
                [({"kind": k, "video": v, "location": loc}, n) for (k, v, loc), n in sorted(groups.items())]
                or [({"kind": "none", "video": "none", "location": "none"}, 0)])  # fmt: skip
-    out.metric("kia_plex_session_info", "gauge", "One line per Plex player now playing.",
-               [({key: x[key] for key in ("player", "product", "kind", "video", "location", "state")}, 1) for x in sessions])  # fmt: skip
+    out.metric("kia_plex_session_info", "gauge", "One line per Plex player now playing (player is a pseudonym).",
+               [({"player": x["pseudonym"], **{key: x[key] for key in ("product", "kind", "video", "location", "state")}}, 1)
+                for x in sessions])  # fmt: skip
 
 
 def render(output_dir: Path, relay=None, plex: PlexSessions | None = None) -> str:

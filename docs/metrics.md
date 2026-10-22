@@ -42,7 +42,7 @@ Most of the numbers change once a night or every few hours, so once a minute is 
 | `kia_pluto_pieces_total`, `kia_pluto_bytes_total` | Video it has passed on |
 | `kia_plex_up` | 1 if Plex answered kia (with `KIA_PLEX_URL` set) |
 | `kia_plex_sessions{kind,video,location}` | Plex sessions now: `kind` is `live` for Live TV, or `movie`, `episode`, `track`; `video` is `copy`, `transcode`, or `directplay`; `location` is `lan` or `wan` |
-| `kia_plex_session_info{player,product,kind,video,location,state}` | One line per Plex player now playing |
+| `kia_plex_session_info{player,product,kind,video,location,state}` | One line per Plex player now playing. `player` is a pseudonym, such as `player-3fa2c1`, the same for a device every time; the System page on the secure Dashboard shows which is which, after the password |
 | `kia_process_cpu_seconds_total` | Processor time kia itself used |
 | `kia_children_cpu_seconds_total` | Processor time of the programs kia ran: ffprobe for stream checks, ffmpeg for Pluto, and the guide grabber |
 | `kia_process_resident_memory_bytes` | Memory kia uses |

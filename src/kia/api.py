@@ -568,6 +568,12 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["channel"] and method == "PUT":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, set_channel(cfg, data)
+        if parts == ["players"] and method == "GET":
+            # Which pseudonym in the graphs is which Plex player: names can be personal.
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            from kia.metrics import known_players
+
+            return 200, {"players": known_players(cfg.state_dir)}
         if parts == ["sources"] and method == "GET":
             return 200, get_sources(cfg, secure, password_ok(cfg, headers.get("X-Kia-Password"), secure))
         if parts == ["sources", "check"] and method == "GET":

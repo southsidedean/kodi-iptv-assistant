@@ -43,13 +43,14 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `POST /api/channel/remove` | Takes a channel out of every playlist until its stream works at a nightly check: send `{"key": "..."}` | password, HTTPS |
 | `POST /api/channel/restore` | Puts a removed channel back now: send `{"key": "..."}` | password, HTTPS |
 | `POST /api/renumber` | Numbers every channel 1, 2, 3 down the list once, keeping chosen numbers ([renumbering](configuration.md#gaps-in-the-numbers-and-renumbering)). Returns the `tv` and `radio` counts. | password, HTTPS |
-| `GET /api/sources` | The playlists kia can check: each one's `url`, `name`, `label`, `section`, whether it's `radio`, whether it's `on`, where it comes from (`origin`: `file` or `added`), and its `streams` from the last check. Also the last "check now" (`check`). | |
+| `GET /api/sources` | The playlists kia can check: each one's `url`, `name`, `label`, `section`, whether it's `radio`, whether it's `on`, where it comes from (`origin`: `file` or `added`), and its `streams` from the last check. Also the last "check now" (`check`). A user name, password, or query in an address shows only with the password, over HTTPS; otherwise it's hidden (`•••`). | |
 | `PUT /api/sources` | Turns a playlist on or off: send `{"url": "...", "on": true}`. The last playlist in use can't be turned off. | password, HTTPS |
 | `POST /api/sources` | Adds a playlist: send `{"url": "https://...", "name": "extras", "radio": false}` (`name` and `radio` are optional) | password, HTTPS |
 | `DELETE /api/sources?url=...` | Removes a playlist added through the API or the Dashboard | password, HTTPS |
 | `POST /api/sources/check` | Tests every stream in one playlist now: send `{"url": "..."}`. One check runs at a time, and none during a refresh. | password, HTTPS |
 | `GET /api/sources/check` | The check's progress: `running`, then `result` (`total`, `ok`, `flaky`, `dead`, and a `sample` of working channel names) or `error` | |
 | `DELETE /api/sources/check` | Stops the check that's running. Its `error` then says it was stopped. | password, HTTPS |
+| `GET /api/players` | Which pseudonym in `/metrics` and the graphs (such as `player-3fa2c1`) is which Plex player: each one's `pseudonym`, `name`, `product`, and the day it was last `seen`. | password, HTTPS |
 
 A profile's settings are the ones in [what a profile can say](profiles.md#what-a-profile-can-say), as JSON:
 

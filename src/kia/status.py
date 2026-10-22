@@ -99,6 +99,8 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "settings": _load(state_dir / "settings.json").get("sections", []),
         "env_private": _load(state_dir / "settings.json").get("env_private"),
         "pluto_channels": _pluto_channels(entries),
+        # How many Plex players /metrics has seen (their names are on the secure page only).
+        "plex_players": len(_load(state_dir / "plex-players.json")),
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
 
@@ -456,6 +458,63 @@ CHECKLIST_SCRIPT = """
 """
 
 
+def _players_card(s: dict) -> str:
+    """Which pseudonym in the graphs is which Plex player, after the password."""
+    if not s.get("plex_players"):
+        return ""
+    return (
+        f'<section class="card" id="players"{_secure_attr(s)}><h2>Plex players in the graphs</h2>'
+        '<p class="muted">Graphs and <code>/metrics</code> show Plex players by a pseudonym, such as player-3fa2c1, '
+        "because their names are often a room's or a person's. To see which is which, enter the password "
+        "(on the secure page).</p>"
+        '<form class="editor players-form" hidden><label class="field" for="players-pass"><strong>Password</strong></label>'
+        '<input type="password" id="players-pass" autocomplete="current-password">'
+        '<div class="actions"><button type="submit" class="primary">Show the players</button></div>'
+        '<p role="status" class="players-say"></p></form>'
+        '<div class="wide"><table class="settings players-table" hidden><thead><tr><th>In the graphs</th>'
+        "<th>Player</th><th>App</th><th>Last seen</th></tr></thead><tbody></tbody></table></div></section>"
+    )
+
+
+PLAYERS_SCRIPT = """
+<script>
+(function () {
+  var card = document.getElementById("players");
+  if (!card) return;
+  var form = card.querySelector(".players-form"), say = card.querySelector(".players-say");
+  var pass = card.querySelector("#players-pass"), KEY = "kia-password";
+  if (location.protocol !== "https:") {
+    var url = card.dataset.secureUrl;
+    if (url) card.querySelector("p.muted").appendChild(Object.assign(document.createElement("a"),
+      { href: new URL("system.html#players", url).href, textContent: " Open the secure page." }));
+    return;
+  }
+  form.hidden = false;
+  try { pass.value = sessionStorage.getItem(KEY) || ""; } catch (e) {}
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    say.textContent = "";
+    fetch("api/players", { headers: { "X-Kia-Password": pass.value } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
+    }).then(function (r) {
+      if (r._status !== 200) { say.className = "players-say error"; say.textContent = r.error || "Something went wrong."; return; }
+      try { sessionStorage.setItem(KEY, pass.value); } catch (e) {}
+      var body = card.querySelector(".players-table tbody");
+      body.textContent = "";
+      (r.players || []).forEach(function (p) {
+        var tr = document.createElement("tr");
+        [p.pseudonym, p.name, p.product, p.seen].forEach(function (v) { var td = document.createElement("td"); td.textContent = v || ""; tr.appendChild(td); });
+        body.appendChild(tr);
+      });
+      card.querySelector(".players-table").hidden = false;
+      say.className = "players-say"; say.textContent = (r.players || []).length + " players.";
+    }, function () { say.className = "players-say error"; say.textContent = "kia didn't answer. Is it running?"; });
+  });
+})();
+</script>
+"""
+
+
 def _pluto_card(s: dict) -> str:
     """Pluto TV channels playing through kia right now (kia.pluto); filled in from pluto.json."""
     names = s.get("pluto_channels") or {}
@@ -659,9 +718,9 @@ def render_system(s: dict) -> str:
     )
     body = (
         f'<main><h1>System</h1><div class="pair">{_secure_card(s)}{editing}</div>'
-        f"{_pluto_card(s)}{_settings_card(s)}{reports}</main>"
+        f"{_pluto_card(s)}{_players_card(s)}{_settings_card(s)}{reports}</main>"
     )
-    script = editor.EDITING_SCRIPT + PLUTO_SCRIPT
+    script = editor.EDITING_SCRIPT + PLUTO_SCRIPT + PLAYERS_SCRIPT
     return page("System - kia", body, _footer(s), script, editor.STYLE, current="system.html")
 
 

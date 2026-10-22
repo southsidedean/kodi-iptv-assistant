@@ -155,7 +155,8 @@ class Plex:
         return self.call("GET", "/livetv/dvrs").get("MediaContainer", {}).get("Dvr", [])
 
     def sessions(self) -> list[dict]:
-        """What's playing now, one dict per player: player, product, kind (live for Live TV,
+        """What's playing now, one dict per player: player (its name), player_id (Plex's id
+        for the device), product, kind (live for Live TV,
         else movie, episode, track...), video (copy, transcode, or directplay), location
         (lan or wan), and state (playing, paused, buffering)."""
         out = []
@@ -163,6 +164,7 @@ class Plex:
             player, ts = m.get("Player") or {}, m.get("TranscodeSession") or {}
             out.append({
                 "player": player.get("title") or player.get("product") or "?",
+                "player_id": player.get("machineIdentifier") or player.get("title") or "?",
                 "product": player.get("product") or "?",
                 "kind": "live" if str(m.get("live", "")) == "1" else m.get("type") or "?",
                 "video": ts.get("videoDecision") or "directplay",
