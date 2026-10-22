@@ -63,10 +63,11 @@ The Dashboard's "secure page" links use the first one. kia makes a new certifica
 
 ## Using your own certificate
 
-A certificate from a known authority removes the browser warning. Put it in kia's `tls` folder as two files, `fullchain.pem` (the certificate) and `privkey.pem` (its key), then make them readable by the web server:
+A certificate from a known authority removes the browser warning. Put it in kia's `tls` folder as two files, `fullchain.pem` (the certificate) and `privkey.pem` (its key), then make them readable by the web server (the key by your group only):
 
 ```sh
-chmod 644 tls/fullchain.pem tls/privkey.pem
+chmod 644 tls/fullchain.pem
+chmod 640 tls/privkey.pem
 ```
 
 The web server picks up the new files within a minute. kia never replaces a certificate it didn't make, so renewing yours is up to you; the Dashboard warns three weeks before it expires. To check what's installed:
@@ -86,7 +87,7 @@ If you use [Tailscale](https://tailscale.com) to reach kia away from home, it ca
 
    ```sh
    sudo tailscale cert --cert-file tls/fullchain.pem --key-file tls/privkey.pem my-server.tail1234.ts.net
-   sudo chown "$(id -u):$(id -g)" tls/*.pem && chmod 644 tls/*.pem
+   sudo chown "$(id -u):$(id -g)" tls/*.pem && chmod 644 tls/fullchain.pem && chmod 640 tls/privkey.pem
    ```
 
 3. Add the name to `.env` so the Dashboard links to it, then restart kia:
@@ -105,10 +106,11 @@ With [certbot](https://certbot.eff.org) and its plugin for your DNS provider (Cl
 
 ```sh
 sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/cloudflare.ini -d kia.example.com
-sudo install -m 644 /etc/letsencrypt/live/kia.example.com/fullchain.pem /etc/letsencrypt/live/kia.example.com/privkey.pem tls/
+sudo install -m 644 -o "$(id -u)" -g "$(id -g)" /etc/letsencrypt/live/kia.example.com/fullchain.pem tls/
+sudo install -m 640 -o "$(id -u)" -g "$(id -g)" /etc/letsencrypt/live/kia.example.com/privkey.pem tls/
 ```
 
-Then set `KIA_TLS_NAMES=kia.example.com` in `.env` and restart kia. The name also has to lead to the kia machine on your network: add it to your router's or home DNS server's local records. certbot renews by itself; to copy the renewed files each time, give it a deploy hook that runs the `install` line above (`--deploy-hook`).
+Then set `KIA_TLS_NAMES=kia.example.com` in `.env` and restart kia. The name also has to lead to the kia machine on your network: add it to your router's or home DNS server's local records. certbot renews by itself; to copy the renewed files each time, give it a deploy hook that runs the two `install` lines above (`--deploy-hook`).
 
 ## Without Docker
 

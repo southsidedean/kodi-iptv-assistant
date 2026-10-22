@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-LAN_ADDRESSES = {"192.168.1.20"}
+LAN_ADDRESSES = {"192.168.1.20", "172.17.0.1"}  # kia's stand-in, and Docker's default bridge (the same everywhere)
 EMAIL_DOMAINS = re.compile(r"@example\.(com|org|net)$")
 EMAILS = {"you@gmail.com"}  # the SMTP example in docs/alerts.md
 HOST_NAMES = {"my-server.lan", "server.lan", "kia.lan", "kia.home.lan", "tv.lan", "host.docker.internal"}

@@ -81,8 +81,10 @@ services:
       KIA_EDITING: ${KIA_EDITING:-}
       KIA_HTTPS_PORT: ${KIA_HTTPS_PORT:-8743}
       KIA_TLS_NAMES: ${KIA_TLS_NAMES:-}
-      # nginx (another user) reads kia's certificate key from tls/.
+      # nginx (another user) reads kia's certificate key from tls/, through your group.
       KIA_TLS_SHARED: "true"
+      # Only requests from the web server may say they came through the secure page.
+      KIA_PROXY_HOST: web
       # nginx forwards /api/ and /pluto/ to this port (not published).
       KIA_API_PORT: "8781"
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
@@ -119,7 +121,9 @@ services:
       - /run
       - /tmp
       - /var/cache/nginx
-    # nginx starts as root to open the port, then switches to its own user.
+    # nginx starts as root to open the port, then switches to its own user. It joins your
+    # group, so it can read the certificate key, which no one else on the computer can.
+    group_add: ["${PGID:-1000}"]
     cap_drop:
       - ALL
     cap_add:
@@ -267,6 +271,12 @@ services:
     hostname: ${KIA_PLEX_NAME:-kia-tv-box}
     restart: unless-stopped
     logging: *logging
+    # Plex's image starts as root to set itself up, then runs Plex as PUID. It keeps only
+    # what that takes: owning and switching to its files and user, and stopping its own
+    # processes cleanly (without KILL, a stop waits and then cuts Plex off mid-write).
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL]
     environment:
       TZ: ${TZ:-UTC}
       # From https://plex.tv/claim, on the first start only; it links this Plex to your
@@ -364,6 +374,10 @@ services:
     image: ${KIA_CADVISOR_IMAGE:-ghcr.io/google/cadvisor:latest}
     restart: unless-stopped
     logging: *logging
+    # It reads Docker's socket to name the containers, which is as good as full access to
+    # this computer, so it gets nothing else: a read-only system and no capabilities.
+    read_only: true
+    cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     # Docker containers only, every 30 seconds, with only the numbers the dashboards use:
     # it costs far less processor time that way.
@@ -375,7 +389,7 @@ services:
       - --disable_metrics=advtcp,cpu_topology,cpuset,disk,diskIO,hugetlb,memory_numa,percpu,perf_event,process,referenced_memory,resctrl,sched,tcp,udp
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
 
@@ -390,6 +404,9 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    command: ["--path.rootfs=/host", "--web.listen-address=:9100"]
+    # Every address of this computer by default, so Prometheus's container reaches it. With
+    # KIA_NODE_EXPORTER_LISTEN set to Docker's own address (usually 172.17.0.1:9100), the rest
+    # of your network can't read it.
+    command: ["--path.rootfs=/host", "--web.listen-address=${KIA_NODE_EXPORTER_LISTEN:-:9100}"]
     volumes:
       - /:/host:ro,rslave

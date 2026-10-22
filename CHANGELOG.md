@@ -2,6 +2,13 @@
 
 ## 0.5.2 (unreleased)
 
+### Security
+
+- kia believed any container on Docker's network that said a request came through the secure page. Threadfin, Grafana, or Plex could reach kia directly and say so too (the password was still needed). Now kia believes only its own web server.
+- kia's certificate key could be read by every user of the computer, so that nginx could read it. Now only you and your group can, and the web server's container joins your group. An existing key is fixed when kia starts. If you use your own certificate, the [secure page guide](docs/secure-page.md#using-your-own-certificate) now uses `chmod 640` for its key.
+- Plex in the stack keeps only the capabilities it needs to start and stop (tested: a clean stop still takes seconds), and can't gain more. cAdvisor gets a read-only system, no capabilities, and only Docker's socket instead of all of `/var/run`, with the same numbers as before.
+- New setting `KIA_NODE_EXPORTER_LISTEN`, to keep node-exporter off the rest of your network.
+
 ### Sturdier
 
 - Only one refresh runs at a time. A refresh started by hand (`docker compose exec kia python3 -m kia run`) could run alongside the nightly one, or the one a new install starts by itself, and the two could overwrite each other's files. Now the second says a refresh is already running, and since when, and stops; the nightly run skips its turn if one started by hand is still going. Saving on the Dashboard also waits for a refresh's writes in another process, not only in its own.

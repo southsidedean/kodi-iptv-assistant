@@ -160,9 +160,13 @@ def test_kias_own_key_is_private_without_docker(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("KIA_TLS_SHARED", raising=False)
     tls.make_self_signed(tmp_path / "a", ["kia.lan"])
     assert (tmp_path / "a" / tls.KEY).stat().st_mode & 0o077 == 0
-    monkeypatch.setenv("KIA_TLS_SHARED", "true")  # with Docker, nginx reads it
+    monkeypatch.setenv("KIA_TLS_SHARED", "true")  # with Docker, nginx reads it, through the group
     tls.make_self_signed(tmp_path / "b", ["kia.lan"])
-    assert (tmp_path / "b" / tls.KEY).stat().st_mode & 0o044 == 0o044
+    assert (tmp_path / "b" / tls.KEY).stat().st_mode & 0o077 == 0o040
+    old = tmp_path / "b" / tls.KEY  # a key from before 0.5.2: readable by everyone
+    old.chmod(0o644)
+    tls.tighten_key(tmp_path / "b", log=lambda m: None)
+    assert old.stat().st_mode & 0o777 == 0o640
 
 
 def test_the_relay_wont_follow_a_redirect_off_https():
