@@ -1,0 +1,35 @@
+# Prometheus for kia's monitoring profile (docs/cookbooks/observability.md).
+# Your own extra targets go in monitoring/targets/*.yml in the kia folder (example below).
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # kia's numbers (docs/metrics.md), straight from kia on Docker's network.
+  - job_name: kia
+    static_configs:
+      - targets: ["kia:8781"]
+
+  # Each container's processor, memory, and network: kia, web, the Threadfins, Plex.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # The computer itself, from node-exporter on port 9100: the monitoring-node profile,
+  # or one you already run (Ubuntu's prometheus-node-exporter package, for example).
+  - job_name: node
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Anything else, such as a Plex exporter or another kia, one file per job:
+  #   monitoring/targets/plex.yml
+  #   - targets: ["host.docker.internal:9000"]
+  #     labels:
+  #       job: plex
+  - job_name: extra
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/*.yml"]

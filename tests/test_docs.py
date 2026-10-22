@@ -107,7 +107,7 @@ def test_every_folder_compose_mounts_is_in_the_repository():
     mounts = re.findall(r"^\s+- \./([^:\s]*):", (root / "compose.yaml").read_text(), re.M)
     folders = [m.rstrip("/") for m in mounts if m and "." not in Path(m).name]
     assert "threadfin/conf" in folders and "state" in folders
-    missing = [f for f in folders if f"{f}/.gitkeep" not in tracked]
+    missing = [f for f in folders if not any(t.startswith(f"{f}/") for t in tracked)]  # a .gitkeep, or real files
     assert not missing, missing
 
 
