@@ -58,6 +58,7 @@ def test_containers_stay_locked_down():
         service = compose_service(name)
         assert "read_only: true" in service and "- ALL" in service and "no-new-privileges:true" in service, name
     kia = compose_service("kia")
+    assert "init: true" in kia  # cleans up the stream tests a stopped "Check now" leaves behind
     assert "- ./:/data:ro" in kia  # kia's own code and settings can't be changed from inside
     web_mounts = re.findall(r"^\s+- (\./\S+)", compose_service("web"), flags=re.M)
     # The web server reads only the results, its own settings, and the certificate.
