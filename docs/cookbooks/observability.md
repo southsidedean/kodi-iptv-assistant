@@ -1,6 +1,6 @@
 # Graphs for your TV stack: Prometheus and Grafana
 
-kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and you also see how they've been: whether last night's refresh took longer than usual, when a channel source lost half its streams, how busy Threadfin was during the game, and who was watching what on Plex. They run in kia's stack, set up from `.env`, with three dashboards ready to use.
+kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and you also see how they've been: whether last night's refresh took longer than usual, when a channel source lost half its streams, how busy Threadfin was during the game, and who was watching what on Plex. They run in kia's stack, set up from `.env`, with three dashboards ready to use. Prometheus collects the numbers and keeps them; Grafana draws the graphs. Two small helpers measure the rest: cAdvisor each container, and node-exporter the computer itself.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../images/diagrams/observability-dark.svg">
@@ -18,20 +18,20 @@ kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and yo
 ## What you need
 
 - kia running with Docker ([installing kia](../install.md)), or the [home TV box](plex-box.md).
-- About 1 GB of disk for 30 days of numbers, and about half a GB of memory, mostly Grafana's.
+- About 1 GB of disk for 30 days of numbers, and about half a GB of memory, mostly Grafana's (up to 1 GB while it sets itself up the first time).
 
 ## 1. Turn it on
 
 In the kia folder, add `monitoring` to `COMPOSE_PROFILES` in `.env`. You can also choose a password for Grafana; without one, Grafana makes one up on its first start (step 2 says where to find it):
 
 ```sh
-COMPOSE_PROFILES=plex,monitoring
+COMPOSE_PROFILES=monitoring
 KIA_GRAFANA_PASSWORD=choose-a-password
 ```
 
-Keep the profiles you already have (`plex`, `plex-2`, `plex-server`); `monitoring` goes on the end.
+Keep the profiles you already have and put `monitoring` on the end: with Threadfin for Plex, that's `COMPOSE_PROFILES=plex,monitoring`.
 
-The computer's own numbers come from node-exporter on port 9100. If the computer doesn't run it already, add `monitoring-node` as well: `COMPOSE_PROFILES=plex,monitoring,monitoring-node`. (On Ubuntu or Debian, `systemctl status prometheus-node-exporter` shows whether it's there.)
+The computer's own numbers come from node-exporter on port 9100. If the computer doesn't run it already, add `monitoring-node` as well: `COMPOSE_PROFILES=monitoring,monitoring-node`. (On Ubuntu or Debian, `systemctl status prometheus-node-exporter` shows whether it's there.)
 
 Then start it:
 

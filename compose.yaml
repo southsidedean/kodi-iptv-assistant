@@ -152,10 +152,6 @@ services:
       - ./deploy/nginx-tls.sh:/docker-entrypoint.d/90-kia-tls.sh:ro
       - ./tls:/etc/kia-tls:ro
 
-  # Optional: Threadfin shows kia's playlist and guide to Plex as a TV tuner, which is how
-  # Plex does live TV (docs/plex.md). To start it with kia, add COMPOSE_PROFILES=plex to
-  # .env, then run docker compose up -d. It reads kia's files over Docker's own network (http://web/...), so its settings
-  # keep working if this computer's address changes. Its settings live in threadfin/.
   # Writes each Threadfin's first settings (kia's playlist and guide, a filter for every
   # channel, XEPG, FFmpeg options), then exits. Settings that already exist are left alone.
   threadfin-setup:
@@ -184,6 +180,11 @@ services:
       - ./threadfin/conf:/data/threadfin/conf
       - ./threadfin-2/conf:/data/threadfin-2/conf
 
+  # Optional: Threadfin shows kia's playlist and guide to Plex as a TV tuner, which is how
+  # Plex does live TV (docs/plex.md). To start it with kia, add COMPOSE_PROFILES=plex to
+  # .env, then run docker compose up -d. It reads kia's files over Docker's own network
+  # (http://web/...), so its settings keep working if this computer's address changes.
+  # Its settings live in threadfin/.
   threadfin:
     profiles: ["plex"]
     image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}

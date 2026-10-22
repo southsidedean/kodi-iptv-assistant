@@ -24,7 +24,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PORT` | `8780` | Port for the playlist and guide. |
 | `KIA_RUN_AT` | `04:00` | Daily refresh time (24-hour clock). A run takes up to an hour. |
 | `KIA_GUIDE_REFRESH_HOURS` | 4 | Hours between quick guide refreshes, which keep guides that list only the next few hours current. They download only the guides kia reads itself, in seconds. `0` turns them off. |
-| `TZ` | `UTC` | Your time zone, e.g. `America/New_York`. |
+| `TZ` | `Etc/UTC` | Your time zone, e.g. `America/New_York`. |
 | `PUID`, `PGID` | `1000` | The user and group that own the files kia writes. Use the numbers `id -u` and `id -g` print, so you can open and delete those files yourself. |
 | `KIA_SOURCES_FILE` | `sources.txt` | Use your own list instead, e.g. `sources.local.txt` (copy `sources.txt` to start). git ignores it, so updates never conflict with your choices. |
 | `KIA_PROFILES_FILE` | `profiles/profiles.toml` | Your playlists for people and devices; see [profiles](profiles.md). With Docker it must be in the `profiles` folder, the one kia can write. |
@@ -37,11 +37,11 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_UPSTREAM_URL` | | A home kia server to copy the guide from (see [setups](setups.md#laptop-that-travels-with-a-home-server)). |
 | `KIA_UPSTREAM_FALLBACK` | `grab` | When the upstream can't be reached: `grab` the guide here, or use the `cached` copy. |
 | `KIA_NTFY_URL` | | Send alerts to your phone through ntfy (see [alerts](alerts.md)). |
-| `KIA_SMTP_HOST`, `KIA_SMTP_PORT`, `KIA_SMTP_SECURITY` | , 587, `starttls` | Your email provider's server for [email alerts](alerts.md#email). `KIA_SMTP_SECURITY` is `starttls` (port 587), `ssl` (port 465), or `none`. |
+| `KIA_SMTP_HOST`, `KIA_SMTP_PORT`, `KIA_SMTP_SECURITY` | , 587, `starttls` | Your email provider's server for [email alerts](alerts.md#email). `KIA_SMTP_SECURITY` is `starttls` (port 587), `ssl` (port 465), or `none` (port 25). |
 | `KIA_SMTP_USER`, `KIA_SMTP_PASSWORD` | | The account kia signs in to the email server with. Many providers want an app password here. |
 | `KIA_EMAIL_TO`, `KIA_EMAIL_FROM` | , `KIA_SMTP_USER` | Who gets email alerts (comma-separated), and the address they come from. |
 | `KIA_ALERT_COMMAND` | | A command to run for each alert. |
-| `KIA_ALERT_EVENTS` | all but `daily_summary` | Which events notify you, comma-separated. |
+| `KIA_ALERT_EVENTS` | all but `daily_summary` and `pluto_fallback` | Which events notify you, comma-separated. |
 | `KIA_EPG_DAYS` | 3 | Days of program guide. |
 | `KIA_PARALLEL_SITES` | 4 | Guide sites downloaded at once. Each peaks around 0.7 GB of memory. |
 | `KIA_CHECK_CONCURRENCY` | 20 | Streams tested at once. |
@@ -53,7 +53,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_RADIO_PLACEHOLDERS` | false | The same for radio stations, so Kodi's radio guide lists each station's name. Almost no station has guide data, so this fills the radio guide with name blocks. |
 | `KIA_EPG_GIT_URL`, `KIA_EPG_GIT_REF` | iptv-org/epg, `latest` | Use a fork of iptv-org/epg, or pin a branch, tag, or commit. See [versions](#versions). |
 | `KIA_BASE_IMAGE`, `KIA_NODE_VERSION`, `KIA_NGINX_IMAGE` | `cgr.dev/chainguard/wolfi-base:latest`, `24`, `nginx:alpine` | kia's base image, the Node.js major version on it, and the web server's image. See [versions](#versions). |
-| `COMPOSE_PROFILES` | | `plex` starts Threadfin with kia, for [Plex](plex.md); `plex,plex-2` starts two, for more than 480 channels. |
+| `COMPOSE_PROFILES` | | Extra services to start with kia, comma-separated: `plex` starts Threadfin, for [Plex](plex.md) (`plex,plex-2` starts two, for more than 480 channels); `plex-server` adds Plex itself ([the home TV box](cookbooks/plex-box.md)); `monitoring` adds Prometheus and Grafana, and `monitoring-node` node-exporter ([graphs](cookbooks/observability.md)). |
 | `KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT` | `34400`, `34401` | Threadfin's web pages, and the tuner addresses Plex uses. |
 | `KIA_THREADFIN_IMAGE` | `fyb3roptik/threadfin:1.2.37` | Threadfin's version. |
 | `KIA_THREADFIN_PLAYLIST`, `KIA_THREADFIN_2_PLAYLIST` | `plex` (or `plex-1`), `plex-2` | The kia playlist each Threadfin reads. kia sets Threadfin up with it the first time Threadfin starts, and never changes Threadfin's settings after that. |
@@ -69,7 +69,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_GRAFANA_PORT`, `KIA_PROMETHEUS_PORT` | `8788`, `8789` | Grafana's port, and Prometheus's, which is open to this computer only. |
 | `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
 | `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. |
-| `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Graphs** button. With the `monitoring` profile, the button goes to this computer's Grafana anyway. |
+| `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Graphs** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |
 | `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE` | the latest | The monitoring images' versions. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
@@ -132,7 +132,7 @@ Channels that already had those numbers move to the next free ones, and the log 
 
 ## Backing up, and moving to another computer
 
-One command saves everything you've set up in one file: `.env`, `kia.toml`, your sources file, your own playlists, profiles, and `state/` (the password, channel numbers, favorites, the playlists chosen on the Dashboard, and stream history), plus the secure page's certificate. Channel lists and guides aren't in it; kia rebuilds them at its next refresh.
+One command saves everything you've set up in one file: `.env`, `kia.toml`, your sources file, your own playlists, profiles, and `state/` (the password, channel numbers, favorites, the playlists chosen on the Dashboard, and stream history), plus the secure page's certificate and Threadfin's settings (`threadfin/`, `threadfin-2/`). Channel lists and guides aren't in it; kia rebuilds them at its next refresh. Plex's own library and your media aren't in it either: back those up the way you back up other files.
 
 ```sh
 docker compose exec kia python3 -m kia backup
@@ -158,7 +158,9 @@ To remove kia, in the kia folder:
 docker compose down --rmi all
 ```
 
-Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back. If you opened ports in a Linux firewall, close them with `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`. On each device, remove kia's address from the player (in Kodi, disable or uninstall IPTV Simple Client). Without Docker, `scripts/install-service.sh --uninstall` removes the service first.
+Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back.
+
+**Before you delete it, check what else is in it.** With Plex in the stack ([the home TV box](cookbooks/plex-box.md)), the kia folder can hold your movies, shows, and music (`media/`, unless `KIA_MEDIA_DIR` points elsewhere) and Plex's library and watch history (`plex/`). With monitoring on, it holds the graphs' history (`monitoring/`). Move anything you want to keep out of the folder first. If you opened ports in a Linux firewall, close them with `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`. On each device, remove kia's address from the player (in Kodi, disable or uninstall IPTV Simple Client). Without Docker, `scripts/install-service.sh --uninstall` removes the service first.
 
 ## Versions
 
@@ -179,9 +181,9 @@ docker compose pull --ignore-buildable
 docker compose up -d
 ```
 
-To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions into it. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, an exact image in `KIA_BASE_IMAGE` or `KIA_NGINX_IMAGE`, by digest (e.g. `nginx:alpine@sha256:...`), and a Node.js major version in `KIA_NODE_VERSION` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). Pinned versions don't receive fixes until you change them.
+To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions of iptv-org/epg, the base image, and nginx into it. Threadfin is already pinned (`KIA_THREADFIN_IMAGE`); Plex and the monitoring images follow their latest release unless you set `KIA_PLEX_IMAGE`, `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, or `KIA_NODE_EXPORTER_IMAGE` to a version. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, an exact image in `KIA_BASE_IMAGE` or `KIA_NGINX_IMAGE`, by digest (e.g. `nginx:alpine@sha256:...`), and a Node.js major version in `KIA_NODE_VERSION` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). Pinned versions don't receive fixes until you change them.
 
-Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, and `tls/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, where it can't change kia itself, your settings, or anything else on the computer. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
+Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, in Node.js's sandbox, where it can't change kia itself, your settings, or anything else on the computer, and can't read your passwords. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
 
 ### The published image
 

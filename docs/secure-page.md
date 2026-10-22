@@ -45,7 +45,7 @@ cat state/admin-password.txt
 
 ### Setting it in `.env`
 
-Add `KIA_ADMIN_PASSWORD=...` to `.env` and restart kia (`docker compose up -d`). A password in `.env` always wins, and can only be changed there.
+Set `KIA_ADMIN_PASSWORD=...` in `.env` (the line is already there, empty) and restart kia (`docker compose up -d`). A password in `.env` always wins, and can only be changed there.
 
 ### Turning editing off
 

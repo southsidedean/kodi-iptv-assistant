@@ -13,7 +13,7 @@ Turn free internet TV into a tidy channel list with a working program guide in K
 
 ## Why this exists
 
-Kodi and free IPTV make a great pair, but turning a raw playlist into something you'd want to watch is a mess. Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live. Guide data exists for many of those channels, but it's spread across dozens of sites whose channel IDs rarely match your playlist's, so Kodi can't connect them and the guide stays mostly empty. And streams change daily, so a list that works this week is half broken next month.
+Free TV channels streamed over the internet (IPTV) work well in Kodi, but a raw playlist of them is hard to watch. Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live. Guide data exists for many of those channels, but it's spread across dozens of sites whose channel IDs rarely match your playlist's, so Kodi can't connect them and the guide stays mostly empty. And streams change daily, so a list that works this week is half broken next month.
 
 kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in the playlists you pick and keeps one working stream per channel. It finds guide data for those channels and builds a single guide file that lines up with the list. Then it serves both on your network, so you set up each device once and it stays current.
 
@@ -115,7 +115,7 @@ docker compose pull --ignore-buildable
 docker compose up -d
 ```
 
-This also brings the latest Node.js and nginx images; to stay on fixed versions, see [versions](docs/configuration.md#versions). If you use kia's [published image](docs/configuration.md#the-published-image) instead of building it, run `git pull`, `docker compose pull`, and `docker compose up -d`. Your `.env`, your own playlist list, and the stream history are kept. If you edited `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
+This also brings the latest images kia uses (its Wolfi base, nginx, and Plex, Prometheus, and Grafana if you use them); to stay on fixed versions, see [versions](docs/configuration.md#versions). If you use kia's [published image](docs/configuration.md#the-published-image) instead of building it, run `git pull`, `docker compose pull`, and `docker compose up -d`. Your `.env`, your own playlist list, and the stream history are kept. If you edited `sources.txt` or `kia.toml` directly, git may ask you to commit or stash those changes first.
 
 To save your settings, playlists, and choices in one file, or to move kia to another computer, see [backing up](docs/configuration.md#backing-up-and-moving-to-another-computer).
 

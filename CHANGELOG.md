@@ -4,7 +4,7 @@
 
 ### Security
 
-- iptv-org's guide downloader is third-party code that changes every day. kia now runs it in Node.js's sandbox: it can read only its own folder and the channel list, write only the guide it makes and a temporary folder, and start no other programs. It also no longer sees kia's settings, so a bad change to iptv-org's code couldn't read your Plex token, email password, or Dashboard password. kia compiles iptv-org's scripts first, with iptv-org's own esbuild, so they run without starting a compiler inside the sandbox. Without Docker this needs Node.js 20 or newer.
+- iptv-org's guide downloader is third-party code that changes every day. kia now runs it in Node.js's sandbox: it can read only its own folder and the channel list, write only the guide it makes and a temporary folder, and start no other programs. It also no longer sees kia's settings, so a bad change upstream couldn't read your Plex token, email password, or Dashboard password. kia compiles the downloader's scripts first, with the esbuild that comes with it, because compiling them inside the sandbox would mean starting another program. Without Docker this needs Node.js 20 or newer.
 - Channel source addresses can hold a provider's user name and password. **Check now** showed the address it was checking in full to anyone on your network, on the plain (http) port too. Now the logins are hidden there, and on the secure page they show only after the password.
 - Grafana no longer starts with the password `admin` when `KIA_GRAFANA_PASSWORD` is empty: it makes a random one on its first start and saves it in `monitoring/grafana/admin-password.txt`. A Grafana that's already set up keeps its password.
 - `scripts/pin-versions.sh` and `scripts/install-service.sh` keep `.env` (and its backups) readable only by you.
@@ -21,7 +21,7 @@
 
 ### Dashboard
 
-- The Timeline no longer freezes the page. With a big playlist it rebuilt every row once a minute (up to two seconds on a fast computer), losing your place and the keyboard focus each time. Now it fills in shows only for the rows on screen and as you scroll, moves the "now" line each minute, and rebuilds only when the half hour changes, keeping your place and focus. Its hour labels stay in view as you scroll down, and on a phone a tap anywhere in a row's height opens the show at that time.
+- The Timeline no longer freezes the page. With a big playlist it rebuilt every row once a minute (up to two seconds on a fast computer), losing your place and the keyboard focus each time. Now it fills in shows only for the rows on screen and as you scroll, moves the "now" line each minute, and rebuilds only when the half hour changes, without losing your place. Its hour labels stay in view as you scroll down, and on a phone a tap anywhere in a row's height opens the show at that time.
 - Things that should be hidden stayed visible because of their styles: the "On now / Timeline" buttons and "Hide channels without guide data" before there's a guide, an empty Pluto TV table on phones, and the playlist editor's channel filter, which didn't filter.
 - **Copy** works on the plain (http) address too, where browsers don't offer the clipboard; if even that fails, the address is selected for you to copy. Screen readers hear the result.
 - **Check now** keeps going when kia doesn't answer for a moment (it says so and tries again), instead of showing "0 streams". Its clock is no longer read aloud every two seconds.
@@ -30,6 +30,15 @@
 - Leaving a channel's number box saves the new number; on a phone, the keyboard's Done key used to throw it away. Escape still cancels.
 - Searching for a channel to add shows only the latest search's results.
 - The **Getting started** ticks are easier to tap (44 pixels). The Pluto TV table and the Sources page explain themselves in plainer words, and "Remove it until it works" is now **Take it out until it works**.
+
+### Install and docs
+
+- On a Raspberry Pi, or any computer with less than 6 GB of memory, `scripts/install.sh` now writes the lighter settings into `.env` itself, so the first refresh doesn't run out of memory.
+- **Uninstalling** warns that the kia folder can hold your movies and Plex library (the home TV box) and the graphs' history, before you delete it.
+- **Troubleshooting** no longer asks you to post your `.env`, which holds your passwords: `kia settings` shows the same without them.
+- One set of update steps everywhere (the README's), so the base images get updated too.
+- "Add these lines to `.env`" is now "set these lines": the lines are already in `.env`, and an added line can be quietly overridden by the empty one further down.
+- Corrections: the default alert events, which folders kia can write to and what the optional services can reach (SECURITY.md), what `scripts/pin-versions.sh` pins, the Docker form of `kia backup` and `kia plex-tuners`, how often Plex's playlists refresh, the time zone and email port defaults, the Dashboard's pages, and smaller fixes.
 
 ## 0.5.0 (2026-10-22)
 
@@ -75,7 +84,7 @@
 
 ### Logs
 
-- Docker keeps at most 30 MB of each container's log: 3 files of 10 MB, oldest lines first (`KIA_LOG_MAX_SIZE`, `KIA_LOG_MAX_FILES`). Before, it kept every line until the container was recreated, which can fill a disk over months. The next `docker compose up -d` recreates every container once to apply it.
+- Docker keeps at most 30 MB of each container's log: 3 files of 10 MB, dropping the oldest lines first (`KIA_LOG_MAX_SIZE`, `KIA_LOG_MAX_FILES`). Before, it kept every line until the container was recreated, which can fill a disk over months. The next `docker compose up -d` recreates every container once to apply it.
 
 ### Docs
 
@@ -226,7 +235,7 @@ Update as usual (`git pull`, then `docker compose up -d --build`), then run `doc
 
 ### Choosing playlists on the status page
 
-- The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-channel-sources-on-the-status-page).
+- The secure status page's Details page lists every playlist kia uses and every one `sources.txt` offers turned off, grouped like the file, with each one's streams from the last check. Tick a playlist to use it and untick it to stop, or add any M3U playlist by its address. kia keeps these choices in `state/sources.json` and applies them on top of your sources file at every run, so the file stays yours to edit by hand. See [choosing playlists on the status page](docs/configuration.md#choosing-channel-sources-on-the-dashboard).
 - **Check now** tests every stream in one playlist straight away and shows how many work, without changing your playlists.
 - The same is in the API: `GET`, `PUT`, `POST`, and `DELETE /api/sources`, and `/api/sources/check`.
 

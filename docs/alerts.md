@@ -37,7 +37,7 @@ Alert messages contain only host names, channel IDs, and counts. If you'd rather
 
 ## Email
 
-kia can send alerts by email through your email provider's server. Add these to `.env`, with your own details:
+kia can send alerts by email through your email provider's server. Set these in `.env`, with your own details (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
 
 ```ini
 KIA_SMTP_HOST=smtp.gmail.com

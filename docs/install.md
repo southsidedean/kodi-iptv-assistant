@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/m
 
 (To open a terminal: on macOS, open the *Terminal* app from Applications → Utilities; on Linux, it's usually called *Terminal* in your apps menu.)
 
-It asks you to confirm the address and time zone, and at the end prints the Dashboard's address and the password for making changes. Running it again is safe; it keeps your settings. On a Raspberry Pi, add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi) to `.env` in the `kodi-iptv-assistant` folder and run `docker compose up -d` there.
+It asks you to confirm the address and time zone, and at the end prints the Dashboard's address and the password for making changes. Running it again is safe; it keeps your settings. On a Raspberry Pi, or any computer with less than 6 GB of memory, it uses the lighter settings from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory.
 
 kia then starts its first refresh, which takes up to an hour. Wait for it to finish and check the Dashboard, as the end of [step 6](#6-start-kia) describes, then set up Kodi in [step 7](#7-set-up-kodi).
 
@@ -130,7 +130,7 @@ If other devices can't connect (more in [troubleshooting](troubleshooting.md#oth
 - Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and `sudo ufw allow 8743/tcp` (the secure Dashboard).
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
 
-From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Between runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`). Kodi picks up each update within two hours, with the setting in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in* setting).
+From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Between runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`). Kodi picks up each update within two hours, with the setting in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in to your computer* setting).
 
 ## 7. Set up Kodi
 

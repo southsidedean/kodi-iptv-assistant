@@ -63,7 +63,7 @@ The nightly refresh is the busy part: up to an hour of checking streams and down
 
 - **Alerts.** Have kia send a message to your phone when the nightly refresh fails, so you hear about it before anyone else in the house: [alerts](../alerts.md).
 - **Backups.** Save kia's settings, playlists, and favorites: [backing up](../configuration.md#backing-up-and-moving-to-another-computer).
-- **Updating kia.** In the kia folder, `git pull`, then `docker compose up -d --build`.
+- **Updating kia.** Follow the steps in the [README](../../README.md#updating-and-stopping), which also update the images.
 
 ## If something's wrong
 

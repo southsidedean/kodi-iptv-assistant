@@ -165,7 +165,7 @@ Alerts also cover a failed nightly run, sharp drops in working channels or guide
 
 | Folder | Contents |
 |---|---|
-| `output/` | What gets served: the playlist (`curated.m3u`) and guide, the TV-only playlist (`tv.m3u`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), the reports (each as `.html` for browsers and `.md`, plus `report.json`), the Dashboards (`index.html`, `details.html`, one per playlist in `playlists/`), and for scripts `status.json`, `profiles.json`, `guide-preview.json`, and `pluto.json` while Pluto TV channels play |
+| `output/` | What gets served: the playlist (`curated.m3u`) and guide, the TV-only playlist (`tv.m3u`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), the reports (each as `.html` for browsers and `.md`, plus `report.json`), the Dashboard's pages (`index.html`, `playlists.html`, `sources.html`, `guide.html`, `system.html`, and one per playlist in `playlists/`), and for scripts `status.json`, `profiles.json`, `guide-preview.json`, and `pluto.json` while Pluto TV channels play |
 | `state/` | The password (`admin.json`, and `admin-password.txt` until you change it), stream history, channel numbers, the alert log, and the choices made on the Dashboard: playlists (`sources.json`), favorites, numbers, and removed channels (`channels.json`) |
 | `work/` | Intermediate files: per-site channel lists, downloaded guides, logs, and your [backups](configuration.md#backing-up-and-moving-to-another-computer) (`work/backups/`) |
 | `vendor/epg/` | kia's copy of iptv-org/epg, updated nightly |
