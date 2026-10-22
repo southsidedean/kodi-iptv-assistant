@@ -31,3 +31,4 @@ New here? Begin with [start here](start-here.md).
 - [Configuration](configuration.md): every setting.
 - [How it works](how-it-works.md): what happens each night, the reports, and the Dashboard.
 - [Using kia from scripts and other apps](api.md)
+- [Metrics for Prometheus](metrics.md): kia's numbers, for graphs and alerts in Grafana.

@@ -542,6 +542,10 @@ class Relay:
         self.alerted: dict[str, float] = {}
         self.trace: Callable[[str], None] | None = None
         self.last_saved = 0.0
+        # For /metrics: counts from channels no longer playing, and what was passed on.
+        self.retired = {"sessions": 0, "rewinds": 0, "errors": 0, "fallbacks": 0}
+        self.pieces = 0
+        self.bytes = 0
 
     def channel(self, cid: str) -> Channel | None:
         """The channel, starting it if needed; None when too many are playing."""
@@ -557,6 +561,8 @@ class Relay:
     def _let_go_idle(self) -> None:
         now = time.monotonic()
         for cid in [c for c, ch in self.channels.items() if now - ch.last_request > IDLE_AFTER]:
+            for key in self.retired:
+                self.retired[key] += getattr(self.channels[cid].stats, key)
             del self.channels[cid]
 
     def handle(self, path: str, viewer: str) -> tuple[int, str, bytes]:
@@ -584,6 +590,9 @@ class Relay:
                 if not data:
                     return 502, "text/plain", b"Pluto didn't send that piece."
                 body, kind = data, "video/mp2t"
+                with self.lock:
+                    self.pieces += 1
+                    self.bytes += len(body)
         except Exception as exc:
             ch.stats.errors += 1
             ch.stats.problem(f"Couldn't play the channel ({_short(exc)})")
@@ -613,6 +622,16 @@ class Relay:
             "fallback": any(c["fallback_minutes"] is not None and c["fallback_minutes"] >= FALLBACK_ALERT / 60
                             for c in channels),
         }  # fmt: skip
+
+    def counters(self) -> dict:
+        """Totals since kia started (they only grow), and who's watching now: for /metrics."""
+        with self.lock:
+            self._let_go_idle()
+            live = list(self.channels.values())
+            totals = {key: n + sum(getattr(ch.stats, key) for ch in live) for key, n in self.retired.items()}
+            statuses = [ch.status() for ch in live]
+            return {**totals, "pieces": self.pieces, "bytes": self.bytes, "playing": len(live),
+                    "viewers": {st["id"]: st["viewers"] for st in statuses}}  # fmt: skip
 
     def save_status(self, force: bool = False) -> None:
         if not self.status_file:
