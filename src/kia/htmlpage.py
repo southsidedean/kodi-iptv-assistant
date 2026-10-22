@@ -221,7 +221,7 @@ def grafana_url() -> str | None:
         host = urlsplit(os.environ.get("KIA_PUBLIC_URL", "")).hostname
         if "monitoring" not in profiles or not host:
             return None
-        url = f"http://{host}:{os.environ.get('KIA_GRAFANA_PORT') or 3000}"
+        url = f"http://{host}:{os.environ.get('KIA_GRAFANA_PORT') or 8788}"
     return url if url.startswith(("http://", "https://")) else None
 
 
