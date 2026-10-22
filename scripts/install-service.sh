@@ -115,7 +115,13 @@ mv "$target.tmp" "$target"
 
 if [ "$OS" = Darwin ]; then
     launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-    launchctl bootstrap "gui/$(id -u)" "$target"
+    # launchd can refuse to start it again while the old one is still stopping; wait and retry.
+    tries=0
+    until launchctl bootstrap "gui/$(id -u)" "$target" 2>/dev/null; do
+        tries=$((tries + 1))
+        [ $tries -lt 10 ] || die "launchd didn't start kia. Try: launchctl bootstrap gui/$(id -u) $target"
+        sleep 1
+    done
     say "Installed $target and started kia. It starts again when you log in."
     say "Log: $DIR/work/logs/kia.log"
 else
