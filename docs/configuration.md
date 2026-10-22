@@ -67,6 +67,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex in the stack. Plex can read them but not change them. |
 | `KIA_GRAFANA_PASSWORD` | made by Grafana | Grafana's admin password, with the `monitoring` profile ([graphs for your TV stack](cookbooks/observability.md)). When it's empty, Grafana makes one on its first start and saves it in `monitoring/grafana/admin-password.txt`. Grafana reads it on its first start only. |
 | `KIA_GRAFANA_PORT`, `KIA_PROMETHEUS_PORT` | `8788`, `8789` | Grafana's port, and Prometheus's, which is open to this computer only. |
+| `KIA_NODE_EXPORTER_LISTEN` | `:9100` | Where node-exporter (`monitoring-node`) listens. The default is every address of the computer; Docker's own address, usually `172.17.0.1:9100`, keeps the computer's numbers off the rest of your network. |
 | `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
 | `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. |
 | `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Graphs** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |

@@ -130,10 +130,16 @@ for page in ("index.html", "playlists.html", "sources.html", "guide.html", "syst
 insecure = ssl.create_default_context()
 insecure.check_hostname, insecure.verify_mode = False, ssl.CERT_NONE  # kia's own self-signed certificate
 status, body = get(None, f"https://localhost:{https_port}/api/sources", context=insecure)
-check(status == 200 and any(p.get("name") == "smoke" for p in json.loads(body).get("playlists", [])), "the secure page's API answers")
+sources = json.loads(body) if status == 200 else {}
+check(any(p.get("name") == "smoke" for p in sources.get("playlists", [])), "the secure page's API answers")
+check(sources.get("secure") is True, "kia believes requests that come through nginx's secure port")
+check(json.loads(get("/api/sources")[1]).get("secure") is False, "and not the ones on the plain port")
 check(get("/api/sources", method="PUT")[0] in (403, 404), "changes are refused on the plain http port")
 sys.exit(1 if problems else 0)
 EOF
 
+python3 -c "import os, sys; sys.exit(os.stat('tls/privkey.pem').st_mode & 0o007)" \
+    || fail "kia's certificate key is readable by other users of this computer"
+ok "the certificate key is private (nginx reads it through your group)"
 [ "$(compose ps --format '{{.Service}}={{.Health}}' | grep -c '=healthy')" -ge 2 ] || fail "a container is no longer healthy"
 echo "== All good"

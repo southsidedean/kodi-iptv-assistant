@@ -169,7 +169,7 @@ def test_certificate(certs, tmp_path):
     assert (certs / tls.CERT).read_text() == current != before
 
 
-def test_served_over_https(cfg, certs):
+def test_served_over_https(cfg, certs, monkeypatch):
     import ssl
     import urllib.error
 
@@ -196,15 +196,20 @@ def test_served_over_https(cfg, certs):
             assert json.load(r)["profiles"][0]["tv"] == 1
         with urllib.request.urlopen(f"{http}/news.m3u") as r:  # playlists stay on plain HTTP
             assert b"CNN" in r.read()
-        # Behind nginx: only its X-Kia-Secure header makes a request secure.
+        # Behind nginx: only its X-Kia-Secure header makes a request secure, and only from nginx.
         proxied = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg, trust_proxy=True)
         threading.Thread(target=proxied.serve_forever, daemon=True).start()
         base = f"http://127.0.0.1:{proxied.server_address[1]}"
-        with urllib.request.urlopen(urllib.request.Request(f"{base}/api/profiles", headers={"X-Kia-Secure": "1"})) as r:
-            assert json.load(r)["secure"] is True
+        claim = urllib.request.Request(f"{base}/api/profiles", headers={"X-Kia-Secure": "1"})
+        for proxy, believed in (("127.0.0.1", True), ("192.0.2.9", False)):  # nginx here, or somewhere else
+            monkeypatch.setenv("KIA_PROXY_HOST", proxy)
+            serve._proxy["at"] = -1e9  # look it up again
+            with urllib.request.urlopen(claim) as r:
+                assert json.load(r)["secure"] is believed, proxy
         with urllib.request.urlopen(f"{base}/api/profiles") as r:
             assert json.load(r)["secure"] is False
         proxied.shutdown()
+        serve._proxy["at"] = -1e9
     finally:
         secure.shutdown()
         plain.shutdown()

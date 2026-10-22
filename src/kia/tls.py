@@ -82,12 +82,31 @@ def make_self_signed(tls_dir: Path, hosts: list[str]) -> None:
         "-addext", "extendedKeyUsage=serverAuth",
         "-keyout", str(key), "-out", str(cert),
     )  # fmt: skip
-    # With Docker, nginx runs as another user and must read the key (compose sets
-    # KIA_TLS_SHARED); the folder is never served. Otherwise only you can read it.
-    key.chmod(0o644 if os.environ.get("KIA_TLS_SHARED", "").lower() in ("1", "true", "yes") else 0o600)
+    key.chmod(key_mode())
     key.replace(tls_dir / KEY)
     cert.replace(tls_dir / CERT)
     (tls_dir / MARK).write_text(fingerprint(tls_dir / CERT) + "\n")
+
+
+def key_mode() -> int:
+    """Only you can read kia's key; with Docker, your group too (compose sets KIA_TLS_SHARED),
+    which the web server's container joins (group_add) so nginx can read it."""
+    return 0o640 if os.environ.get("KIA_TLS_SHARED", "").lower() in ("1", "true", "yes") else 0o600
+
+
+def tighten_key(tls_dir: Path, log=print) -> None:
+    """A key from before 0.5.2 was readable by everyone on this computer (0644)."""
+    key = tls_dir / KEY
+    try:
+        st = key.stat()
+        mode = st.st_mode & 0o777
+        # Only a key in kia's own group: nginx reads it through that group, and a key you
+        # copied in with another group would become unreadable to it.
+        if mode & 0o007 and st.st_uid == os.getuid() and st.st_gid == os.getgid():
+            key.chmod(mode & key_mode() | 0o600)
+            log(f"TLS: {key.name} is no longer readable by other users of this computer")
+    except (OSError, AttributeError):  # no key yet, or no os.getuid (Windows)
+        pass
 
 
 def info(tls_dir: Path) -> dict | None:
@@ -124,6 +143,7 @@ def info(tls_dir: Path) -> dict | None:
 def ensure(tls_dir: Path, hosts: list[str], log=print, now: datetime | None = None) -> dict | None:
     """Make or renew kia's own certificate when needed; leave anyone else's alone."""
     now = now or datetime.now(timezone.utc)
+    tighten_key(tls_dir, log)
     try:
         current = info(tls_dir)
         if current and not current["generated"]:

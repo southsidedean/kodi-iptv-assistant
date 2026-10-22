@@ -5,8 +5,11 @@ API, and the Pluto TV relay (with Docker, nginx serves the files and forwards /a
 from __future__ import annotations
 
 import json
+import os
+import socket
 import ssl
 import threading
+import time
 import traceback
 import urllib.parse
 from functools import partial
@@ -16,6 +19,25 @@ from pathlib import Path
 from kia import api as api_module
 from kia import metrics as metrics_module
 from kia import tls
+
+
+
+# The web server's addresses on Docker's network (KIA_PROXY_HOST, "web" in compose.yaml),
+# looked up again every minute: a recreated container can get a new address.
+_proxy = {"at": -1e9, "addresses": frozenset()}
+_proxy_lock = threading.Lock()
+
+
+def proxy_addresses() -> frozenset[str]:
+    with _proxy_lock:
+        if time.monotonic() - _proxy["at"] > 60:
+            host = os.environ.get("KIA_PROXY_HOST", "web")
+            try:
+                found = {a[4][0] for a in socket.getaddrinfo(host, None)}
+            except OSError:  # no such name (not in Docker): nothing to trust
+                found = set()
+            _proxy.update(at=time.monotonic(), addresses=frozenset(found))
+        return _proxy["addresses"]
 
 
 class OutputHandler(SimpleHTTPRequestHandler):
@@ -51,13 +73,18 @@ class OutputHandler(SimpleHTTPRequestHandler):
     api = None
     MAX_BODY = 64 * 1024
     # Whether requests count as secure: this server's own TLS, or behind nginx, the
-    # X-Kia-Secure header nginx sets (it overwrites whatever the browser sent).
+    # X-Kia-Secure header nginx sets (it overwrites whatever the browser sent). Only nginx
+    # itself is believed: other containers on Docker's network (Threadfin, Grafana) can
+    # reach kia directly and could send the header too.
     secure = False
     trust_proxy = False
 
+    def _from_proxy(self) -> bool:
+        return self.trust_proxy and self.client_address[0] in proxy_addresses()
+
     def _secure(self) -> bool:
         if self.trust_proxy:
-            return self.headers.get("X-Kia-Secure") == "1"
+            return self._from_proxy() and self.headers.get("X-Kia-Secure") == "1"
         return self.secure
 
     def _api(self, method: str) -> bool:
@@ -91,7 +118,7 @@ class OutputHandler(SimpleHTTPRequestHandler):
 
     def _viewer(self) -> str:
         """Who's asking, to count viewers (behind nginx, the address nginx passes on)."""
-        return (self.trust_proxy and self.headers.get("X-Real-IP")) or self.client_address[0]
+        return (self._from_proxy() and self.headers.get("X-Real-IP")) or self.client_address[0]
 
     def _pluto(self) -> bool:
         if not self.relay or not self.path.startswith("/pluto/"):
