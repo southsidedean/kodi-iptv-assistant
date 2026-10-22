@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -70,14 +72,37 @@ def playlist_title(base: Path, folder: str, output_dir: Path) -> str | None:
     return ", ".join(titles) or None
 
 
-def find_tuners(base: Path, output_dir: Path, host: str, log=print, getter=_get_json) -> list[Tuner]:
-    """Each running Threadfin of this kia: its address, its playlist's title, and its channels."""
+def in_stack(plex_url: str) -> bool:
+    """Whether Plex runs in kia's own compose stack (the plex-server profile), where it
+    reaches each Threadfin by its name on Docker's network."""
+    return urllib.parse.urlparse(plex_url).hostname == "plex"
+
+
+# Where Plex in the stack keeps its settings (compose.yaml mounts KIA_PLEX_CONFIG, by
+# default plex/config in the kia folder, as /config).
+PREFERENCES = Path("plex/config/Library/Application Support/Plex Media Server/Preferences.xml")
+
+
+def own_token(base: Path) -> str | None:
+    """The token Plex in the stack saved for itself when it was claimed, if kia can read it."""
+    import xml.etree.ElementTree as ET  # Plex writes this file itself
+
+    try:
+        return ET.parse(base / PREFERENCES).getroot().get("PlexOnlineToken") or None
+    except (OSError, ET.ParseError):
+        return None
+
+
+def find_tuners(base: Path, output_dir: Path, host: str | None, log=print, getter=_get_json) -> list[Tuner]:
+    """Each running Threadfin of this kia: its address, its playlist's title, and its channels.
+    host: this computer's address; None when Plex is in the stack, which reaches each
+    Threadfin by its service name instead."""
     found = []
     for i, (folder, setting, default) in enumerate(FOLDERS, 1):
         if not (base / folder / "conf" / "settings.json").exists():
             continue
         port = os.environ.get(setting) or str(default)
-        address = f"{host}:{port}"
+        address = f"{folder}:34400" if host is None else f"{host}:{port}"
         try:
             lineup = getter(f"http://{address}/lineup.json")
         except (OSError, ValueError) as exc:
@@ -113,6 +138,18 @@ class Plex:
         except OSError as exc:
             raise PlexError(f"Can't reach Plex at {self.url}: {exc}") from None
         return json.loads(body) if body.strip().startswith(b"{") else {}
+
+    def text(self, path: str, params: dict | None = None) -> str:
+        """A GET that answers with text (a transcoder playlist). Plex picks how to transcode
+        from the player it's told about, so these name a common one."""
+        query = "?" + urllib.parse.urlencode(params, safe="") if params else ""
+        headers = {**self.headers, "X-Plex-Product": "Plex Web", "X-Plex-Platform": "Chrome"}
+        req = urllib.request.Request(self.url + path + query, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                return r.read().decode(errors="replace")
+        except OSError as exc:
+            raise PlexError(f"Plex didn't answer {path}: {exc}") from None
 
     def dvrs(self) -> list[dict]:
         return self.call("GET", "/livetv/dvrs").get("MediaContainer", {}).get("Dvr", [])
@@ -187,4 +224,73 @@ def remove(plex: Plex, tuners: list[Tuner], log=print) -> bool:
         return True
     log("Plex has no DVR with kia's Threadfins.")
     return False
+
+
+# Plex in the stack keeps the codecs it downloads with its settings. A new Plex has none,
+# and Live TV alone never makes it fetch them: it only copies the stream, but reading the
+# audio's sample rate needs the AAC codec, so every channel fails with "Could not tune
+# channel". Playing any video once makes Plex download them; warm_up does that for it.
+CODECS = Path("plex/config/Library/Application Support/Plex Media Server/Codecs")
+WARMUP = Path("plex/warmup")  # kia writes here; Plex reads it as /kia-warmup (compose.yaml)
+WARMUP_LIBRARY = "kia codec warm-up"
+
+
+def has_codecs(base: Path) -> bool:
+    """Whether Plex in the stack has its AAC codec, which Live TV needs."""
+    return any((base / CODECS).glob("*/libaac_decoder.so"))
+
+
+def _wait(check, seconds: float, step: float = 2) -> bool:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if check():
+            return True
+        time.sleep(step)
+    return check()
+
+
+def warm_up(plex: Plex, base: Path, log=print, ffmpeg: str = "ffmpeg", wait: float = 90) -> bool:
+    """Have a new Plex download its codecs: make a 10-second clip, add it as a library,
+    play it through Plex's transcoder, then remove both. Returns whether the codecs came."""
+    folder = base / WARMUP
+    clip = folder / "kia warm-up (2026).mp4"
+    log("Plex hasn't downloaded its codecs yet, which Live TV needs; playing a short clip so it does.")
+    folder.mkdir(parents=True, exist_ok=True)
+    made = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30",
+                           "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "10", "-c:v", "libx264",
+                           "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(clip)],
+                          capture_output=True, timeout=120, check=False)  # fmt: skip
+    if made.returncode != 0:
+        raise PlexError(f"Couldn't make the warm-up clip: {made.stderr.decode(errors='replace').strip()[-200:]}")
+    section = None
+    try:
+        plex.call("POST", "/library/sections", {"name": WARMUP_LIBRARY, "type": "movie", "agent": "tv.plex.agents.movie",
+                                                "scanner": "Plex Movie", "language": "en-US", "location": "/kia-warmup"})  # fmt: skip
+        sections = plex.call("GET", "/library/sections").get("MediaContainer", {}).get("Directory", [])
+        section = next((d["key"] for d in sections if d.get("title") == WARMUP_LIBRARY), None)
+        if section is None:
+            raise PlexError("Plex didn't make the warm-up library.")
+        items: list = []
+
+        def scanned() -> bool:
+            items[:] = plex.call("GET", f"/library/sections/{section}/all").get("MediaContainer", {}).get("Metadata", [])
+            return bool(items)
+
+        if not _wait(scanned, wait):
+            raise PlexError("Plex didn't find the warm-up clip.")
+        session = "kia-codec-warm-up"
+        playlist = plex.text("/video/:/transcode/universal/start.m3u8", {
+            "path": f"/library/metadata/{items[0]['ratingKey']}", "mediaIndex": "0", "partIndex": "0", "protocol": "hls",
+            "directPlay": "0", "directStream": "0", "videoQuality": "50", "maxVideoBitrate": "720", "session": session})  # fmt: skip
+        variant = next((line for line in playlist.splitlines() if line and not line.startswith("#")), "")
+        if variant:
+            plex.text(f"/video/:/transcode/universal/{variant}")  # asks the transcoder for the first piece
+        ok = _wait(lambda: has_codecs(base), wait)
+        plex.text("/video/:/transcode/universal/stop", {"session": session})
+    finally:
+        if section is not None:
+            plex.call("DELETE", f"/library/sections/{section}")
+        clip.unlink(missing_ok=True)
+    log("Plex has its codecs now." if ok else "Plex still has no codecs; Live TV may fail until you play any video in Plex.")
+    return ok
 

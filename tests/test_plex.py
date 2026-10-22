@@ -193,3 +193,81 @@ def test_find_tuners_reads_threadfin_and_kia(tmp_path: Path, monkeypatch):
     said = []
     plex.find_tuners(tmp_path, out, "my-server.lan", said.append, getter=lambda url: (_ for _ in ()).throw(OSError("refused")))
     assert len(said) == 2 and "isn't answering" in said[0]
+
+
+def test_plex_in_the_stack_reaches_threadfin_by_name_and_has_its_own_token(tmp_path: Path):
+    assert plex.in_stack("http://plex:32400") and not plex.in_stack("http://192.168.1.20:32400")
+    assert plex.own_token(tmp_path) is None  # not claimed yet
+    prefs = tmp_path / plex.PREFERENCES
+    prefs.parent.mkdir(parents=True)
+    prefs.write_text('<?xml version="1.0" encoding="utf-8"?>\n<Preferences FriendlyName="box" PlexOnlineToken="abc123"/>\n')
+    assert plex.own_token(tmp_path) == "abc123"
+    out = tmp_path / "output"
+    out.mkdir()
+    (tmp_path / "threadfin" / "conf").mkdir(parents=True)
+    (tmp_path / "threadfin" / "conf" / "settings.json").write_text("{}")
+    lineups = {"http://threadfin:34400/lineup.json": [{"GuideNumber": "7"}]}
+    found = plex.find_tuners(tmp_path, out, None, lambda m: None, getter=lineups.__getitem__)
+    assert [(t.address, t.channels) for t in found] == [("threadfin:34400", ["7"])]
+
+
+def test_the_daemon_keeps_plex_in_step_only_when_asked(monkeypatch):
+    from kia import cli
+
+    calls = []
+    monkeypatch.setattr(cli, "main", lambda argv: calls.append(argv) or 0)
+    monkeypatch.delenv("KIA_PLEX_URL", raising=False)
+    cli.keep_plex_in_step("kia.toml")
+    assert calls == []
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    cli.keep_plex_in_step("kia.toml")
+    assert calls == [["plex-tuners", "-c", "kia.toml"]]
+
+    def broken(argv):
+        raise SystemExit(1)
+
+    monkeypatch.setattr(cli, "main", broken)
+    cli.keep_plex_in_step("kia.toml")  # a failure never stops the daemon
+
+
+class StubPlex:
+    """Just enough Plex for warm_up: a library that finds the clip, and a transcoder that,
+    once asked for a piece, 'downloads' the AAC codec into the codecs folder."""
+
+    def __init__(self, base: Path):
+        self.base, self.calls, self.sections = base, [], []
+
+    def call(self, method, path, params=None):
+        self.calls.append((method, path))
+        if method == "POST" and path == "/library/sections":
+            self.sections.append({"key": "9", "title": params["name"], "location": params["location"]})
+        if path == "/library/sections" and method == "GET":
+            return {"MediaContainer": {"Directory": self.sections}}
+        if path == "/library/sections/9/all":
+            return {"MediaContainer": {"Metadata": [{"ratingKey": "42"}]}}
+        if method == "DELETE":
+            self.sections = []
+        return {}
+
+    def text(self, path, params=None):
+        self.calls.append(("GET", path))
+        if path.endswith("start.m3u8"):
+            assert params["path"] == "/library/metadata/42" and params["directStream"] == "0"
+            return "#EXTM3U\nsession/x/base/index.m3u8\n"
+        if path.endswith("index.m3u8"):
+            folder = self.base / plex.CODECS / "abc-linux-x86_64"
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / "libaac_decoder.so").write_bytes(b"")
+        return ""
+
+
+def test_a_new_plex_is_warmed_up_once_and_left_tidy(tmp_path: Path):
+    stub = StubPlex(tmp_path)
+    assert not plex.has_codecs(tmp_path)
+    said = []
+    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=5) is True
+    assert plex.has_codecs(tmp_path)
+    assert ("DELETE", "/library/sections/9") in stub.calls and stub.sections == []  # the library is gone again
+    assert ("GET", "/video/:/transcode/universal/stop") in stub.calls
+    assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # and so is the clip
+    assert "codecs" in said[0] and said[-1] == "Plex has its codecs now."

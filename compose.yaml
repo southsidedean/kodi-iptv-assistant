@@ -90,6 +90,8 @@ services:
       - ./profiles:/data/profiles
       # The secure Dashboard's certificate (kia makes and renews its own).
       - ./tls:/data/tls
+      # A short clip kia plays through Plex in the stack once, so Plex downloads its codecs.
+      - ./plex/warmup:/data/plex/warmup
 
   web:
     image: ${KIA_NGINX_IMAGE:-nginx:alpine}
@@ -136,6 +138,32 @@ services:
   # Plex does live TV (docs/plex.md). To start it with kia, add COMPOSE_PROFILES=plex to
   # .env, then run docker compose up -d. It reads kia's files over Docker's own network (http://web/...), so its settings
   # keep working if this computer's address changes. Its settings live in threadfin/.
+  # Writes each Threadfin's first settings (kia's playlist and guide, a filter for every
+  # channel, XEPG, FFmpeg options), then exits. Settings that already exist are left alone.
+  threadfin-setup:
+    profiles: ["plex", "plex-2"]
+    build:  # kia's own image (built once, shared with the kia service)
+      context: .
+      args:
+        NODE_IMAGE: ${KIA_NODE_IMAGE:-node:lts-alpine}
+    image: ${KIA_IMAGE:-kodi-iptv-assistant:latest}
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      KIA_THREADFIN_PLAYLIST: ${KIA_THREADFIN_PLAYLIST:-}
+      KIA_THREADFIN_2_PLAYLIST: ${KIA_THREADFIN_2_PLAYLIST:-}
+      KIA_COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+    command: ["threadfin-setup"]
+    restart: "no"
+    volumes:
+      - ./:/data:ro
+      - ./threadfin/conf:/data/threadfin/conf
+      - ./threadfin-2/conf:/data/threadfin-2/conf
+
   threadfin:
     profiles: ["plex"]
     image: ${KIA_THREADFIN_IMAGE:-fyb3roptik/threadfin:1.2.37}
@@ -153,7 +181,10 @@ services:
     ports:
       - "${KIA_BIND:-0.0.0.0}:${KIA_THREADFIN_PORT:-34400}:34400"
     depends_on:
-      - web
+      web:
+        condition: service_started
+      threadfin-setup:
+        condition: service_completed_successfully
     mem_limit: 1g
     # Healthy while Threadfin answers on its port (its image has no curl or wget).
     healthcheck:
@@ -186,7 +217,10 @@ services:
     ports:
       - "${KIA_BIND:-0.0.0.0}:${KIA_THREADFIN_2_PORT:-34401}:34400"
     depends_on:
-      - web
+      web:
+        condition: service_started
+      threadfin-setup:
+        condition: service_completed_successfully
     mem_limit: 1g
     healthcheck:
       # Threadfin listens on the container's own address, not 127.0.0.1.
@@ -198,3 +232,30 @@ services:
     volumes:
       - ./threadfin-2/conf:/home/threadfin/conf
       - ./threadfin-2/cache:/home/threadfin/cache
+
+  # Optional: Plex Media Server itself, for a home TV box with everything in one place
+  # (docs/cookbooks/plex-box.md). Start it with COMPOSE_PROFILES=plex,plex-server in .env.
+  # Its settings and database live in plex/config (or KIA_PLEX_CONFIG), so they survive
+  # restarts and updates; your media folder (KIA_MEDIA_DIR) is read-only to it.
+  plex:
+    profiles: ["plex-server"]
+    image: ${KIA_PLEX_IMAGE:-plexinc/pms-docker:latest}
+    # Plex names the server after this; it shows in every Plex app.
+    hostname: ${KIA_PLEX_NAME:-kia-tv-box}
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-UTC}
+      # From https://plex.tv/claim, on the first start only; it links this Plex to your
+      # account. It works for 4 minutes, and isn't needed again.
+      PLEX_CLAIM: ${PLEX_CLAIM:-}
+      # The address Plex apps on your network use to reach it.
+      ADVERTISE_IP: ${KIA_PLEX_ADVERTISE:-}
+      PLEX_UID: ${PUID:-1000}
+      PLEX_GID: ${PGID:-1000}
+    ports:
+      - "${KIA_BIND:-0.0.0.0}:${KIA_PLEX_PORT:-32400}:32400"
+    volumes:
+      - ${KIA_PLEX_CONFIG:-./plex/config}:/config
+      - ${KIA_PLEX_TRANSCODE:-./plex/transcode}:/transcode
+      - ${KIA_MEDIA_DIR:-./media}:/data:ro
+      - ./plex/warmup:/kia-warmup:ro

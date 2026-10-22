@@ -4,7 +4,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DOCS = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "SECURITY.md", *sorted((ROOT / "docs").glob("*.md"))]
+DOCS = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "SECURITY.md", *sorted((ROOT / "docs").glob("*.md")),
+        *sorted((ROOT / "docs" / "cookbooks").glob("*.md"))]  # fmt: skip
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)\s]+)\)")
 # Images in HTML (the diagrams' <picture> tags).
 HTML_SRC_RE = re.compile(r'(?:src|srcset)="([^"]+)"')
