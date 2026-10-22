@@ -5,6 +5,11 @@ name: images
 #   a release tag v1.2.3 -> 1.2.3, 1.2, and latest (a test tag like v1.2.3-rc1 -> only 1.2.3-rc1)
 #   main                 -> main (what's merged, before the next release)
 # To use it instead of building locally, see docs/configuration.md ("Versions").
+#
+# Before it's pushed, the amd64 image is scanned: a fixable high or critical CVE stops the
+# publish. The pushed image carries an SBOM and build provenance, is attested (gh
+# attestation verify oci://ghcr.io/southsidedean/kodi-iptv-assistant:<tag> --owner
+# southsidedean), and is scanned again by digest, with the results in the Security tab.
 
 on:
   push:
@@ -14,7 +19,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: images-${{ github.ref }}
@@ -24,6 +28,13 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # to sign the attestation
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -48,7 +59,26 @@ jobs:
             org.opencontainers.image.title=kodi-iptv-assistant
             org.opencontainers.image.description=A tidy free-TV channel list and program guide for Kodi and other players
             org.opencontainers.image.licenses=AGPL-3.0-only
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      - name: Build the amd64 image to scan before anything is pushed
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          pull: true
+          tags: kia-scan:local
+          cache-from: type=gha
+      - name: No fixable high or critical CVEs (known exceptions in .trivyignore)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: kia-scan:local
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "1"
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -56,5 +86,41 @@ jobs:
           pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Attest where the image came from
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  scan:
+    # The image just pushed, by its digest (a scan of :latest can run before a release's
+    # image is there, and scan the one before).
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trivy scan of the pushed image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}@${{ needs.publish.outputs.digest }}
+          scanners: vuln,secret
+          severity: MEDIUM,HIGH,CRITICAL
+          trivyignores: .trivyignore
+          format: sarif
+          output: trivy.sarif
+      - name: Show the results in the Security tab
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: trivy.sarif
+          category: image

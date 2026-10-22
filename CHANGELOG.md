@@ -40,6 +40,14 @@
 - "Add these lines to `.env`" is now "set these lines": the lines are already in `.env`, and an added line can be quietly overridden by the empty one further down.
 - Corrections: the default alert events, which folders kia can write to and what the optional services can reach (SECURITY.md), what `scripts/pin-versions.sh` pins, the Docker form of `kia backup` and `kia plex-tuners`, how often Plex's playlists refresh, the time zone and email port defaults, the Dashboard's pages, and smaller fixes.
 
+### Checks
+
+- A smoke test (`scripts/smoke-test.sh`) starts kia's whole stack with a test stream, runs a full refresh, and checks the playlist, the guide, `/metrics`, the Dashboard's pages, and both ports. CI runs it on every pull request.
+- Every week CI checks kia against the newest iptv-org/epg, and fails if its scripts can no longer run in Node's sandbox.
+- Property tests feed odd text through the playlist reader and the guide writer; they catch the control-character bug fixed above.
+- Images are scanned before they're published, and a fixable high or critical CVE stops the release. Each image carries an SBOM and a signed build attestation, and the image that was pushed is scanned again by its digest. Before, the scan after a release could run before the new image existed, and scan the one before it.
+- CI checks `compose.yaml` with every set of profiles, reports Grype's findings next to Trivy's, and lists the code the tests never run.
+
 ## 0.5.0 (2026-10-22)
 
 ### Upgrading from 0.4

@@ -203,6 +203,8 @@ docker compose up -d
 
 `latest` follows each release. To stay on one, use its version instead, such as `:0.4.0`; `:main` has what's merged since the last release. Keep `git pull` in the steps either way, because the image doesn't include the settings files and the web server's settings in the kia folder. Running `docker compose up -d --build` builds kia locally again, under the image's name, until the next `docker compose pull`.
 
+Each image is scanned for known vulnerabilities before it's published, and from 0.5.1 on it comes with a signed record of how and where it was built. To check that an image really came from kia's repository, with GitHub's `gh` command: `gh attestation verify oci://ghcr.io/southsidedean/kodi-iptv-assistant:latest --owner southsidedean`.
+
 ## `kia.toml`
 
 Each setting is explained by a comment in the file. The sections:

@@ -20,7 +20,9 @@ The same checks CI runs on the code, which find bugs and security problems rathe
 shellcheck scripts/*.sh deploy/*.sh
 ```
 
-CI also scans the Docker image for known vulnerabilities (CVEs) with [Trivy](https://trivy.dev), and fails on fixable high or critical ones. Known exceptions, each with a reason and an end date, are in `.trivyignore`.
+CI also scans the Docker image for known vulnerabilities (CVEs) with [Trivy](https://trivy.dev), and fails on fixable high or critical ones. Known exceptions, each with a reason and an end date, are in `.trivyignore`. [Grype](https://github.com/anchore/grype) gives a second opinion, for reading only.
+
+`scripts/smoke-test.sh` starts kia's whole stack with a test stream, runs a full refresh, and checks what kia serves; CI runs it on every pull request, and you can run it too (it needs Docker and works on a copy of the committed code, so commit first). `tests/test_fuzz.py` feeds odd text through the playlist reader and guide writer. Every week CI also checks kia against the newest iptv-org/epg (`scripts/upstream-check.py`).
 
 Keep your own network out of the repository: files, screenshots, commit messages and pull requests. Examples use `192.168.1.20` for kia, `192.0.2.x` for anything else, `my-server.lan` and `you@example.com`. `tests/test_privacy.py` checks the text files. Nothing can check screenshots, so before adding one, look at all of it for addresses, device and account names, and anything personal.
 

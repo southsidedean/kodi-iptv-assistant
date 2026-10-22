@@ -1,0 +1,33 @@
+name: upstream
+
+# Every week: does kia still work with the newest iptv-org/epg? It changes every day, and
+# if it moves its scripts, kia would quietly run its code without Node's sandbox. This
+# fetches it the way kia does and downloads a little guide in the sandbox
+# (scripts/upstream-check.py). Not on pull requests: it depends on outside sites.
+
+on:
+  schedule:
+    - cron: "23 7 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  epg:
+    name: newest iptv-org/epg, in the sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+      - name: Node.js 24, as in kia's image
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - run: pip install -e .
+      - run: python scripts/upstream-check.py
