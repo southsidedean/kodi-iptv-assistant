@@ -18,7 +18,7 @@ KIA_PUBLIC_URL=http://192.168.1.20:8780
 KIA_BIND=0.0.0.0
 ```
 
-Give the machine a fixed address (a DHCP reservation in your router) so the address in your players keeps working.
+Give the machine a fixed address (a DHCP reservation in your router) so the address in your players keeps working. The [TV in every room](cookbooks/every-room.md) cookbook walks through it, with a playlist for each room or person.
 
 ## Same machine as Kodi
 
@@ -44,7 +44,7 @@ KIA_UPSTREAM_URL=http://192.168.1.20:8780
 KIA_UPSTREAM_FALLBACK=cached
 ```
 
-Use the same playlist list as the home server, so its guide covers the same channels. Kodi on the laptop points at `http://localhost:8780/curated.m3u`.
+Use the same playlist list as the home server, so its guide covers the same channels. Kodi on the laptop points at `http://localhost:8780/curated.m3u`. The [traveling laptop cookbook](cookbooks/travel-laptop.md) walks through it, with the choice between `cached` and `grab`.
 
 ## Raspberry Pi
 

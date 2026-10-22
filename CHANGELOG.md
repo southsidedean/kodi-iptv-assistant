@@ -19,7 +19,10 @@
 ### Computers that are off at night
 
 - When kia starts and finds it missed the last nightly run, because the computer was off at that time, it refreshes straight away instead of waiting a day. A laptop or desktop no longer needs `KIA_RUN_ON_START`, which refreshes at every start.
+- A refresh cut short (the computer shut down, or kia stopped part way) runs again when kia starts. Before, the Dashboard kept saying it was refreshing, and **Check now** refused, until the next night.
 - New cookbook, [Kodi and kia on one computer](docs/cookbooks/kodi-computer.md): a laptop or desktop that finds the channels and plays them, with nothing open to the network. The installer no longer opens firewall ports for a kia that only this computer uses (`localhost`).
+- New cookbook, [A laptop that travels](docs/cookbooks/travel-laptop.md): the laptop checks the streams where you are and copies the guide from your home server, with what happens away from home.
+- New cookbook, [A TV in every room](docs/cookbooks/every-room.md): one server for the house, a player on each device, and a playlist for each room or person.
 
 ### Docs
 
