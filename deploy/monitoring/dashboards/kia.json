@@ -315,7 +315,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "kia_channels_with_guide / ignoring(kind) sum(kia_channels)",
+     "expr": "kia_channels_with_guide / on(instance) sum by (instance) (kia_channels)",
      "legendFormat": ""
     }
    ],
