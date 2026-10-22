@@ -114,7 +114,7 @@ SCRIPT = r"""
         var b = el("button", "tl-block" + (p[0] <= now && now < p[1] ? " on" : ""), p[2]);
         b.type = "button"; b.setAttribute("aria-expanded", "false");
         b.style.left = pct(p[0]) + "%"; b.style.width = (pct(p[1]) - pct(p[0])) + "%";
-        var about = p[2] + ", " + time(p[0]) + " to " + time(p[1]) + ", on " + label;
+        var about = p[2] + ", " + time(p[0]) + " to " + time(p[1]) + (p[2] === label ? "" : ", on " + label);
         b.title = about;
         b.addEventListener("click", function () {
           if (open) open.setAttribute("aria-expanded", "false");

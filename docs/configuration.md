@@ -64,6 +64,12 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PLEX_IMAGE` | `plexinc/pms-docker:latest` | Plex's version, for Plex in the stack. |
 | `KIA_PLEX_CONFIG`, `KIA_PLEX_TRANSCODE` | `plex/config`, `plex/transcode` | Where Plex in the stack keeps its settings and database, and its temporary files while converting video. Both survive restarts and updates. |
 | `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex in the stack. Plex can read them but not change them. |
+| `KIA_GRAFANA_PASSWORD` | `admin` | Grafana's admin password, with the `monitoring` profile ([graphs for your TV stack](cookbooks/observability.md)). Grafana reads it on its first start only. |
+| `KIA_GRAFANA_PORT`, `KIA_PROMETHEUS_PORT` | `8788`, `8789` | Grafana's port, and Prometheus's, which is open to this computer only. |
+| `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
+| `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. |
+| `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Graphs** button. With the `monitoring` profile, the button goes to this computer's Grafana anyway. |
+| `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE` | the latest | The monitoring images' versions. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.

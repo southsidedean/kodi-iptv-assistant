@@ -40,6 +40,9 @@ Most of the numbers change once a night or every few hours, so once a minute is 
 | `kia_pluto_viewers{channel,name}` | Players watching each of them |
 | `kia_pluto_sessions_total`, `kia_pluto_rewinds_total`, `kia_pluto_errors_total`, `kia_pluto_fallbacks_total` | What the Pluto relay has dealt with since kia started |
 | `kia_pluto_pieces_total`, `kia_pluto_bytes_total` | Video it has passed on |
+| `kia_plex_up` | 1 if Plex answered kia (with `KIA_PLEX_URL` set) |
+| `kia_plex_sessions{kind,video,location}` | Plex sessions now: `kind` is `live` for Live TV, or `movie`, `episode`, `track`; `video` is `copy`, `transcode`, or `directplay`; `location` is `lan` or `wan` |
+| `kia_plex_session_info{player,product,kind,video,location,state}` | One line per Plex player now playing |
 | `kia_process_cpu_seconds_total` | Processor time kia itself used |
 | `kia_children_cpu_seconds_total` | Processor time of the programs kia ran: ffprobe for stream checks, ffmpeg for Pluto, and the guide grabber |
 | `kia_process_resident_memory_bytes` | Memory kia uses |
@@ -55,4 +58,4 @@ Times are Unix times in seconds, so `time() - kia_guide_updated_time_seconds` is
 - Pluto relay problems per hour: `increase(kia_pluto_errors_total[1h])`
 - kia's share of a processor core: `rate(kia_process_cpu_seconds_total[5m]) + rate(kia_children_cpu_seconds_total[5m])`
 
-kia's own [alerts](alerts.md) already tell you about a failed refresh; these are for when you keep the rest of your home's numbers in Prometheus too.
+kia's own [alerts](alerts.md) already tell you about a failed refresh; these are for when you keep the rest of your home's numbers in Prometheus too. To run Prometheus and Grafana in kia's stack, with dashboards ready to use, see [graphs for your TV stack](cookbooks/observability.md).

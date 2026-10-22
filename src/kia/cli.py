@@ -1043,7 +1043,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     write_settings(cfg, args.at, args.guide_every)
     update_status(cfg)
     relay = pluto_relay(cfg) if args.serve or args.api_port else None
-    numbers = partial(metrics.render, cfg.output_dir, relay)  # /metrics, for Prometheus
+    numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config))  # /metrics, for Prometheus
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
         serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=relay, metrics=numbers)
@@ -1093,6 +1093,18 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                               cfg.state_dir, cfg.alerts, log)  # fmt: skip
             except Exception as exc2:  # reporting must never stop the daemon
                 log(f"Couldn't report it: {exc2}")
+
+
+def plex_sessions(config: str):
+    """Plex's sessions for /metrics, with KIA_PLEX_URL set (and a token, or Plex in the stack)."""
+    from kia import plex
+
+    url = os.environ.get("KIA_PLEX_URL", "")
+    if not url:
+        return None
+    base = Path(config).resolve().parent
+    token = os.environ.get("KIA_PLEX_TOKEN", "") or (plex.own_token(base) if plex.in_stack(url) else None) or ""
+    return metrics.PlexSessions(plex.Plex(url, token, timeout=5))
 
 
 def keep_plex_in_step(config: str) -> None:

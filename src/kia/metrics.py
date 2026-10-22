@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import resource
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -59,7 +60,43 @@ def _rss_bytes() -> int | None:
     return peak if sys.platform == "darwin" else peak * 1024
 
 
-def render(output_dir: Path, relay=None) -> str:
+class PlexSessions:
+    """Plex's sessions for /metrics, asked at most every 15 seconds."""
+
+    def __init__(self, server, every: float = 15) -> None:
+        self.server, self.every = server, every
+        self.at, self.value = -1e9, None
+        self.lock = threading.Lock()
+
+    def get(self) -> list[dict] | None:
+        """The sessions, or None when Plex didn't answer."""
+        with self.lock:
+            if time.monotonic() - self.at >= self.every:
+                try:
+                    self.value = self.server.sessions()
+                except Exception:  # Plex down, or a bad token: kia_plex_up says so
+                    self.value = None
+                self.at = time.monotonic()
+            return self.value
+
+
+def _plex(out: _Out, plex: PlexSessions) -> None:
+    sessions = plex.get()
+    out.one("kia_plex_up", "gauge", "1 if Plex answered kia's last question.", int(sessions is not None))
+    if sessions is None:
+        return
+    groups: dict[tuple, int] = {}
+    for x in sessions:
+        key = (x["kind"], x["video"], x["location"])
+        groups[key] = groups.get(key, 0) + 1
+    out.metric("kia_plex_sessions", "gauge", "Plex sessions now, by kind (live is Live TV), video (copy, transcode, directplay), and location.",
+               [({"kind": k, "video": v, "location": loc}, n) for (k, v, loc), n in sorted(groups.items())]
+               or [({"kind": "none", "video": "none", "location": "none"}, 0)])  # fmt: skip
+    out.metric("kia_plex_session_info", "gauge", "One line per Plex player now playing.",
+               [({key: x[key] for key in ("player", "product", "kind", "video", "location", "state")}, 1) for x in sessions])  # fmt: skip
+
+
+def render(output_dir: Path, relay=None, plex: PlexSessions | None = None) -> str:
     out = _Out()
     try:
         s = json.loads((output_dir / "status.json").read_text())
@@ -109,6 +146,9 @@ def render(output_dir: Path, relay=None) -> str:
                                ("fallbacks", "Times kia fell back to the shared Pluto stream."),
                                ("pieces", "Video pieces passed on to players."), ("bytes", "Video bytes passed on to players.")):  # fmt: skip
             out.one(f"kia_pluto_{key}_total", "counter", help_text, r[key])
+
+    if plex is not None:
+        _plex(out, plex)
 
     use = resource.getrusage(resource.RUSAGE_SELF)
     kids = resource.getrusage(resource.RUSAGE_CHILDREN)

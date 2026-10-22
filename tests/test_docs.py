@@ -1,5 +1,6 @@
 """Keep the docs and the deploy files in step with each other."""
 
+import json
 import re
 from pathlib import Path
 
@@ -107,7 +108,7 @@ def test_every_folder_compose_mounts_is_in_the_repository():
     mounts = re.findall(r"^\s+- \./([^:\s]*):", (root / "compose.yaml").read_text(), re.M)
     folders = [m.rstrip("/") for m in mounts if m and "." not in Path(m).name]
     assert "threadfin/conf" in folders and "state" in folders
-    missing = [f for f in folders if f"{f}/.gitkeep" not in tracked]
+    missing = [f for f in folders if not any(t.startswith(f"{f}/") for t in tracked)]  # a .gitkeep, or real files
     assert not missing, missing
 
 
@@ -138,3 +139,20 @@ def test_diagrams_are_images_made_from_their_current_source():
 def test_docs_use_diagram_images_not_mermaid():
     # GitHub puts pan and zoom buttons on Mermaid blocks; the docs show images instead.
     assert not [doc.name for doc in DOCS if "```mermaid" in doc.read_text()]
+
+
+def test_grafana_dashboards_match_their_script(tmp_path, monkeypatch):
+    # deploy/monitoring/dashboards/*.json are written by scripts/dashboards.py; edit the script.
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("dashboards", ROOT / "scripts" / "dashboards.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "OUT", tmp_path)
+    for path in mod.write():
+        shipped = ROOT / "deploy" / "monitoring" / "dashboards" / path.name
+        assert shipped.read_text() == path.read_text(), f"run: python3 scripts/dashboards.py ({path.name})"
+        board = json.loads(path.read_text())
+        assert all(t["datasource"]["uid"] == "prometheus" for p in board["panels"] for t in p.get("targets", []))
+    assert sorted(p.name for p in (ROOT / "deploy" / "monitoring" / "dashboards").glob("*.json")) == sorted(
+        p.name for p in tmp_path.glob("*.json"))

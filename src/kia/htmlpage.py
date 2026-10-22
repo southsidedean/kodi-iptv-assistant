@@ -8,9 +8,10 @@ paragraphs, a quoted warning, bold, code, and tables.
 
 from __future__ import annotations
 
+import os
 import re
 from html import escape
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
 DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
@@ -88,6 +89,7 @@ footer { color: var(--muted); font-size: var(--step--1); margin-top: var(--space
 .brand svg { width: 4.25rem; height: 4.25rem; }
 .docs-button { display: inline-flex; align-items: center; min-height: 44px; padding: .45rem 1rem; border: 1px solid var(--control);
   border-radius: var(--radius-small); background: var(--card); text-decoration: none; font-weight: 600; }
+.top-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 nav.menu { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
 nav.menu a { display: inline-flex; align-items: center; min-height: 44px; padding: .4rem .8rem; text-decoration: none;
   color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
@@ -210,13 +212,28 @@ document.querySelectorAll("input[data-filter]").forEach(function (box) {
 """
 
 
+def grafana_url() -> str | None:
+    """kia's Grafana dashboard, for the Graphs button: KIA_GRAFANA_URL, or with the
+    monitoring profile on, Grafana on kia's own address (docs/cookbooks/observability.md)."""
+    url = os.environ.get("KIA_GRAFANA_URL", "").strip().rstrip("/")
+    if not url:
+        profiles = {p.strip() for p in os.environ.get("KIA_COMPOSE_PROFILES", "").split(",")}
+        host = urlsplit(os.environ.get("KIA_PUBLIC_URL", "")).hostname
+        if "monitoring" not in profiles or not host:
+            return None
+        url = f"http://{host}:{os.environ.get('KIA_GRAFANA_PORT') or 8788}"
+    return url if url.startswith(("http://", "https://")) else None
+
+
 def header(root: str = "", current: str = "") -> str:
-    """The logo, the Documentation button, and the menu. current: the page shown, from NAV."""
+    """The logo, the Documentation (and Graphs) buttons, and the menu. current: the page shown, from NAV."""
     here = ' aria-current="page"'
     links = "".join(f'<a href="{root}{href}"{here if href == current else ""}>{label}</a>' for href, label in NAV)
+    grafana = grafana_url()
+    graphs = f'<a class="docs-button" href="{escape(grafana)}/d/kia">Graphs</a>' if grafana else ""
     return (
         f'<header class="top"><a class="brand" href="{root}index.html">{MARK}<span>kia</span></a>'
-        f'<a class="docs-button" href="{DOCS_URL}/README.md">Documentation</a></header>'
+        f'<span class="top-buttons">{graphs}<a class="docs-button" href="{DOCS_URL}/README.md">Documentation</a></span></header>'
         f'<nav class="menu" aria-label="kia">{links}</nav>'
     )
 

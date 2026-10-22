@@ -1,0 +1,16 @@
+apiVersion: 1
+providers:
+  # kia's dashboards, from deploy/monitoring/dashboards (updated with kia).
+  - name: kia
+    folder: kia
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards/kia
+  # Your own: put dashboard JSON files in monitoring/dashboards in the kia folder.
+  - name: local
+    folder: Local
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards/local

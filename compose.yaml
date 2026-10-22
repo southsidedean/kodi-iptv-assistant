@@ -50,6 +50,10 @@ services:
       # kia plex-tuners: where Plex is, and where it finds the Threadfins.
       KIA_PLEX_URL: ${KIA_PLEX_URL:-}
       KIA_PLEX_TOKEN: ${KIA_PLEX_TOKEN:-}
+      # The Dashboard's Graphs button (docs/cookbooks/observability.md).
+      KIA_GRAFANA_URL: ${KIA_GRAFANA_URL:-}
+      KIA_GRAFANA_PORT: ${KIA_GRAFANA_PORT:-}
+      KIA_COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
       KIA_THREADFIN_PORT: ${KIA_THREADFIN_PORT:-}
       KIA_THREADFIN_2_PORT: ${KIA_THREADFIN_2_PORT:-}
       # Optional; empty means use the setting in kia.toml.
@@ -264,3 +268,94 @@ services:
       - ${KIA_PLEX_TRANSCODE:-./plex/transcode}:/transcode
       - ${KIA_MEDIA_DIR:-./media}:/data:ro
       - ./plex/warmup:/kia-warmup:ro
+
+  # --- Monitoring (docs/cookbooks/observability.md) ------------------------------------
+  # COMPOSE_PROFILES=...,monitoring adds Prometheus, Grafana, and cAdvisor; monitoring-node
+  # adds node-exporter, unless this computer already runs one on port 9100.
+
+  prometheus:
+    profiles: ["monitoring"]
+    image: ${KIA_PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${KIA_PROMETHEUS_RETENTION:-30d}
+    # node-exporter listens on this computer itself, outside Docker's network.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    # Prometheus's own page has no password, so it's open to this computer only.
+    ports:
+      - "127.0.0.1:${KIA_PROMETHEUS_PORT:-8789}:9090"
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/targets:/etc/prometheus/targets:ro
+      - ${KIA_PROMETHEUS_DATA:-./monitoring/prometheus}:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/ready"]
+      interval: 1m
+      timeout: 10s
+
+  grafana:
+    profiles: ["monitoring"]
+    image: ${KIA_GRAFANA_IMAGE:-grafana/grafana:latest}
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [prometheus]
+    environment:
+      TZ: ${TZ:-UTC}
+      # The admin password; empty means "admin", which Grafana asks you to change.
+      GF_SECURITY_ADMIN_PASSWORD: ${KIA_GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/kia/kia.json
+      # A soft memory budget: Grafana gives memory back sooner (it peaks around 1 GB on its first start).
+      GOMEMLIMIT: 384MiB
+    ports:
+      - "${KIA_BIND:-0.0.0.0}:${KIA_GRAFANA_PORT:-8788}:3000"
+    volumes:
+      - ./deploy/monitoring/grafana:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/dashboards:/etc/grafana/dashboards/kia:ro
+      - ./monitoring/dashboards:/etc/grafana/dashboards/local:ro
+      - ${KIA_GRAFANA_DATA:-./monitoring/grafana}:/var/lib/grafana
+
+  cadvisor:
+    profiles: ["monitoring"]
+    image: ${KIA_CADVISOR_IMAGE:-ghcr.io/google/cadvisor:latest}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    # Docker containers only, every 30 seconds, with only the numbers the dashboards use:
+    # it costs far less processor time that way.
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service
+      - --disable_metrics=advtcp,cpu_topology,cpuset,disk,diskIO,hugetlb,memory_numa,percpu,perf_event,process,referenced_memory,resctrl,sched,tcp,udp
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+  node-exporter:
+    profiles: ["monitoring-node"]
+    image: ${KIA_NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
+    restart: unless-stopped
+    # On this computer's own network and processes, to see them rather than a container's.
+    network_mode: host
+    pid: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command: ["--path.rootfs=/host", "--web.listen-address=:9100"]
+    volumes:
+      - /:/host:ro,rslave

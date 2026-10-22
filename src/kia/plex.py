@@ -154,6 +154,23 @@ class Plex:
     def dvrs(self) -> list[dict]:
         return self.call("GET", "/livetv/dvrs").get("MediaContainer", {}).get("Dvr", [])
 
+    def sessions(self) -> list[dict]:
+        """What's playing now, one dict per player: player, product, kind (live for Live TV,
+        else movie, episode, track...), video (copy, transcode, or directplay), location
+        (lan or wan), and state (playing, paused, buffering)."""
+        out = []
+        for m in self.call("GET", "/status/sessions").get("MediaContainer", {}).get("Metadata", []):
+            player, ts = m.get("Player") or {}, m.get("TranscodeSession") or {}
+            out.append({
+                "player": player.get("title") or player.get("product") or "?",
+                "product": player.get("product") or "?",
+                "kind": "live" if str(m.get("live", "")) == "1" else m.get("type") or "?",
+                "video": ts.get("videoDecision") or "directplay",
+                "location": (m.get("Session") or {}).get("location") or "?",
+                "state": player.get("state") or "?",
+            })  # fmt: skip
+        return out
+
 
 def _guide_port(lineup_id: str) -> str | None:
     """The port of the Threadfin an XMLTV lineup reads, from its id."""
