@@ -10,6 +10,7 @@
 
 - kia's image is built on Wolfi, whose packages get security fixes quickly. It matters most for ffmpeg, which reads streams from anywhere on the internet: Wolfi ships ffmpeg 9.0 (Alpine 8.1). Grype finds 7 known CVEs in the new image against 46 in the old one; Trivy finds none in either. The image is about 80 MB bigger. A full refresh gave the same results in the same time.
 - New settings: `KIA_BASE_IMAGE` (the base, by default `cgr.dev/chainguard/wolfi-base:latest`) and `KIA_NODE_VERSION` (the Node.js major version, default 24). `scripts/pin-versions.sh` pins the base by digest.
+- CI's image scan no longer skips any known CVEs. The three in npm that 0.4.1 let through (`.trivyignore`) are fixed in the npm the image now has (12.2.1).
 
 ### A home TV box with Plex
 
