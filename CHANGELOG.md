@@ -19,6 +19,7 @@
 ### Computers that are off at night
 
 - When kia starts and finds it missed the last nightly run, because the computer was off at that time, it refreshes straight away instead of waiting a day. A laptop or desktop no longer needs `KIA_RUN_ON_START`, which refreshes at every start.
+- New cookbook, [Kodi and kia on one computer](docs/cookbooks/kodi-computer.md): a laptop or desktop that finds the channels and plays them, with nothing open to the network. The installer no longer opens firewall ports for a kia that only this computer uses (`localhost`).
 
 ### Docs
 

@@ -127,7 +127,8 @@ chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.
 mkdir -p output state work vendor profiles tls
 
-if [ "$OS" = Linux ] && command -v ufw >/dev/null 2>&1; then
+# kia for this computer only (KIA_BIND=127.0.0.1) needs no ports opened.
+if [ "$OS" = Linux ] && command -v ufw >/dev/null 2>&1 && ! grep -q '^KIA_BIND=127\.0\.0\.1' .env; then
     step "Firewall"
     if sudo -n true 2>/dev/null; then
         if sudo ufw status 2>/dev/null | grep -q "Status: active"; then
