@@ -89,7 +89,9 @@ The menu at the top leads to the other pages:
 - **Guide** shows how much of the guide is filled in, with the guide reports.
 - **System** has the secure page's certificate, the password, the [Pluto TV](#pluto-tv) channels playing right now, every file and report, and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
-Every page has the same menu at the top, a **Documentation** button that opens these docs, and a link to the [troubleshooting guide](troubleshooting.md) at the bottom.
+Every page has the same menu at the top, a **Documentation** button that opens these docs (and **Graphs**, with [Grafana](cookbooks/observability.md) running), and a link to the [troubleshooting guide](troubleshooting.md) at the bottom.
+
+<img src="../images/kia-timeline-phone.png" width="300" alt="A playlist's Timeline on a phone: three hours from 11 PM, channel names down the side, a red line at the current time, and a tapped show's title and times under its channel">
 
 ![kia's Dashboard: the menu, a banner saying everything's working, the Getting started checklist, the channel counts, and four playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
