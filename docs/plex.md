@@ -52,9 +52,19 @@ docker compose ps
 
 Threadfin's page is at `http://<your address>:34400/web/`, and the second one's is at port 34401. To use other ports, set `KIA_THREADFIN_PORT` and `KIA_THREADFIN_2_PORT` in `.env` ([settings](configuration.md)).
 
-## 3. Set up Threadfin
+## 3. Check Threadfin
 
-Open `http://<your address>:34400/web/`. Do these steps in this order: Threadfin matches each channel to the guide when it first sees the channel, so the guide has to be in place before step 4.
+kia sets Threadfin up the first time it starts: it reads your `plex` playlist (or `plex-1`, and `plex-2` for a second Threadfin) and its guide, passes on every channel, uses kia's guide, and has 4 tuners and FFmpeg options that pass on one stream. To read a different playlist, set `KIA_THREADFIN_PLAYLIST` in `.env` before the first start. kia never changes Threadfin's settings after that, so changes you make on Threadfin's own page stay.
+
+Open `http://<your address>:34400/web/` and choose **Mapping**: every channel is listed with kia's channel number and its guide.
+
+![Threadfin's Mapping page listing channels with their numbers, names, categories, and guide](../images/plex/threadfin-mapping.png)
+
+If you made the playlist after Threadfin first started, run `docker compose restart threadfin` so it reads it.
+
+### Setting it up by hand
+
+For a Threadfin set up before kia did this, or to see what kia sets, these are the steps. Do them in this order: Threadfin matches each channel to the guide when it first sees the channel, so the guide has to be in place before step 4.
 
 **1. Playlist → New.** Choose **M3U** and **Next**, then fill in:
 
@@ -87,8 +97,6 @@ Threadfin's own FFmpeg options copy every quality of a stream at once, which use
 
 **5. Mapping.** Every channel is now listed with kia's channel number and its guide.
 
-![Threadfin's Mapping page listing channels with their numbers, names, categories, and guide](../images/plex/threadfin-mapping.png)
-
 For a second tuner, do the same at `http://<your address>:34401/web/` with `http://web/plex-2.m3u` and `http://web/plex-2.guide.xml.gz`, and use `plex-1` in place of `plex` in the first Threadfin.
 
 ## 4. Add Threadfin to Plex
@@ -119,7 +127,7 @@ There are two ways. kia can add the tuners for you, which works whether or not P
    Plex is loading the guide now; the channels show under Live TV in a few minutes.
    ```
 
-kia puts all its Threadfins in one DVR of their own, each with its own guide, names each one after its kia playlist, and turns on every channel. A DVR you already have stays as it is. Running it again is safe: it updates the same DVR, and picks up channels your playlists have gained.
+kia puts all its Threadfins in one DVR of their own, each with its own guide, names each one after its kia playlist, and turns on every channel. A DVR you already have stays as it is. Running it again is safe: it updates the same DVR, and picks up channels your playlists have gained. With `KIA_PLEX_URL` and `KIA_PLEX_TOKEN` set, kia also does this by itself after each refresh.
 
 Plex's **Settings → Live TV & DVR** page shows only your first DVR. If you already had one, the Threadfin DVR doesn't appear there, but its channels are under **Live TV** in every Plex app. To delete it, run `docker compose exec kia python3 -m kia plex-tuners --remove`; it deletes only a DVR that holds nothing but kia's Threadfins.
 
@@ -151,7 +159,7 @@ Use the kia computer's network address (such as `192.168.1.20`), not `localhost`
 
 kia refreshes the playlists and guide every few hours. Threadfin reads them again every night, and Plex refreshes its guide on its own schedule; **Refresh Guide** on Plex's Live TV & DVR page does it right away.
 
-When the playlist gains channels, Threadfin adds them, but Plex keeps the channel list it had at setup. To add the new ones, run `kia plex-tuners` again, or on Plex's Live TV & DVR page choose the tuner's channel count (such as **340 enabled**), then **Rescan**, then **Save**. To keep a channel out of Plex, leave it out of the playlist on kia's page rather than in Threadfin, so the change survives the next refresh.
+When the playlist gains channels, Threadfin adds them, but Plex keeps the channel list it had at setup. kia adds the new ones after each refresh when `KIA_PLEX_URL` is set; otherwise run `kia plex-tuners` again, or on Plex's Live TV & DVR page choose the tuner's channel count (such as **340 enabled**), then **Rescan**, then **Save**. To keep a channel out of Plex, leave it out of the playlist on kia's page rather than in Threadfin, so the change survives the next refresh.
 
 To update Threadfin, set `KIA_THREADFIN_IMAGE` in `.env` to the version you want and run `docker compose up -d`.
 

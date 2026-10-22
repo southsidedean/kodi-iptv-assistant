@@ -54,7 +54,7 @@ KIA_PLEX_ADVERTISE=http://192.168.1.20:32400/
 KIA_PLEX_URL=http://plex:32400
 ```
 
-For two tuners, use `COMPOSE_PROFILES=plex,plex-2,plex-server`. To use your own media folder (a second disk, say), add `KIA_MEDIA_DIR=/path/to/your/media`.
+For two tuners, use `COMPOSE_PROFILES=plex,plex-2,plex-server`. To use your own media folder (a second disk, say), add `KIA_MEDIA_DIR=/path/to/your/media`. The server is called `kia-tv-box` in Plex apps; `KIA_PLEX_NAME` changes that.
 
 Then start everything:
 
@@ -72,16 +72,20 @@ docker compose exec kia python3 -m kia plex-tuners
 ```
 
 ```text
-Made a new DVR in Plex for kia's Threadfins (DVR 1).
-plex: 340 channels, guide http://threadfin:34400/xmltv/threadfin.xml
+Plex hasn't downloaded its codecs yet, which Live TV needs; playing a short clip so it does.
+Plex has its codecs now.
+Made a new DVR in Plex for kia's Threadfins (DVR 2).
+Plex: 442 channels, guide http://threadfin:34400/xmltv/threadfin.xml
 Plex is loading the guide now; the channels show under Live TV in a few minutes.
 ```
 
-kia uses Plex's own sign-in, so there's no token to find. From now on, kia brings Plex up to date after each refresh, so new channels arrive in Plex by themselves.
+kia uses Plex's own sign-in, so there's no token to find. A new Plex downloads its codecs (the parts that read video and sound) only when it first plays a video, and Live TV can't play without them, so the first time, kia plays a 10-second test clip through Plex and then removes it. From now on, kia brings Plex up to date after each refresh, so new channels arrive in Plex by themselves.
 
 ## 6. Watch
 
-Open Plex at `http://192.168.1.20:32400/web`, or any Plex app signed in to your account. Your new server is there, and **Live TV** has your channels and their guide.
+Open Plex at `http://192.168.1.20:32400/web`, or any Plex app signed in to your account. The first time, Plex shows a short welcome and asks for the server's name and your libraries; you can skip the libraries for now. Then **Live TV** has your channels and their guide, under `kia-tv-box`.
+
+![Plex's Live TV guide on the kia-tv-box server: channel logos down the side and each channel's shows over the next two hours](../../images/cookbooks/plex-box-guide.png)
 
 To add your own movies and shows, put them in the media folder, organized the way Plex likes ([movies](https://support.plex.tv/articles/naming-and-organizing-your-movie-media-files/)), and [make a library](https://support.plex.tv/articles/200288926-creating-libraries/) in Plex. In Plex, the media folder is `/data`.
 

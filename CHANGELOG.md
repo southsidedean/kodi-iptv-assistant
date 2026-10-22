@@ -2,6 +2,14 @@
 
 ## 0.5.0 (unreleased)
 
+### A home TV box with Plex
+
+- New cookbook, [A home TV box](docs/cookbooks/plex-box.md): kia, Threadfin, and Plex Media Server together in Docker on one computer, set up from one `.env`. It's the first of the [cookbooks](docs/cookbooks/README.md), which each take one goal from start to finish.
+- Plex can run in kia's stack (`COMPOSE_PROFILES=plex,plex-server`), claimed to your account on first start (`PLEX_CLAIM`). Its settings and your media folder are kept on disk (`KIA_PLEX_CONFIG`, `KIA_PLEX_TRANSCODE`, `KIA_MEDIA_DIR`, which Plex can read but not change), and it gets a proper name (`KIA_PLEX_NAME`, default `kia-tv-box`).
+- kia sets Threadfin up the first time it starts: your playlist and its guide, a filter for every channel, kia's guide, 4 tuners, and FFmpeg options that pass on one stream. It never changes Threadfin's settings after that. `KIA_THREADFIN_PLAYLIST` and `KIA_THREADFIN_2_PLAYLIST` choose the playlists.
+- `kia plex-tuners` works with Plex in the stack without a token (it uses Plex's own), reaches the Threadfins by name on Docker's network, and gets a brand-new Plex its codecs first. Without them Plex can't play any Live TV channel ("Could not tune channel"), and Live TV alone never makes it download them.
+- With `KIA_PLEX_URL` set, kia keeps Plex up to date after each refresh, so new channels arrive in Plex by themselves.
+
 ### Docs
 
 - The diagrams are easier to read on GitHub, in light and dark mode: no more labels on grey or text hidden behind GitHub's zoom buttons. They're now images, made from sources in `docs/diagrams/` by `scripts/diagrams.sh`, so they look the same everywhere.
