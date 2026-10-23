@@ -68,6 +68,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_JELLYFIN_ADVERTISE` | | The address Jellyfin apps on your network use to reach Jellyfin in the stack (`jellyfin-server` profile, [Jellyfin TV box](cookbooks/jellyfin-box.md)), such as `http://192.168.1.20:8096`. |
 | `KIA_JELLYFIN_PORT` | `8096` | Jellyfin's port, for Jellyfin in the stack. |
 | `KIA_JELLYFIN_IMAGE` | `jellyfin/jellyfin:latest` | Jellyfin's version, for Jellyfin in the stack. |
+| `KIA_JELLYFIN_URL`, `KIA_JELLYFIN_TOKEN` | | Where kia reaches Jellyfin (`http://jellyfin:8096` for Jellyfin in the stack), and an API key from Jellyfin's **Dashboard → API Keys**. With both set, kia reports what Jellyfin is playing in [its metrics](metrics.md). Any Jellyfin works, in the stack or not. |
 | `KIA_JELLYFIN_CONFIG`, `KIA_JELLYFIN_CACHE` | `jellyfin/config`, `jellyfin/cache` | Where Jellyfin in the stack keeps its settings and database, and its pictures and converted video. `jellyfin-config` is a Docker volume ([on a Mac](#on-a-mac)). |
 | `KIA_GRAFANA_PASSWORD` | made by Grafana | Grafana's admin password, with the `monitoring` profile ([graphs for your TV stack](cookbooks/observability.md)). When it's empty, Grafana makes one on its first start and saves it in `monitoring/grafana/admin-password.txt` ([on a Mac](#on-a-mac), inside its volume). Grafana reads it on its first start only. |
 | `KIA_GRAFANA_PORT`, `KIA_PROMETHEUS_PORT` | `8788`, `8789` | Grafana's port, and Prometheus's, which is open to this computer only. |

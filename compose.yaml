@@ -59,6 +59,9 @@ services:
       # kia plex-tuners: where Plex is, and where it finds the Threadfins.
       KIA_PLEX_URL: ${KIA_PLEX_URL:-}
       KIA_PLEX_TOKEN: ${KIA_PLEX_TOKEN:-}
+      # Jellyfin's sessions in /metrics (docs/metrics.md): where Jellyfin is, and an API key.
+      KIA_JELLYFIN_URL: ${KIA_JELLYFIN_URL:-}
+      KIA_JELLYFIN_TOKEN: ${KIA_JELLYFIN_TOKEN:-}
       # The Dashboard's Graphs button (docs/cookbooks/observability.md).
       KIA_GRAFANA_URL: ${KIA_GRAFANA_URL:-}
       KIA_GRAFANA_PORT: ${KIA_GRAFANA_PORT:-}
