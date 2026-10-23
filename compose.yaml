@@ -111,6 +111,9 @@ services:
       - ./tls:/data/tls
       # A short clip kia plays through Plex in the stack once, so Plex downloads its codecs.
       - ./plex/warmup:/data/plex/warmup
+      # Plex's settings, where kia reads the token Plex in the stack saved when it was
+      # claimed (also when KIA_PLEX_CONFIG is another folder or a Docker volume).
+      - ${KIA_PLEX_CONFIG:-./plex/config}:/data/plex/config:ro
 
   web:
     image: ${KIA_NGINX_IMAGE:-nginx:alpine}
@@ -410,3 +413,11 @@ services:
     command: ["--path.rootfs=/host", "--web.listen-address=${KIA_NODE_EXPORTER_LISTEN:-:9100}"]
     volumes:
       - /:/host:ro,rslave
+
+# Docker volumes for Plex's and Grafana's databases on a Mac, where a folder shared from
+# the Mac into Docker's Linux machine breaks Plex's database within minutes.
+# KIA_PLEX_CONFIG=plex-config and KIA_GRAFANA_DATA=grafana-data use them (scripts/install.sh
+# sets both on a Mac). On Linux, the folders in the kia folder are fine.
+volumes:
+  plex-config:
+  grafana-data:

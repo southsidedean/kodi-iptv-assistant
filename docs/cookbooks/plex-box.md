@@ -11,7 +11,7 @@ What stays on disk, so nothing is lost when the containers restart or update:
 
 | Folder (in the kia folder) | What's in it | Set in `.env` |
 |---|---|---|
-| `plex/config` | Plex's settings, database, and artwork | `KIA_PLEX_CONFIG` |
+| `plex/config` | Plex's settings, database, and artwork (on a Mac, the Docker volume `plex-config`: [why](../configuration.md#on-a-mac)) | `KIA_PLEX_CONFIG` |
 | `plex/transcode` | Plex's temporary files while it converts video | `KIA_PLEX_TRANSCODE` |
 | `media` | Your movies, shows, and music; Plex can read them but not change them | `KIA_MEDIA_DIR` |
 | `threadfin/`, `state/`, `profiles/` | Threadfin's and kia's settings | (always here) |

@@ -41,7 +41,7 @@ docker compose up -d
 
 ## 2. Open Grafana
 
-Go to `http://192.168.1.20:8788`, with your kia's address, and sign in as `admin` with the password from step 1. If you didn't choose one, it's in `monitoring/grafana/admin-password.txt` in the kia folder. The kia dashboard opens first; the buttons at the top lead to the other two. kia's own Dashboard also gets an **Observability** button that opens it.
+Go to `http://192.168.1.20:8788`, with your kia's address, and sign in as `admin` with the password from step 1. If you didn't choose one, it's in `monitoring/grafana/admin-password.txt` in the kia folder; on a Mac, `docker compose exec grafana cat /var/lib/grafana/admin-password.txt` shows it ([why](../configuration.md#on-a-mac)). The kia dashboard opens first; the buttons at the top lead to the other two. kia's own Dashboard also gets an **Observability** button that opens it.
 
 The graphs start when Prometheus does, so they fill in over the following hours, and the refreshes over the following nights.
 
@@ -70,7 +70,7 @@ Prometheus picks new files up within a few minutes, without a restart.
 ## Good to know
 
 - **Ports.** Grafana is on 8788 (`KIA_GRAFANA_PORT`). Prometheus is on 8789 (`KIA_PROMETHEUS_PORT`), open to this computer only, because its page has no password. Both stay off the common ports 3000 and 9090, which other programs often use.
-- **How long it keeps.** 30 days (`KIA_PROMETHEUS_RETENTION`, such as `90d`). The numbers are in `monitoring/prometheus`, and Grafana's settings in `monitoring/grafana`, in the kia folder.
+- **How long it keeps.** 30 days (`KIA_PROMETHEUS_RETENTION`, such as `90d`). The numbers are in `monitoring/prometheus`, and Grafana's settings in `monitoring/grafana`, in the kia folder (on a Mac, in the Docker volume `grafana-data`).
 - **kia's numbers on their own.** kia publishes them at `http://192.168.1.20:8780/metrics` for any Prometheus you already have; [metrics](../metrics.md) lists them.
 - **Turning it off.** Remove `monitoring` (and `monitoring-node`) from `COMPOSE_PROFILES`, then `docker compose rm -sf prometheus grafana cadvisor node-exporter`. The numbers stay in `monitoring/` until you delete them.
 
@@ -82,4 +82,4 @@ Prometheus picks new files up within a few minutes, without a restart.
 
 **The Plex dashboard says "Not answering".** kia can't reach Plex, or the token is wrong. Check `KIA_PLEX_URL` and `KIA_PLEX_TOKEN` in `.env`; the [Plex guide](../plex.md#4-add-threadfin-to-plex) shows how to find a token. After a change, run `docker compose up -d`.
 
-**Forgot Grafana's password, or changed `KIA_GRAFANA_PASSWORD`.** Grafana reads that setting (or makes `monitoring/grafana/admin-password.txt`) only the first time it starts. Set the one you want, then run `docker compose exec grafana grafana cli admin reset-admin-password "$(grep ^KIA_GRAFANA_PASSWORD= .env | cut -d= -f2-)"`.
+**Forgot Grafana's password, or changed `KIA_GRAFANA_PASSWORD`.** Grafana reads that setting (or makes its `admin-password.txt`) only the first time it starts. Set the one you want, then run `docker compose exec grafana grafana cli admin reset-admin-password "$(grep ^KIA_GRAFANA_PASSWORD= .env | cut -d= -f2-)"`.

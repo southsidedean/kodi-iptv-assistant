@@ -1,5 +1,6 @@
 import os
 import platform
+import re
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
@@ -44,6 +45,18 @@ def test_daemon_takes_the_run_time_from_the_environment(monkeypatch):
     monkeypatch.setenv("KIA_RUN_AT", "05:30")
     cli.main(["daemon"])
     assert seen["at"] == "05:30"
+
+
+def test_installer_puts_the_databases_in_volumes_on_a_mac():
+    # A folder shared from the Mac into Docker's machine breaks Plex's database.
+    text = (ROOT / "scripts" / "install.sh").read_text()
+    mac = text[text.index('if [ "$OS" = Darwin ]; then\n        (umask 077 && sed'):]
+    mac = mac[: mac.index("\n    fi\n")]
+    names = dict(re.findall(r"\^(KIA_[A-Z_]+)=\.\*\|\1=([a-z-]+)\|", mac))
+    assert names == {"KIA_PLEX_CONFIG": "plex-config", "KIA_GRAFANA_DATA": "grafana-data"}
+    compose = (ROOT / "compose.yaml").read_text()
+    declared = re.findall(r"^  ([a-z0-9-]+):$", compose.split("\nvolumes:\n", 1)[1], flags=re.M)
+    assert sorted(declared) == sorted(names.values())
 
 
 def test_installer_keeps_env_private():
