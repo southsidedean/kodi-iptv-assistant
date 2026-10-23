@@ -1,0 +1,75 @@
+# A home TV box with Jellyfin: kia and Jellyfin in containers
+
+[Jellyfin](https://jellyfin.org) is free software for your movies, shows, and music, with live TV built in. This guide runs it next to kia on one computer, so every Jellyfin app in the house gets kia's channels and guide, plus your own media. Jellyfin reads kia's playlist and guide directly, so there's no Threadfin and no channel limit.
+
+What stays on disk, so nothing is lost when the containers restart or update:
+
+| Folder (in the kia folder) | What's in it | Set in `.env` |
+|---|---|---|
+| `jellyfin/config` | Jellyfin's settings, users, and database (on a Mac, the Docker volume `jellyfin-config`: [why](../configuration.md#on-a-mac)) | `KIA_JELLYFIN_CONFIG` |
+| `jellyfin/cache` | Pictures and video Jellyfin converts while it plays | `KIA_JELLYFIN_CACHE` |
+| `media` | Your movies, shows, and music; Jellyfin can read them but not change them | `KIA_MEDIA_DIR` |
+
+If Jellyfin already runs on another computer, or outside Docker, use the [Jellyfin guide](../jellyfin.md) instead: it adds kia to the Jellyfin you have.
+
+## What you need
+
+- A computer that stays on, running Linux or macOS with Docker. A small PC or an old laptop is enough for live TV; converting video for your own media takes more.
+- About 3 GB of disk for kia and Jellyfin, plus room for your media.
+
+## 1. Install kia
+
+Follow [installing kia](../install.md), steps 1 to 6. The quick way is one command, which also asks for this computer's address; this guide uses `192.168.1.20` as the example. Wait for the first refresh to finish: the Dashboard at `http://192.168.1.20:8780/` says when it's done.
+
+## 2. Turn on Jellyfin
+
+In the kia folder, set these lines in `.env` (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
+
+```sh
+COMPOSE_PROFILES=jellyfin-server
+KIA_JELLYFIN_ADVERTISE=http://192.168.1.20:8096
+```
+
+To use your own media folder (a second disk, or [shares on a NAS](plex-box.md#media-on-a-nas-or-another-server)), set `KIA_MEDIA_DIR=/path/to/your/media`. Then start it:
+
+```sh
+docker compose up -d
+docker compose ps
+```
+
+After a minute, `docker compose ps` shows `jellyfin` as `healthy`.
+
+## 3. Set up Jellyfin
+
+Open `http://192.168.1.20:8096` in a browser. Jellyfin's setup asks for:
+
+1. **Language.**
+2. **A user and password.** This is Jellyfin's own administrator; it has nothing to do with kia's password.
+3. **Media libraries.** Add one for each kind of media, choosing its folder under `/data` (your media folder): `/data/movies` for movies, for example. You can skip this and add them later.
+4. **Metadata language** and **remote access**. The defaults are fine.
+
+Then sign in with the user you made.
+
+## 4. Add kia's channels
+
+1. Go to **Dashboard → Live TV**.
+2. Under **Tuner Devices**, choose **+**. Set **Tuner Type** to **M3U Tuner**, enter `http://web/tv.m3u` in **File or URL**, and save.
+3. Under **TV Guide Data Providers**, choose **+ → XMLTV**. Enter `http://web/tv.guide.xml.gz` in **File or URL**, and save.
+
+`web` is kia's web server, as Jellyfin reaches it inside Docker. `tv.m3u` is kia's playlist without radio stations: Jellyfin would show those as TV channels, numbered separately from TV ([why](../jellyfin.md#before-you-start-the-tv-only-playlist)). For fewer channels, use a [playlist you made](../profiles.md) instead, such as `http://web/kids.m3u` with `http://web/kids.guide.xml.gz`.
+
+Jellyfin loads the guide straight away; with all of kia's channels that takes a few minutes the first time.
+
+## 5. Watch
+
+Open **Live TV** in any Jellyfin app: the web page, or Jellyfin for Android, iPhone, Android TV, Fire TV, Roku, and others. Channels show with kia's numbers and guide.
+
+## Keeping it running
+
+- Everything starts again when the computer restarts.
+- **Updating kia:** follow the steps in the [README](../../README.md#updating-and-stopping), which also update Jellyfin's image. Do it when nobody's watching, because Jellyfin restarts.
+- **Backups:** `docker compose exec kia python3 -m kia backup` saves kia's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Jellyfin's own settings are in `jellyfin/config`; Jellyfin explains [what to back up](https://jellyfin.org/docs/general/administration/backup-and-restore/).
+
+## If something's wrong
+
+**Jellyfin has no channels, or no guide.** Check the addresses in step 4, then choose **Refresh Guide Data** on the Live TV page. `docker compose exec jellyfin curl -sI http://web/tv.m3u` should answer `200 OK`.
