@@ -6,6 +6,10 @@
 
 Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/configuration.md#on-a-mac): Plex there keeps its data in `plex/config`, and you can move it to a Docker volume.
 
+### Plex
+
+- `kia plex-tuners` on a new Plex in the stack plays a short clip first, so Plex downloads its codecs. While Plex was scanning another library, the clip's library waited in Plex's queue, and kia gave up after 90 seconds with "Plex didn't find the warm-up clip". Now kia says which library Plex is scanning and waits for it, up to 20 minutes; if Plex is still busy then, it says so and asks you to run it again later.
+
 ### Mac
 
 - Plex's database broke on a Mac. Docker there runs in a Linux machine of its own, and reaches the kia folder through a file share that Plex's database doesn't survive: scanning a library logged hundreds of database errors and left the database damaged. On a Mac, the installer now keeps Plex's data (`KIA_PLEX_CONFIG=plex-config`) and Grafana's (`KIA_GRAFANA_DATA=grafana-data`) in Docker volumes, inside Docker's own machine. Linux is unchanged.

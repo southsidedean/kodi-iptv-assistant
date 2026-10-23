@@ -268,9 +268,18 @@ def _wait(check, seconds: float, step: float = 2) -> bool:
     return check()
 
 
-def warm_up(plex: Plex, base: Path, log=print, ffmpeg: str = "ffmpeg", wait: float = 90) -> bool:
+def _scanning(plex: Plex, skip: str) -> list[str]:
+    """The libraries Plex is scanning now, apart from skip. Plex scans one at a time, so a
+    new library waits until they're done."""
+    sections = plex.call("GET", "/library/sections").get("MediaContainer", {}).get("Directory", [])
+    return [d.get("title", "?") for d in sections if d.get("refreshing") not in (None, False, 0, "0") and d.get("key") != skip]
+
+
+def warm_up(plex: Plex, base: Path, log=print, ffmpeg: str = "ffmpeg", wait: float = 90, busy_wait: float = 1200,
+            step: float = 2) -> bool:
     """Have a new Plex download its codecs: make a 10-second clip, add it as a library,
-    play it through Plex's transcoder, then remove both. Returns whether the codecs came."""
+    play it through Plex's transcoder, then remove both. Returns whether the codecs came.
+    While Plex scans other libraries first, it waits for them, up to busy_wait seconds."""
     folder = base / WARMUP
     clip = folder / "kia warm-up (2026).mp4"
     log("Plex hasn't downloaded its codecs yet, which Live TV needs; playing a short clip so it does.")
@@ -295,8 +304,21 @@ def warm_up(plex: Plex, base: Path, log=print, ffmpeg: str = "ffmpeg", wait: flo
             items[:] = plex.call("GET", f"/library/sections/{section}/all").get("MediaContainer", {}).get("Metadata", [])
             return bool(items)
 
-        if not _wait(scanned, wait):
-            raise PlexError("Plex didn't find the warm-up clip.")
+        start = time.monotonic()
+        deadline, told = start + wait, False
+        while not scanned():
+            busy = _scanning(plex, section)
+            now = time.monotonic()
+            if busy:
+                if not told:
+                    log(f"Plex is scanning {', '.join(busy)} first (it scans one library at a time); waiting for it.")
+                    told = True
+                deadline = min(max(deadline, now + wait), start + busy_wait)
+            if now >= deadline:
+                if busy:
+                    raise PlexError(f"Plex is still scanning {', '.join(busy)}. Run this again when it's done.")
+                raise PlexError("Plex didn't find the warm-up clip.")
+            time.sleep(step)
         session = "kia-codec-warm-up"
         playlist = plex.text("/video/:/transcode/universal/start.m3u8", {
             "path": f"/library/metadata/{items[0]['ratingKey']}", "mediaIndex": "0", "partIndex": "0", "protocol": "hls",

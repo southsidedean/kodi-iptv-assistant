@@ -261,6 +261,36 @@ class StubPlex:
         return ""
 
 
+class BusyPlex(StubPlex):
+    """A Plex still scanning another library: the warm-up library's scan waits its turn."""
+
+    def __init__(self, base: Path, busy_for: int):
+        super().__init__(base)
+        self.busy_for = busy_for
+
+    def call(self, method, path, params=None):
+        if path == "/library/sections" and method == "GET":
+            self.busy_for -= 1
+            music = {"key": "5", "title": "Music", "refreshing": self.busy_for > 0}
+            super().call(method, path, params)
+            return {"MediaContainer": {"Directory": [music, *self.sections]}}
+        if path == "/library/sections/9/all" and self.busy_for > 0:
+            return {"MediaContainer": {}}
+        return super().call(method, path, params)
+
+
+def test_the_warm_up_waits_for_another_library_scan(tmp_path: Path):
+    said = []
+    stub = BusyPlex(tmp_path, busy_for=5)
+    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=0.05, step=0.01) is True
+    assert "Plex is scanning Music first" in said[1] and said[-1] == "Plex has its codecs now."
+    # One that never finishes: kia gives up after busy_wait, says why, and tidies up.
+    stub = BusyPlex(tmp_path, busy_for=10_000)
+    with pytest.raises(plex.PlexError, match="still scanning Music"):
+        plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=0.05, busy_wait=0.3, step=0.01)
+    assert stub.sections == [] and not list((tmp_path / plex.WARMUP).glob("*.mp4"))
+
+
 def test_a_new_plex_is_warmed_up_once_and_left_tidy(tmp_path: Path):
     stub = StubPlex(tmp_path)
     assert not plex.has_codecs(tmp_path)
