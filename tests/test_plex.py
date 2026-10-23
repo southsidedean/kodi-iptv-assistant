@@ -261,6 +261,67 @@ class StubPlex:
         return ""
 
 
+class BusyPlex(StubPlex):
+    """A Plex still scanning another library: the warm-up library's scan waits its turn."""
+
+    def __init__(self, base: Path, busy_for: int):
+        super().__init__(base)
+        self.busy_for = busy_for
+
+    def call(self, method, path, params=None):
+        if path == "/library/sections" and method == "GET":
+            self.busy_for -= 1
+            music = {"key": "5", "title": "Music", "refreshing": self.busy_for > 0}
+            super().call(method, path, params)
+            return {"MediaContainer": {"Directory": [music, *self.sections]}}
+        if path == "/library/sections/9/all" and self.busy_for > 0:
+            return {"MediaContainer": {}}
+        return super().call(method, path, params)
+
+
+class PlexWithMovies(StubPlex):
+    """A Plex that already has a movie library, busy scanning music."""
+
+    def call(self, method, path, params=None):
+        self.calls.append((method, path))
+        if path == "/library/sections" and method == "GET":
+            return {"MediaContainer": {"Directory": [
+                {"key": "3", "title": "Music", "type": "artist", "refreshing": True},
+                {"key": "4", "title": "Movies", "type": "movie"}]}}  # fmt: skip
+        if path == "/library/sections/4/all":
+            assert params["type"] == "1" and params["audioCodec"] == "aac" and params["X-Plex-Container-Size"] == "1"
+            return {"MediaContainer": {"Metadata": [{"ratingKey": "42"}]}}
+        return {}
+
+
+def test_the_aac_codec_counts_under_either_name(tmp_path: Path):
+    assert not plex.has_codecs(tmp_path)
+    folder = tmp_path / plex.CODECS / "abc-linux-aarch64"
+    folder.mkdir(parents=True)
+    (folder / "libaac_lc_decoder.so").write_bytes(b"")  # Plex for Arm
+    assert plex.has_codecs(tmp_path)
+
+
+def test_the_warm_up_plays_a_video_plex_already_has(tmp_path: Path):
+    stub, said = PlexWithMovies(tmp_path), []
+    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="false", wait=5) is True  # no clip to make
+    assert not any(m == "POST" for m, _ in stub.calls)  # no library added, so no scan to wait for
+    assert ("GET", "/video/:/transcode/universal/stop") in stub.calls
+    assert said[-1] == "Plex has its codecs now."
+
+
+def test_the_warm_up_waits_for_another_library_scan(tmp_path: Path):
+    said = []
+    stub = BusyPlex(tmp_path, busy_for=5)
+    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=0.05, step=0.01) is True
+    assert "Plex is scanning Music first" in said[1] and said[-1] == "Plex has its codecs now."
+    # One that never finishes: kia gives up after busy_wait, says why, and tidies up.
+    stub = BusyPlex(tmp_path, busy_for=10_000)
+    with pytest.raises(plex.PlexError, match="still scanning Music"):
+        plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=0.05, busy_wait=0.3, step=0.01)
+    assert stub.sections == [] and not list((tmp_path / plex.WARMUP).glob("*.mp4"))
+
+
 def test_a_new_plex_is_warmed_up_once_and_left_tidy(tmp_path: Path):
     stub = StubPlex(tmp_path)
     assert not plex.has_codecs(tmp_path)

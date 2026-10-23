@@ -255,8 +255,11 @@ WARMUP_LIBRARY = "kia codec warm-up"
 
 
 def has_codecs(base: Path) -> bool:
-    """Whether Plex in the stack has its AAC codec, which Live TV needs."""
-    return any((base / CODECS).glob("*/libaac_decoder.so"))
+    """Whether Plex in the stack has its AAC codec, which Live TV needs. Plex for x86
+    calls it libaac_decoder.so; Plex for Arm (Docker on an Apple-silicon Mac, a Raspberry
+    Pi) calls it libaac_lc_decoder.so."""
+    folder = base / CODECS
+    return any(folder.glob("*/libaac_decoder.so")) or any(folder.glob("*/libaac_lc_decoder.so"))
 
 
 def _wait(check, seconds: float, step: float = 2) -> bool:
@@ -268,12 +271,59 @@ def _wait(check, seconds: float, step: float = 2) -> bool:
     return check()
 
 
-def warm_up(plex: Plex, base: Path, log=print, ffmpeg: str = "ffmpeg", wait: float = 90) -> bool:
-    """Have a new Plex download its codecs: make a 10-second clip, add it as a library,
-    play it through Plex's transcoder, then remove both. Returns whether the codecs came."""
+def _scanning(plex: Plex, skip: str) -> list[str]:
+    """The libraries Plex is scanning now, apart from skip. Plex scans one at a time, so a
+    new library waits until they're done."""
+    sections = plex.call("GET", "/library/sections").get("MediaContainer", {}).get("Directory", [])
+    return [d.get("title", "?") for d in sections if d.get("refreshing") not in (None, False, 0, "0") and d.get("key") != skip]
+
+
+def _a_video(plex: Plex) -> str | None:
+    """A movie or episode Plex already has with AAC sound (its ratingKey), to play instead of
+    a clip. Plex downloads a codec when a video needs it, so the sound must be AAC."""
+    sections = plex.call("GET", "/library/sections").get("MediaContainer", {}).get("Directory", [])
+    for d in sections:
+        kind = {"movie": "1", "show": "4"}.get(d.get("type", ""))
+        if not kind or d.get("title") == WARMUP_LIBRARY:
+            continue
+        found = plex.call("GET", f"/library/sections/{d['key']}/all",
+                          {"type": kind, "audioCodec": "aac", "X-Plex-Container-Start": "0", "X-Plex-Container-Size": "1"})  # fmt: skip
+        items = found.get("MediaContainer", {}).get("Metadata", [])
+        if items:
+            return str(items[0]["ratingKey"])
+    return None
+
+
+def _play(plex: Plex, base: Path, key: str, wait: float) -> bool:
+    """Start Plex's transcoder on one item, until the codecs arrive (or wait runs out)."""
+    session = "kia-codec-warm-up"
+    playlist = plex.text("/video/:/transcode/universal/start.m3u8", {
+        "path": f"/library/metadata/{key}", "mediaIndex": "0", "partIndex": "0", "protocol": "hls",
+        "directPlay": "0", "directStream": "0", "videoQuality": "50", "maxVideoBitrate": "720", "session": session})  # fmt: skip
+    variant = next((line for line in playlist.splitlines() if line and not line.startswith("#")), "")
+    if variant:
+        plex.text(f"/video/:/transcode/universal/{variant}")  # asks the transcoder for the first piece
+    ok = _wait(lambda: has_codecs(base), wait)
+    plex.text("/video/:/transcode/universal/stop", {"session": session})
+    return ok
+
+
+def warm_up(plex: Plex, base: Path, log=print, ffmpeg: str = "ffmpeg", wait: float = 90, busy_wait: float = 1200,
+            step: float = 2) -> bool:
+    """Have a new Plex download its codecs by playing a video through its transcoder for a
+    moment: one of its own if it has any, or else a 10-second clip kia makes and adds as a
+    library, then removes. Returns whether the codecs came. Plex scans one library at a
+    time, so the clip's library waits while Plex scans others, up to busy_wait seconds."""
+    log("Plex hasn't downloaded its codecs yet, which Live TV needs; playing a few seconds of video so it does.")
+    key = _a_video(plex)
+    ok = _play(plex, base, key, wait) if key else _warm_up_with_clip(plex, base, log, ffmpeg, wait, busy_wait, step)
+    log("Plex has its codecs now." if ok else "Plex still has no codecs; Live TV may fail until you play any video in Plex.")
+    return ok
+
+
+def _warm_up_with_clip(plex: Plex, base: Path, log, ffmpeg: str, wait: float, busy_wait: float, step: float) -> bool:
     folder = base / WARMUP
     clip = folder / "kia warm-up (2026).mp4"
-    log("Plex hasn't downloaded its codecs yet, which Live TV needs; playing a short clip so it does.")
     folder.mkdir(parents=True, exist_ok=True)
     made = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30",
                            "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "10", "-c:v", "libx264",
@@ -295,21 +345,24 @@ def warm_up(plex: Plex, base: Path, log=print, ffmpeg: str = "ffmpeg", wait: flo
             items[:] = plex.call("GET", f"/library/sections/{section}/all").get("MediaContainer", {}).get("Metadata", [])
             return bool(items)
 
-        if not _wait(scanned, wait):
-            raise PlexError("Plex didn't find the warm-up clip.")
-        session = "kia-codec-warm-up"
-        playlist = plex.text("/video/:/transcode/universal/start.m3u8", {
-            "path": f"/library/metadata/{items[0]['ratingKey']}", "mediaIndex": "0", "partIndex": "0", "protocol": "hls",
-            "directPlay": "0", "directStream": "0", "videoQuality": "50", "maxVideoBitrate": "720", "session": session})  # fmt: skip
-        variant = next((line for line in playlist.splitlines() if line and not line.startswith("#")), "")
-        if variant:
-            plex.text(f"/video/:/transcode/universal/{variant}")  # asks the transcoder for the first piece
-        ok = _wait(lambda: has_codecs(base), wait)
-        plex.text("/video/:/transcode/universal/stop", {"session": session})
+        start = time.monotonic()
+        deadline, told = start + wait, False
+        while not scanned():
+            busy = _scanning(plex, section)
+            now = time.monotonic()
+            if busy:
+                if not told:
+                    log(f"Plex is scanning {', '.join(busy)} first (it scans one library at a time); waiting for it.")
+                    told = True
+                deadline = min(max(deadline, now + wait), start + busy_wait)
+            if now >= deadline:
+                if busy:
+                    raise PlexError(f"Plex is still scanning {', '.join(busy)}. Run this again when it's done.")
+                raise PlexError("Plex didn't find the warm-up clip.")
+            time.sleep(step)
+        return _play(plex, base, str(items[0]["ratingKey"]), wait)
     finally:
         if section is not None:
             plex.call("DELETE", f"/library/sections/{section}")
         clip.unlink(missing_ok=True)
-    log("Plex has its codecs now." if ok else "Plex still has no codecs; Live TV may fail until you play any video in Plex.")
-    return ok
 

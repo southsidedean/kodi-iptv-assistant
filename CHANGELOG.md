@@ -6,6 +6,11 @@
 
 Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/configuration.md#on-a-mac): Plex there keeps its data in `plex/config`, and you can move it to a Docker volume.
 
+### Plex
+
+- `kia plex-tuners` on a new Plex in the stack has Plex download its codecs first, which Live TV needs, by playing a few seconds of video. It always made a library for a clip of its own, and that library waited in Plex's queue while Plex scanned another one; after 90 seconds kia gave up with "Plex didn't find the warm-up clip". Now kia plays one of your own videos with AAC sound when Plex has one, and makes its clip only when there's none. While Plex scans another library first, kia says which and waits for it, up to 20 minutes.
+- On a Mac with Apple silicon (and on other Arm computers), Plex names its AAC codec `libaac_lc_decoder.so`, so kia never saw the codecs arrive and said Live TV might fail. It looks for both names now.
+
 ### Mac
 
 - Plex's database broke on a Mac. Docker there runs in a Linux machine of its own, and reaches the kia folder through a file share that Plex's database doesn't survive: scanning a library logged hundreds of database errors and left the database damaged. On a Mac, the installer now keeps Plex's data (`KIA_PLEX_CONFIG=plex-config`) and Grafana's (`KIA_GRAFANA_DATA=grafana-data`) in Docker volumes, inside Docker's own machine. Linux is unchanged.
