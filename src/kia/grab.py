@@ -24,6 +24,10 @@ from kia.native import NATIVE_GRABBERS
 # and start no programs, threads, or add-ons. It also sees none of kia's settings: only
 # the environment variables below.
 SCRIPTS = {"grab": "scripts/commands/epg/grab.ts", "api-load": "scripts/commands/api/load.ts"}
+# The compiler, when iptv-org's checkout doesn't bring one (it switched from tsx, which uses
+# esbuild, to @swc-node/register in October 2026): kia's own, this version, kept next to the
+# checkout in vendor/kia-tools.
+ESBUILD = "0.28.2"
 PASS_ENV = ("PATH", "LANG", "LC_ALL", "TZ", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy",
             "https_proxy", "no_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR")  # fmt: skip
 
@@ -54,12 +58,41 @@ def node_permission() -> tuple[str, ...] | None:
     return None
 
 
+def _esbuild(cfg: EpgConfig, log: Callable[[str], None]) -> Path | None:
+    """esbuild: the checkout's own, or kia's (installed once, from npm, without running any
+    install scripts). None if there's neither and it can't be installed."""
+    repo = cfg.repo_dir.resolve()
+    theirs = repo / "node_modules" / ".bin" / "esbuild"
+    if theirs.exists():
+        return theirs
+    tools = repo.parent / "kia-tools"
+    ours = tools / "node_modules" / ".bin" / "esbuild"
+    try:
+        if ours.exists() and subprocess.run([str(ours), "--version"], capture_output=True, text=True,
+                                            timeout=60, check=False).stdout.strip() == ESBUILD:  # fmt: skip
+            return ours
+        log(f"iptv-org/epg brings no esbuild; installing kia's own (esbuild {ESBUILD}) to compile its scripts")
+        tools.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["npm", "install", "--prefix", str(tools), "--no-save", "--no-audit", "--no-fund", "--ignore-scripts",
+                        f"esbuild@{ESBUILD}"], env=epg_env(cfg, home=True), check=True, capture_output=True, timeout=600)  # fmt: skip
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        log(f"Couldn't install esbuild ({exc})")
+        return None
+    return ours if ours.exists() else None
+
+
 def build_scripts(cfg: EpgConfig, log: Callable[[str], None]) -> bool:
     """Compile the grabber's scripts into .kia/ in the checkout. False if that can't be done."""
     repo = cfg.repo_dir.resolve()
-    esbuild = repo / "node_modules" / ".bin" / "esbuild"
-    if not esbuild.exists() or not all((repo / src).exists() for src in SCRIPTS.values()):
-        log("Can't compile iptv-org/epg's scripts (no esbuild or scripts in the checkout); its grabber runs without Node's sandbox")
+    # Never the ones from an older checkout: they'd run against the new code's dependencies.
+    for name in SCRIPTS:
+        (repo / ".kia" / f"{name}.cjs").unlink(missing_ok=True)
+    if not all((repo / src).exists() for src in SCRIPTS.values()):
+        log("Can't compile iptv-org/epg's scripts (they're not where kia expects them); its grabber runs without Node's sandbox")
+        return False
+    esbuild = _esbuild(cfg, log)
+    if esbuild is None:
+        log("Can't compile iptv-org/epg's scripts (no esbuild); its grabber runs without Node's sandbox")
         return False
     try:
         for name, src in SCRIPTS.items():
@@ -67,6 +100,8 @@ def build_scripts(cfg: EpgConfig, log: Callable[[str], None]) -> bool:
                             f"--outfile=.kia/{name}.cjs", "--log-level=error"],
                            cwd=repo, env=epg_env(cfg), check=True, capture_output=True, timeout=300)  # fmt: skip
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        for name in SCRIPTS:  # a half-done set is no good either
+            (repo / ".kia" / f"{name}.cjs").unlink(missing_ok=True)
         log(f"Couldn't compile iptv-org/epg's scripts ({exc}); its grabber runs without Node's sandbox")
         return False
     return True
