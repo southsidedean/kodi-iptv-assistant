@@ -26,15 +26,22 @@ scrape_configs:
       - targets: ["localhost:9090"]
 
   # The graphics card and the disks' health: the monitoring-gpu and monitoring-disks
-  # profiles. Without them, these two show as down in Prometheus, and the Hardware
+  # profiles. Prometheus looks for them by name on Docker's network every few minutes, so
+  # without those profiles they're simply not there (rather than "down"), and the Hardware
   # dashboard's sections for them stay empty.
   - job_name: gpu
-    static_configs:
-      - targets: ["dcgm-exporter:9400"]
+    dns_sd_configs:
+      - names: ["dcgm-exporter"]
+        type: A
+        port: 9400
+        refresh_interval: 2m
   - job_name: disks
     scrape_interval: 2m  # SMART data changes slowly; the exporter reads the disks once a minute
-    static_configs:
-      - targets: ["smartctl-exporter:9633"]
+    dns_sd_configs:
+      - names: ["smartctl-exporter"]
+        type: A
+        port: 9633
+        refresh_interval: 2m
 
   # Anything else, such as a Plex exporter or another kia, one file per job:
   #   monitoring/targets/plex.yml
