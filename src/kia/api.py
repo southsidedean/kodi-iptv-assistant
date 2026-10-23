@@ -29,6 +29,7 @@ import subprocess
 import sys
 
 from kia import channels, locks, profiles
+from kia.config import is_station_line
 from kia import sources as web_sources
 from kia.auth import Auth
 from kia.m3u import parse
@@ -442,8 +443,8 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
         before = cfg.test_report.stat().st_mtime_ns if cfg.test_report and cfg.test_report.exists() else None
         CHECK.update({"running": True, "url": url, "name": row["name"], "started": time.time()})
         CHECK_REPORT["before"] = before
-    line = f"{url} name={row['name']}" if url.startswith("radio-browser:") else f"{url} {row['name']}"
-    if row["radio"] and not url.startswith("radio-browser:"):
+    line = f"{url} name={row['name']}" if is_station_line(url) else f"{url} {row['name']}"
+    if row["radio"] and not is_station_line(url):
         line += " radio"
     threading.Thread(target=_run_check, args=(cfg, line), daemon=True, name="kia-check-now").start()
     return {"check": check_state(unlocked=True)}

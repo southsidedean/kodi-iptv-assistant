@@ -100,8 +100,8 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
         if only and src.name not in only:
             continue
         try:
-            if src.is_radio_browser:
-                found = radio.load(src.params, src.name)
+            if src.is_stations:
+                found = radio.load_stations(src.url, src.params, src.name)
             else:
                 text = fetch_source(cfg, src)
                 found = m3u.parse(text, source=src.name)

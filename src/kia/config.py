@@ -12,6 +12,15 @@ from urllib.parse import urlparse
 from kia.alerts import DEFAULT_EVENTS, EVENTS, AlertConfig, EmailConfig
 
 
+# Lines in a sources file that ask a radio service for its stations, instead of naming a
+# playlist: radio-browser.info's directory, SomaFM's channels, and KEXP (kia.radio).
+STATION_PREFIXES = ("radio-browser:", "somafm:", "kexp:")
+
+
+def is_station_line(text: str) -> bool:
+    return text.lstrip().lower().startswith(STATION_PREFIXES)
+
+
 @dataclass
 class Source:
     name: str
@@ -25,9 +34,14 @@ class Source:
         return self.url.startswith("radio-browser:")
 
     @property
+    def is_stations(self) -> bool:
+        """A station line (radio-browser:, somafm:, kexp:), rather than a playlist."""
+        return is_station_line(self.url)
+
+    @property
     def is_local_file(self) -> bool:
         """A playlist file on this computer (yours), rather than one from the internet."""
-        return not self.is_radio_browser and not re.match(r"[a-z][a-z0-9+.-]*://", self.url, re.I)
+        return not self.is_stations and not re.match(r"[a-z][a-z0-9+.-]*://", self.url, re.I)
 
 
 # How kia identifies itself to stream servers. Servers differ in which players they turn
@@ -129,7 +143,7 @@ def parse_sources(text: str) -> list[Source]:
         line = re.sub(r"(^|\s)#.*", "", raw).strip()
         if not line:
             continue
-        if line.startswith("radio-browser:"):
+        if is_station_line(line):
             source = _radio_source(line, taken)
         else:
             url, *rest = line.split()
@@ -144,23 +158,29 @@ def parse_sources(text: str) -> list[Source]:
 
 
 def _radio_source(line: str, taken: set[str]) -> Source:
-    """`radio-browser: country=US top=200 tag=jazz name=jazz` -> a radio-browser query."""
+    """`radio-browser: country=US top=200 tag=jazz name=jazz` -> a radio-browser query;
+    `somafm: channels=groovesalad,dronezone` and `kexp:` likewise."""
+    prefix, _, rest = line.partition(":")
+    prefix = prefix.strip().lower()
     params = {}
-    for token in line.removeprefix("radio-browser:").split():
+    for token in rest.split():
         key, eq, value = token.partition("=")
         if not eq or not value:
-            raise ValueError(f"radio-browser: expected key=value, got {token!r}")
+            raise ValueError(f"{prefix}: expected key=value, got {token!r}")
         params[key.strip().lower()] = value.strip()
     name = params.pop("name", None)
     if not name:
-        base = "radio-" + "-".join(params[k].lower() for k in ("country", "tag", "language", "station") if k in params)
+        if prefix == "radio-browser":
+            base = "radio-" + "-".join(params[k].lower() for k in ("country", "tag", "language", "station") if k in params)
+        else:
+            base = prefix
         name, n = base.rstrip("-") or "radio", 2
         while name in taken:
             name, n = f"{base}-{n}", n + 1
-    from kia.radio import build_query
+    from kia import radio
 
-    build_query(params)  # check the filters now, not at 4 AM
-    return Source(name=name, url=line, params=params)
+    radio.check_params(prefix, params)  # check the choices now, not at 4 AM
+    return Source(name=name, url=f"{prefix}:{rest}".strip(), params=params)
 
 
 def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = None) -> Config:

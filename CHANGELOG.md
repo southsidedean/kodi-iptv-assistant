@@ -6,6 +6,10 @@
 
 Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/configuration.md#on-a-mac): Plex there keeps its data in `plex/config`, and you can move it to a Docker volume.
 
+### Radio
+
+- SomaFM and KEXP, from what the stations publish themselves. A `somafm:` line in `sources.txt` adds SomaFM's listener-supported, ad-free channels (51 now), with their genres and logos, from SomaFM's own channel list, so new channels arrive and retired ones go by themselves; `somafm: channels=groovesalad,dronezone` picks some. A `kexp:` line adds KEXP, Seattle's listener-supported station, and kia reads KEXP's show schedule from its public API, so its shows and DJs appear in the radio guide, like KINK's. Both lines are in `sources.txt`, turned off, and on the Dashboard's playlist list.
+
 ### Plex
 
 - `kia plex-tuners` on a new Plex in the stack has Plex download its codecs first, which Live TV needs, by playing a few seconds of video. It always made a library for a clip of its own, and that library waited in Plex's queue while Plex scanned another one; after 90 seconds kia gave up with "Plex didn't find the warm-up clip". Now kia plays one of your own videos with AAC sound when Plex has one, and makes its clip only when there's none. While Plex scans another library first, kia says which and waits for it, up to 20 minutes.

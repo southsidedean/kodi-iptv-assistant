@@ -27,7 +27,9 @@ Each channel kept gets a number (`tvg-chno`) the first time and keeps it, so num
 
 ### Radio
 
-Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices, such as a country, genre, language, or station name. Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `KIA_RADIO_PLACEHOLDERS`. The exception so far is KINK, from the Netherlands: kia reads the schedule on kink.nl for a station named exactly "KINK", so its shows and DJs appear in Kodi's radio guide. KINK's theme channels play non-stop and have no schedule.
+Lines starting with `radio-browser:` in `sources.txt` ask [radio-browser.info](https://www.radio-browser.info), a free community directory, for its most popular working stations that match your choices, such as a country, genre, language, or station name. Stations listed more than once are merged, keeping the best stream. They're tested like TV channels and marked as radio in the playlist, so Kodi shows them under Radio. `somafm:` and `kexp:` lines ask two stations for their own streams instead: SomaFM's listener-supported channels, from the channel list SomaFM publishes, and KEXP in Seattle.
+
+Almost no radio station has guide data, so they get no placeholder blocks unless you turn on `KIA_RADIO_PLACEHOLDERS`. The exceptions are KINK, from the Netherlands, and KEXP: kia reads KINK's schedule on kink.nl and KEXP's from its public API, for stations named exactly "KINK" and "KEXP", so their shows and DJs appear in Kodi's radio guide. KINK's theme channels and SomaFM's channels play non-stop and have no schedule.
 
 ## 2. Match channels to guide sources (`kia map`)
 

@@ -65,9 +65,9 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # https://iptv-org.github.io/iptv/sources/us_pbs.m3u           # PBS               13
 # https://iptv-org.github.io/iptv/sources/us_local.m3u         # US local stations 168
 
-# --- Radio (radio-browser.info) ---------------------------------------------------
-# Internet radio stations from a free community directory. They appear under Radio in
-# Kodi. Each line asks for the most popular working stations that match your choices:
+# --- Radio ----------------------------------------------------------------------
+# Internet radio stations from radio-browser.info, a free community directory. They
+# appear under Radio in Kodi. Each line asks for the most popular working stations that match your choices:
 #   country=US       two-letter country code
 #   state=Texas      state or region (with country)
 #   language=english
@@ -79,6 +79,14 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # radio-browser: country=US top=100                                 # 7,400 US stations to choose from
 # radio-browser: country=US tag=jazz top=25
 # radio-browser: country=US tag=news top=25
+#
+# Two stations that publish their own streams. SomaFM (somafm.com) is listener-supported
+# and plays no ads; channels= picks some of its channels by the names in their addresses,
+# such as somafm.com/groovesalad. KEXP is Seattle's listener-supported station, and its
+# shows and DJs appear in the guide.
+# somafm:                                                          # SomaFM, every channel     51
+# somafm: channels=groovesalad,dronezone,secretagent name=somafm-chill
+# kexp:                                                            # KEXP, with its show schedule
 #
 # Bigger genre lists, gathered from many station directories (github.com/junguler).
 # Worldwide, names only (no logos). About half the stations worked in a test; kia keeps

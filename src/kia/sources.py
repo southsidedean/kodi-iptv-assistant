@@ -19,12 +19,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from kia.config import Source, parse_sources
+from kia.config import Source, is_station_line, parse_sources
 
 STATE_FILE = "sources.json"
 _SECTION_RE = re.compile(r"^#\s*-{2,}\s*(.+?)\s*-{2,}")
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
-_PLAYLIST_RE = re.compile(r"^(https?://\S+|radio-browser:.+)$", re.I)
+_PLAYLIST_RE = re.compile(r"^(https?://\S+|(radio-browser|somafm|kexp):.*)$", re.I)
 
 
 @dataclass
@@ -47,7 +47,8 @@ def _split_comment(line: str) -> tuple[str, str]:
 
 def offered(text: str) -> list[Offered]:
     """Every playlist line in a sources file, on or off. A turned-off line is a "#" line
-    whose text after the "#" is a playlist (https://..., or radio-browser: ...)."""
+    whose text after the "#" is a playlist (https://...) or a station line (radio-browser:,
+    somafm:, kexp:)."""
     out: list[Offered] = []
     section = ""
     taken: set[str] = set()
@@ -59,7 +60,7 @@ def offered(text: str) -> list[Offered]:
             continue
         on = not line.startswith("#")
         body = line if on else line.lstrip("#").strip()
-        if not body or (not on and not re.match(r"(https?://|radio-browser:)", body, re.I)):
+        if not body or (not on and not (re.match(r"https?://", body, re.I) or is_station_line(body))):
             continue  # a blank line, or a comment that isn't a playlist
         spec, label = _split_comment(body)
         try:
@@ -74,7 +75,7 @@ def offered(text: str) -> list[Offered]:
         while name in taken:
             name, n = f"{s.name}-{n}", n + 1
         taken.add(name)
-        out.append(Offered(s.url, name, s.radio or s.is_radio_browser, re.sub(r"\s{2,}", "  ", label),
+        out.append(Offered(s.url, name, s.radio or s.is_stations, re.sub(r"\s{2,}", "  ", label),
                            section, on))  # fmt: skip
     return out
 
@@ -106,8 +107,8 @@ def apply(sources: list[Source], offers: list[Offered], state: dict) -> list[Sou
     names = {s.name for s in out}
 
     def add(spec: str, name: str | None, radio: bool) -> None:
-        line = spec + (f" {name}" if name and not spec.startswith("radio-browser:") else "") + (" radio" if radio else "")
-        if spec.startswith("radio-browser:") and name:
+        line = spec + (f" {name}" if name and not is_station_line(spec) else "") + (" radio" if radio else "")
+        if is_station_line(spec) and name:
             line = f"{spec} name={name}"
         try:
             parsed = parse_sources(line)
@@ -183,14 +184,14 @@ def check_new(url: str, name: str, taken: set[str]) -> tuple[str, str]:
     """Check a playlist someone adds on the Dashboard: (url, name)."""
     url = url.strip()
     name = name.strip().lower()
-    if not _PLAYLIST_RE.match(url) or (" " in url and not url.startswith("radio-browser:")):
+    if not _PLAYLIST_RE.match(url) or (" " in url and not is_station_line(url)):
         raise ValueError("Enter a playlist address starting with http:// or https://.")
     if len(url) > 2000:
         raise ValueError("That address is too long.")
     if name and not _NAME_RE.match(name):
         raise ValueError("Use lowercase letters, numbers, and dashes for the name, up to 40.")
     try:
-        parsed = parse_sources(url + (f" {name}" if name and not url.startswith("radio-browser:") else ""))
+        parsed = parse_sources(url + (f" name={name}" if name and is_station_line(url) else f" {name}" if name else ""))
     except ValueError as exc:
         raise ValueError(str(exc)) from None
     name = name or parsed[0].name
