@@ -89,6 +89,34 @@ Open Plex at `http://192.168.1.20:32400/web`, or any Plex app signed in to your 
 
 To add your own movies and shows, put them in the media folder, organized the way Plex likes ([movies](https://support.plex.tv/articles/naming-and-organizing-your-movie-media-files/)), and [make a library](https://support.plex.tv/articles/200288926-creating-libraries/) in Plex. In Plex, the media folder is `/data`.
 
+## Media on a NAS or another server
+
+If you have a NAS or servers with NFS shares, Plex can use the movies, shows, and music on them where they are. `scripts/nfs-media.sh` mounts each share as a folder in one media folder on this computer, read-only, and Plex gets that folder. The shares come back after every restart. Each is mounted when something first reads it, so a server that's off doesn't hold up the computer's startup.
+
+1. On the NAS or server, share the folder over NFS with this computer's address. Read-only is enough. Each NAS names this differently: look for *NFS permissions* or *NFS exports*.
+2. On Linux, install NFS first: `sudo apt install nfs-common` (Debian, Ubuntu, Raspberry Pi OS) or `sudo dnf install nfs-utils` (Fedora). A Mac has it already.
+3. In the kia folder, add each share with a short name. They can come from different servers:
+
+   ```sh
+   sudo scripts/nfs-media.sh add movies nas.local:/volume1/movies
+   sudo scripts/nfs-media.sh add shows nas.local:/volume1/tv
+   sudo scripts/nfs-media.sh add music 192.168.1.30:/srv/music
+   ```
+
+   Each one should say `OK` and how many files and folders it sees.
+4. Give the media folder to Plex in `.env`:
+
+   ```sh
+   KIA_MEDIA_DIR=/mnt/media
+   ```
+
+   On a Mac, it's `KIA_MEDIA_DIR=/Users/Shared/media` (macOS cleans out folders it doesn't know in `/Volumes`, so the script doesn't use it). Then run `docker compose up -d plex`.
+5. In Plex, [make a library](https://support.plex.tv/articles/200288926-creating-libraries/) for each share: the `movies` share is the folder `/data/movies`. One library can have several folders, such as shows from two servers.
+
+`scripts/nfs-media.sh list` shows the shares and whether each one answers. `sudo scripts/nfs-media.sh remove music` takes one away. Plex only reads media, so read-only is right for it; `--rw` mounts a share that other programs on this computer need to write to. `--base /some/folder` uses another media folder; use the same one every time.
+
+When a server is off, Plex can't see what's on it. Turn off **Empty trash automatically after every scan** in Plex (*Settings → Library*), so a scan while a share is down doesn't remove those items from your libraries. Plex shows them as unavailable until the share is back; **Empty Trash** on a library removes what's really gone.
+
 ## Keeping it running
 
 - Everything starts again when the computer restarts.
@@ -97,6 +125,8 @@ To add your own movies and shows, put them in the media folder, organized the wa
 - **Backups:** `docker compose exec kia python3 -m kia backup` saves kia's and Threadfin's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Plex's own settings in `plex/config` can be large; Plex explains [what to back up](https://support.plex.tv/articles/201539237-backing-up-plex-media-server-data/).
 
 ## If something's wrong
+
+**A share's folder is empty** (`nfs-media.sh` says so, or Plex finds nothing). Check the server is on and the share's path: `showmount -e nas.local` lists what a server shares, and with which addresses. A NAS often allows only the addresses you list, so add this computer's.
 
 **Plex isn't on your account.** The claim code had expired. Get a new one, put it in `PLEX_CLAIM`, and run `docker compose up -d --force-recreate plex`.
 

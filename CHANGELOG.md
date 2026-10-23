@@ -30,6 +30,10 @@ Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/con
 - kia reads the token that Plex in the stack saved when it was claimed. It found it only in `plex/config` in the kia folder, so a `KIA_PLEX_CONFIG` somewhere else, or a volume, left kia without it. Now kia gets Plex's settings, read-only, from wherever `KIA_PLEX_CONFIG` puts them.
 - Uninstalling is now `docker compose down --rmi all --volumes`, so the volumes go too.
 
+### Plex
+
+- New `scripts/nfs-media.sh` mounts shares from a NAS or other servers (NFS) for Plex in the stack, read-only, on Linux and on a Mac, and keeps them after restarts: [media on a NAS or another server](docs/cookbooks/plex-box.md#media-on-a-nas-or-another-server). On Linux, each share mounts when it's first read, after the network is up, so a server that's off or slow to answer at startup doesn't leave Plex with an empty folder until the next restart.
+
 ## 0.5.3 (2026-10-23)
 
 ### Upgrading from 0.5.2
