@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ import pytest
 TOOL = Path(__file__).resolve().parent.parent / "tools" / "mock-media" / "make_library.py"
 spec = importlib.util.spec_from_file_location("make_library", TOOL)
 lib = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = lib  # dataclasses look their module up here
 spec.loader.exec_module(lib)
 
 
