@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = [ROOT / "scripts" / "install.sh", ROOT / "scripts" / "install-service.sh"]
+SCRIPTS = [ROOT / "scripts" / "install.sh", ROOT / "scripts" / "install-service.sh", ROOT / "scripts" / "nfs-media.sh"]
 
 
 @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
