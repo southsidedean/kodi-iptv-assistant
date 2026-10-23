@@ -286,7 +286,7 @@ def hardware() -> Board:
            'attribute_value_type="raw"}) or vector(0)', thresholds=bad, w=6)  # fmt: skip
     b.stat("Hottest disk", "The warmest disk now.", 'max(smartctl_device_temperature{temperature_type="current"})', "celsius",
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 50}, {"color": "red", "value": 60}], w=6)  # fmt: skip
-    b.stat("Disks", "Disks the exporter reads.", "count(smartctl_device_smart_status)", w=6)
+    b.stat("Disks", "Disks the exporter reads.", "count(smartctl_device)", w=6)
     attribute = 'max by (device) (smartctl_device_attribute{{attribute_name="{}",attribute_value_type="raw"}})'
     b.columns("Each disk", "SMART says OK (1) or failing (0); the counts should stay at 0. NVMe disks show their wear instead "
               "of the sector counts.", "device", [

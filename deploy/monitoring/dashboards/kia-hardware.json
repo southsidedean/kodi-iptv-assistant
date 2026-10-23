@@ -822,7 +822,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "count(smartctl_device_smart_status)",
+     "expr": "count(smartctl_device)",
      "legendFormat": ""
     }
    ],

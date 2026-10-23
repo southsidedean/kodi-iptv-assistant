@@ -16,6 +16,7 @@ Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/con
 - Two new opt-in profiles, for Linux: `monitoring-gpu` runs NVIDIA's exporter for the graphics card (it needs NVIDIA's Container Toolkit; no extra privileges), and `monitoring-disks` runs the disks' health exporter (privileged, as reading SMART data takes; no published port). `KIA_DCGM_IMAGE` and `KIA_SMARTCTL_IMAGE` choose their versions.
 - `kia_plex_sessions` has a new label, `hw`: whether Plex converts video on the graphics card (`gpu`) or the processor (`cpu`). The Plex dashboard graphs it, and the Hardware dashboard counts both.
 - The [observability cookbook](docs/cookbooks/observability.md) now has a Linux path and a Mac path. On a Mac, node-exporter comes from Homebrew (`brew install node_exporter`), since one in Docker would measure Docker's own small Linux machine rather than the Mac.
+- The TV stack dashboard's **Memory used** was empty on a Mac, whose node-exporter reports memory differently. It now shows what Activity Monitor calls Memory Used.
 
 ### Plex
 
