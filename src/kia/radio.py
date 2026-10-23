@@ -1,8 +1,10 @@
-"""Radio stations from radio-browser.info, a free community database of internet radio."""
+"""Radio stations from radio-browser.info, a free community database of internet radio,
+and from two stations that publish their own: SomaFM's channels and KEXP."""
 
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -93,3 +95,85 @@ def to_entries(stations: list[dict], source: str, min_bitrate: int = 0) -> list[
 def load(params: dict[str, str], source: str) -> list[Entry]:
     stations = fetch_stations(params)
     return to_entries(stations, source, int(params.get("min_bitrate") or 0))
+
+
+# SomaFM: listener-supported, commercial-free channels. Its channel list names each one,
+# its genres, logo, and playlists (.pls) that point at the streams.
+SOMAFM_CHANNELS = "https://api.somafm.com/channels.json"
+# KEXP, Seattle: its own 160 kbps AAC stream (kexp.org/listen).
+KEXP_STREAM = "https://kexp.streamguys1.com/kexp160.aac"
+# The choices each station line takes (radio-browser's are FILTERS and OPTIONS above).
+STATION_PARAMS = {"somafm": {"channels"}, "kexp": set()}
+
+
+def check_params(kind: str, params: dict[str, str]) -> None:
+    """Check a station line's choices when kia reads the sources file."""
+    if kind == "radio-browser":
+        build_query(params)
+        return
+    unknown = sorted(set(params) - STATION_PARAMS[kind])
+    if unknown:
+        allowed = ", ".join(sorted(STATION_PARAMS[kind])) or "none"
+        raise ValueError(f"{kind}: unknown choice(s) {unknown}; it takes: {allowed}")
+
+
+def _get(url: str, timeout: float = 30) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def pls_stream(text: str) -> str | None:
+    """The first stream in a .pls playlist (File1=...)."""
+    files = sorted((int(m[1]), m[2].strip()) for m in re.finditer(r"^File(\d+)=(.+)$", text, re.M))
+    return files[0][1] if files else None
+
+
+def somafm(params: dict[str, str], source: str, get=_get) -> list[Entry]:
+    """SomaFM's channels, or only those in channels= (SomaFM's ids, such as groovesalad)."""
+    try:
+        channels = json.loads(get(SOMAFM_CHANNELS)).get("channels", [])
+    except (OSError, ValueError) as exc:
+        raise RadioError(f"SomaFM's channel list didn't load ({exc})") from None
+    wanted = {c.strip().lower() for c in params.get("channels", "").split(",") if c.strip()}
+    unknown = sorted(wanted - {str(c.get("id", "")).lower() for c in channels})
+    if unknown:
+        raise RadioError(f"SomaFM has no channel {', '.join(unknown)} (the ids are in its channel list, {SOMAFM_CHANNELS})")
+    entries = []
+    for ch in channels:
+        cid = str(ch.get("id") or "").lower()
+        if not cid or (wanted and cid not in wanted):
+            continue
+        # Its best playlist: AAC at its highest quality, else MP3.
+        lists = ch.get("playlists") or []
+        best = next((p for fmt in ("aac", "mp3") for p in lists if p.get("format") == fmt and p.get("quality") == "highest"), None)
+        try:
+            url = pls_stream(get(best["url"]).decode("utf-8", errors="replace")) if best else None
+        except OSError:
+            url = None
+        if not url:
+            continue  # this channel's playlist didn't answer; the rest still count
+        attrs = {"tvg-id": f"radio.somafm.{cid}", "group-title": genre((ch.get("genre") or "").replace("|", ",")), "radio": "true"}
+        logo = ch.get("xlimage") or ch.get("largeimage") or ch.get("image") or ""
+        if logo.startswith("https://"):
+            attrs["tvg-logo"] = logo
+        entries.append(Entry(name=f"SomaFM {' '.join(str(ch.get('title') or cid).split())}", url=url, attrs=attrs, source=source))
+    if not entries:
+        raise RadioError("none of SomaFM's channels answered")
+    return entries
+
+
+def kexp(source: str) -> list[Entry]:
+    """KEXP. Its show schedule comes from kexp.org (kia.native), for a station named "KEXP"."""
+    return [Entry(name="KEXP", url=KEXP_STREAM, attrs={"tvg-id": "radio.kexp", "group-title": "Eclectic", "radio": "true"},
+                  source=source)]  # fmt: skip
+
+
+def load_stations(url: str, params: dict[str, str], source: str) -> list[Entry]:
+    """The stations a station line asks for: radio-browser:, somafm:, or kexp:."""
+    kind = url.partition(":")[0].strip().lower()
+    if kind == "somafm":
+        return somafm(params, source)
+    if kind == "kexp":
+        return kexp(source)
+    return load(params, source)

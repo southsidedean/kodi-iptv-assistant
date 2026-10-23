@@ -183,9 +183,85 @@ def grab_kink(
         out.write("</tv>\n")
 
 
+KEXP_TIMESLOTS = "https://api.kexp.org/v2/timeslots/?format=json&limit=500"
+KEXP_ZONE = "America/Los_Angeles"  # KEXP's week is in Seattle time
+
+
+def kexp_programmes(slots: list[dict], now: datetime, days: int) -> list[tuple[datetime, datetime, str, str]]:
+    """(start, stop, show, hosts) for each show in the days ahead, from KEXP's weekly time
+    slots: a weekday (1 is Monday), start and end times, and the dates the slot runs."""
+    from zoneinfo import ZoneInfo
+
+    zone = ZoneInfo(KEXP_ZONE)
+    today = now.astimezone(zone).date()
+    shows = []
+    for offset in range(-1, days + 1):  # yesterday too: a show from late last night may still be on
+        day = today + timedelta(days=offset)
+        for s in slots:
+            try:
+                if int(s["weekday"]) != day.isoweekday():
+                    continue
+                if s.get("start_date") and day < datetime.fromisoformat(s["start_date"]).date():
+                    continue
+                if s.get("end_date") and day > datetime.fromisoformat(s["end_date"]).date():
+                    continue
+                start = datetime.combine(day, datetime.strptime(s["start_time"], "%H:%M:%S").time(), zone)
+                stop = datetime.combine(day, datetime.strptime(s["end_time"], "%H:%M:%S").time(), zone)
+                if stop <= start:
+                    stop += timedelta(days=1)  # runs past midnight
+                title = (s.get("program_name") or "").strip()
+            except (KeyError, TypeError, ValueError):
+                continue
+            hosts = [h for h in (s.get("host_names") or []) if isinstance(h, str) and h.strip()]
+            if title:
+                shows.append((start, stop, title, " and ".join(hosts)))
+    shows.sort()
+    # A show runs until the next one starts, if they overlap.
+    kept = []
+    for i, (start, stop, title, hosts) in enumerate(shows):
+        if i + 1 < len(shows) and shows[i + 1][0] < stop:
+            stop = shows[i + 1][0]
+        if stop > start:
+            kept.append((start, stop, title, hosts))
+    window_start = now.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    window_end = window_start + timedelta(days=days)
+    return [s for s in kept if s[1] > window_start and s[0] < window_end]
+
+
+def grab_kexp(
+    channels_file: Path,
+    output: Path,
+    days: int,
+    log: Callable[[str], None],
+    url: str = KEXP_TIMESLOTS,
+    now: datetime | None = None,
+) -> None:
+    """KEXP's show schedule, for each channel in channels_file (the station KEXP)."""
+    tvg_ids = [tvg_id for _, tvg_id, _ in read_channel_list(channels_file) if tvg_id]
+    with fetch(url, timeout=60) as resp:
+        slots = json.load(resp).get("results", [])
+    shows = kexp_programmes(slots, now or datetime.now(timezone.utc), days)
+    if not shows:
+        raise RuntimeError("no shows found in KEXP's schedule; api.kexp.org may have changed")
+    log(f"kexp.org: {len(slots)} weekly time slots, {len(shows)} shows in the next {days} days, for {len(tvg_ids)} channel(s)")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with open(output, "w", encoding="utf-8") as out:
+        out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
+        for tid in tvg_ids:
+            out.write(f"  <channel id={xml_attr(tid)}><display-name>KEXP</display-name></channel>\n")
+        for tid in tvg_ids:
+            for a, b, title, hosts in shows:
+                desc = f"<desc>{xml_text('With ' + hosts)}</desc>" if hosts else ""
+                out.write(
+                    f"  <programme start={xml_attr(format_time(a))} stop={xml_attr(format_time(b))} "
+                    f"channel={xml_attr(tid)}><title>{xml_text(title)}</title>{desc}</programme>\n"
+                )
+        out.write("</tv>\n")
+
+
 # site name -> grabber(channels_file, output, days, log)
-NATIVE_GRABBERS: dict[str, Callable[..., None]] = {"i.mjh.nz": grab_imjh, "kink.nl": grab_kink}
+NATIVE_GRABBERS: dict[str, Callable[..., None]] = {"i.mjh.nz": grab_imjh, "kink.nl": grab_kink, "kexp.org": grab_kexp}
 
 # Radio stations with a schedule kia can read itself: station name (see epgmap.name_key)
 # -> (site, site_id). Almost no radio station is on iptv-org's guide sites.
-RADIO_SCHEDULES: dict[str, tuple[str, str]] = {"kink": ("kink.nl", "kink")}
+RADIO_SCHEDULES: dict[str, tuple[str, str]] = {"kink": ("kink.nl", "kink"), "kexp": ("kexp.org", "kexp")}
