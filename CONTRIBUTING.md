@@ -37,6 +37,14 @@ To try a change end to end, run kia with Docker as the [install guide](docs/inst
 - If users will notice the change, add a line to `CHANGELOG.md` under the next version.
 - Never include private details (home addresses, host names, ntfy topics) in code, docs, screenshots, or commit messages.
 
+## Screenshots with a pretend library
+
+For screenshots of Plex or Jellyfin, use a library with nothing personal in it. `tools/mock-media/make_library.py` makes one, laid out the way both expect: 40 public-domain and open movies, 6 public-domain TV series, and 15 public-domain or Creative Commons music artists. Each file is a 10-second placeholder, so the whole library is about 100 MB, and Plex and Jellyfin still show the real posters and summaries. It needs ffmpeg:
+
+```sh
+python3 tools/mock-media/make_library.py /path/to/media
+```
+
 ## Diagrams
 
 The docs' diagrams are images, made from Mermaid sources in `docs/diagrams/`. To change one, edit its `.mmd` file and run `scripts/diagrams.sh`, which needs [mermaid-cli](https://github.com/mermaid-js/mermaid-cli). It writes a light and a dark SVG to `images/diagrams/`, and a doc shows them with a `<picture>` tag (copy one from an existing doc). The tests fail if an image doesn't match its source.
