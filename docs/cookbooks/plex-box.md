@@ -115,7 +115,7 @@ If you have a NAS or servers with NFS shares, Plex can use the movies, shows, an
 
 `scripts/nfs-media.sh list` shows the shares and whether each one answers. `sudo scripts/nfs-media.sh remove music` takes one away. Plex only reads media, so read-only is right for it; `--rw` mounts a share that other programs on this computer need to write to. `--base /some/folder` uses another media folder; use the same one every time.
 
-When a server is off, Plex can't see what's on it. Turn off **Empty trash automatically after every scan** in Plex (*Settings → Library*), so a scan while a share is down doesn't remove those items from your libraries. Plex shows them as unavailable until the share is back; **Empty Trash** on a library removes what's really gone.
+When a server is off, its folder is empty (reading it takes about 10 seconds to give up), and Plex can't see what's on it. Turn off **Empty trash automatically after every scan** in Plex (*Settings → Library*), so a scan while a share is down doesn't remove those items from your libraries. Plex shows them as unavailable until the share is back; **Empty Trash** on a library removes what's really gone.
 
 ## Keeping it running
 
