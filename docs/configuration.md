@@ -67,6 +67,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex or Jellyfin in the stack. They can read them but not change them. |
 | `KIA_JELLYFIN_ADVERTISE` | | The address Jellyfin apps on your network use to reach Jellyfin in the stack (`jellyfin-server` profile, [Jellyfin TV box](cookbooks/jellyfin-box.md)), such as `http://192.168.1.20:8096`. |
 | `KIA_JELLYFIN_PORT` | `8096` | Jellyfin's port, for Jellyfin in the stack. |
+| `KIA_JELLYFIN_NAME` | `kia-tv-box` | The name Jellyfin's setup suggests for the server, which shows in Jellyfin apps: letters, digits, and dashes. |
 | `KIA_JELLYFIN_IMAGE` | `jellyfin/jellyfin:latest` | Jellyfin's version, for Jellyfin in the stack. |
 | `KIA_JELLYFIN_URL`, `KIA_JELLYFIN_TOKEN` | | Where kia reaches Jellyfin (`http://jellyfin:8096` for Jellyfin in the stack), and an API key from Jellyfin's **Dashboard → API Keys**. With both set, kia reports what Jellyfin is playing in [its metrics](metrics.md). Any Jellyfin works, in the stack or not. |
 | `KIA_JELLYFIN_CONFIG`, `KIA_JELLYFIN_CACHE` | `jellyfin/config`, `jellyfin/cache` | Where Jellyfin in the stack keeps its settings and database, and its pictures and converted video. `jellyfin-config` is a Docker volume ([on a Mac](#on-a-mac)). |

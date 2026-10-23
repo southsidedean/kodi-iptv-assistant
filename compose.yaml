@@ -308,6 +308,8 @@ services:
   jellyfin:
     profiles: ["jellyfin-server"]
     image: ${KIA_JELLYFIN_IMAGE:-jellyfin/jellyfin:latest}
+    # Jellyfin suggests this as the server's name in its setup; it shows in every Jellyfin app.
+    hostname: ${KIA_JELLYFIN_NAME:-kia-tv-box}
     restart: unless-stopped
     logging: *logging
     user: "${PUID:-1000}:${PGID:-1000}"
