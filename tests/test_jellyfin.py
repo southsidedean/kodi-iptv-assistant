@@ -10,16 +10,16 @@ import pytest
 from kia import jellyfin, metrics
 
 SESSIONS = [
-    {"DeviceName": "Living room TV", "DeviceId": "abc", "Client": "Jellyfin Android TV", "RemoteEndPoint": "192.168.1.30",
+    {"DeviceName": "Living room TV", "DeviceId": "abc", "Client": "Jellyfin Android TV", "RemoteEndPoint": "192.168.1.20",
      "NowPlayingItem": {"Type": "TvChannel", "Name": "Pluto TV Movies"},
      "PlayState": {"PlayMethod": "Transcode", "IsPaused": False},
      "TranscodingInfo": {"IsVideoDirect": True, "HardwareAccelerationType": "none"}},
     {"DeviceName": "Phone", "DeviceId": "def", "Client": "Jellyfin Mobile (iOS)", "RemoteEndPoint": "8.8.8.8:51234",
      "NowPlayingItem": {"Type": "Movie"}, "PlayState": {"PlayMethod": "Transcode", "IsPaused": True},
      "TranscodingInfo": {"IsVideoDirect": False, "HardwareAccelerationType": "vaapi"}},
-    {"DeviceName": "Laptop", "DeviceId": "ghi", "Client": "Jellyfin Web", "RemoteEndPoint": "::ffff:10.0.0.4",
+    {"DeviceName": "Laptop", "DeviceId": "ghi", "Client": "Jellyfin Web", "RemoteEndPoint": "::ffff:192.168.1.20",
      "NowPlayingItem": {"Type": "Episode"}, "PlayState": {"PlayMethod": "DirectPlay"}},
-    {"DeviceName": "Idle", "DeviceId": "jkl", "Client": "Jellyfin Web", "RemoteEndPoint": "192.168.1.31"},  # signed in only
+    {"DeviceName": "Idle", "DeviceId": "jkl", "Client": "Jellyfin Web", "RemoteEndPoint": "192.168.1.20"},  # signed in only
 ]  # fmt: skip
 
 
@@ -60,8 +60,8 @@ def test_sessions_in_the_shape_plex_uses(server):
 
 def test_locations():
     # Outside addresses are public DNS servers; Python counts the documentation ranges as private.
-    found = [jellyfin.location(a) for a in ("192.168.1.30", "8.8.8.8:443", "[2001:4860:4860::8888]:80", "::1", "fd00::5",
-                                             "::ffff:10.0.0.4", "::ffff:8.8.4.4", "")]  # fmt: skip
+    found = [jellyfin.location(a) for a in ("192.168.1.20", "8.8.8.8:443", "[2001:4860:4860::8888]:80", "::1", "fd00::5",
+                                             "::ffff:192.168.1.20", "::ffff:8.8.4.4", "")]  # fmt: skip
     assert found == ["lan", "wan", "wan", "lan", "lan", "lan", "wan", "?"]
 
 

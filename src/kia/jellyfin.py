@@ -34,7 +34,7 @@ def location(endpoint: str) -> str:
         ip = ipaddress.ip_address(host)
     except ValueError:
         return "?"
-    if ip.version == 6 and ip.ipv4_mapped:  # ::ffff:192.168.1.30
+    if ip.version == 6 and ip.ipv4_mapped:  # ::ffff:192.168.1.20
         ip = ip.ipv4_mapped
     return "lan" if ip.is_private or ip.is_loopback or ip.is_link_local else "wan"
 

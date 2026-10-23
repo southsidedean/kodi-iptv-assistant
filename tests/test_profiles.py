@@ -112,7 +112,9 @@ def test_renumber_and_own_guide(tmp_path: Path):
     pfile = tmp_path / "profiles.toml"
     pfile.write_text('[kids]\ngroups = ["Kids"]\nrenumber = true\n[news]\ngroups = ["News"]\n')
     result = profiles.rebuild(out, state, pfile, "http://tv.lan:8780/guide.xml.gz", lambda m: None)
-    assert [p["guide"] for p in result["profiles"]] == ["kids.guide.xml.gz", "news.guide.xml.gz"]
+    assert [p["guide"] for p in result["profiles"]] == ["kids.guide.xml.gz", "news.guide.xml.gz", "tv.guide.xml.gz"]
+    # TV only is there without radio too (all the channels), so its address always works.
+    assert [e.name for e in parse((out / "tv.m3u").read_text())] == ["A", "B", "C"] and result["profiles"][-1]["builtin"]
     kids = parse((out / "kids.m3u").read_text())
     assert [(e.name, e.attrs["tvg-chno"]) for e in kids] == [("B", "1"), ("C", "2")]
     assert [e.attrs["tvg-chno"] for e in parse((out / "news.m3u").read_text())] == ["40"]  # same as the full list

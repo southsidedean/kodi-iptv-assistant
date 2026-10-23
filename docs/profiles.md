@@ -139,4 +139,4 @@ When you delete a profile, kia removes its playlist, guide, and page from the se
 
 ## The TV-only playlist
 
-When your list has radio stations, kia also makes **TV only** (`tv.m3u`, with its own guide `tv.guide.xml.gz`), for players such as Jellyfin that show radio stations as TV channels. It works like a profile with `radio = false`, but there's nothing to set up or edit. To change it, make a profile of your own named `tv`; yours replaces kia's.
+kia also makes **TV only** (`tv.m3u`, with its own guide `tv.guide.xml.gz`), for players such as Jellyfin that show radio stations as TV channels. It's there even when your list has no radio, with all your channels, so a player set up with it keeps working if you add radio later. It works like a profile with `radio = false`, but there's nothing to set up or edit. To change it, make a profile of your own named `tv`; yours replaces kia's.
