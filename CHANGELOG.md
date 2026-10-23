@@ -8,7 +8,8 @@ Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/con
 
 ### Plex
 
-- `kia plex-tuners` on a new Plex in the stack plays a short clip first, so Plex downloads its codecs. While Plex was scanning another library, the clip's library waited in Plex's queue, and kia gave up after 90 seconds with "Plex didn't find the warm-up clip". Now kia says which library Plex is scanning and waits for it, up to 20 minutes; if Plex is still busy then, it says so and asks you to run it again later.
+- `kia plex-tuners` on a new Plex in the stack has Plex download its codecs first, which Live TV needs, by playing a few seconds of video. It always made a library for a clip of its own, and that library waited in Plex's queue while Plex scanned another one; after 90 seconds kia gave up with "Plex didn't find the warm-up clip". Now kia plays one of your own videos with AAC sound when Plex has one, and makes its clip only when there's none. While Plex scans another library first, kia says which and waits for it, up to 20 minutes.
+- On a Mac with Apple silicon (and on other Arm computers), Plex names its AAC codec `libaac_lc_decoder.so`, so kia never saw the codecs arrive and said Live TV might fail. It looks for both names now.
 
 ### Mac
 
