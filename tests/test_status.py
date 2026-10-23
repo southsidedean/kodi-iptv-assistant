@@ -267,6 +267,6 @@ def test_the_header_buttons_open_in_a_new_tab(monkeypatch):
 
     monkeypatch.setenv("KIA_GRAFANA_URL", "http://192.168.1.20:8788")
     head = htmlpage.header("index.html")
-    for label in ("Graphs", "Documentation"):
+    for label in ("Observability", "Documentation"):
         link = next(a for a in head.split("<a ")[1:] if f">{label}</a>" in a)
         assert 'target="_blank"' in link and "noopener" in link, label

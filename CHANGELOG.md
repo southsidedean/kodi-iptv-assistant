@@ -12,7 +12,7 @@ Update with `scripts/update.sh`, when nobody is watching: kia restarts. Do it be
 
 ### Dashboard
 
-- The **Graphs** and **Documentation** buttons open in a new tab, so the Dashboard stays where it was.
+- The **Graphs** button is now called **Observability**. It and **Documentation** open in a new tab, so the Dashboard stays where it was.
 
 ## 0.5.2 (2026-10-22)
 

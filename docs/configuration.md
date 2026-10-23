@@ -70,7 +70,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_NODE_EXPORTER_LISTEN` | `:9100` | Where node-exporter (`monitoring-node`) listens. The default is every address of the computer; Docker's own address, usually `172.17.0.1:9100`, keeps the computer's numbers off the rest of your network. |
 | `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
 | `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. |
-| `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Graphs** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |
+| `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Observability** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |
 | `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE` | the latest | The monitoring images' versions. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
