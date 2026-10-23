@@ -100,7 +100,7 @@ If you have a NAS or servers with NFS shares, Plex can use the movies, shows, an
    ```sh
    sudo scripts/nfs-media.sh add movies nas.local:/volume1/movies
    sudo scripts/nfs-media.sh add shows nas.local:/volume1/tv
-   sudo scripts/nfs-media.sh add music 192.168.1.30:/srv/music
+   sudo scripts/nfs-media.sh add music 192.0.2.30:/srv/music
    ```
 
    Each one should say `OK` and how many files and folders it sees.

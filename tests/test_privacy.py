@@ -16,7 +16,7 @@ LAN_ADDRESSES = {"192.168.1.20", "172.17.0.1"}  # kia's stand-in, and Docker's d
 EMAIL_DOMAINS = re.compile(r"@example\.(com|org|net)$")
 EMAILS = {"you@gmail.com"}  # the SMTP example in docs/alerts.md
 HOST_NAMES = {"my-server.lan", "server.lan", "kia.lan", "kia.home.lan", "tv.lan", "host.docker.internal"}
-HOME_PATHS = {"/home/threadfin"}  # Threadfin's folder inside its container
+HOME_PATHS = {"/home/threadfin", "/Users/Shared"}  # Threadfin's folder in its container; every Mac's shared folder
 
 
 def tracked_text() -> list[tuple[str, str]]:
