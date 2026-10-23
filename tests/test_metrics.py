@@ -62,7 +62,7 @@ class FakePlex:
     def __init__(self):
         self.playing = [
             {"player": "Kitchen", "player_id": "abc123", "product": "Plex for Roku", "kind": "live", "video": "copy", "location": "lan", "state": "playing"},
-            {"player": "Grandma's iPad", "player_id": "def456", "product": "Plex for iOS", "kind": "movie", "video": "transcode", "location": "wan", "state": "paused"},
+            {"player": "Grandma's iPad", "player_id": "def456", "product": "Plex for iOS", "kind": "movie", "video": "transcode", "hw": "gpu", "location": "wan", "state": "paused"},
         ]  # fmt: skip
 
     def sessions(self):
@@ -75,7 +75,8 @@ def test_plex_players_appear_by_pseudonym_only(tmp_path: Path):
     assert "Kitchen" not in out and "Grandma" not in out
     names = re.findall(r'kia_plex_session_info\{player="(player-[0-9a-f]{6})"', out)
     assert len(set(names)) == 2
-    assert 'kia_plex_sessions{kind="live",video="copy",location="lan"} 1' in out
+    assert 'kia_plex_sessions{kind="live",video="copy",hw="none",location="lan"} 1' in out
+    assert 'kia_plex_sessions{kind="movie",video="transcode",hw="gpu",location="wan"} 1' in out
     # The same device keeps its pseudonym, after a restart too (the key is kept in state/).
     again = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
     assert re.findall(r'kia_plex_session_info\{player="(player-[0-9a-f]{6})"', again) == names
@@ -100,3 +101,18 @@ def test_players_names_need_the_password(tmp_path: Path):
     assert call(None, True)[0] == 401 and call("secret", False)[0] == 403
     status, body = call("secret", True)
     assert status == 200 and {p["name"] for p in body["players"]} == {"Kitchen", "Grandma's iPad"}
+
+
+def test_plex_says_where_it_converts():
+    from kia import plex
+
+    def session(ts):
+        return {"Player": {"title": "TV", "product": "Plex for Roku", "machineIdentifier": "x"}, "type": "movie", "TranscodeSession": ts}
+
+    p = plex.Plex("http://plex:32400", "t")
+    p.call = lambda method, path: {"MediaContainer": {"Metadata": [
+        session({"videoDecision": "transcode", "transcodeHwEncoding": "nvenc"}),
+        session({"videoDecision": "transcode"}),
+        session({"videoDecision": "copy"}),
+        {"Player": {"title": "Phone"}, "type": "episode"}]}}  # fmt: skip
+    assert [s["hw"] for s in p.sessions()] == ["gpu", "cpu", "none", "none"]

@@ -447,7 +447,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
+     "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) or ((node_memory_internal_bytes - node_memory_purgeable_bytes + node_memory_wired_bytes + node_memory_compressed_bytes) / node_memory_total_bytes)",
      "legendFormat": ""
     }
    ],

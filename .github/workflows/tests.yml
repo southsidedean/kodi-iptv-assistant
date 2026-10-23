@@ -71,7 +71,7 @@ jobs:
       - name: compose.yaml is valid with the example settings, with every set of profiles
         run: |
           cp .env.example .env
-          for profiles in "" plex plex,plex-2 plex,plex-server monitoring monitoring,monitoring-node plex,plex-2,plex-server,monitoring,monitoring-node; do
+          for profiles in "" plex plex,plex-2 plex,plex-server monitoring monitoring,monitoring-node monitoring,monitoring-gpu,monitoring-disks plex,plex-2,plex-server,monitoring,monitoring-node,monitoring-gpu,monitoring-disks; do
             echo "COMPOSE_PROFILES=$profiles"
             COMPOSE_PROFILES="$profiles" docker compose config --quiet
           done

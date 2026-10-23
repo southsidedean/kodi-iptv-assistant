@@ -53,7 +53,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_RADIO_PLACEHOLDERS` | false | The same for radio stations, so Kodi's radio guide lists each station's name. Almost no station has guide data, so this fills the radio guide with name blocks. |
 | `KIA_EPG_GIT_URL`, `KIA_EPG_GIT_REF` | iptv-org/epg, `latest` | Use a fork of iptv-org/epg, or pin a branch, tag, or commit. See [versions](#versions). |
 | `KIA_BASE_IMAGE`, `KIA_NODE_VERSION`, `KIA_NGINX_IMAGE` | `cgr.dev/chainguard/wolfi-base:latest`, `24`, `nginx:alpine` | kia's base image, the Node.js major version on it, and the web server's image. See [versions](#versions). |
-| `COMPOSE_PROFILES` | | Extra services to start with kia, comma-separated: `plex` starts Threadfin, for [Plex](plex.md) (`plex,plex-2` starts two, for more than 480 channels); `plex-server` adds Plex itself ([the home TV box](cookbooks/plex-box.md)); `monitoring` adds Prometheus and Grafana, and `monitoring-node` node-exporter ([graphs](cookbooks/observability.md)). |
+| `COMPOSE_PROFILES` | | Extra services to start with kia, comma-separated: `plex` starts Threadfin, for [Plex](plex.md) (`plex,plex-2` starts two, for more than 480 channels); `plex-server` adds Plex itself ([the home TV box](cookbooks/plex-box.md)); `monitoring` adds Prometheus and Grafana, and `monitoring-node` node-exporter (Linux), `monitoring-gpu` the graphics card's exporter (NVIDIA, Linux), and `monitoring-disks` the disks' health exporter (Linux) ([graphs](cookbooks/observability.md)). |
 | `KIA_THREADFIN_PORT`, `KIA_THREADFIN_2_PORT` | `34400`, `34401` | Threadfin's web pages, and the tuner addresses Plex uses. |
 | `KIA_THREADFIN_IMAGE` | `fyb3roptik/threadfin:1.2.37` | Threadfin's version. |
 | `KIA_THREADFIN_PLAYLIST`, `KIA_THREADFIN_2_PLAYLIST` | `plex` (or `plex-1`), `plex-2` | The kia playlist each Threadfin reads. kia sets Threadfin up with it the first time Threadfin starts, and never changes Threadfin's settings after that. |
@@ -71,7 +71,8 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
 | `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. `grafana-data` is a Docker volume ([on a Mac](#on-a-mac)). |
 | `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Observability** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |
-| `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE` | the latest | The monitoring images' versions. |
+| `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE`, `KIA_SMARTCTL_IMAGE` | the latest | The monitoring images' versions. |
+| `KIA_DCGM_IMAGE` | `nvidia/dcgm-exporter:4.3.1-4.4.1-ubuntu22.04` | The graphics card exporter's version (`monitoring-gpu`); NVIDIA has no `latest` tag. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.
