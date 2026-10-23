@@ -13,6 +13,12 @@ from pathlib import Path
 OUT = Path(__file__).resolve().parent.parent / "deploy" / "monitoring" / "dashboards"
 DS = {"type": "prometheus", "uid": "prometheus"}
 SVC = "container_label_com_docker_compose_service"
+# Memory in use, as a fraction. Linux reports what's available; macOS reports its kinds of
+# memory instead, and Activity Monitor's "Memory Used" is app memory (internal, less
+# purgeable), wired, and compressed.
+MEMORY_USED = ("(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) or ((node_memory_internal_bytes"
+               " - node_memory_purgeable_bytes + node_memory_wired_bytes + node_memory_compressed_bytes)"
+               " / node_memory_total_bytes)")
 PROJECT = 'container_label_com_docker_compose_project="$project"'
 
 
@@ -200,8 +206,7 @@ def stack() -> Board:
     b.stat("Processor", "How busy the processor is, all cores together.",
            '1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m]))', "percentunit", decimals=0,
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 0.7}, {"color": "red", "value": 0.9}])  # fmt: skip
-    b.stat("Memory used", "Memory in use, not counting what's free to reuse.",
-           "1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes", "percentunit", decimals=0,
+    b.stat("Memory used", "Memory in use, not counting what's free to reuse.", MEMORY_USED, "percentunit", decimals=0,
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 0.8}, {"color": "red", "value": 0.95}])  # fmt: skip
     b.stat("Disk free", "Free space on the computer's main disk.",
            'node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}', "percentunit", decimals=0,
