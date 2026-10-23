@@ -113,6 +113,8 @@ If you have a NAS or servers with NFS shares, Plex can use the movies, shows, an
    On a Mac, it's `KIA_MEDIA_DIR=/Users/Shared/media` (macOS cleans out folders it doesn't know in `/Volumes`, so the script doesn't use it). Then run `docker compose up -d plex`.
 5. In Plex, [make a library](https://support.plex.tv/articles/200288926-creating-libraries/) for each share: the `movies` share is the folder `/data/movies`. One library can have several folders, such as shows from two servers.
 
+   ![A Movies library in Plex on the kia-tv-box server, made from a share on a NAS: 40 movies, each with its poster, title, and year](../../images/cookbooks/plex-box-movies.jpg)
+
 `scripts/nfs-media.sh list` shows the shares and whether each one answers. `sudo scripts/nfs-media.sh remove music` takes one away. Plex only reads media, so read-only is right for it; `--rw` mounts a share that other programs on this computer need to write to. `--base /some/folder` uses another media folder; use the same one every time.
 
 When a server is off, its folder is empty (reading it takes about 10 seconds to give up), and Plex can't see what's on it. Turn off **Empty trash automatically after every scan** in Plex (*Settings → Library*), so a scan while a share is down doesn't remove those items from your libraries. Plex shows them as unavailable until the share is back; **Empty Trash** on a library removes what's really gone.
