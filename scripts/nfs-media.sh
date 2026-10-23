@@ -44,7 +44,7 @@ if [ "$OS" = Darwin ]; then
     MAP=/etc/auto_kia_media
     opts="-fstype=nfs,nfsvers=3,resvport,soft,intr,rsize=65536"
 else
-    opts="soft,noatime,_netdev,nofail,x-systemd.automount,x-systemd.requires=network-online.target,x-systemd.mount-timeout=30"
+    opts="soft,noatime,_netdev,nofail,x-systemd.automount,x-systemd.requires=network-online.target,x-systemd.mount-timeout=10"
 fi
 
 need_root() { [ "$(id -u)" = 0 ] || die "run it with sudo: sudo $0 $cmd ..."; }
