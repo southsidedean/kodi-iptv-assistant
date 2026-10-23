@@ -63,18 +63,36 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PLEX_PORT` | `32400` | Plex's port, for Plex in the stack. |
 | `KIA_PLEX_NAME` | `kia-tv-box` | The server's name in Plex apps, for Plex in the stack: letters, digits, and dashes. |
 | `KIA_PLEX_IMAGE` | `plexinc/pms-docker:latest` | Plex's version, for Plex in the stack. |
-| `KIA_PLEX_CONFIG`, `KIA_PLEX_TRANSCODE` | `plex/config`, `plex/transcode` | Where Plex in the stack keeps its settings and database, and its temporary files while converting video. Both survive restarts and updates. |
+| `KIA_PLEX_CONFIG`, `KIA_PLEX_TRANSCODE` | `plex/config`, `plex/transcode` | Where Plex in the stack keeps its settings and database, and its temporary files while converting video. Both survive restarts and updates. A name without a `/`, such as `plex-config`, is a Docker volume instead of a folder ([on a Mac](#on-a-mac)). |
 | `KIA_MEDIA_DIR` | `media` | Your movies, shows, and music, for Plex in the stack. Plex can read them but not change them. |
-| `KIA_GRAFANA_PASSWORD` | made by Grafana | Grafana's admin password, with the `monitoring` profile ([graphs for your TV stack](cookbooks/observability.md)). When it's empty, Grafana makes one on its first start and saves it in `monitoring/grafana/admin-password.txt`. Grafana reads it on its first start only. |
+| `KIA_GRAFANA_PASSWORD` | made by Grafana | Grafana's admin password, with the `monitoring` profile ([graphs for your TV stack](cookbooks/observability.md)). When it's empty, Grafana makes one on its first start and saves it in `monitoring/grafana/admin-password.txt` ([on a Mac](#on-a-mac), inside its volume). Grafana reads it on its first start only. |
 | `KIA_GRAFANA_PORT`, `KIA_PROMETHEUS_PORT` | `8788`, `8789` | Grafana's port, and Prometheus's, which is open to this computer only. |
 | `KIA_NODE_EXPORTER_LISTEN` | `:9100` | Where node-exporter (`monitoring-node`) listens. The default is every address of the computer; Docker's own address, usually `172.17.0.1:9100`, keeps the computer's numbers off the rest of your network. |
 | `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
-| `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. |
+| `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. `grafana-data` is a Docker volume ([on a Mac](#on-a-mac)). |
 | `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Observability** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |
 | `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE` | the latest | The monitoring images' versions. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.
+
+### On a Mac
+
+Docker on a Mac runs in a small Linux machine of its own, and reaches folders on the Mac through a file share. Plex's database doesn't survive that share: within minutes of scanning a library, Plex logs errors and its database is damaged. So on a Mac, the installer sets `KIA_PLEX_CONFIG=plex-config` and `KIA_GRAFANA_DATA=grafana-data`, which keep Plex's and Grafana's data in Docker volumes, inside Docker's own machine. Nothing changes on Linux.
+
+- **Grafana's password**, if you didn't choose one: `docker compose exec grafana cat /var/lib/grafana/admin-password.txt`.
+- **Backups:** Docker Desktop's **Volumes** page can export a volume to a file. `kia backup` doesn't include them, the same as Plex's folder on Linux.
+- **Installed on a Mac before kia 0.5.4**, with Plex in the stack? Plex there keeps its data in `plex/config`. If Plex works, you can leave it. To move Plex to a volume, keeping its link to your Plex account (it then scans your libraries again from the start), run this in the kia folder:
+
+  ```sh
+  sed -i '' 's|^KIA_PLEX_CONFIG=.*|KIA_PLEX_CONFIG=plex-config|' .env
+  docker compose stop plex
+  docker compose run --rm --no-deps -v "$PWD/plex/config:/old:ro" --entrypoint sh plex -c \
+    'p="Library/Application Support/Plex Media Server"; mkdir -p "/config/$p" && cp "/old/$p/Preferences.xml" "/config/$p/"'
+  docker compose up -d
+  ```
+
+  Then add your libraries in Plex again. The old folder stays as it was until you delete it.
 
 ## Choosing channel sources on the Dashboard
 
@@ -156,10 +174,10 @@ A restore first saves the settings that are there now, in `work/backups/before-r
 To remove kia, in the kia folder:
 
 ```sh
-docker compose down --rmi all
+docker compose down --rmi all --volumes
 ```
 
-Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back.
+(`--volumes` also removes the Docker volumes for Plex and Grafana [on a Mac](#on-a-mac).) Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back.
 
 **Before you delete it, check what else is in it.** With Plex in the stack ([the home TV box](cookbooks/plex-box.md)), the kia folder can hold your movies, shows, and music (`media/`, unless `KIA_MEDIA_DIR` points elsewhere) and Plex's library and watch history (`plex/`). With monitoring on, it holds the graphs' history (`monitoring/`). Move anything you want to keep out of the folder first. If you opened ports in a Linux firewall, close them with `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`. On each device, remove kia's address from the player (in Kodi, disable or uninstall IPTV Simple Client). Without Docker, `scripts/install-service.sh --uninstall` removes the service first.
 

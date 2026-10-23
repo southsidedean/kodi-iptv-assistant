@@ -55,7 +55,8 @@ def compose_service(name: str) -> str:
 
 
 def test_every_container_limits_its_log():
-    services = re.findall(r"^  ([a-z0-9-]+):\n", (ROOT / "compose.yaml").read_text().split("\nservices:\n", 1)[1], flags=re.M)
+    section = (ROOT / "compose.yaml").read_text().split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    services = re.findall(r"^  ([a-z0-9-]+):\n", section, flags=re.M)
     assert len(services) > 5
     unlimited = [name for name in services if "logging: *logging" not in compose_service(name)]
     assert not unlimited, f"no log limit: {unlimited}"
@@ -74,6 +75,9 @@ def test_containers_stay_locked_down():
     for folder in ("output", "state", "work", "vendor", "profiles", "tls"):
         assert f"- ./{folder}:/data/{folder}" in kia
         assert (ROOT / folder / ".gitkeep").exists(), f"{folder}/ must exist so Docker doesn't create it as root"
+    # Plex's token, wherever KIA_PLEX_CONFIG puts Plex's settings (a folder, or a volume on a Mac).
+    assert "- ${KIA_PLEX_CONFIG:-./plex/config}:/data/plex/config:ro" in kia
+    assert (ROOT / "plex" / "config" / ".gitkeep").exists()
 
 
 def github_anchor(heading: str) -> str:

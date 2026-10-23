@@ -2,6 +2,16 @@
 
 ## 0.5.4 (unreleased)
 
+### Upgrading from 0.5.3
+
+Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/configuration.md#on-a-mac): Plex there keeps its data in `plex/config`, and you can move it to a Docker volume.
+
+### Mac
+
+- Plex's database broke on a Mac. Docker there runs in a Linux machine of its own, and reaches the kia folder through a file share that Plex's database doesn't survive: scanning a library logged hundreds of database errors and left the database damaged. On a Mac, the installer now keeps Plex's data (`KIA_PLEX_CONFIG=plex-config`) and Grafana's (`KIA_GRAFANA_DATA=grafana-data`) in Docker volumes, inside Docker's own machine. Linux is unchanged.
+- kia reads the token that Plex in the stack saved when it was claimed. It found it only in `plex/config` in the kia folder, so a `KIA_PLEX_CONFIG` somewhere else, or a volume, left kia without it. Now kia gets Plex's settings, read-only, from wherever `KIA_PLEX_CONFIG` puts them.
+- Uninstalling is now `docker compose down --rmi all --volumes`, so the volumes go too.
+
 ## 0.5.3 (2026-10-23)
 
 ### Upgrading from 0.5.2
