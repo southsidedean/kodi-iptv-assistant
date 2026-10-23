@@ -120,23 +120,34 @@ def find_tuners(base: Path, output_dir: Path, host: str | None, log=print, gette
 class Plex:
     """The few calls of Plex Media Server's API that Plex Web makes to set up a DVR."""
 
-    def __init__(self, url: str, token: str, timeout: float = 120):
+    def __init__(self, url: str, token: str, timeout: float = 120, startup_wait: float = 300, retry_every: float = 5):
         self.url, self.timeout = url.rstrip("/"), timeout
+        # A new Plex answers its health check and /identity well before it accepts changes:
+        # for its first minutes it turns them away with 400 "the server is still starting
+        # up". Calls wait for it, up to startup_wait seconds.
+        self.startup_wait, self.retry_every = startup_wait, retry_every
         self.headers = {"Accept": "application/json", "X-Plex-Token": token, "X-Plex-Product": "kia",
                         "X-Plex-Client-Identifier": "kodi-iptv-assistant"}  # fmt: skip
 
     def call(self, method: str, path: str, params: dict | None = None) -> dict:
         query = "?" + urllib.parse.urlencode(params, safe="") if params else ""
         data = b"" if method in ("POST", "PUT") else None
-        req = urllib.request.Request(self.url + path + query, method=method, headers=self.headers, data=data)
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                body = r.read()
-        except urllib.error.HTTPError as exc:
-            hint = " (check the token)" if exc.code == 401 else ""
-            raise PlexError(f"Plex answered {exc.code} to {method} {path}{hint}") from None
-        except OSError as exc:
-            raise PlexError(f"Can't reach Plex at {self.url}: {exc}") from None
+        give_up = time.monotonic() + self.startup_wait
+        while True:
+            req = urllib.request.Request(self.url + path + query, method=method, headers=self.headers, data=data)
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    body = r.read()
+                break
+            except urllib.error.HTTPError as exc:
+                said = exc.read(500).decode(errors="replace") if exc.fp else ""
+                if "starting up" in said and time.monotonic() < give_up:
+                    time.sleep(self.retry_every)
+                    continue
+                hint = " (check the token)" if exc.code == 401 else " (Plex is still starting up)" if "starting up" in said else ""
+                raise PlexError(f"Plex answered {exc.code} to {method} {path}{hint}") from None
+            except OSError as exc:
+                raise PlexError(f"Can't reach Plex at {self.url}: {exc}") from None
         return json.loads(body) if body.strip().startswith(b"{") else {}
 
     def text(self, path: str, params: dict | None = None) -> str:

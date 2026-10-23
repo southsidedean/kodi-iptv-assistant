@@ -18,6 +18,7 @@ class FakePlex:
         self.calls = []
         self.titles = {}
         self.maps = {}
+        self.starting = 0
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -30,6 +31,14 @@ class FakePlex:
                 if self.headers.get("X-Plex-Token") != "secret":
                     self.send_response(401)
                     self.end_headers()
+                    return
+                if fake.starting > 0:  # a new Plex, for its first minutes
+                    fake.starting -= 1
+                    said = b"the server is still starting up. Please retry later"
+                    self.send_response(400)
+                    self.send_header("Content-Length", str(len(said)))
+                    self.end_headers()
+                    self.wfile.write(said)
                     return
                 fake.calls.append((method, url.path))
                 body = fake.route(method, url.path, q)
@@ -98,6 +107,16 @@ def antenna():
 def tuners():
     return [plex.Tuner("192.168.1.20:34400", "Threadfin 1: Plex 1", ["1", "20", "21"]),
             plex.Tuner("192.168.1.20:34401", "Threadfin 2: Plex 2", ["2", "28"])]  # fmt: skip
+
+
+def test_a_new_plex_still_starting_up_is_waited_for():
+    fake = FakePlex()
+    fake.starting = 3
+    plex.set_up(plex.Plex(fake.url, "secret", retry_every=0.01), tuners(), lambda m: None)
+    assert len(fake.dvrs) == 1 and fake.starting == 0
+    fake.starting = 1000  # one that never finishes: kia says so
+    with pytest.raises(plex.PlexError, match="still starting up"):
+        plex.Plex(fake.url, "secret", startup_wait=0.1, retry_every=0.01).dvrs()
 
 
 def test_first_run_makes_one_dvr_for_both_threadfins():

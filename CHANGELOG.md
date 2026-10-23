@@ -22,6 +22,7 @@ Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/con
 
 - `kia plex-tuners` on a new Plex in the stack has Plex download its codecs first, which Live TV needs, by playing a few seconds of video. It always made a library for a clip of its own, and that library waited in Plex's queue while Plex scanned another one; after 90 seconds kia gave up with "Plex didn't find the warm-up clip". Now kia plays one of your own videos with AAC sound when Plex has one, and makes its clip only when there's none. While Plex scans another library first, kia says which and waits for it, up to 20 minutes.
 - On a Mac with Apple silicon (and on other Arm computers), Plex names its AAC codec `libaac_lc_decoder.so`, so kia never saw the codecs arrive and said Live TV might fail. It looks for both names now.
+- A new Plex in the stack turns away changes for its first minutes ("the server is still starting up"), although `docker compose ps` already says it's healthy, so `kia plex-tuners` right after starting Plex failed with "Plex answered 400". kia now waits for it, up to 5 minutes.
 
 ### Mac
 
