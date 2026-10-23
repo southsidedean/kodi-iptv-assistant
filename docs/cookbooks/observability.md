@@ -4,7 +4,7 @@ kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and yo
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../images/diagrams/observability-dark.svg">
-  <img alt="kia (refreshes, channels, Pluto TV, Plex), cAdvisor (each container), and node-exporter (the computer) feed Prometheus, which keeps 30 days. Grafana shows the kia, TV stack, and Plex dashboards, in your browser or from the Dashboard's Graphs button." src="../../images/diagrams/observability-light.svg">
+  <img alt="kia (refreshes, channels, Pluto TV, Plex), cAdvisor (each container), and node-exporter (the computer) feed Prometheus, which keeps 30 days. Grafana shows the kia, TV stack, and Plex dashboards, in your browser or from the Dashboard's Observability button." src="../../images/diagrams/observability-light.svg">
 </picture>
 
 | Dashboard | What it shows |
@@ -41,7 +41,7 @@ docker compose up -d
 
 ## 2. Open Grafana
 
-Go to `http://192.168.1.20:8788`, with your kia's address, and sign in as `admin` with the password from step 1. If you didn't choose one, it's in `monitoring/grafana/admin-password.txt` in the kia folder. The kia dashboard opens first; the buttons at the top lead to the other two. kia's own Dashboard also gets a **Graphs** button that opens it.
+Go to `http://192.168.1.20:8788`, with your kia's address, and sign in as `admin` with the password from step 1. If you didn't choose one, it's in `monitoring/grafana/admin-password.txt` in the kia folder. The kia dashboard opens first; the buttons at the top lead to the other two. kia's own Dashboard also gets an **Observability** button that opens it.
 
 The graphs start when Prometheus does, so they fill in over the following hours, and the refreshes over the following nights.
 

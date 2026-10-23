@@ -10,6 +10,10 @@ Update with `scripts/update.sh`, when nobody is watching: kia restarts. Do it be
 
 - iptv-org/epg stopped bringing esbuild on 2026-10-23 (it now runs its scripts with `@swc-node/register` instead of `tsx`), so kia couldn't compile them for Node's sandbox. A new install ran the guide downloader without the sandbox, and an existing one would have kept using scripts compiled from the older code, against the new code's dependencies. Now kia installs its own esbuild (a fixed version, from npm, without running install scripts) into `vendor/kia-tools` when the checkout has none, and never keeps compiled scripts from an older checkout: if it can't compile them, it runs iptv-org's code its own way and says so in the log. CI's weekly check against the newest iptv-org/epg and the smoke test both caught the change.
 
+### Dashboard
+
+- The **Graphs** button is now called **Observability**. It and **Documentation** open in a new tab, so the Dashboard stays where it was.
+
 ## 0.5.2 (2026-10-22)
 
 ### Upgrading from 0.5.1

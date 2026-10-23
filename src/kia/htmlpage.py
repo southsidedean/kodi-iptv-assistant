@@ -217,7 +217,7 @@ document.querySelectorAll("input[data-filter]").forEach(function (box) {
 
 
 def grafana_url() -> str | None:
-    """kia's Grafana dashboard, for the Graphs button: KIA_GRAFANA_URL, or with the
+    """kia's Grafana dashboard, for the Observability button: KIA_GRAFANA_URL, or with the
     monitoring profile on, Grafana on kia's own address (docs/cookbooks/observability.md)."""
     url = os.environ.get("KIA_GRAFANA_URL", "").strip().rstrip("/")
     if not url:
@@ -234,10 +234,12 @@ def header(root: str = "", current: str = "") -> str:
     here = ' aria-current="page"'
     links = "".join(f'<a href="{root}{href}"{here if href == current else ""}>{label}</a>' for href, label in NAV)
     grafana = grafana_url()
-    graphs = f'<a class="docs-button" href="{escape(grafana)}/d/kia">Graphs</a>' if grafana else ""
+    # The buttons open in a new tab, so the Dashboard stays where it was.
+    new_tab = 'target="_blank" rel="noopener noreferrer"'
+    graphs = f'<a class="docs-button" href="{escape(grafana)}/d/kia" {new_tab}>Observability</a>' if grafana else ""
     return (
         f'<header class="top"><a class="brand" href="{root}index.html">{MARK}<span>kia</span></a>'
-        f'<span class="top-buttons">{graphs}<a class="docs-button" href="{DOCS_URL}/README.md">Documentation</a></span></header>'
+        f'<span class="top-buttons">{graphs}<a class="docs-button" href="{DOCS_URL}/README.md" {new_tab}>Documentation</a></span></header>'
         f'<nav class="menu" aria-label="kia">{links}</nav>'
     )
 

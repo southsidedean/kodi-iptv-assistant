@@ -73,7 +73,7 @@ def test_every_page_has_the_menu_and_help(tmp_path: Path):
         page = render(s)
         for href, label in htmlpage.NAV:
             assert f'href="{href}"' in page and f">{label}</a>" in page, (name, href)
-        assert f'href="{htmlpage.DOCS_URL}/README.md">Documentation</a>' in page
+        assert f'href="{htmlpage.DOCS_URL}/README.md" target="_blank" rel="noopener noreferrer">Documentation</a>' in page
         assert f'{htmlpage.DOCS_URL}/troubleshooting.md">troubleshooting guide</a>' in page
         here = f'href="{name}" aria-current="page"'
         assert (here in page) == (name != "details.html"), name
@@ -260,3 +260,13 @@ def test_a_readable_env_file_is_flagged(tmp_path: Path):
     for value in (True, None):
         s["env_private"] = value
         assert 'id="env-warning"' not in status.render_html(s)
+
+
+def test_the_header_buttons_open_in_a_new_tab(monkeypatch):
+    from kia import htmlpage
+
+    monkeypatch.setenv("KIA_GRAFANA_URL", "http://192.168.1.20:8788")
+    head = htmlpage.header("index.html")
+    for label in ("Observability", "Documentation"):
+        link = next(a for a in head.split("<a ")[1:] if f">{label}</a>" in a)
+        assert 'target="_blank"' in link and "noopener" in link, label
