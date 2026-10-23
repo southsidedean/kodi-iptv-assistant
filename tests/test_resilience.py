@@ -293,3 +293,39 @@ def test_the_grabber_sees_none_of_kias_settings(tmp_path: Path, monkeypatch):
     env = grab.epg_env(EpgConfig(work_dir=tmp_path / "work"))
     assert "KIA_SMTP_PASSWORD" not in env and env["TZ"] == "Europe/Amsterdam"
     assert env["HOME"] == env["TMPDIR"] == str((tmp_path / "work" / "epg-tmp").resolve())
+
+
+def test_old_compiled_scripts_never_outlive_their_checkout(tmp_path: Path):
+    repo = tmp_path / "vendor" / "epg"
+    (repo / ".kia").mkdir(parents=True)
+    (repo / ".kia" / "grab.cjs").write_text("// from yesterday's code")
+    cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=repo, runner="local")
+    said = []
+    assert not grab.build_scripts(cfg, said.append)  # the scripts moved: can't compile
+    assert not (repo / ".kia" / "grab.cjs").exists() and "without Node's sandbox" in said[0]
+    assert grab.sandboxed(cfg, "grab", [], [], []) is None  # so kia falls back, and says so
+
+
+def test_kia_brings_esbuild_when_the_checkout_has_none(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "vendor" / "epg"
+    repo.mkdir(parents=True)
+    cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=repo, runner="local")
+    ours = tmp_path / "vendor" / "kia-tools" / "node_modules" / ".bin" / "esbuild"
+    calls = []
+
+    def run(cmd, **kw):
+        calls.append(cmd[:2])
+        if cmd[:2] == ["npm", "install"]:
+            assert "--ignore-scripts" in cmd and f"esbuild@{grab.ESBUILD}" in cmd
+            ours.parent.mkdir(parents=True)
+            ours.write_text("")
+        return subprocess.CompletedProcess(cmd, 0, stdout=grab.ESBUILD + "\n")
+
+    monkeypatch.setattr(grab.subprocess, "run", run)
+    assert grab._esbuild(cfg, lambda m: None) == ours.resolve()
+    assert grab._esbuild(cfg, lambda m: None) == ours.resolve()  # installed once, then reused
+    assert calls.count(["npm", "install"]) == 1
+    theirs = repo / "node_modules" / ".bin" / "esbuild"
+    theirs.parent.mkdir(parents=True)
+    theirs.write_text("")
+    assert grab._esbuild(cfg, lambda m: None) == theirs.resolve()  # the checkout's own comes first
