@@ -157,7 +157,8 @@ class Plex:
     def sessions(self) -> list[dict]:
         """What's playing now, one dict per player: player (its name), player_id (Plex's id
         for the device), product, kind (live for Live TV,
-        else movie, episode, track...), video (copy, transcode, or directplay), location
+        else movie, episode, track...), video (copy, transcode, or directplay), hw (gpu or cpu
+        when converting, else none), location
         (lan or wan), and state (playing, paused, buffering)."""
         out = []
         for m in self.call("GET", "/status/sessions").get("MediaContainer", {}).get("Metadata", []):
@@ -168,6 +169,9 @@ class Plex:
                 "product": player.get("product") or "?",
                 "kind": "live" if str(m.get("live", "")) == "1" else m.get("type") or "?",
                 "video": ts.get("videoDecision") or "directplay",
+                # Converting on the graphics card (Plex's hardware transcoding) or the processor.
+                "hw": ("gpu" if ts.get("transcodeHwEncoding") or ts.get("transcodeHwDecoding") or ts.get("transcodeHwFullPipeline")
+                       else "cpu") if ts.get("videoDecision") == "transcode" else "none",
                 "location": (m.get("Session") or {}).get("location") or "?",
                 "state": player.get("state") or "?",
             })  # fmt: skip

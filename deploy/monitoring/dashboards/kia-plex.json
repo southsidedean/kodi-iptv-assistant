@@ -560,6 +560,79 @@
   {
    "id": 11,
    "type": "timeseries",
+   "title": "Converting on",
+   "description": "Where Plex converts video: on the graphics card (gpu) or the processor (cpu).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (hw) (kia_plex_sessions{video=\"transcode\"})",
+     "legendFormat": "{{hw}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
+      "lineWidth": 2,
+      "fillOpacity": 25,
+      "gradientMode": "none",
+      "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "noValue": "Nothing converted in this time"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
    "title": "Threadfin streaming",
    "description": "What the Threadfins send to Plex: Live TV from kia's channels.",
    "datasource": {
@@ -568,7 +641,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 22,
+    "y": 30,
     "w": 24,
     "h": 8
    },

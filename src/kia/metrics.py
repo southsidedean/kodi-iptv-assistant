@@ -169,11 +169,12 @@ def _plex(out: _Out, plex: PlexSessions) -> None:
         return
     groups: dict[tuple, int] = {}
     for x in sessions:
-        key = (x["kind"], x["video"], x["location"])
+        key = (x["kind"], x["video"], x.get("hw", "none"), x["location"])
         groups[key] = groups.get(key, 0) + 1
-    out.metric("kia_plex_sessions", "gauge", "Plex sessions now, by kind (live is Live TV), video (copy, transcode, directplay), and location.",
-               [({"kind": k, "video": v, "location": loc}, n) for (k, v, loc), n in sorted(groups.items())]
-               or [({"kind": "none", "video": "none", "location": "none"}, 0)])  # fmt: skip
+    out.metric("kia_plex_sessions", "gauge", "Plex sessions now, by kind (live is Live TV), video (copy, transcode, directplay), "
+               "hw (gpu or cpu when converting), and location.",
+               [({"kind": k, "video": v, "hw": hw, "location": loc}, n) for (k, v, hw, loc), n in sorted(groups.items())]
+               or [({"kind": "none", "video": "none", "hw": "none", "location": "none"}, 0)])  # fmt: skip
     out.metric("kia_plex_session_info", "gauge", "One line per Plex player now playing (player is a pseudonym).",
                [({"player": x["pseudonym"], **{key: x[key] for key in ("product", "kind", "video", "location", "state")}}, 1)
                 for x in sessions])  # fmt: skip

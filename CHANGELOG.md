@@ -10,6 +10,13 @@ Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/con
 
 - SomaFM and KEXP, from what the stations publish themselves. A `somafm:` line in `sources.txt` adds SomaFM's listener-supported, ad-free channels (51 now), with their genres and logos, from SomaFM's own channel list, so new channels arrive and retired ones go by themselves; `somafm: channels=groovesalad,dronezone` picks some. A `kexp:` line adds KEXP, Seattle's listener-supported station, and kia reads KEXP's show schedule from its public API, so its shows and DJs appear in the radio guide, like KINK's. Both lines are in `sources.txt`, turned off, and on the Dashboard's playlist list.
 
+### Observability
+
+- New Hardware dashboard: the graphics card (load, its video encoder and decoder, temperature, power, memory), each disk's health (SMART: failing its own check, replaced, pending, and unreadable sectors, cable errors, temperature, hours on, NVMe wear), temperatures and fans, software RAID (failed disks, rebuilding, in sync), memory errors, the processor slowing for heat, free space, and a UPS or laptop battery. Each section fills in from its own source.
+- Two new opt-in profiles, for Linux: `monitoring-gpu` runs NVIDIA's exporter for the graphics card (it needs NVIDIA's Container Toolkit; no extra privileges), and `monitoring-disks` runs the disks' health exporter (privileged, as reading SMART data takes; no published port). `KIA_DCGM_IMAGE` and `KIA_SMARTCTL_IMAGE` choose their versions.
+- `kia_plex_sessions` has a new label, `hw`: whether Plex converts video on the graphics card (`gpu`) or the processor (`cpu`). The Plex dashboard graphs it, and the Hardware dashboard counts both.
+- The [observability cookbook](docs/cookbooks/observability.md) now has a Linux path and a Mac path. On a Mac, node-exporter comes from Homebrew (`brew install node_exporter`), since one in Docker would measure Docker's own small Linux machine rather than the Mac.
+
 ### Plex
 
 - `kia plex-tuners` on a new Plex in the stack has Plex download its codecs first, which Live TV needs, by playing a few seconds of video. It always made a library for a clip of its own, and that library waited in Plex's queue while Plex scanned another one; after 90 seconds kia gave up with "Plex didn't find the warm-up clip". Now kia plays one of your own videos with AAC sound when Plex has one, and makes its clip only when there's none. While Plex scans another library first, kia says which and waits for it, up to 20 minutes.
