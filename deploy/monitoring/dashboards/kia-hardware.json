@@ -1027,10 +1027,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1043,10 +1039,6 @@
        {
         "id": "unit",
         "value": "celsius"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1059,10 +1051,6 @@
        {
         "id": "unit",
         "value": "h"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1075,10 +1063,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1091,10 +1075,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1107,10 +1087,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1123,10 +1099,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1139,10 +1111,6 @@
        {
         "id": "unit",
         "value": "percent"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      }
@@ -1775,10 +1743,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1791,10 +1755,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1807,10 +1767,6 @@
        {
         "id": "unit",
         "value": "short"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      },
@@ -1823,10 +1779,6 @@
        {
         "id": "unit",
         "value": "percent"
-       },
-       {
-        "id": "noValue",
-        "value": "n/a"
        }
       ]
      }

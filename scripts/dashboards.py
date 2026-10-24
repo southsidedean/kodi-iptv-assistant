@@ -140,7 +140,7 @@ class Board:
         # A cell the source doesn't report (a virtual disk has no SMART status) says n/a; the panel's
         # note is for when there's nothing at all.
         p["fieldConfig"]["overrides"] = [
-            {"matcher": {"id": "byName", "options": name}, "properties": [{"id": "unit", "value": unit}, {"id": "noValue", "value": "n/a"}]}
+            {"matcher": {"id": "byName", "options": name}, "properties": [{"id": "unit", "value": unit}]}
             for name, _, unit in columns
         ]  # fmt: skip
 
