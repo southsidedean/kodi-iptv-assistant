@@ -122,7 +122,8 @@ if [ "$cmd" = watch ]; then
         case "$action" in check | apply) ;; *) why="it asked for something other than check or apply"; action=unknown ;; esac
         case "$parts" in *[!a-z0-9,-]*) why="the parts can only be names such as plex,observability" ;; esac
         if [ ${#parts} -gt 200 ]; then why="the list of parts is too long"; fi
-        # One left while this service was stopped is too old to act on now.
+        # A request left more than 10 minutes ago (while this service was stopped, say) may
+        # no longer be what you want.
         if [ -n "$(find "$req" -mmin +10 2>/dev/null)" ]; then why="it was more than 10 minutes old"; fi
         if [ -n "$why" ]; then
             echo "stack: refused request $id: $why"
@@ -161,15 +162,12 @@ if [ -n "$preset" ]; then
 fi
 
 if [ "$try_set" = yes ]; then
-    # Only names, commas, and dashes: the Dashboard sends this through watch, and set_env
-    # hands it to awk, which would read a backslash in it as the start of an escape.
+    # Only part names, with commas or spaces between: the Dashboard sends this through
+    # watch, and set_env hands it to awk, which would read a backslash as an escape.
     case "$try" in *[!a-z0-9,\ -]*) echo "stack: --stack takes part names, such as plex,observability (scripts/stack.sh list)" >&2; exit 2 ;; esac
     [ "$cmd" = check ] || [ "$cmd" = apply ] || { echo "stack: --stack goes with check or apply" >&2; exit 2; }
     [ -z "$preset" ] || { echo "stack: use --preset or --stack, not both" >&2; exit 2; }
-    if [ "$cmd" = apply ]; then
-        set_env KIA_STACK "$try"
-        echo "KIA_STACK=$try"
-    fi
+    if [ "$cmd" = apply ]; then set_env KIA_STACK "$try"; fi  # the summary below shows it
 fi
 
 # check --stack tries a choice without changing .env; otherwise the choice is .env's.
