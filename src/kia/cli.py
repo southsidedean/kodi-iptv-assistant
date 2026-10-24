@@ -13,6 +13,7 @@ import tarfile
 import socket
 import sys
 import time
+import tomllib
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -31,6 +32,7 @@ from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
 from kia.probe import ProbeResult, probe
+from kia.files import temp_name
 import contextlib
 
 
@@ -269,7 +271,7 @@ def is_transient(error: str | None) -> bool:
 def write_atomic(path: Path, text: str) -> None:
     """Write via a temp file so a web server never serves a half-written file."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = temp_name(path)
     tmp.write_text(text)
     tmp.replace(path)
 
@@ -373,6 +375,11 @@ def cmd_check(args: argparse.Namespace) -> int:
     # is saving a change (kia.api.LOCK), so neither undoes the other.
     from kia import api as api_module
 
+    # Pluto's own links, looked up first: they take a request each, and the Dashboard's
+    # changes wait while the lock below is held.
+    partners = {}
+    if cfg.pluto_relay and cfg.public_url and not partial_run(args):
+        partners = pluto.partner_channels([c.entry for c in chosen], log)
     api_module.LOCK.configure(cfg.state_dir)
     with api_module.LOCK:
         choices = channels.load(cfg.state_dir)
@@ -388,7 +395,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         chosen.sort(key=lambda c: place[id(c.entry)])
 
         # A test run (part of the list) mustn't replace the playlist Kodi is using.
-        partial = bool(args.limit or args.source or args.url)
+        partial = partial_run(args)
         out = cfg.epg.work_dir / "check-test" if partial else cfg.output_dir
         out.mkdir(parents=True, exist_ok=True)
         if cfg.channel_numbers and not partial:
@@ -400,7 +407,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         players = [c.entry for c in chosen]
         if cfg.pluto_relay and cfg.public_url and not partial:
             players = [dataclasses.replace(e) for e in players]  # the report keeps the original links
-            pluto.adopt_partner_channels(players, log)
+            pluto.adopt_partner_channels(players, log, found=partners)
         if cfg.pluto_relay:
             players = pluto.for_players(players, cfg.public_url)
         write_atomic(out / "curated.m3u", m3u.write(players, cfg.epg_url))
@@ -797,7 +804,10 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def next_run(now: datetime, at: str) -> datetime:
-    hour, minute = (int(x) for x in at.split(":"))
+    m = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", at.strip())
+    if not m:
+        raise ValueError(f"--at {at!r} (KIA_RUN_AT in .env): use the 24-hour time HH:MM, such as 04:00")
+    hour, minute = int(m[1]), int(m[2])
     nxt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     return nxt if nxt > now else nxt + timedelta(days=1)
 
@@ -825,8 +835,9 @@ def missed_run(cfg: Config, at: str, now: datetime | None = None) -> bool:
 
 def interrupted_run(cfg: Config) -> bool:
     """Whether a refresh was cut short: still marked as running when kia starts (the
-    computer was shut down or kia stopped part way). Only the daemon runs refreshes, so
-    none can be running yet."""
+    computer was shut down or kia stopped part way). kia has only just started, so none of
+    its refreshes can be running yet, and one started by hand inside its container
+    (docker compose exec) stopped when kia did."""
     try:
         return json.loads((cfg.state_dir / "run.json").read_text()).get("result") == "running"
     except (OSError, ValueError, AttributeError):
@@ -841,7 +852,7 @@ def wait_until(when: datetime, poll: float = 60.0) -> None:
 
 
 def api_config(cfg: Config):
-    """The profile editor's settings (kia.api)."""
+    """The Dashboard API's settings (kia.api)."""
     from kia import api
 
     return api.ApiConfig(
@@ -851,13 +862,16 @@ def api_config(cfg: Config):
         epg_url=cfg.epg_url,
         auth=auth.from_env(cfg.state_dir),
         https_port=cfg.https_port,
-        on_change=lambda: refresh_settings_and_status(cfg),
+        on_change=lambda: refresh_settings_and_status(_reloaded(cfg)),
         sources_file=cfg.sources_file,
         catalog_file=cfg.sources_file.parent / "sources.txt" if cfg.sources_file else None,
         config_file=cfg.config_file,
         test_report=cfg.epg.work_dir / "check-test" / "report.json",
         recycle_numbers_after_days=cfg.recycle_numbers_after_days,
         channel_numbers=cfg.channel_numbers,
+        require_video=cfg.require_video,
+        user_agent=cfg.user_agent,
+        ffprobe=cfg.ffprobe,
     )
 
 
@@ -889,6 +903,15 @@ def write_settings(cfg: Config, run_at: str | None, guide_every: float | None) -
         write_atomic(cfg.state_dir / "settings.json", json.dumps(shown, indent=1))
     except OSError as exc:
         log(f"Couldn't save the settings for the Dashboard: {exc}")
+
+
+def _reloaded(cfg: Config) -> Config:
+    """kia.toml as it is now (it may have changed since kia started), or as it was if it
+    can't be read: the System page shows what the next refresh uses."""
+    try:
+        return load(cfg.config_file) if cfg.config_file else cfg
+    except (OSError, ValueError, tomllib.TOMLDecodeError):
+        return cfg
 
 
 def refresh_settings_and_status(cfg: Config) -> None:
@@ -1067,8 +1090,14 @@ def cmd_password(args: argparse.Namespace) -> int:
 
 def cmd_serve(args: argparse.Namespace) -> int:
     cfg = load_config(args)
-    secure_setup(cfg)
-    serve_secure(cfg, args.bind, args.https_port)
+    from kia import api as api_module
+
+    # Dashboard changes and a refresh in another process (kia run from cron) take turns.
+    api_module.LOCK.configure(cfg.state_dir)
+    if args.https_port:
+        serve_secure(cfg, args.bind, args.https_port)  # sets up the password and certificate first
+    else:
+        secure_setup(cfg)
     server = serve.make_server(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=pluto_relay(cfg))
     log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/ (Ctrl-C to stop)")
     with contextlib.suppress(KeyboardInterrupt):
@@ -1291,7 +1320,7 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
     )
     p.add_argument("--port", type=int, default=int(os.environ.get("KIA_PORT") or 8780), help="default: KIA_PORT or 8780")
     p.add_argument("--https-port", type=int, default=int(os.environ.get("KIA_HTTPS_PORT") or 8743),
-                   help="the secure Dashboard's port (default: KIA_HTTPS_PORT or 8743; 0 = none)")  # fmt: skip
+                   help="the secure Dashboard's port (default: KIA_HTTPS_PORT or 8743; --https-port 0 for none)")  # fmt: skip
 
 
 # Commands that refresh kia's files; one runs at a time (kia.locks).
@@ -1352,7 +1381,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("password", help="make a new password for editing on the Dashboard")
     p.add_argument("-c", "--config", default="kia.toml")
-    p.add_argument("--reset", action="store_true", help="replace the password with a new one and print it")
+    p.add_argument("--reset", action="store_true", help="replace the password with a new one, saved in state/admin-password.txt")
     p.set_defaults(func=cmd_password)
 
     p = sub.add_parser("backup", help="save your settings, playlists, profiles, and choices in one file")
@@ -1421,12 +1450,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
     p.add_argument("--api-port", type=int, default=int(os.environ.get("KIA_API_PORT") or 0),
-                   help="serve the Dashboard's profile editor API on this port (Docker sets 8781)")  # fmt: skip
+                   help="serve the Dashboard's API on this port (Docker sets 8781)")  # fmt: skip
     p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
     add_serve_args(p)
     p.set_defaults(func=cmd_daemon)
 
     args = parser.parse_args(argv)
+    # A setting that can't be read (in .env or kia.toml): say which, without a traceback
+    # (in a container that restarts over and over, the last line is what's seen).
+    try:
+        if hasattr(args, "config"):
+            load_config(args)
+        if getattr(args, "at", None):
+            next_run(datetime.now(), args.at)
+    except (ValueError, tomllib.TOMLDecodeError) as exc:
+        print(f"kia: {exc}", file=sys.stderr)
+        return 2
     if args.func in REFRESHES and not getattr(args, "url", None):
         try:
             with locks.refresh(load_config(args).state_dir, f"kia {args.command}"):

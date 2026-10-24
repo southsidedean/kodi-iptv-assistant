@@ -1,5 +1,7 @@
+import contextlib
 import json
 import shutil
+import socket
 import threading
 from pathlib import Path
 
@@ -235,3 +237,17 @@ def test_a_password_the_browser_can_send(tmp_path: Path):
     said = []
     auth.Auth(tmp_path, "pässwörd-123").ensure(said.append)
     assert "characters a browser can't send" in said[0]
+
+
+def test_a_failed_https_connection_is_one_line_in_the_log(cfg, certs, capfd):
+    secure = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg, tls_dir=certs)
+    threading.Thread(target=secure.serve_forever, daemon=True).start()
+    try:
+        with socket.create_connection(secure.server_address, timeout=5) as s, contextlib.suppress(OSError):
+            s.sendall(b"GET / HTTP/1.0\r\n\r\n")  # http:// to the https port
+            s.recv(100)  # kia answers with a TLS alert, or just closes it
+    finally:  # server_close waits for the request's thread, so its log line is written
+        secure.shutdown()
+        secure.server_close()
+    err = capfd.readouterr().err
+    assert "didn't finish connecting (SSLError)" in err and "Traceback" not in err

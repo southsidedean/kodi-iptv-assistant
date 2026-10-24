@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from kia import __version__
+from kia.files import temp_name
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 STARTED = time.time()
@@ -120,7 +121,7 @@ class Players:
 
 def _write_private(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = temp_name(path)
     tmp.unlink(missing_ok=True)
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as f:

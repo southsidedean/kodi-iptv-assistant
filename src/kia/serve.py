@@ -1,5 +1,5 @@
-"""A small built-in web server for installs without Docker/nginx, the profile editor's
-API, and the Pluto TV relay (with Docker, nginx serves the files and forwards /api/ and
+"""A small built-in web server for installs without Docker/nginx, the Dashboard's API,
+and the Pluto TV relay (with Docker, nginx serves the files and forwards /api/ and
 /pluto/ here)."""
 
 from __future__ import annotations
@@ -8,6 +8,7 @@ import json
 import os
 import socket
 import ssl
+import sys
 import threading
 import time
 import traceback
@@ -79,7 +80,7 @@ class OutputHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    # The profile editor's API (kia.api), when the server was given one.
+    # The Dashboard's API (kia.api), when the server was given one.
     api = None
     MAX_BODY = 64 * 1024
     # Whether requests count as secure: this server's own TLS, or behind nginx, the
@@ -204,6 +205,15 @@ class TlsServer(ThreadingHTTPServer):
         sock, address = super().get_request()
         # The handshake happens in the request's own thread, so a slow client can't stall others.
         return self._context().wrap_socket(sock, server_side=True, do_handshake_on_connect=False), address
+
+    def handle_error(self, request, client_address):
+        """A browser that turned down kia's own certificate, http:// sent to this port, or a
+        port scan: one line, not a traceback for each."""
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ssl.SSLError, ConnectionError, TimeoutError)):
+            print(f"https: {client_address[0]} didn't finish connecting ({type(exc).__name__})", file=sys.stderr)
+            return
+        super().handle_error(request, client_address)
 
 
 def make_server(directory: Path, bind: str, port: int, api=None, tls_dir: Path | None = None,

@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from kia.files import temp_name
+
 # No look-alikes (0/o, 1/l/i), so it's easy to read off a screen and type on a TV.
 ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
 MIN_LENGTH = 8
@@ -42,7 +44,7 @@ def _hash(password: str, salt: bytes) -> str:
 
 def _write_private(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = temp_name(path)
     tmp.unlink(missing_ok=True)  # one left by a crash could have other permissions
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as f:

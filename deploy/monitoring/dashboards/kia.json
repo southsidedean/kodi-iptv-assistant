@@ -64,7 +64,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "kia_refresh_running * 2 + (1 - kia_refresh_running) * kia_last_refresh_success",
+     "expr": "(kia_refresh_running == 1) * 2 or kia_last_refresh_success",
      "legendFormat": ""
     }
    ],

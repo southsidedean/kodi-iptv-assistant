@@ -176,7 +176,8 @@ def kia() -> Board:
               "No numbers from kia yet (its first refresh may still be running)")  # fmt: skip
     b.row("Now")
     b.stat("Last refresh", "The nightly refresh: OK, failed, or running now.",
-           "kia_refresh_running * 2 + (1 - kia_refresh_running) * kia_last_refresh_success", mappings=OK_FAILED,
+           # While a refresh runs there's no last result yet, so the running one comes first.
+           "(kia_refresh_running == 1) * 2 or kia_last_refresh_success", mappings=OK_FAILED,
            thresholds=[{"color": "red", "value": None}, {"color": "green", "value": 1}, {"color": "blue", "value": 2}])  # fmt: skip
     b.stat("Refresh took", "How long the last nightly refresh took.", "kia_last_refresh_duration_seconds", "s")
     b.stat("Guide age", "Since the guide was last rebuilt. kia refreshes it every few hours.",

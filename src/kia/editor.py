@@ -1,8 +1,8 @@
 """The Dashboard's profile editor: a form in the Playlists card that talks to kia.api.
 
 The pages themselves stay plain files. This script asks /api/profiles what's there; when
-there's no API (a page opened from disk, or a server without one) it does nothing. The home
-page offers "Make a playlist" (#playlists has data-add); a playlist's own page offers Edit
+there's no API (a page opened from disk, or a server without one) it does nothing. The
+Playlists page offers "Make a playlist" (#playlists has data-add); a playlist's own page offers Edit
 (its row has data-profile). Saving rewrites the profiles file and the pages, then this
 opens the playlist's page.
 """
@@ -144,7 +144,7 @@ SCRIPT = r"""
       el("h3", { text: "Categories" }), checks(data.groups, p.groups, "groups"),
       el("h3", { text: "From these channel sources" }), checks(data.sources, p.sources, "sources"),
       el("label", { class: "field", for: "ed-names" }, [el("strong", { text: "Channel names containing" }),
-        el("span", { class: "hint", text: "One per line, e.g. news. Upper and lower case don't matter." })]), namesBox]);
+        el("span", { class: "hint", text: "One per line, e.g. news. Upper and lower case don't matter. These are patterns: . + * ? ( ) [ ] have meanings of their own, so write \\+1 to find +1." })]), namesBox]);
     var exNamesBox = el("textarea", { id: "ed-exnames", rows: "2", spellcheck: "false", on: { input: changed } });
     exNamesBox.value = (p.exclude_names || []).join("\n");
     var tvBox = el("input", { type: "checkbox", checked: p.tv !== false, on: { change: changed } });
@@ -174,7 +174,7 @@ SCRIPT = r"""
       el("fieldset", {}, [el("legend", { text: "Leave out" }),
         el("h3", { text: "Categories" }), checks(data.groups, p.exclude_groups, "exclude_groups"),
         el("label", { class: "field", for: "ed-exnames" }, [el("strong", { text: "Channel names containing" }),
-          el("span", { class: "hint", text: "One per line." })]), exNamesBox,
+          el("span", { class: "hint", text: "One per line, as above. These are patterns: . + * ? ( ) [ ] have meanings of their own, so write \\+1 to find +1." })]), exNamesBox,
         el("label", { class: "choice" }, [tvBox, "TV channels"]),
         el("label", { class: "choice" }, [radioBox, "Radio stations"]),
         el("p", { class: "hint", text: "Untick TV or radio to leave all of those out." })]),

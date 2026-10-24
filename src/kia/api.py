@@ -1,4 +1,5 @@
-"""The Dashboard's profile editor: a small API behind /api/.
+"""The Dashboard's API behind /api/: playlists (profiles), channels, channel sources and
+Check now, the password, and which pseudonym is which player.
 
 Reading is open to anyone who can open the Dashboard. Changes (profiles, the password)
 need the admin password (kia.auth), sent as the X-Kia-Password header, and are accepted
@@ -63,6 +64,10 @@ class ApiConfig:
     test_report: Path | None = None
     recycle_numbers_after_days: int = 0
     channel_numbers: bool = True
+    # How the nightly check tests a stream ([check] in kia.toml), for the Test button.
+    require_video: bool = True
+    user_agent: str | None = None
+    ffprobe: str = "ffprobe"
 
 
 class ApiError(Exception):
@@ -108,6 +113,7 @@ def get_profiles(cfg: ApiConfig, secure: bool = False) -> dict:
         "editable": source != "off" and error is None,
         "secure": secure,
         "https_port": cfg.https_port,
+        "numbers": cfg.channel_numbers,
         "password": source,  # where it comes from: env, generated, set, or off
         "error": error,
         "profiles": [{"name": p.name, **profiles.rules(p)} for p in defined],
@@ -148,8 +154,8 @@ def _profile_from(body: dict, name: str = "preview") -> profiles.Profile:
     settings = {k: v for k, v in body.items() if k != "name"}
     try:
         return profiles.from_rules(name, settings, "the Dashboard")
-    except ValueError as exc:
-        raise ApiError(400, str(exc)) from None
+    except ValueError as exc:  # the file and section it names mean nothing on the page
+        raise ApiError(400, str(exc).removeprefix(f"the Dashboard, [{name}]: ")) from None
 
 
 def save_profile(cfg: ApiConfig, name: str, body: dict) -> dict:
@@ -182,6 +188,9 @@ def get_choices(cfg: ApiConfig) -> dict:
     return channels.load(cfg.state_dir)
 
 
+NUMBERS_OFF = "Channel numbers are off (channel_numbers = false in kia.toml), so there are none to change."
+
+
 def set_channel(cfg: ApiConfig, body: dict) -> dict:
     if not isinstance(body, dict) or not isinstance(body.get("key"), str):
         raise ApiError(400, "Expected the channel's key.")
@@ -189,6 +198,8 @@ def set_channel(cfg: ApiConfig, body: dict) -> dict:
     if favorite is not None and not isinstance(favorite, bool):
         raise ApiError(400, "favorite is true or false.")
     number = body.get("number", "keep")
+    if number != "keep" and not cfg.channel_numbers:
+        raise ApiError(409, NUMBERS_OFF)
     with LOCK:
         entry = next((e for e, _ in _items(cfg) if e.key == body["key"]), None)
         if entry is None:
@@ -235,14 +246,14 @@ def test_channel(cfg: ApiConfig, body: dict) -> dict:
     import asyncio
 
     from kia.cli import is_stream_url
-    from kia.config import DEFAULT_USER_AGENT
     from kia.probe import probe
 
     entry = _entry(cfg, body)
     if not is_stream_url(stream_url(entry.url)):  # as the nightly check: only stream addresses
         raise ApiError(400, "That channel's address isn't a stream kia can test.")
-    r = asyncio.run(probe(stream_url(entry.url), timeout=20, user_agent=entry.user_agent or DEFAULT_USER_AGENT,
-                          referrer=entry.referrer, require_video=not entry.is_radio))  # fmt: skip
+    r = asyncio.run(probe(stream_url(entry.url), timeout=20, user_agent=entry.user_agent or cfg.user_agent,
+                          referrer=entry.referrer, require_video=cfg.require_video and not entry.is_radio,
+                          ffprobe=cfg.ffprobe))  # fmt: skip
     return {"key": entry.key, "name": entry.name, "ok": r.ok, "error": r.error, "seconds": round(r.elapsed, 1),
             "height": r.height}  # fmt: skip
 
@@ -263,8 +274,6 @@ def remove_channel(cfg: ApiConfig, body: dict) -> dict:
 
 def put_back(cfg: ApiConfig, body: dict) -> dict:
     """Put a removed channel back now."""
-    from kia.m3u import parse
-
     key = body.get("key") if isinstance(body, dict) else None
     with LOCK:
         choices = channels.load(cfg.state_dir)
@@ -281,6 +290,8 @@ def put_back(cfg: ApiConfig, body: dict) -> dict:
 
 def renumber(cfg: ApiConfig) -> dict:
     """Number every channel 1, 2, 3 in playlist order, once (kia renumber)."""
+    if not cfg.channel_numbers:
+        raise ApiError(409, NUMBERS_OFF)
     with LOCK:
         entries = channels.rebuild(cfg.output_dir, cfg.state_dir, cfg.epg_url, lambda m: None, renumber=True,
                                    recycle_after_days=cfg.recycle_numbers_after_days, numbered=cfg.channel_numbers)  # fmt: skip
