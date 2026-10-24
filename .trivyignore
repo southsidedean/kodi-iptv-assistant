@@ -1,5 +1,8 @@
 # Known issues the image scan (CI, images.yml) skips, each with why and until when, as:
 #   CVE-YYYY-NNNNN exp:YYYY-MM-DD
-#
-# None at the moment. The three npm CVEs listed here until 0.5.0 are gone: npm 12.2.1
-# no longer bundles the affected versions, and Trivy finds nothing in the image.
+
+# undici 6.29.0, inside npm 12.2.1 (the newest npm, installed in the image): a malicious
+# server's answer can crash the program using it. Fixed in undici 6.29.1, which npm doesn't
+# bundle yet. kia runs npm only to install esbuild and the guide downloader's packages from
+# the npm registry, so the exposure is small. Drop this when a new npm bundles the fix.
+CVE-2026-109869 exp:2026-11-30
