@@ -48,7 +48,7 @@ deployed=$(git rev-parse --git-dir)/kia-deployed-rev
 commit_or_empty() {  # the commit named in file $1, or nothing
     rev=$(head -c 100 "$1" 2>/dev/null | tr -d '[:space:]' || true)
     case "$rev" in "" | *[!0-9a-f]*) return 0 ;; esac
-    git cat-file -e "$rev^{commit}" 2>/dev/null && echo "$rev" || true
+    if git cat-file -e "$rev^{commit}" 2>/dev/null; then echo "$rev"; fi
 }
 if [ ! -s "$deployed" ] && [ -f state/deployed-rev ] && [ ! -L state/deployed-rev ]; then
     # Where kia 0.5.5 kept it, which the kia container can write: taken once, then removed.
