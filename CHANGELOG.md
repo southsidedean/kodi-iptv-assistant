@@ -24,6 +24,7 @@ Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/con
 - `kia_plex_sessions` has a new label, `hw`: whether Plex converts video on the graphics card (`gpu`) or the processor (`cpu`). The Plex dashboard graphs it, and the Hardware dashboard counts both.
 - The [observability cookbook](docs/cookbooks/observability.md) now has a Linux path and a Mac path. On a Mac, node-exporter comes from Homebrew (`brew install node_exporter`), since one in Docker would measure Docker's own small Linux machine rather than the Mac.
 - The TV stack dashboard's **Memory used** was empty on a Mac, whose node-exporter reports memory differently. It now shows what Activity Monitor calls Memory Used.
+- Grafana's dashboards went empty about a minute after Grafana started, with Grafana 13.2 or newer. Grafana updated its bundled Prometheus plugin in the background, which meant deleting it from Grafana's read-only system; that failed after Grafana had already dropped the plugin. kia now turns off Grafana's background plugin installs and updates (Grafana's own settings); kia's dashboards need only the bundled Prometheus plugin, and updating kia brings a new Grafana with its plugins.
 
 ### Plex
 

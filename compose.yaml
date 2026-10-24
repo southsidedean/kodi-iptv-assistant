@@ -398,6 +398,12 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Grafana 13 installs and updates plugins by itself in the background. Updating a
+      # bundled one (Prometheus's) means deleting it from Grafana's read-only system, which
+      # fails after Grafana has dropped it, and every dashboard goes empty. kia's dashboards
+      # need only the bundled Prometheus plugin; a new image brings its updates.
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/kia/kia.json
       # A soft memory budget: Grafana gives memory back sooner (it peaks around 1 GB on its first start).
       GOMEMLIMIT: 384MiB
