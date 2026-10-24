@@ -306,7 +306,7 @@ def test_old_compiled_scripts_never_outlive_their_checkout(tmp_path: Path):
     assert grab.sandboxed(cfg, "grab", [], [], []) is None  # so kia falls back, and says so
 
 
-def test_kia_brings_esbuild_when_the_checkout_has_none(tmp_path: Path, monkeypatch):
+def test_kia_always_uses_its_own_esbuild(tmp_path: Path, monkeypatch):
     repo = tmp_path / "vendor" / "epg"
     repo.mkdir(parents=True)
     cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=repo, runner="local")
@@ -328,4 +328,6 @@ def test_kia_brings_esbuild_when_the_checkout_has_none(tmp_path: Path, monkeypat
     theirs = repo / "node_modules" / ".bin" / "esbuild"
     theirs.parent.mkdir(parents=True)
     theirs.write_text("")
-    assert grab._esbuild(cfg, lambda m: None) == theirs.resolve()  # the checkout's own comes first
+    # Never the checkout's own: it comes from iptv-org's dependencies, and compiling runs it
+    # outside Node's sandbox.
+    assert grab._esbuild(cfg, lambda m: None) == ours.resolve()

@@ -257,3 +257,43 @@ def test_pin_versions_script(tmp_path: Path):
     assert run("--unpin").returncode == 0
     text = (proj / ".env").read_text()
     assert "KIA_BASE_IMAGE=\n" in text and "KIA_EPG_GIT_REF=\n" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text
+
+
+def test_settings_planted_in_the_checkout_never_run(tmp_path: Path, monkeypatch):
+    # With the Docker runner, iptv-org's code can write to the checkout, .git included. A
+    # "filter" there would make git run a command as you when kia next updates it.
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    git(origin, "init", "-q", "-b", "master")
+    git(origin, "config", "user.email", "t@example.com")
+    git(origin, "config", "user.name", "t")
+    (origin / "package-lock.json").write_text("v1")
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "one")
+    monkeypatch.setattr(grab, "install_deps", lambda cfg, log: None)
+    monkeypatch.setattr(grab.subprocess, "run", _passthrough_git([]))
+    repo = tmp_path / "vendor" / "epg"
+    cfg = EpgConfig(repo_dir=repo, work_dir=tmp_path / "work", git_url=str(origin), git_ref="master", runner="local")
+    grab.ensure_repo(cfg, update=False, log=lambda m: None)
+
+    ran = tmp_path / "ran"
+    with (repo / ".git" / "config").open("a") as f:
+        f.write(f"[filter \"x\"]\n\tsmudge = sh -c 'touch {ran}; cat'\n\tclean = cat\n"
+                f"[core]\n\tfsmonitor = sh -c 'touch {ran}'\n")
+    (repo / ".git" / "info").mkdir(exist_ok=True)
+    (repo / ".git" / "info" / "attributes").write_text("* filter=x\n")
+    (origin / "package-lock.json").write_text("v2")
+    git(origin, "commit", "-q", "-am", "two")
+
+    grab.ensure_repo(cfg, update=True, log=lambda m: None)
+    assert not ran.exists()
+    assert (repo / "package-lock.json").read_text() == "v2"  # and it still updates
+    assert "filter" not in (repo / ".git" / "config").read_text()
+    assert not (repo / ".git" / "info" / "attributes").exists()
+
+
+def test_the_git_address_cant_add_settings(tmp_path: Path):
+    repo = tmp_path / "epg"
+    (repo / ".git").mkdir(parents=True)
+    with pytest.raises(OSError, match="line breaks or quotes"):
+        grab._reset_git_config(repo, 'https://example.com/x.git\n[core]\n\tfsmonitor = touch /tmp/x')

@@ -144,16 +144,19 @@ class Watch:
 # --- The Stack page: asking the kia-stack service for a change ----------------------
 #
 # kia can't run Docker, so it asks the kia-stack service on the computer
-# (scripts/stack.sh watch, docs/stack.md). The two talk through files in state/:
+# (scripts/stack.sh watch, docs/stack.md). The two talk through files:
 #
-#   stack-request         kia writes it: id, action (check or apply), and stack (the parts)
-#   stack-request.taken   the service renamed it while it works on it
-#   stack-result          the service's answer: id, action, state, exit, finished, then a
-#                         blank line and what scripts/stack.sh said
-#   stack-containers.tsv  the service's list of containers, rewritten every 30 seconds
+#   state/stack-request           kia writes it: id, action (check or apply), and stack
+#                                 (the parts). The service renames it into its own folder.
+#   stack-service/request         the request the service is working on
+#   stack-service/result          the service's answer: id, action, state, exit, finished,
+#                                 then a blank line and what scripts/stack.sh said
+#   stack-service/containers.tsv  the service's list of containers, every 30 seconds
 #
-# The service checks every request again before acting on it, but kia checks too, so a
-# mistake is caught here with a message the Dashboard can show.
+# stack-service/ is in the kia folder, which kia sees read-only: kia reads the answers
+# there but can't write anything the service reads back or writes through. The service
+# checks every request again before acting on it, but kia checks too, so a mistake is
+# caught here with a message the Dashboard can show.
 
 # The parts you can choose, as scripts/stack.sh's PARTS lists them (a test keeps the two
 # lists the same), with what each one is, for the page.
@@ -166,9 +169,13 @@ PARTS = (
     ("observability-gpu", "The graphics card on the Hardware dashboard: NVIDIA, Linux"),
     ("observability-disks", "Each disk's health (SMART) on the Hardware dashboard: Linux"),
 )
-REQUEST, TAKEN, RESULT, CONTAINERS = "stack-request", "stack-request.taken", "stack-result", "stack-containers.tsv"
+SERVICE_DIR = "stack-service"  # in the kia folder
+REQUEST, TAKEN, RESULT, CONTAINERS = "stack-request", "request", "result", "containers.tsv"
 SERVICE_SILENT_AFTER = 90  # seconds without a new container list: the service isn't running
-REQUEST_EXPIRES = 600  # the service refuses a request older than this (10 minutes), too
+# The service refuses a request older than this, and the page stops waiting after it too:
+# an apply nobody is watching for any more shouldn't start later.
+REQUEST_EXPIRES = 300
+RUNNING_UP_TO = 1800  # an apply still under way after this long counts as stuck
 MAX_OUTPUT = 20_000  # characters of the script's output the page gets
 
 
@@ -210,11 +217,11 @@ def _age(path: Path) -> float | None:
         return None
 
 
-def containers(state_dir: Path) -> list[dict]:
+def containers(service_dir: Path) -> list[dict]:
     """The service's last list of containers. It comes from Docker on the computer, but the
     page shows it as text only, and long values are cut short."""
     try:
-        text = (state_dir / CONTAINERS).read_text(errors="replace")
+        text = (service_dir / CONTAINERS).read_text(errors="replace")
     except OSError:
         return []
     out = []
@@ -225,10 +232,10 @@ def containers(state_dir: Path) -> list[dict]:
     return out
 
 
-def result(state_dir: Path) -> dict | None:
+def result(service_dir: Path) -> dict | None:
     """The service's answer to the last request, or None before the first one."""
     try:
-        text = (state_dir / RESULT).read_text(errors="replace")
+        text = (service_dir / RESULT).read_text(errors="replace")
     except OSError:
         return None
     head, _, said = text.partition("\n\n")
@@ -241,45 +248,63 @@ def result(state_dir: Path) -> dict | None:
     return fields
 
 
-def waiting(state_dir: Path) -> str | None:
-    """The id of a request the service hasn't finished yet, if there's one still current."""
-    for name in (REQUEST, TAKEN):
-        path = state_dir / name
-        age = _age(path)
-        if age is not None and age < REQUEST_EXPIRES:
-            try:
-                for line in path.read_text(errors="replace").splitlines():
-                    if line.startswith("id="):
-                        return line[3:][:64]
-            except OSError:
-                pass
-            return ""
+def _request_id(path: Path) -> str:
+    try:
+        for line in path.read_text(errors="replace").splitlines()[:10]:
+            if line.startswith("id="):
+                return line[3:][:64]
+    except OSError:
+        pass
+    return ""
+
+
+def waiting(state_dir: Path, service_dir: Path) -> str | None:
+    """The id of a request the service hasn't finished yet, if there's one still current:
+    one kia left that the service hasn't taken (for up to 5 minutes), or one it's working
+    on (an apply can take a while, downloading images)."""
+    left = _age(state_dir / REQUEST)
+    if left is not None and left < REQUEST_EXPIRES:
+        return _request_id(state_dir / REQUEST)
+    taken = _age(service_dir / TAKEN)
+    if taken is not None and taken < RUNNING_UP_TO:
+        return _request_id(service_dir / TAKEN)
     return None
+
+
+def service_running(service_dir: Path) -> bool:
+    """Whether the kia-stack service is there: its container list is fresh, or it's in the
+    middle of a request (it writes the list only between requests)."""
+    seen = _age(service_dir / CONTAINERS)
+    if seen is not None and seen < SERVICE_SILENT_AFTER:
+        return True
+    working = _age(service_dir / RESULT)
+    last = result(service_dir) or {}
+    return last.get("state") == "running" and working is not None and working < RUNNING_UP_TO
 
 
 def page_state(state_dir: Path, project_dir: Path) -> dict:
     """Everything the Stack page shows: what's chosen and running, whether the service is
     there to change it, and its last answer."""
-    seen = _age(state_dir / CONTAINERS)
+    service_dir = project_dir / SERVICE_DIR
     return {
         "docker": profiles() is not None,
         "chosen": [p for p in os.environ.get("KIA_STACK", "").replace(" ", ",").split(",") if p],
         "profiles": profiles() or [],
         "parts": [{"name": n, "what": w} for n, w in PARTS],
         "presets": presets(project_dir),
-        "service": seen is not None and seen < SERVICE_SILENT_AFTER,
-        "containers": containers(state_dir),
-        "waiting": waiting(state_dir),
-        "result": result(state_dir),
+        "service": service_running(service_dir),
+        "containers": containers(service_dir),
+        "waiting": waiting(state_dir, service_dir),
+        "result": result(service_dir),
     }
 
 
-def ask(state_dir: Path, action: str, parts: list[str]) -> str:
+def ask(state_dir: Path, service_dir: Path, action: str, parts: list[str]) -> str:
     """Leave a request for the kia-stack service. Returns its id, which the service's answer
     carries, so the page knows the answer is to this request."""
     if action not in ("check", "apply"):
         raise StackError("The action is check or apply.")
-    if waiting(state_dir) is not None:
+    if waiting(state_dir, service_dir) is not None:
         raise StackError("The service is still working on the last request. Wait for its answer first.")
     rid = secrets.token_hex(8)
     path = state_dir / REQUEST

@@ -150,21 +150,35 @@ class _HttpsOnly(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_HttpsOnly)
 
 
+# The most the relay downloads for one address. Pluto's pieces are a few seconds of video,
+# a few MB each, and its playlists and keys are tiny. The addresses come from other
+# people's servers (Pluto's, and jmp2.uk's when kia falls back), so without a limit one
+# answer could fill kia's memory, with up to 20 channels at once.
+MAX_DOWNLOAD = 16 * 1024 * 1024
+
+
+class TooBig(ValueError):
+    """An answer bigger than MAX_DOWNLOAD."""
+
+
 def fetch(url: str, timeout: float = TIMEOUT) -> tuple[str, bytes]:
     """(final address, body). Only https: the addresses come from Pluto's playlists."""
     if not url.lower().startswith("https://"):
         raise NotHttps(f"not an https address: {url[:80]}")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with _OPENER.open(req, timeout=timeout) as r:
-        return r.geturl(), r.read()
+        body = r.read(MAX_DOWNLOAD + 1)  # one byte over says it's too big, without reading on
+        if len(body) > MAX_DOWNLOAD:
+            raise TooBig(f"more than {MAX_DOWNLOAD // (1024 * 1024)} MB from {url[:80]}")
+        return r.geturl(), body
 
 
 def fetch_retry(url: str, fetcher=fetch) -> tuple[str, bytes]:
     """Once more after a short wait: Pluto now and then answers 500 or times out."""
     try:
         return fetcher(url)
-    except NotHttps:
-        raise  # it won't be https the next time either
+    except (NotHttps, TooBig):
+        raise  # it won't be https, or smaller, the next time either
     except (urllib.error.URLError, OSError, ValueError):
         time.sleep(RETRY_DELAY)
         return fetcher(url)
@@ -582,13 +596,14 @@ class Relay:
         self.pieces = 0
         self.bytes = 0
 
-    def channel(self, cid: str) -> Channel | None:
-        """The channel, starting it if needed; None when too many are playing."""
+    def channel(self, cid: str, start: bool = True) -> Channel | None:
+        """The channel, starting it if needed (start); None when it isn't playing and won't
+        start, or too many are playing."""
         with self.lock:
             self._let_go_idle()
             ch = self.channels.get(cid)
             if ch is None:
-                if len(self.channels) >= MAX_CHANNELS:
+                if not start or len(self.channels) >= MAX_CHANNELS:
                     return None
                 ch = self.channels[cid] = Channel(cid, self)
             return ch
@@ -611,6 +626,12 @@ class Relay:
         cid = m.group(1).lower()
         if self.allowed is not None and cid not in self.allowed():
             return 404, "text/plain", b"That Pluto channel isn't in kia's playlists."
+        # Only a player opening the channel's playlist starts it. A request for a piece of a
+        # channel that isn't playing (an old address, or someone trying addresses) would
+        # otherwise hold one of the MAX_CHANNELS places for IDLE_AFTER, and enough of them
+        # would turn real viewers away.
+        if m.group(2) is not None and self.channel(cid, start=False) is None:
+            return 404, "text/plain", b"That piece is gone; reload the playlist."
         ch = self.channel(cid)
         if ch is None:
             return 503, "text/plain", f"kia is already playing {MAX_CHANNELS} Pluto channels.".encode()

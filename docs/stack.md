@@ -67,15 +67,15 @@ Running it again with nothing changed restarts nothing.
 
 ## Changing the stack from the Dashboard
 
-The Dashboard's **Stack** page can check and apply a new choice for you. kia can't do that itself: its container has no access to Docker, on purpose. A small service on the computer, **kia-stack**, does it instead. It runs `scripts/stack.sh watch` as you, so it can do what you can do with the script, and nothing else. Install it once, in the kia folder:
+The Dashboard's **Stack** page can check and apply a new choice for you. kia can't do that itself: its container has no access to Docker, on purpose. A small service on the computer, **kia-stack**, does it instead. It runs `scripts/stack.sh watch` as you, and carries out a check or an apply of the parts you choose: what you could do with the script yourself. Install it once, in the kia folder:
 
 ```sh
 scripts/install-service.sh --stack
 ```
 
-(Or add `--stack-service` when you run the installer.) On Linux it's a systemd user service (`systemctl --user status kia-stack`); on a Mac, a launchd agent (log: `work/logs/kia-stack.log`). `scripts/install-service.sh --stack --uninstall` removes it. Without it, the Stack page shows the command to run instead. On the page, **Apply** comes on only after a **Check** of the same choice found no problems, and it asks first if someone is watching or if parts that run now would stop, since the service itself applies without asking.
+(Or add `--stack-service` when you run the installer.) On Linux it's a systemd user service (`systemctl --user status kia-stack`), which runs only while you're logged in unless you let it keep running: `sudo loginctl enable-linger "$(id -un)"`, once. On a Mac, it's a launchd agent (log: `work/logs/kia-stack.log`). `scripts/install-service.sh --stack --uninstall` removes it. Without it, the Stack page shows the command to run instead. On the page, **Apply** comes on only after a **Check** of the same choice found no problems, and it asks first if someone is watching or if parts that run now would stop, since the service itself applies without asking.
 
-How it works: when you choose **Check** or **Apply** on the secure Dashboard, after the password, kia leaves the request in `state/stack-request`. Within a few seconds the service runs `scripts/stack.sh check --stack ...` or `apply --stack ... --yes` and leaves what the script said in `state/stack-result`, for the page to show. It also writes what each container is doing to `state/stack-containers.tsv` every 30 seconds. A request has to be `check` or `apply` with part names only, and less than 10 minutes old; anything else is refused without running.
+How it works: when you choose **Check** or **Apply** on the secure Dashboard, after the password, kia leaves the request in `state/stack-request`. Within a few seconds the service moves it into its own folder, `stack-service/` in the kia folder, runs `scripts/stack.sh check --stack ...` or `apply --stack ... --yes`, and leaves what the script said in `stack-service/result` for the page to show. Every 30 seconds it also writes what each container is doing to `stack-service/containers.tsv`. kia can read that folder but not write to it. A request has to be `check` or `apply` with part names only, and less than 5 minutes old; anything else is refused without running. [Security](../SECURITY.md#the-kia-stack-service) explains what the service guards against.
 
 ## Without KIA_STACK
 

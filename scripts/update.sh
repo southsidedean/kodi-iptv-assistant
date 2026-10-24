@@ -40,13 +40,27 @@ fi
 echo "Looking for kia's releases..."
 git fetch --quiet --tags --force origin
 before=$(git describe --tags --always)
-# What the containers last started with, kept in state/deployed-rev until they've restarted,
-# so a run that stops before that (Docker not running, a failed build) isn't forgotten.
-if [ "$restart" = yes ] && [ ! -s state/deployed-rev ]; then
-    mkdir -p state
-    git rev-parse HEAD >state/deployed-rev
+# What the containers last started with, kept until they've restarted, so a run that stops
+# before that (Docker not running, a failed build) isn't forgotten. It's kept in git's own
+# folder, which the kia container can't write (it sees the kia folder read-only), and read
+# back only if it's a commit: anything else would reach git as an option.
+deployed=$(git rev-parse --git-dir)/kia-deployed-rev
+commit_or_empty() {  # the commit named in file $1, or nothing
+    rev=$(head -c 100 "$1" 2>/dev/null | tr -d '[:space:]' || true)
+    case "$rev" in "" | *[!0-9a-f]*) return 0 ;; esac
+    git cat-file -e "$rev^{commit}" 2>/dev/null && echo "$rev" || true
+}
+if [ ! -s "$deployed" ] && [ -f state/deployed-rev ] && [ ! -L state/deployed-rev ]; then
+    # Where kia 0.5.5 kept it, which the kia container can write: taken once, then removed.
+    old=$(commit_or_empty state/deployed-rev)
+    if [ -n "$old" ]; then echo "$old" >"$deployed"; fi
 fi
-before_rev=$(cat state/deployed-rev 2>/dev/null || git rev-parse HEAD)
+rm -f state/deployed-rev
+if [ "$restart" = yes ] && [ ! -s "$deployed" ]; then
+    git rev-parse HEAD >"$deployed"
+fi
+before_rev=$(commit_or_empty "$deployed")
+before_rev=${before_rev:-$(git rev-parse HEAD)}
 if [ "$target" = main ]; then
     git checkout --quiet main 2>/dev/null || git checkout --quiet -b main --track origin/main
     git pull --quiet --ff-only origin main
@@ -106,7 +120,7 @@ fi
 docker compose up -d
 # Docker pins a config file mounted on its own (nginx's, Prometheus's) to the copy the
 # container started with, so after a release that changed one, that container restarts.
-changed=$(git diff --name-only "$before_rev" HEAD -- deploy/ 2>/dev/null || true)
+changed=$(git diff --name-only "$before_rev" HEAD -- deploy/ scripts/stack.sh 2>/dev/null || true)
 restart=""
 if echo "$changed" | grep -q -E '^deploy/(nginx\.conf|kia-common\.inc|kia-api\.inc|nginx-tls\.sh)$'; then restart="web"; fi
 if echo "$changed" | grep -q '^deploy/monitoring/prometheus\.yml$'; then restart="$restart prometheus"; fi
@@ -118,6 +132,15 @@ if [ -n "$restart" ]; then
         fi
     done
 fi
-mkdir -p state
-git rev-parse HEAD >state/deployed-rev
+# The kia-stack service keeps running the stack.sh it started with: restart it for the new one.
+if echo "$changed" | grep -qx 'scripts/stack.sh'; then
+    if [ "$(uname -s)" = Darwin ]; then
+        if launchctl kickstart -k "gui/$(id -u)/io.github.southsidedean.kia-stack" 2>/dev/null; then
+            echo "Restarted the kia-stack service, for its new version."
+        fi
+    elif systemctl --user is-active --quiet kia-stack 2>/dev/null; then
+        systemctl --user restart kia-stack && echo "Restarted the kia-stack service, for its new version."
+    fi
+fi
+git rev-parse HEAD >"$deployed"
 echo "Done: kia $(git describe --tags --always) is running."

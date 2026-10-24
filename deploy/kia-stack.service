@@ -6,7 +6,7 @@
 #   journalctl --user -u kia-stack -f        what it has done
 [Unit]
 Description=kia-stack: changes kia's stack when you ask on the Dashboard
-After=docker.service network-online.target
+After=network-online.target
 
 [Service]
 Type=simple

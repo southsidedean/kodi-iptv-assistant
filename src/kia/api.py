@@ -42,10 +42,12 @@ from kia.m3u import parse
 # Writing kia's state: shared with a refresh, even one in another process (kia.locks).
 LOCK = locks.FilesLock()
 PASSWORD_LOCK = threading.Lock()
-# Stack requests, one at a time. Not LOCK: a nightly refresh holds that for up to an hour.
+# Stack requests, one at a time: two at once would both find none waiting. Its own lock,
+# so a request never waits on LOCK, which kia's other writes share.
 STACK_LOCK = threading.Lock()
 # Wrong passwords, by who sent them: (how many in a row, when the next try is let in). From
-# the second one, each doubles the wait, up to a minute, for that address only.
+# the second one, each doubles the wait, up to a minute, for that address only (behind
+# nginx, the address nginx itself passes on: deploy/kia-api.inc).
 _WRONG: dict[str, tuple[int, float]] = {}
 _CLIENT: contextvars.ContextVar[str] = contextvars.ContextVar("client", default="")
 
@@ -544,10 +546,12 @@ def ask_stack(cfg: ApiConfig, action: str, data: dict) -> dict:
     later, in GET /api/stack; the page asks every few seconds."""
     if stack.profiles() is None:
         raise ApiError(409, "Choosing the parts here is for kia with Docker. Without Docker, there's nothing to choose.")
+    if not isinstance(data, dict):
+        raise ApiError(400, "Send the parts as {\"parts\": [...]}.")
     try:
         parts = stack.parts_from(data.get("parts"))
-        with STACK_LOCK:  # two at once would both find no request waiting
-            rid = stack.ask(cfg.state_dir, action, parts)
+        with STACK_LOCK:
+            rid = stack.ask(cfg.state_dir, _project_dir(cfg) / stack.SERVICE_DIR, action, parts)
     except stack.StackError as exc:
         raise ApiError(409 if "still working" in str(exc) else 400, str(exc)) from None
     return {"id": rid, **get_stack(cfg, True)}
@@ -561,19 +565,21 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
     if not given:
         raise ApiError(401, "Enter kia's password first.")
     client = _CLIENT.get()
-    wrong, until = _WRONG.get(client, (0, 0.0))
-    if until > time.monotonic():
-        raise ApiError(429, f"Too many wrong passwords. Try again in {math.ceil(until - time.monotonic())} seconds.")
-    with PASSWORD_LOCK:  # one check at a time: each costs 16 MB
-        right = cfg.auth.check(given)
-    if right:
-        _WRONG.pop(client, None)
-        return
-    if len(_WRONG) > 1000:  # many addresses: keep only those still waiting
-        now = time.monotonic()
-        for k in [k for k, (_, u) in _WRONG.items() if u < now]:
-            del _WRONG[k]
-    _WRONG[client] = (wrong + 1, time.monotonic() + (min(2.0**wrong, 60.0) if wrong else 0))
+    # One check at a time (each costs 16 MB), with the count of wrong ones read and updated
+    # in the same turn: read before waiting, a burst of guesses sent at once would all pass
+    # the "too many" check, and each would count as only the first.
+    with PASSWORD_LOCK:
+        wrong, until = _WRONG.get(client, (0, 0.0))
+        if until > time.monotonic():
+            raise ApiError(429, f"Too many wrong passwords. Try again in {math.ceil(until - time.monotonic())} seconds.")
+        if cfg.auth.check(given):
+            _WRONG.pop(client, None)
+            return
+        if len(_WRONG) > 1000:  # many addresses: keep only those still waiting
+            now = time.monotonic()
+            for k in [k for k, (_, u) in _WRONG.items() if u < now]:
+                del _WRONG[k]
+        _WRONG[client] = (wrong + 1, time.monotonic() + (min(2.0**wrong, 60.0) if wrong else 0))
     time.sleep(1)  # outside the lock: someone guessing doesn't hold up the right password
     raise ApiError(401, "Wrong password.")
 

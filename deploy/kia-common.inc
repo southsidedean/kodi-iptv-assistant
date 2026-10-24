@@ -44,6 +44,9 @@ location ^~ /pluto/ {
     proxy_pass $kia;
     proxy_set_header Host $http_host;
     proxy_set_header X-Real-IP $remote_addr;
+    # Only /api/ says whether a request came over HTTPS (nginx.conf). Cleared here, so an
+    # address crafted to reach the API through this location can't claim it did.
+    proxy_set_header X-Kia-Secure "";
     proxy_read_timeout 60s;
 }
 
@@ -53,4 +56,6 @@ location = /metrics {
     set $kia http://kia:8781;
     proxy_pass $kia;
     proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Kia-Secure "";
 }

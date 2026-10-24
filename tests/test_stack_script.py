@@ -173,7 +173,7 @@ def request(kia: Path, **fields: str) -> Path:
 
 
 def answer(kia: Path) -> tuple[dict, str]:
-    head, _, said = (kia / "state" / "stack-result").read_text().partition("\n\n")
+    head, _, said = (kia / "stack-service" / "result").read_text().partition("\n\n")
     return dict(line.split("=", 1) for line in head.splitlines()), said
 
 
@@ -202,8 +202,8 @@ def test_watch_carries_out_a_check_and_lists_the_containers(kia: Path):
     assert head["id"] == "req-1" and head["action"] == "check" and head["state"] == "finished" and head["exit"] == "0"
     assert "COMPOSE_PROFILES=jellyfin-server" in said
     assert (kia / ".env").read_text() == before and not (kia / "state" / "stack-request").exists()
-    assert (kia / "state" / "stack-containers.tsv").read_text() == "kia\trunning\thealthy\tUp 2 hours\n"
-    assert not (kia / "state" / "stack-watch.pid").exists()  # removed when it stops
+    assert (kia / "stack-service" / "containers.tsv").read_text() == "kia\trunning\thealthy\tUp 2 hours\n"
+    assert not (kia / "stack-service" / "watch.pid").exists()  # removed when it stops
 
 
 def test_watch_applies_a_new_choice(kia: Path):
@@ -242,23 +242,115 @@ def test_watch_refuses_an_old_request(kia: Path):
     os.utime(path, (old, old))
     stack(kia, "watch", "--once")
     head, said = answer(kia)
-    assert head["state"] == "refused" and "10 minutes old" in said
+    assert head["state"] == "refused" and "5 minutes old" in said
 
 
 def test_watch_ignores_a_request_without_a_proper_id(kia: Path):
     request(kia, id="../../etc", action="check", stack="plex")
     r = stack(kia, "watch", "--once")
-    assert "without a proper id" in r.stdout and not (kia / "state" / "stack-result").exists()
-    assert not (kia / "state" / "stack-request").exists() and not (kia / "state" / "stack-request.taken").exists()
+    assert "without a proper id" in r.stdout and not (kia / "stack-service" / "result").exists()
+    assert not (kia / "state" / "stack-request").exists() and not (kia / "stack-service" / "request").exists()
 
 
 def test_only_one_watch_at_a_time(kia: Path):
     import os
 
+    (kia / "stack-service").mkdir()
+    pidfile = kia / "stack-service" / "watch.pid"
+    # A process that looks like a running watch, by its command line.
+    other = subprocess.Popen(["sh", "-c", "sleep 30; :", "x", "scripts/stack.sh", "watch"])
+    try:
+        pidfile.write_text(f"{other.pid}\n")
+        r = stack(kia, "watch", "--once")
+        assert r.returncode == 1 and "already running" in r.stderr
+    finally:
+        other.kill()
+        other.wait()
+    # Anything else in the file doesn't stop it: a process that isn't a watch (this test's),
+    # or what a broken kia might write (kill -0 0 and kill -0 -1 would say "running").
+    for stale in (str(os.getpid()), "0", "-1", "", "abc"):
+        pidfile.write_text(stale + "\n")
+        assert stack(kia, "watch", "--once").returncode == 0, stale
+
+
+# --- What a taken-over kia container could leave in state/ --------------------------
+# The kia container can write anything in state/. The service must never write, read, or
+# follow anything there apart from renaming the request away.
+
+def victim(kia: Path) -> Path:
+    """A file outside the kia folder that nothing should touch."""
+    path = kia.parent / "victim"
+    path.write_text("keep me\n")
+    return path
+
+
+@pytest.mark.parametrize("name", ["stack-result.tmp", "stack-result", "stack-containers.tmp", "stack-containers.tsv",
+                                  "stack-watch.out", "stack-watch.pid", "stack-request.taken"])  # fmt: skip
+def test_links_in_state_are_never_written_through(kia: Path, name: str):
+    target = victim(kia)
+    with_stack(kia, "plex")
+    request(kia, id="req-6", action="check", stack="jellyfin")
+    (kia / "state" / name).symlink_to(target)
+    assert stack(kia, "watch", "--once").returncode == 0
+    assert target.read_text() == "keep me\n" and answer(kia)[0]["state"] == "finished"
+
+
+def test_a_link_into_a_folder_gets_nothing_moved_into_it(kia: Path):
+    folder = kia.parent / "profile.d"
+    folder.mkdir()
+    request(kia, id="req-7", action="check", stack="plex")
+    (kia / "state" / "stack-request.taken").symlink_to(folder)
+    stack(kia, "watch", "--once")
+    assert list(folder.iterdir()) == []
+
+
+def test_a_request_that_is_a_link_is_removed_unread(kia: Path):
+    secret = kia.parent / "secret"
+    secret.write_text("id=req-8\naction=check\nstack=plex\n")  # reads like a request, but isn't kia's
     (kia / "state").mkdir()
-    (kia / "state" / "stack-watch.pid").write_text(f"{os.getpid()}\n")  # this test's own process: alive
+    (kia / "state" / "stack-request").symlink_to(secret)
     r = stack(kia, "watch", "--once")
-    assert r.returncode == 1 and "already running" in r.stderr
+    assert r.returncode == 0 and "wasn't a request" in r.stdout
+    assert secret.read_text().startswith("id=req-8") and not (kia / "stack-service" / "result").exists()
+    assert not (kia / "state" / "stack-request").is_symlink()
+
+
+def test_a_request_that_is_a_folder_is_removed(kia: Path):
+    (kia / "state" / "stack-request").mkdir(parents=True)
+    r = stack(kia, "watch", "--once")
+    assert r.returncode == 0 and not (kia / "state" / "stack-request").exists()
+
+
+def test_only_the_start_of_a_huge_request_is_read(kia: Path):
+    (kia / "state").mkdir()
+    (kia / "state" / "stack-request").write_text("x" * 5000 + "\nid=req-9\naction=check\nstack=plex\n")
+    r = stack(kia, "watch", "--once")
+    assert "without a proper id" in r.stdout
+
+
+def test_a_refused_apply_leaves_env_alone(kia: Path):
+    with_stack(kia, "plex")
+    before = (kia / ".env").read_text()
+    for args in (["apply", "--stack", "plex,plex-tuner"], ["apply", "--preset", "plex-box", "--stack", "plex"]):
+        assert stack(kia, *args).returncode != 0
+        assert (kia / ".env").read_text() == before, args
+    assert not list((kia / "state").glob("env.before-stack-*")) if (kia / "state").exists() else True
+
+
+def test_the_env_copy_is_never_written_through_a_link(kia: Path):
+    import time
+
+    target = victim(kia)
+    with_stack(kia, "plex")
+    (kia / "state").mkdir()
+    now = time.time()
+    for second in range(-1, 6):  # the copy's name has the time in it: cover the next few seconds
+        name = time.strftime("env.before-stack-%Y%m%d-%H%M%S", time.localtime(now + second))
+        (kia / "state" / name).symlink_to(target)
+    r = stack(kia, "apply", "--stack", "jellyfin", "--yes")
+    assert target.read_text() == "keep me\n"
+    assert r.returncode == 1 and "couldn't save a copy of .env" in r.stderr
+    assert "KIA_STACK=plex\n" in (kia / ".env").read_text()  # and nothing changed
 
 
 def test_the_stack_service_file(tmp_path: Path):
@@ -283,9 +375,20 @@ def test_kia_asks_and_the_service_answers(kia: Path):
 
     with_stack(kia, "plex")
     (kia / "state").mkdir()
-    rid = kia_stack.ask(kia / "state", "check", kia_stack.parts_from(["jellyfin"]))
+    rid = kia_stack.ask(kia / "state", kia / "stack-service", "check", kia_stack.parts_from(["jellyfin"]))
     stack(kia, "watch", "--once")
-    answer = kia_stack.result(kia / "state")
+    answer = kia_stack.result(kia / "stack-service")
     assert answer["id"] == rid and answer["state"] == "finished" and answer["exit"] == "0"
-    assert "COMPOSE_PROFILES=jellyfin-server" in answer["output"] and kia_stack.waiting(kia / "state") is None
-    assert kia_stack.containers(kia / "state")[0]["service"] == "kia"
+    assert "COMPOSE_PROFILES=jellyfin-server" in answer["output"] and kia_stack.waiting(kia / "state", kia / "stack-service") is None
+    assert kia_stack.containers(kia / "stack-service")[0]["service"] == "kia"
+
+
+@pytest.mark.parametrize("name", ["has space", "100%", "a&b", "x<y"])
+def test_a_kia_folder_a_service_file_cant_hold_is_refused(tmp_path: Path, name: str):
+    folder = tmp_path / name
+    (folder / "scripts").mkdir(parents=True)
+    shutil.copytree(ROOT / "deploy", folder / "deploy")
+    shutil.copy(ROOT / "scripts" / "install-service.sh", folder / "scripts")
+    r = subprocess.run(["sh", str(folder / "scripts" / "install-service.sh"), "--stack", "--dry-run"],
+                       capture_output=True, text=True, check=False)  # fmt: skip
+    assert r.returncode == 1 and "can't hold" in r.stderr and "<plist" not in r.stdout

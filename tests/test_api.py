@@ -295,3 +295,60 @@ def test_every_route_is_in_one_of_the_lists():
               for p, m in re.findall(r'parts == \[([^\]]*)\] and method == "([A-Z]+)"', source)}  # fmt: skip
     listed = {(m, p.split("?")[0]) for m, p, _ in PROTECTED if not p.startswith("/api/profiles/")} | set(PUBLIC)
     assert routes == listed
+
+
+def test_nginx_sets_who_asked_and_clears_the_secure_flag_itself():
+    # kia believes X-Real-IP (whose wrong passwords to slow down) and X-Kia-Secure (whether a
+    # request came over HTTPS) only from nginx. So nginx has to set both on every location
+    # that reaches kia; a header the browser sent would otherwise pass straight through.
+    deploy = Path(__file__).resolve().parent.parent / "deploy"
+    api_inc = (deploy / "kia-api.inc").read_text()
+    assert "proxy_set_header X-Real-IP $remote_addr;" in api_inc
+    common = (deploy / "kia-common.inc").read_text()
+    for location in ("location ^~ /pluto/ {", "location = /metrics {"):
+        block = common.split(location, 1)[1].split("}", 1)[0]
+        assert "proxy_set_header X-Real-IP $remote_addr;" in block and 'proxy_set_header X-Kia-Secure "";' in block, location
+    nginx = (deploy / "nginx.conf").read_text()
+    assert nginx.count('proxy_set_header X-Kia-Secure "0";') == 1 and nginx.count('proxy_set_header X-Kia-Secure "1";') == 1
+
+
+def test_crafted_api_addresses_are_refused(cfg):
+    import urllib.error
+
+    server = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        for path in ("/api/players;%2F..%2F..%2Fmetrics", "/api/profiles%2Fx", "/api/./profiles", "/api/%2e%2e/x"):
+            with pytest.raises(urllib.error.HTTPError) as refused:
+                urllib.request.urlopen(base + path, timeout=10)
+            assert refused.value.code == 400, path
+            refused.value.close()
+        with urllib.request.urlopen(f"{base}/api/profiles?x=1", timeout=10) as r:  # a query is fine
+            assert r.status == 200
+    finally:
+        server.shutdown()
+
+
+def test_a_burst_of_wrong_passwords_is_slowed_down_like_one_at_a_time(cfg, monkeypatch):
+    # Sent all at once, each guess used to read the count before the others added to it,
+    # so a burst counted as one. Now they take turns, and only the first gets checked.
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    checked = []
+    real = cfg.auth.check
+    monkeypatch.setattr(cfg.auth, "check", lambda given: checked.append(given) or real(given))
+
+    def guess(n):
+        api._CLIENT.set("192.0.2.66")
+        try:
+            api.check_password(cfg, f"wrong-{n}", True)
+        except api.ApiError as exc:
+            return exc.status
+        return 200
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        statuses = list(pool.map(guess, range(20)))
+    assert statuses.count(401) == 2 and statuses.count(429) == 18  # the first two, then the wait
+    assert len(checked) == 2

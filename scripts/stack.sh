@@ -71,23 +71,37 @@ fi
 # The Dashboard's Stack page can't run Docker: the kia container has no Docker socket, on
 # purpose. Instead, kia leaves a request in state/stack-request, and this loop, running on
 # the computer as you (the kia-stack service: scripts/install-service.sh --stack), carries
-# it out with check or apply and leaves the answer in state/stack-result. Every 30 seconds
-# it also writes what each container is doing to state/stack-containers.tsv, for the
-# Dashboard to show.
+# it out with check or apply. It answers in stack-service/result, and every 30 seconds it
+# writes what each container is doing to stack-service/containers.tsv, for the Dashboard.
 #
-# The kia container can write to state/, so the request is untrusted. It's read as plain
-# key=value lines and never run, and each value has to match a strict pattern. So the most
-# a request can do is what you can do with this script yourself: check or apply a choice of
-# the parts it knows.
+# Assume the kia container has been taken over (it runs other people's code: guide
+# grabbers, and ffprobe on streams from the internet). It can write anything in state/,
+# links and folders included, so this loop never writes, reads, or follows anything there.
+# All it does in state/ is rename the request away into stack-service/, which kia sees
+# read-only, like the rest of the kia folder: a rename moves a link itself, not what it
+# points to, and nothing kia leaves can be at the destination. Everything the service
+# writes, and the request it works on, stays in stack-service/.
+#
+# The request is then read as plain key=value lines, never run, and each value has to match
+# a strict pattern. What it can ask for is a check or an apply of the parts listed in PARTS,
+# which is what you can do with this script yourself, with --yes: no question about viewers
+# (the Dashboard asks instead).
 if [ "$cmd" = watch ]; then
     if [ -n "$preset" ] || [ "$try_set" = yes ]; then echo "stack: watch takes no --preset or --stack" >&2; exit 2; fi
-    mkdir -p state
-    # One watcher at a time; a second one would carry out the same request again.
-    pidfile=state/stack-watch.pid
-    if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
-        echo "stack: another watch is already running (process $(cat "$pidfile"))" >&2
-        exit 1
-    fi
+    own=stack-service
+    mkdir -p "$own" state
+    if [ -L "$own" ] || [ ! -d "$own" ]; then echo "stack: $own isn't a folder" >&2; exit 1; fi
+    # One watcher at a time; a second one would carry out the same request again. A process
+    # id left by one that was killed counts only while that process is still a watch.
+    pidfile=$own/watch.pid
+    old=$(head -c 20 "$pidfile" 2>/dev/null || true)
+    case "$old" in
+        "" | *[!0-9]* | 0) ;;
+        *) if ps -p "$old" -o args= 2>/dev/null | grep -q 'stack\.sh.* watch'; then
+               echo "stack: another watch is already running (process $old)" >&2
+               exit 1
+           fi ;;
+    esac
     echo $$ >"$pidfile"
     trap 'rm -f "$pidfile"' EXIT
     trap 'exit 0' INT TERM
@@ -98,23 +112,39 @@ if [ "$cmd" = watch ]; then
         {
             printf 'id=%s\naction=%s\nstate=%s\nexit=%s\nfinished=%s\n\n' "$1" "$2" "$3" "$4" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             if [ -n "${5:-}" ]; then tail -n 200 "$5"; fi
-        } >state/stack-result.tmp
-        mv state/stack-result.tmp state/stack-result
+        } >"$own/result.tmp"
+        mv -f "$own/result.tmp" "$own/result"
     }
     # Each container, one per line, tab between: service, state, health, and Docker's status text.
     containers() {
-        if docker compose ps --all --format '{{.Service}}	{{.State}}	{{.Health}}	{{.Status}}' >state/stack-containers.tmp 2>/dev/null; then
-            mv state/stack-containers.tmp state/stack-containers.tsv
+        if docker compose ps --all --format '{{.Service}}	{{.State}}	{{.Health}}	{{.Status}}' >"$own/containers.tmp" 2>/dev/null; then
+            mv -f "$own/containers.tmp" "$own/containers.tsv"
         else
-            rm -f state/stack-containers.tmp  # Docker isn't answering: keep the last good list
+            rm -f "$own/containers.tmp"  # Docker isn't answering: keep the last good list
         fi
     }
     take_request() {
-        [ -f state/stack-request ] || return 0
-        # Taken by renaming it, so kia can leave the next request while this one runs.
-        mv state/stack-request state/stack-request.taken || return 0
-        req=state/stack-request.taken
-        id=$(field id "$req") action=$(field action "$req") parts=$(field stack "$req")
+        in=state/stack-request
+        # Anything but a plain file there (a link, a folder) isn't a request: remove it, so
+        # it can't block the next one. rm on a link removes the link, never its target.
+        if [ -L "$in" ] || { [ -e "$in" ] && [ ! -f "$in" ]; }; then
+            rm -rf "$in"
+            echo "stack: removed something in $in that wasn't a request"
+            return 0
+        fi
+        [ -f "$in" ] || return 0
+        req=$own/request
+        rm -rf "$req"
+        mv -f "$in" "$req" 2>/dev/null || return 0
+        # kia could have swapped in a link between the check above and the rename: check
+        # what actually arrived, then read only the first 4 KB (a request is three short lines).
+        if [ -L "$req" ] || [ ! -f "$req" ]; then
+            rm -rf "$req"
+            echo "stack: removed something in $in that wasn't a request"
+            return 0
+        fi
+        head -c 4096 "$req" >"$own/request.txt"
+        id=$(field id "$own/request.txt") action=$(field action "$own/request.txt") parts=$(field stack "$own/request.txt")
         # Without a proper id there's no one to answer: kia always sends one.
         case "$id" in "" | *[!A-Za-z0-9-]*) echo "stack: ignored a request without a proper id"; rm -f "$req"; return 0 ;; esac
         if [ ${#id} -gt 64 ]; then echo "stack: ignored a request with a long id"; rm -f "$req"; return 0; fi
@@ -122,24 +152,26 @@ if [ "$cmd" = watch ]; then
         case "$action" in check | apply) ;; *) why="it asked for something other than check or apply"; action=unknown ;; esac
         case "$parts" in *[!a-z0-9,-]*) why="the parts can only be names such as plex,observability" ;; esac
         if [ ${#parts} -gt 200 ]; then why="the list of parts is too long"; fi
-        # A request left more than 10 minutes ago (while this service was stopped, say) may
-        # no longer be what you want.
-        if [ -n "$(find "$req" -mmin +10 2>/dev/null)" ]; then why="it was more than 10 minutes old"; fi
+        # The Dashboard stops waiting after 5 minutes, so a request older than that (left
+        # while this service was stopped, say) is one nobody is watching for any more.
+        if [ -n "$(find "$req" -mmin +5 2>/dev/null)" ]; then why="it was more than 5 minutes old"; fi
         if [ -n "$why" ]; then
             echo "stack: refused request $id: $why"
-            echo "Refused: $why." >state/stack-watch.out
-            answer "$id" "$action" refused 2 state/stack-watch.out
-            rm -f "$req" state/stack-watch.out
+            echo "Refused: $why." >"$own/watch.out"
+            answer "$id" "$action" refused 2 "$own/watch.out"
+            rm -f "$req"
             return 0
         fi
         echo "stack: $action KIA_STACK=$parts (request $id)"
         answer "$id" "$action" running ""  # so the Dashboard can say it's under way
         if [ "$action" = apply ]; then set -- apply --stack "$parts" --yes; else set -- check --stack "$parts"; fi
         code=0
-        sh scripts/stack.sh "$@" >state/stack-watch.out 2>&1 </dev/null || code=$?
-        answer "$id" "$action" finished "$code" state/stack-watch.out
-        rm -f "$req" state/stack-watch.out
-        containers  # apply changes what runs: show it at once
+        sh scripts/stack.sh "$@" >"$own/watch.out" 2>&1 </dev/null || code=$?
+        # The container list first: the page reads both as soon as the answer appears, and
+        # after an apply it should show what runs now, not what ran before.
+        containers
+        answer "$id" "$action" finished "$code" "$own/watch.out"
+        rm -f "$req"
     }
 
     echo "stack: watching for requests from the Dashboard's Stack page (Ctrl-C stops)"
@@ -153,12 +185,15 @@ if [ "$cmd" = watch ]; then
     done
 fi
 
+# A preset or --stack is the choice to check, and apply writes it to .env only once the
+# check passed and the questions are answered (below), so a refused or cancelled apply
+# leaves .env as it was.
 if [ -n "$preset" ]; then
     [ "$cmd" = apply ] || { echo "stack: --preset goes with apply" >&2; exit 2; }
+    [ "$try_set" = no ] || { echo "stack: use --preset or --stack, not both" >&2; exit 2; }
     [ -f "stacks/$preset.env" ] || { echo "stack: there's no preset $preset (scripts/stack.sh list)" >&2; exit 2; }
-    chosen=$(grep '^KIA_STACK=' "stacks/$preset.env" | cut -d= -f2-)
-    set_env KIA_STACK "$chosen"
-    echo "KIA_STACK=$chosen (preset $preset)"
+    try=$(grep '^KIA_STACK=' "stacks/$preset.env" | cut -d= -f2-) try_set=yes
+    echo "Preset $preset: KIA_STACK=$try"
 fi
 
 if [ "$try_set" = yes ]; then
@@ -166,8 +201,6 @@ if [ "$try_set" = yes ]; then
     # watch, and set_env hands it to awk, which would read a backslash as an escape.
     case "$try" in *[!a-z0-9,\ -]*) echo "stack: --stack takes part names, such as plex,observability (scripts/stack.sh list)" >&2; exit 2 ;; esac
     [ "$cmd" = check ] || [ "$cmd" = apply ] || { echo "stack: --stack goes with check or apply" >&2; exit 2; }
-    [ -z "$preset" ] || { echo "stack: use --preset or --stack, not both" >&2; exit 2; }
-    if [ "$cmd" = apply ]; then set_env KIA_STACK "$try"; fi  # the summary below shows it
 fi
 
 # check --stack tries a choice without changing .env; otherwise the choice is .env's.
@@ -355,7 +388,14 @@ if [ -n "$dropped" ] && [ "$ask" = yes ]; then
 fi
 
 mkdir -p state
-cp -p .env "state/env.before-stack-$(date +%Y%m%d-%H%M%S)"
+# A copy of .env first, made as a new file only you can read: set -C refuses to write
+# through anything already at that name (a link the kia container left in state/, say).
+backup="state/env.before-stack-$(date +%Y%m%d-%H%M%S)"
+if ! (umask 077 && set -C && cat .env >"$backup") 2>/dev/null; then
+    echo "stack: couldn't save a copy of .env as $backup (something is already there); nothing changed" >&2
+    exit 1
+fi
+if [ "$try_set" = yes ]; then set_env KIA_STACK "$features"; fi
 set_env COMPOSE_PROFILES "$(echo "$profiles" | tr ' ' ',')"
 if has plex && [ -z "$(get KIA_PLEX_URL)" ]; then set_env KIA_PLEX_URL http://plex:32400; fi
 if has jellyfin && [ -z "$(get KIA_JELLYFIN_URL)" ]; then set_env KIA_JELLYFIN_URL http://jellyfin:8096; fi
