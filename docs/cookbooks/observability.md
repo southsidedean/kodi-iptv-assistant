@@ -79,7 +79,7 @@ Plex installed outside Docker isn't a container, so its processor use shows in t
 
 ## 5. The Hardware dashboard (optional)
 
-The Hardware dashboard shows the graphics card, each disk's health, temperatures and fans, software RAID, free space, and a UPS or laptop battery. Each section fills in from its own source, so what you see depends on the computer. A panel that has nothing to show says why, such as *Needs the monitoring-gpu profile* or *No UPS or battery node-exporter can see*.
+The Hardware dashboard shows the graphics card, each disk's health, temperatures and fans, software RAID, free space, and a UPS or laptop battery. Each section fills in from its own source, so what you see depends on the computer. A panel that has nothing to show says why, such as *Needs observability-gpu* or *No UPS or battery node-exporter can see*.
 
 ### On Linux
 
