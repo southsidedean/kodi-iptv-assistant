@@ -192,22 +192,23 @@ if [ "$OS" = Linux ] && command -v ufw >/dev/null 2>&1 && ! grep -q '^KIA_BIND=1
     fi
 fi
 
-step "Starting kia (the first build takes a few minutes)"
-docker compose up -d --build
 stack=$(sed -n 's/^KIA_STACK=//p' .env)
-plex_next=no
-if [ -n "$stack" ]; then
-    case ",$stack," in
-        # Plex's first start needs a claim code, which works for 4 minutes: that's yours to do.
-        *,plex,*) plex_next=yes ;;
-        # A new .env only: on an existing one, scripts/stack.sh apply asks before stopping what runs now.
-        *) if [ "$new_env" = yes ]; then
-               step "Starting the rest of the stack ($stack)"
-               scripts/stack.sh apply --yes || say "scripts/stack.sh check says what to change; then run scripts/stack.sh apply."
-           else
-               say "KIA_STACK=$stack is set; start it with:  cd $DIR && scripts/stack.sh apply"
-           fi ;;
-    esac
+plex_next=no apply_now=no
+case ",$stack," in
+    ,,) ;;
+    # Plex's first start needs a claim code, which works for 4 minutes: that's yours to do.
+    *,plex,*) plex_next=yes ;;
+    # A new .env only: on an existing one, scripts/stack.sh apply asks before stopping what runs now.
+    *) if [ "$new_env" = yes ]; then apply_now=yes; fi ;;
+esac
+step "Starting kia (the first build takes a few minutes)"
+if [ "$apply_now" = yes ]; then
+    # Started once, with the chosen parts, so kia's first refresh isn't cut off by a restart.
+    docker compose build
+    scripts/stack.sh apply --yes || die "scripts/stack.sh check says what to change; then run scripts/stack.sh apply"
+else
+    docker compose up -d --build
+    if [ -n "$stack" ] && [ "$plex_next" = no ]; then say "KIA_STACK=$stack is set; start it with:  cd $DIR && scripts/stack.sh apply"; fi
 fi
 
 url=$(sed -n 's/^KIA_PUBLIC_URL=//p' .env)

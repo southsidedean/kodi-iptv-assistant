@@ -67,8 +67,10 @@ def test_installer_offers_every_preset_and_applies_only_a_new_env():
     named = re.findall(r"[a-z]+(?:-[a-z]+)*", help_text.split(":", 1)[1].split("(stacks/")[0])
     assert sorted(n for n in named if n != "or") == presets
     start = text[text.index('step "Starting kia'):text.index('step "Done"')]
-    assert 'if [ "$new_env" = yes ]' in start and "scripts/stack.sh apply --yes" in start  # never --yes on an existing .env
-    assert "*,plex,*) plex_next=yes" in start  # Plex's claim code is the person's to get
+    choose = text[text.index('plex_next=no apply_now=no'):text.index('step "Starting kia')]
+    assert 'if [ "$new_env" = yes ]; then apply_now=yes' in choose  # never --yes on an existing .env
+    assert "*,plex,*) plex_next=yes" in choose  # Plex's claim code is the person's to get
+    assert "scripts/stack.sh apply --yes" in start
 
 
 def test_installer_keeps_env_private():
