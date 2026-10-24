@@ -1223,6 +1223,24 @@ def cmd_threadfin_setup(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_dashboards(args: argparse.Namespace) -> int:
+    """Which Grafana dashboard panels have data here (kia.dashcheck); scripts/stack.sh status."""
+    from kia import dashcheck
+
+    base = Path(args.config).resolve().parent
+    try:
+        panels = dashcheck.check(args.prometheus, base / dashcheck.DASHBOARDS)
+    except OSError as exc:
+        log(f"Prometheus didn't answer at {args.prometheus} ({exc}). Is the monitoring profile on?")
+        return 1
+    if not panels:
+        log(f"No dashboards in {base / dashcheck.DASHBOARDS}.")
+        return 1
+    for line in dashcheck.report(panels):
+        print(line)
+    return 0
+
+
 def cmd_plex_tuners(args: argparse.Namespace) -> int:
     """Add kia's Threadfins to Plex as one DVR of their own (kia.plex)."""
     from kia import plex
@@ -1371,6 +1389,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--address", help="this computer's address as Plex reaches it (default: from KIA_PUBLIC_URL)")
     p.add_argument("--remove", action="store_true", help="delete the DVR with kia's Threadfins (only if it has nothing else)")
     p.set_defaults(func=cmd_plex_tuners)
+
+    p = sub.add_parser("check-dashboards", help="show which Grafana dashboard panels have data on this computer")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("--prometheus", default=os.environ.get("KIA_PROMETHEUS_URL") or "http://prometheus:9090",
+                   help="Prometheus's address (default: http://prometheus:9090, as kia's container reaches it)")  # fmt: skip
+    p.set_defaults(func=cmd_check_dashboards)
 
     p = sub.add_parser("refresh-guide", help="refresh the guide from the quick sources only (between nightly runs)")
     p.add_argument("-c", "--config", default="kia.toml")
