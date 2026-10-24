@@ -440,7 +440,9 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     # Docker containers only, every 30 seconds, with only the numbers the dashboards use:
-    # it costs far less processor time that way.
+    # it costs far less processor time that way. (Prometheus keeps only the two container
+    # labels the dashboards use; cAdvisor's own label filter drops them all for containers
+    # it finds through containerd.)
     command:
       - --docker_only=true
       - --containerd-namespace=moby

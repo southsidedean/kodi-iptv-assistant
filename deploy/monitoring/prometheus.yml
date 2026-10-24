@@ -14,6 +14,20 @@ scrape_configs:
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
+    # cAdvisor labels each container with all of its labels (dozens, from the image and
+    # Compose). The dashboards use two, so only those are kept: copied aside, the rest
+    # dropped, then copied back.
+    metric_relabel_configs:
+      - action: labelmap
+        regex: container_label_com_docker_compose_(project|service)
+        replacement: kia_compose_${1}
+      - action: labeldrop
+        regex: container_label_.+
+      - action: labelmap
+        regex: kia_compose_(project|service)
+        replacement: container_label_com_docker_compose_${1}
+      - action: labeldrop
+        regex: kia_compose_.+
 
   # The computer itself, from node-exporter on port 9100: the monitoring-node profile,
   # or one you already run (Ubuntu's prometheus-node-exporter package, for example).
