@@ -6,6 +6,11 @@
 
 - With Docker, the Dashboard starts with **Your stack**: a tile for each program running next to kia (Threadfin, Plex, Jellyfin, Prometheus, Grafana, and the exporters), green when it answers and red when it doesn't. kia checks each one every minute, and a tile with a page of its own (Plex, Jellyfin, Threadfin, Grafana) opens it. The same is in `stack.json` and in `/metrics` as `kia_stack_service_up` ([how it works](docs/how-it-works.md#the-dashboard)).
 
+### Changing the stack from the Dashboard
+
+- A new service, **kia-stack**, lets the Dashboard's Stack page change what runs next to kia. The kia container can't reach Docker, on purpose, so the service runs `scripts/stack.sh watch` on the computer as you, carrying out the check or apply the page asks for. Install it with `scripts/install-service.sh --stack`, or `--stack-service` when you run the installer ([how it works](docs/stack.md#changing-the-stack-from-the-dashboard)). It takes only `check` or `apply` with part names it knows, and refuses anything else.
+- `scripts/stack.sh check --stack plex,observability` checks a choice without changing `.env`, and `apply --stack` sets `KIA_STACK` first.
+
 ### Choosing the parts of the stack
 
 - An empty `KIA_STACK=` line, which every `.env` made from `.env.example` has, counted as a choice of nothing. So with Threadfin started the way [Plex](docs/plex.md) said before, with `COMPOSE_PROFILES=plex`, `scripts/stack.sh` said nothing else ran, and `apply` stopped Threadfin (after asking, or at once with `--yes`). Now, while `KIA_STACK` is empty and `COMPOSE_PROFILES` isn't, `COMPOSE_PROFILES` decides, and `check` and `apply` change nothing. The Plex guide now uses `KIA_STACK=plex-tuner` and `scripts/stack.sh apply`.

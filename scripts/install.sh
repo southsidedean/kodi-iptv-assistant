@@ -17,6 +17,8 @@
 #   --preset NAME   what this kia is for: kodi, plex-box, plex-elsewhere, jellyfin-box, or
 #                   everything (stacks/, docs/stack.md); without it, it asks (default kodi)
 #   --main          follow what's merged since the last release, instead of the release
+#   --stack-service also install the kia-stack service, so the Dashboard's Stack page can
+#                   change what runs next to kia (docs/stack.md)
 #   --yes           don't ask; accept what it finds
 set -eu
 
@@ -29,6 +31,7 @@ HTTPS_PORT=8743
 YES=0
 MAIN=no
 PRESET=""
+STACK_SERVICE=no
 
 say() { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
@@ -44,8 +47,9 @@ while [ $# -gt 0 ]; do
         --https-port) value "$@"; HTTPS_PORT=$2; shift 2 ;;
         --preset) value "$@"; PRESET=$2; shift 2 ;;
         --main) MAIN=yes; shift ;;
+        --stack-service) STACK_SERVICE=yes; shift ;;
         --yes|-y) YES=1; shift ;;
-        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --preset NAME, --main, --yes. See the top of scripts/install.sh."; exit 0 ;;
+        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --preset NAME, --main, --stack-service, --yes. See the top of scripts/install.sh."; exit 0 ;;
         *) die "unknown option $1 (try --help)" ;;
     esac
 done
@@ -279,6 +283,11 @@ if [ "$plex_next" = yes ]; then
             say "     with For Plex through Threadfin ticked (docs/plex.md, step 1)."
             say "  2. Run:  cd $DIR && scripts/stack.sh apply   (docs/plex.md, step 2)" ;;
     esac
+    say ""
+fi
+if [ "$STACK_SERVICE" = yes ]; then
+    step "The kia-stack service, for the Dashboard's Stack page"
+    sh "$DIR/scripts/install-service.sh" --stack || say "The kia-stack service didn't install; the rest of kia works without it. Try again with: $DIR/scripts/install-service.sh --stack"
     say ""
 fi
 # What's running now (with Plex, the rest starts with it, after the claim code).
