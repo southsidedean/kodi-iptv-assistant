@@ -77,6 +77,24 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
           exit-code: "1"
+      - name: Build the arm64 image (Raspberry Pi) to scan too
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/arm64
+          load: true
+          pull: true
+          tags: kia-scan:arm64
+          cache-from: type=gha
+      - name: No fixable high or critical CVEs on arm64 either (its packages can differ)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: kia-scan:arm64
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "1"
       - id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:

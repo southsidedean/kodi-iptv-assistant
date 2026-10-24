@@ -60,3 +60,13 @@ def test_restore_refuses_strange_archives(tmp_path: Path):
     assert not (tmp_path / "outside.txt").exists()
     restored, _ = backup.restore(evil(tmp_path / "d.tar.gz", "vendor/epg/x.js"), tmp_path / "kia", tmp_path / "b")
     assert restored == []  # only kia's own settings folders are restored
+
+
+def test_the_safety_copy_keeps_a_sources_file_of_your_own(tmp_path: Path):
+    home = kia_folder(tmp_path / "home")
+    (home / "my-sources.txt").write_text("https://example.org/mine.m3u\n")
+    backup.make(home, tmp_path / "b.tar.gz", sources_file=home / "my-sources.txt")
+    (home / "my-sources.txt").write_text("https://example.org/changed-since.m3u\n")
+    _, safety = backup.restore(tmp_path / "b.tar.gz", home, tmp_path / "safety", lambda m: None)
+    assert "my-sources.txt" in backup.read_manifest(safety)["files"]  # the restore can be undone
+    assert (home / "my-sources.txt").read_text() == "https://example.org/mine.m3u\n"

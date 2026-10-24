@@ -32,6 +32,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      # Other programs' data in the kia folder, which kia never reads: empty in kia's view,
+      # so a stream that broke ffprobe couldn't reach Jellyfin's users or Grafana's password.
+      - /data/jellyfin:size=1m,mode=0500
+      - /data/monitoring:size=1m,mode=0500
     cap_drop:
       - ALL
     security_opt:
@@ -62,7 +66,7 @@ services:
       # Jellyfin's sessions in /metrics (docs/metrics.md): where Jellyfin is, and an API key.
       KIA_JELLYFIN_URL: ${KIA_JELLYFIN_URL:-}
       KIA_JELLYFIN_TOKEN: ${KIA_JELLYFIN_TOKEN:-}
-      # The Dashboard's Graphs button (docs/cookbooks/observability.md).
+      # The Dashboard's Observability button (docs/cookbooks/observability.md).
       KIA_GRAFANA_URL: ${KIA_GRAFANA_URL:-}
       KIA_GRAFANA_PORT: ${KIA_GRAFANA_PORT:-}
       KIA_COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
@@ -416,6 +420,10 @@ services:
       GF_SERVER_CERT_FILE: /etc/kia-tls/fullchain.pem
       GF_SERVER_CERT_KEY: /etc/kia-tls/privkey.pem
       GF_SERVER_CERTS_WATCH_INTERVAL: 1m
+      # Grafana's login cookie: only over HTTPS (browsers send a cookie to every port of a
+      # computer, kia's plain-http ones too) and not with requests from other sites.
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: strict
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/kia/kia.json
       # A soft memory budget: Grafana gives memory back sooner (it peaks around 1 GB on its first start).
       GOMEMLIMIT: 384MiB

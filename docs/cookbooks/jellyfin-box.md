@@ -45,7 +45,7 @@ After a minute, `docker compose ps` shows `jellyfin` as `healthy`.
 
 ## 3. Set up Jellyfin
 
-Open `http://192.168.1.20:8096` in a browser. Jellyfin's setup takes a few screens:
+Open `http://192.168.1.20:8096` in a browser, and do this right after starting Jellyfin: until you finish, anyone on your network who opens that page can make themselves its administrator. Jellyfin's setup takes a few screens:
 
 1. **Server name** and **Preferred display language**. The name is already `kia-tv-box` (`KIA_JELLYFIN_NAME` in `.env` changes it); it shows in every Jellyfin app.
 2. **Tell us about yourself:** a username and password for Jellyfin's administrator. This is Jellyfin's own account; it has nothing to do with kia's password.

@@ -213,3 +213,25 @@ def test_served_over_https(cfg, certs, monkeypatch):
     finally:
         secure.shutdown()
         plain.shutdown()
+
+
+def test_wrong_passwords_slow_down_only_who_sends_them(cfg):
+    def try_(password, client):
+        headers = {"Host": "tv.lan:8743", "X-Kia-Password": password}
+        return api.handle(cfg, "PUT", "/api/profiles/x", headers, b'{"name": "x"}', True, client)[0]
+
+    assert try_("nope", "192.0.2.9") == 401
+    assert try_("nope", "192.0.2.9") == 401  # the second wrong one in a row: a wait from now on
+    assert try_("nope", "192.0.2.9") == 429 and try_("secret", "192.0.2.9") == 429
+    assert try_("secret", "192.0.2.10") != 429  # someone else's right password still works
+    assert api.handle(cfg, "PUT", "/api/profiles/x", {"Host": "tv.lan:8743"}, b"{}", True)[1] == {
+        "error": "Enter kia's password first."}  # fmt: skip
+
+
+def test_a_password_the_browser_can_send(tmp_path: Path):
+    a = auth.Auth(tmp_path)
+    with pytest.raises(ValueError, match="no accents or emoji"):
+        a.change("pässwörd-123")
+    said = []
+    auth.Auth(tmp_path, "pässwörd-123").ensure(said.append)
+    assert "characters a browser can't send" in said[0]

@@ -14,6 +14,12 @@ gzip_types application/json text/css application/javascript;
 add_header Cache-Control "no-cache";
 # kia's pages are never shown inside another site's page.
 add_header X-Frame-Options "DENY";
+# Channel names and shows come from other people's playlists and guides. kia escapes them,
+# and if something got through anyway, a page could still load and send nothing outside
+# kia itself (the secure page keeps your password in the browser while it's open).
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+add_header X-Content-Type-Options "nosniff";
+add_header Referrer-Policy "no-referrer";
 
 # Don't serve files that a run is still writing.
 location ~ \.tmp$ {

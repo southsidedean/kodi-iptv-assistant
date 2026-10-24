@@ -25,6 +25,12 @@ MIN_LENGTH = 8
 _SCRYPT = {"n": 2**14, "r": 8, "p": 1}
 
 
+def typeable(password: str) -> bool:
+    """Only characters a browser can send in a request header: letters, digits, spaces, and
+    the symbols on a US keyboard, with no accents or emoji."""
+    return all(" " <= c <= "~" for c in password)
+
+
 def generate() -> str:
     """Like kxq7-m2pa-9fht: 12 characters, about 59 bits."""
     return "-".join("".join(secrets.choice(ALPHABET) for _ in range(4)) for _ in range(3))
@@ -72,6 +78,12 @@ class Auth:
 
     def ensure(self, log=print) -> None:
         """Make a password on first start when .env doesn't set one."""
+        if self.enabled and self.env_password:
+            if not typeable(self.env_password):
+                log("KIA_ADMIN_PASSWORD has characters a browser can't send (accents, emoji), so the "
+                    "Dashboard can't use it: change it in .env to letters, digits, and ordinary symbols.")  # fmt: skip
+            elif len(self.env_password) < MIN_LENGTH:
+                log(f"KIA_ADMIN_PASSWORD is shorter than {MIN_LENGTH} characters: easy to guess on your network.")
         if not self.enabled or self.env_password or self.saved.exists():
             return
         self.reset(log)
@@ -110,6 +122,9 @@ class Auth:
             raise ValueError("The password is set in kia's .env file, so change it there and restart kia.")
         if len(new) < MIN_LENGTH:
             raise ValueError(f"Use at least {MIN_LENGTH} characters.")
+        if not typeable(new):
+            raise ValueError("Use letters, digits, spaces, and ordinary symbols only, with no accents or emoji: "
+                             "browsers can't send other characters in kia's password.")  # fmt: skip
         self._save(new, generated=False)
         self.shown.unlink(missing_ok=True)
 
