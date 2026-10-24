@@ -135,11 +135,14 @@ def test_threadfin_needs_its_playlist_first(kia: Path):
     with_stack(kia, "plex")
     r = stack(kia, "check")
     assert r.returncode == 1 and "no playlist named plex for Threadfin yet" in r.stdout
+    assert "plex-box.md, step 2" in r.stdout  # Plex in the stack: the cookbook
     (kia / "output" / "plex-1.m3u").write_text("#EXTM3U\n")  # the split names work too
     with_stack(kia, "plex-tuner,plex-tuner-2")
     (kia / "output" / "plex-2.m3u").unlink()
     r = stack(kia, "check")
     assert "no playlist named plex-2 for the second Threadfin" in r.stdout and "named plex for" not in r.stdout
+    (kia / "output" / "plex-1.m3u").unlink()
+    assert "docs/plex.md, step 1" in stack(kia, "check").stdout  # a Plex elsewhere: the Plex guide
 
 
 def test_an_empty_kia_stack_leaves_compose_profiles_set_by_hand_alone(kia: Path):

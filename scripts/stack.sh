@@ -153,11 +153,12 @@ if has plex; then
 fi
 # Threadfin reads kia's playlist for Plex, and stops with an error while it doesn't exist.
 if has plex || has plex-tuner; then
+    if has plex; then guide="docs/cookbooks/plex-box.md, step 2"; else guide="docs/plex.md, step 1"; fi
     first=$(get KIA_THREADFIN_PLAYLIST)
     if [ -n "$first" ] && [ ! -f "output/$first.m3u" ]; then
         problem "there's no playlist named $first (KIA_THREADFIN_PLAYLIST) for Threadfin yet: make it on the secure Dashboard, under Playlists"
     elif [ -z "$first" ] && [ ! -f output/plex.m3u ] && [ ! -f output/plex-1.m3u ]; then
-        problem "there's no playlist named plex for Threadfin yet: make it on the secure Dashboard, under Playlists, with For Plex through Threadfin ticked (docs/cookbooks/plex-box.md, step 2)"
+        problem "there's no playlist named plex for Threadfin yet: make it on the secure Dashboard, under Playlists, with For Plex through Threadfin ticked ($guide)"
     fi
     if has plex-tuner-2; then
         second=$(get KIA_THREADFIN_2_PLAYLIST); second=${second:-plex-2}
