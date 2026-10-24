@@ -32,8 +32,8 @@ class Service:
     name: str  # its Compose service name, also its address on Compose's network
     title: str
     port: int  # the port it answers on there
-    # Where a browser opens it: the setting with the port published on the computer, and
-    # its default, and the path. None: no page of its own to open (or not from other devices).
+    # Where a browser opens it: the .env setting for the port it's published on, that
+    # port's default, and the path. No setting: it has no page that other devices can open.
     link_env: str | None = None
     link_port: int = 0
     link_path: str = "/"
@@ -44,8 +44,8 @@ SERVICES = (
     Service("plex-2", "threadfin-2", "Threadfin 2", 34400, "KIA_THREADFIN_2_PORT", 34401, "/web/"),
     Service("plex-server", "plex", "Plex", 32400, "KIA_PLEX_PORT", 32400, "/web"),
     Service("jellyfin-server", "jellyfin", "Jellyfin", 8096, "KIA_JELLYFIN_PORT", 8096, "/"),
-    Service("monitoring", "grafana", "Grafana", 3000),  # its link is the Observability button's
-    Service("monitoring", "prometheus", "Prometheus", 9090),  # open to the computer itself only
+    Service("monitoring", "grafana", "Grafana", 3000),  # links to the same address as the Observability button
+    Service("monitoring", "prometheus", "Prometheus", 9090),  # no link: its port is open to this computer only
     Service("monitoring", "cadvisor", "cAdvisor", 8080),
     # On Linux kia's own (monitoring-node), on a Mac Homebrew's: Prometheus reaches either.
     Service("monitoring", "node-exporter", "node-exporter", 9100),
@@ -62,10 +62,13 @@ def profiles() -> list[str] | None:
 
 
 def chosen(running: list[str]) -> list[Service]:
+    """The programs these Compose profiles start, in the order the Dashboard shows them."""
     return [s for s in SERVICES if s.profile in running]
 
 
 def answers(host: str, port: int, timeout: float = 2) -> bool:
+    """Whether something accepts a connection on host:port. That's enough to tell a program
+    that's running from one that has stopped, without knowing how to talk to it."""
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True

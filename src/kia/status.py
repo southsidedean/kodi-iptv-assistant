@@ -597,6 +597,9 @@ PLUTO_SCRIPT = """
 """
 
 
+# The Dashboard's Your stack card. The page draws it in the browser from stack.json, which
+# kia rewrites every minute (kia.stack), and fetches it again every minute, so it stays
+# current without reloading. It stays hidden without Docker or when nothing else runs.
 STACK_STYLE = """
 .stack-tiles { grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
 .stack-tiles .tile { display: flex; gap: .55rem; align-items: flex-start; padding: var(--space-2) var(--space-3); }
