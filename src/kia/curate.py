@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, replace
 
 from kia.epgmap import country, name_key
 from kia.history import readable
-from kia.m3u import Entry
+from kia.m3u import TAG_RE, Entry
 from kia.probe import ProbeResult
 
 STATUS_RANK = {"ok": 0, "flaky": 1, "dead": 2}
@@ -123,7 +123,7 @@ def merge_by_name(clusters: list[list[Checked]]) -> list[list[Checked]]:
     by_name: dict[str, list[int]] = defaultdict(list)
     for i, items in enumerate(clusters):
         e = items[0].entry
-        key = name_key(_TAG_RE.sub("", e.name))
+        key = name_key(TAG_RE.sub("", e.name))
         if not e.is_radio and len(key) >= 3:
             by_name[key].append(i)
     merged_into: dict[int, int] = {}
@@ -144,7 +144,11 @@ def merge_by_name(clusters: list[list[Checked]]) -> list[list[Checked]]:
     return list(out.values())
 
 
-_TAG_RE = re.compile(r"\s*(\(\d{3,4}[pi]\)|\[[^\]]*\])")
+
+
+def cell(text: str) -> str:
+    """Third-party text in a table cell: a | would start another column."""
+    return text.replace("|", "/")
 
 
 def render_markdown(
@@ -204,6 +208,6 @@ def render_markdown(
     for c in chosen:
         res = f"{c.height}p" if c.height else "?"
         lines.append(
-            f"| {c.entry.name.replace('|', '/')} | `{c.entry.tvg_id or '-'}` | {c.entry.group} | {res} | {c.status} |"
+            f"| {cell(c.entry.name)} | `{cell(c.entry.tvg_id) or '-'}` | {cell(c.entry.group)} | {res} | {c.status} |"
         )
     return "\n".join(lines) + "\n"

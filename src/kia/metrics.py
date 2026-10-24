@@ -153,12 +153,20 @@ class PlexSessions:
         with self.lock:
             if time.monotonic() - self.at >= self.every:
                 try:
-                    self.value = self.server.sessions()
-                    for x in self.value:
-                        x["pseudonym"] = self.players.name(x.get("player_id") or x["player"])
-                    self.players.note(self.value)
+                    sessions = self.server.sessions()
                 except Exception:  # the server is down, or a bad token: kia_plex_up/kia_jellyfin_up says so
-                    self.value = None
+                    sessions = None
+                if sessions is not None:
+                    try:
+                        for x in sessions:
+                            x["pseudonym"] = self.players.name(x.get("player_id") or x["player"])
+                        self.players.note(sessions)
+                    except (OSError, ValueError) as exc:
+                        # kia's own files in state/, not the server: the sessions still count.
+                        print(f"metrics: couldn't keep the players' pseudonyms: {exc}", file=sys.stderr)
+                        for x in sessions:
+                            x.setdefault("pseudonym", "player-unknown")
+                self.value = sessions
                 self.at = time.monotonic()
             return self.value
 

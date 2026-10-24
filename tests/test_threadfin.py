@@ -82,3 +82,17 @@ def test_compose_sets_threadfin_up_before_it_starts():
     setup = compose[compose.index("  threadfin-setup:"):compose.index("\n  threadfin:")]
     assert 'command: ["threadfin-setup"]' in setup and "./threadfin/conf:/data/threadfin/conf" in setup
     assert compose.count("condition: service_completed_successfully") == 2  # both Threadfins wait for it
+
+
+def test_a_login_made_half_way_is_finished_and_bad_settings_dont_stop_it(tmp_path: Path):
+    conf = tmp_path / "conf"
+    conf.mkdir()
+    (conf / "settings.json").write_text('{"mine": true}')
+    threadfin.secure_login(conf, "threadfin", lambda m: None)
+    (conf / "settings.json").write_text('{"mine": true}')  # stopped before the page's login was on
+    assert threadfin.secure_login(conf, "threadfin", lambda m: None) is False  # no new user
+    assert json.loads((conf / "settings.json").read_text())["authentication.web"] is True
+    said = []
+    (conf / "settings.json").write_text("{not json")
+    threadfin.secure_login(conf, "threadfin", said.append)
+    assert any("couldn't read conf/settings.json" in m for m in said)

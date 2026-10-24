@@ -86,3 +86,42 @@ def test_local_ipv4_answer_clears_local_dns(monkeypatch):
     dnscheck.blame_local_dns_carefully(lookups)
     assert lookups["v6broken.example"].verdict == "broken-ipv6"
     assert lookups["down.example"].verdict == "resolves"  # still a local DNS problem
+
+
+def test_a_failing_resolver_passes_the_question_on(monkeypatch):
+    # SERVFAIL from one resolver isn't "no address records": the next one answers.
+    def fake_query(host, resolver, qtype=dnscheck.A, timeout=3.0):
+        return (2, []) if resolver == "192.0.2.1" else (0, ["198.51.100.7"])
+
+    monkeypatch.setattr(dnscheck, "query", fake_query)
+    monkeypatch.setattr(dnscheck, "ipv6_fails_publicly", lambda h, r: False)
+    found = dnscheck.check_public("tv.example.com", ("192.0.2.1", "192.0.2.2"))
+    assert found.verdict == "resolves" and found.addresses == ["198.51.100.7"]
+
+
+def test_an_ipv6_resolver_is_asked_over_ipv6(monkeypatch):
+    families = []
+
+    class Sock:
+        def __init__(self, family, kind):
+            families.append(family)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def settimeout(self, t):
+            pass
+
+        def sendto(self, data, address):
+            raise OSError("no network in tests")
+
+    monkeypatch.setattr(dnscheck.socket, "socket", Sock)
+    for resolver in ("2001:db8::53", "192.0.2.53"):
+        try:
+            dnscheck.query("tv.example.com", resolver)
+        except OSError:
+            pass
+    assert families == [dnscheck.socket.AF_INET6, dnscheck.socket.AF_INET]

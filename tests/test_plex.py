@@ -156,6 +156,18 @@ def test_running_again_reuses_the_dvr_and_updates_the_channels(antenna):
     assert fake.maps["101"]["channelsEnabled"] == "2,28,433"
 
 
+def test_two_threadfins_in_the_stack_each_get_their_guide():
+    # In kia's stack both listen on 34400 and differ by name: the second one's guide is added too.
+    fake = FakePlex()
+    stacked = [plex.Tuner("threadfin:34400", "Threadfin 1: Plex 1", ["1"]),
+               plex.Tuner("threadfin-2:34400", "Threadfin 2: Plex 2", ["2"])]  # fmt: skip
+    p = plex.Plex(fake.url, "secret")
+    plex.set_up(p, stacked, lambda m: None)
+    assert [lu["id"] for lu in fake.dvrs[0]["Lineup"]] == [t.lineup for t in stacked]
+    plex.set_up(p, stacked, lambda m: None)
+    assert len(fake.dvrs[0]["Lineup"]) == 2  # and not again on the next run
+
+
 def test_a_threadfin_added_under_another_address_is_recognised():
     # Set up by hand with the IP address; kia's own address is a name. Same DVR, no new guide.
     fake = FakePlex()
@@ -351,3 +363,22 @@ def test_a_new_plex_is_warmed_up_once_and_left_tidy(tmp_path: Path):
     assert ("GET", "/video/:/transcode/universal/stop") in stub.calls
     assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # and so is the clip
     assert "codecs" in said[0] and said[-1] == "Plex has its codecs now."
+
+
+class PlexThatKeepsItsLibrary(StubPlex):
+    """Removing the warm-up library fails, after the warm-up itself failed."""
+
+    def call(self, method, path, params=None):
+        if path == "/library/sections/9/all":
+            return {"MediaContainer": {}}  # never finds the clip
+        if method == "DELETE":
+            raise plex.PlexError("Plex answered 500")
+        return super().call(method, path, params)
+
+
+def test_a_failed_clean_up_doesnt_hide_why_the_warm_up_failed(tmp_path: Path):
+    said = []
+    with pytest.raises(plex.PlexError, match="didn't find the warm-up clip"):
+        plex.warm_up(PlexThatKeepsItsLibrary(tmp_path), tmp_path, said.append, ffmpeg="true", wait=0.05, step=0.01)
+    assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # the clip is gone anyway
+    assert any("Couldn't remove the kia codec warm-up library" in m for m in said)

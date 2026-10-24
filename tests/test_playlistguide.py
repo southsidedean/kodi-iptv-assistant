@@ -1,4 +1,5 @@
 import gzip
+import time
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -59,6 +60,8 @@ def test_download_keeps_only_our_channels(server, tmp_path: Path):
 
     with pytest.raises(RuntimeError):
         playlistguide.download({"urls": [f"{base}/missing.xml"], "channels": {"A": ["A"]}}, out, 1, logs.append, NOW)
+    with pytest.raises(RuntimeError):  # past site_time_limit: none is started
+        playlistguide.download(info, out, 1, logs.append, NOW, deadline=time.monotonic() - 1)
 
 
 def test_check_map_grab_guide_use_the_playlists_guide(server, tmp_path: Path, monkeypatch):

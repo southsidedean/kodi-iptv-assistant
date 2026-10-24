@@ -1,4 +1,6 @@
 import gzip
+import io
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
@@ -105,3 +107,37 @@ def test_grab_site_uses_native_grabber_and_stages(tmp_path: Path, monkeypatch):
     assert r.returncode == 1
     assert r.output.read_text() == "<tv></tv>"  # previous guide kept
     assert "boom" in r.log.read_text()
+
+
+def test_a_show_on_air_at_midnight_utc_is_kept():
+    # A refresh at 00:30 UTC (evening in the Americas): the show that began at 23:30 is on.
+    xml = b"""<tv><programme start="20261015233000 +0000" stop="20261016013000 +0000" channel="aaa"><title>Late show</title></programme>
+<programme start="20261015220000 +0000" stop="20261015233000 +0000" channel="aaa"><title>Over</title></programme></tv>"""
+    got = []
+    start = datetime(2026, 10, 16, tzinfo=timezone.utc)
+    native.filter_xmltv(io.BytesIO(xml), {"aaa": ["A"]}, start, start.replace(day=17), got.append)
+    assert len(got) == 1 and "Late show" in got[0]
+
+
+def test_a_failed_file_keeps_last_nights_programmes_for_its_channels(tmp_path: Path):
+    chans = channels_file(tmp_path, [("PlutoTV/us#aaa", "Alpha.us@SD", "Alpha"), ("Roku/all#zzz", "Roku.us@SD", "Roku")])
+    previous = tmp_path / "last-night.xml"
+    previous.write_text("""<tv>
+<programme start="20261016100000 +0000" stop="20261016110000 +0000" channel="Roku.us@SD"><title>Already over</title></programme>
+<programme start="20261016113000 +0000" stop="20261016130000 +0000" channel="Roku.us@SD"><title>On now</title></programme>
+<programme start="20261016200000 +0000" stop="20261016210000 +0000" channel="Roku.us@SD"><title>Tonight</title></programme>
+<programme start="20261016200000 +0000" stop="20261016210000 +0000" channel="Alpha.us@SD"><title>Old Alpha</title></programme>
+</tv>""")
+    out, logs = tmp_path / "out.xml", []
+    native.grab_imjh(chans, out, 2, logs.append, base_url=site_files(tmp_path), now=NOW, previous=previous)
+    titles = {p.findtext("title") for p in ET.parse(out).getroot().findall("programme")}
+    assert {"On now", "Tonight", "Alpha news"} <= titles  # Roku/all failed: last night's, from now on
+    assert not titles & {"Already over", "Old Alpha"}  # Pluto's own file worked: only tonight's
+    assert any("kept 2 programmes from last time" in m for m in logs)
+
+
+def test_the_time_limit_stops_a_slow_guide(tmp_path: Path):
+    chans = channels_file(tmp_path, [("PlutoTV/us#aaa", "Alpha.us@SD", "Alpha")])
+    with pytest.raises(RuntimeError):  # its only file ran out of time: kia keeps the previous guide
+        native.grab_imjh(chans, tmp_path / "o.xml", 1, lambda m: None, base_url=site_files(tmp_path), now=NOW,
+                         deadline=time.monotonic() - 1)  # fmt: skip

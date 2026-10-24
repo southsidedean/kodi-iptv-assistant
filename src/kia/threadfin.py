@@ -96,7 +96,11 @@ def secure_login(conf: Path, folder: str, log=print) -> bool:
     except (OSError, ValueError):
         db = {}
     if db.get("users"):
-        return False  # someone set up Threadfin's login already
+        # Someone set up Threadfin's login already. If it was kia, stopped before it turned the
+        # login on for Threadfin's page, finish that.
+        if (conf / "admin-password.txt").exists():
+            _turn_on_login(conf, folder, log)
+        return False
     password = secrets.token_urlsafe(18)
     alphabet = "-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789aBcDeFgHiJkLmNoPqRsTuVwXyZ_"
     user_id = "id-" + "".join(secrets.choice("ABCDEFGHJKLMNOPQRSTUVWXYZ0123456789") for _ in range(10))
@@ -114,8 +118,19 @@ def secure_login(conf: Path, folder: str, log=print) -> bool:
     conf.mkdir(parents=True, exist_ok=True)
     _write_private(conf / "admin-password.txt", password + "\n")
     _write_private(users_file, json.dumps(db, indent=1) + "\n")
+    return _turn_on_login(conf, folder, log)
+
+
+def _turn_on_login(conf: Path, folder: str, log) -> bool:
+    """Have Threadfin's page ask for its login. True if it didn't already."""
     settings_file = conf / "settings.json"
-    current = json.loads(settings_file.read_text())
+    try:
+        current = json.loads(settings_file.read_text())
+    except (OSError, ValueError) as exc:
+        log(f"{folder}: couldn't read conf/settings.json ({exc}), so its page doesn't ask for a login yet.")
+        return False
+    if current.get("authentication.web") is True:
+        return False
     current["authentication.web"] = True  # only the page: Plex's access stays open
     tmp = settings_file.with_name("settings.json.tmp")
     tmp.write_text(json.dumps(current, indent=1) + "\n")

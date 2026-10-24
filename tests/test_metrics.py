@@ -116,3 +116,12 @@ def test_plex_says_where_it_converts():
         session({"videoDecision": "copy"}),
         {"Player": {"title": "Phone"}, "type": "episode"}]}}  # fmt: skip
     assert [s["hw"] for s in p.sessions()] == ["gpu", "cpu", "none", "none"]
+
+
+def test_plex_is_up_even_when_kia_cant_keep_its_players_list(tmp_path: Path):
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "metrics-key").mkdir()  # can't be read as the key: kia's own files fail, not Plex
+    out = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    assert "kia_plex_up 1" in out and 'player="player-unknown"' in out
+    assert "Kitchen" not in out

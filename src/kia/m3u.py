@@ -23,6 +23,9 @@ def xml_attr(text: str) -> str:
 _ATTR_RE = re.compile(r'\s*([A-Za-z0-9_-]+)="([^"]*)"')
 _EXTINF_RE = re.compile(r"#EXTINF:\s*(-?\d+(?:\.\d+)?)(.*)")
 _QUALITY_RE = re.compile(r"\((\d{3,4})p\)")
+# The tags playlists add to a channel's name, such as (720p), (1080i), and [Geo-blocked]:
+# left out where names are compared or shown in the guide.
+TAG_RE = re.compile(r"\s*(\(\d{3,4}[pi]\)|\[[^\]]*\])")
 _LABEL_RE = re.compile(r"\[([^\]]+)\]")
 
 

@@ -52,7 +52,7 @@ def offered(text: str) -> list[Offered]:
     out: list[Offered] = []
     section = ""
     taken: set[str] = set()
-    for raw in text.removeprefix("﻿").splitlines():
+    for raw in text.removeprefix("\ufeff").splitlines():
         line = raw.strip()
         m = _SECTION_RE.match(line)
         if m:

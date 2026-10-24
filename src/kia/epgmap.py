@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from kia.config import EpgConfig
-from kia.m3u import xml_attr, xml_text
+from kia.m3u import TAG_RE, xml_attr, xml_text
 
 
 @dataclass
@@ -91,12 +91,11 @@ def broken_sites(repo_dir: Path) -> set[str]:
 # for those, but a wrong match is worse than none: the guide would show another channel's
 # programs. So only an exact name match counts, in the same country, and only when the
 # name belongs to one channel. Looser matches are only suggested in the report.
-_TAG_RE = re.compile(r"\s*(\(\d{3,4}[pi]\)|\[[^\]]*\])")
 _LOOSE_WORDS = {"hd", "tv", "channel", "network", "the", "us", "usa", "fhd", "uhd", "4k", "sd"}
 
 
 def _words(name: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", _TAG_RE.sub("", name).lower().replace("+", " plus ").replace("&", " and "))
+    return re.findall(r"[a-z0-9]+", TAG_RE.sub("", name).lower().replace("+", " plus ").replace("&", " and "))
 
 
 def name_key(name: str) -> str:

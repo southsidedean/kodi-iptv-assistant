@@ -120,9 +120,14 @@ def for_players(entries: list[Entry], base_url: str | None) -> list[Entry]:
     return out
 
 
+class NotHttps(ValueError):
+    """An address the relay won't fetch: not https."""
+
+
 class _HttpsOnly(urllib.request.HTTPRedirectHandler):
-    """Follows redirects only to https addresses, so a redirect can't point the relay at
-    something on your network."""
+    """Follows redirects only to https addresses. Most things on a home network (a router's
+    page, a printer) answer only plain http, so a redirect can't point the relay at them;
+    one that answers https could still be reached."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if not newurl.lower().startswith("https://"):
@@ -136,7 +141,7 @@ _OPENER = urllib.request.build_opener(_HttpsOnly)
 def fetch(url: str, timeout: float = TIMEOUT) -> tuple[str, bytes]:
     """(final address, body). Only https: the addresses come from Pluto's playlists."""
     if not url.lower().startswith("https://"):
-        raise ValueError(f"not an https address: {url[:80]}")
+        raise NotHttps(f"not an https address: {url[:80]}")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with _OPENER.open(req, timeout=timeout) as r:
         return r.geturl(), r.read()
@@ -146,6 +151,8 @@ def fetch_retry(url: str, fetcher=fetch) -> tuple[str, bytes]:
     """Once more after a short wait: Pluto now and then answers 500 or times out."""
     try:
         return fetcher(url)
+    except NotHttps:
+        raise  # it won't be https the next time either
     except (urllib.error.URLError, OSError, ValueError):
         time.sleep(RETRY_DELAY)
         return fetcher(url)
