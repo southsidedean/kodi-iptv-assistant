@@ -91,13 +91,14 @@ The menu at the top leads to the other pages:
 - **Playlists** lists every playlist with its address, and on the secure page has **Make a playlist**.
 - **Sources** has the playlists kia checks (which you can [choose](configuration.md#choosing-channel-sources-on-the-dashboard) on the secure page) and how each one's streams did in the last check.
 - **Guide** shows how much of the guide is filled in, with the guide reports.
+- **Stack**, with Docker, shows what runs next to kia, each program's state (with the [kia-stack service](stack.md#changing-the-stack-from-the-dashboard)), and on the secure page lets you choose what runs: tick the parts or start from a preset, **Check** the choice, then **Apply** it. Apply comes on only after a Check of the same choice found no problems, and asks first if someone's watching or if parts would stop. Without the service, the page shows the `scripts/stack.sh` command to run instead.
 - **System** has the secure page's certificate, the password, the [Pluto TV](#pluto-tv) channels playing right now, every file and report, and the settings kia is running with, each with where to change it (`.env` or `kia.toml`). Passwords and alert addresses show only whether they're set.
 
 Every page has the same menu at the top, a **Documentation** button that opens these docs (and **Observability**, with [Grafana](cookbooks/observability.md) running), and a link to the [troubleshooting guide](troubleshooting.md) at the bottom.
 
 <img src="../images/kia-timeline-phone.png" width="300" alt="A playlist's Timeline on a phone: three hours from 11 PM, channel names down the side, a red line at the current time, and a tapped show's title and times under its channel">
 
-![kia's Dashboard: the menu, a banner saying everything's working, the Getting started checklist, the channel counts, and four playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
+![kia's Dashboard: the menu, a banner saying everything's working, the Your stack tiles for Threadfin, Plex, Grafana, and the exporters, the Getting started checklist, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 

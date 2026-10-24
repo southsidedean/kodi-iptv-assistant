@@ -1,5 +1,6 @@
 """The Dashboard's API behind /api/: playlists (profiles), channels, channel sources and
-Check now, the password, and which pseudonym is which player.
+Check now, the password, which pseudonym is which player, and the Stack page's requests to
+the kia-stack service (kia.stack).
 
 Reading is open to anyone who can open the Dashboard. Changes (profiles, the password)
 need the admin password (kia.auth), sent as the X-Kia-Password header, and are accepted
@@ -31,7 +32,7 @@ import signal
 import subprocess
 import sys
 
-from kia import channels, locks, profiles
+from kia import channels, locks, profiles, stack
 from kia.config import is_station_line
 from kia import sources as web_sources
 from kia.auth import Auth
@@ -41,6 +42,8 @@ from kia.m3u import parse
 # Writing kia's state: shared with a refresh, even one in another process (kia.locks).
 LOCK = locks.FilesLock()
 PASSWORD_LOCK = threading.Lock()
+# Stack requests, one at a time. Not LOCK: a nightly refresh holds that for up to an hour.
+STACK_LOCK = threading.Lock()
 # Wrong passwords, by who sent them: (how many in a row, when the next try is let in). From
 # the second one, each doubles the wait, up to a minute, for that address only.
 _WRONG: dict[str, tuple[int, float]] = {}
@@ -524,6 +527,32 @@ def stop_check() -> dict:
     return {"check": check_state(unlocked=True)}
 
 
+def _project_dir(cfg: ApiConfig) -> Path:
+    """The kia folder: where kia.toml, stacks/, and scripts/ are."""
+    return cfg.config_file.parent if cfg.config_file else cfg.state_dir.parent
+
+
+def get_stack(cfg: ApiConfig, secure: bool = False) -> dict:
+    """The Stack page: what runs, the parts and presets to choose from, and whether the
+    kia-stack service is there to make a change. Nothing in it is secret."""
+    return {"editable": cfg.auth.source != "off", "secure": secure,
+            **stack.page_state(cfg.state_dir, _project_dir(cfg))}  # fmt: skip
+
+
+def ask_stack(cfg: ApiConfig, action: str, data: dict) -> dict:
+    """Ask the kia-stack service to check or apply a choice of parts. Its answer comes
+    later, in GET /api/stack; the page asks every few seconds."""
+    if stack.profiles() is None:
+        raise ApiError(409, "Choosing the parts here is for kia with Docker. Without Docker, there's nothing to choose.")
+    try:
+        parts = stack.parts_from(data.get("parts"))
+        with STACK_LOCK:  # two at once would both find no request waiting
+            rid = stack.ask(cfg.state_dir, action, parts)
+    except stack.StackError as exc:
+        raise ApiError(409 if "still working" in str(exc) else 400, str(exc)) from None
+    return {"id": rid, **get_stack(cfg, True)}
+
+
 def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
     if cfg.auth.source == "off":
         raise ApiError(403, "Editing is off (KIA_EDITING=false in kia's .env file).")
@@ -625,6 +654,14 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
                 return 200, start_check(cfg, data)
             if parts == ["sources", "check"] and method == "DELETE":
                 return 200, stop_check()
+        if parts == ["stack"] and method == "GET":
+            return 200, get_stack(cfg, secure)
+        if parts == ["stack", "check"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, ask_stack(cfg, "check", data)
+        if parts == ["stack", "apply"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, ask_stack(cfg, "apply", data)
         if parts == ["password"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, change_password(cfg, data)

@@ -301,6 +301,13 @@ fi
 if [ "$chosen" = yes ]; then
     echo "KIA_STACK=$features"
     echo "COMPOSE_PROFILES=$(echo "$profiles" | tr ' ' ',')"
+    # What runs now and this choice leaves out, which apply stops. The Dashboard shows this
+    # after Check, since an apply it asks for doesn't stop to ask (--yes).
+    stops=""
+    for p in $(get COMPOSE_PROFILES | tr ',' ' '); do
+        case " $profiles " in *" $p "*) ;; *) stops="${stops:+$stops, }$p" ;; esac
+    done
+    if [ -n "$stops" ]; then echo "Stops what runs now: $stops (Compose profiles this choice leaves out)"; fi
 fi
 if [ "$cmd" = check ] || [ "$cmd" = apply ]; then
     echo "$problems problem(s), $warnings warning(s)."

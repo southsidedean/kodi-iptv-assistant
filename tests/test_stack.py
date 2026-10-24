@@ -100,3 +100,132 @@ def test_the_dashboard_has_a_stack_card_it_fills_in(tmp_path: Path):
     html = status.render_html(status.collect(tmp_path, tmp_path, {}, None))
     assert '<section class="card" id="stack" hidden>' in html  # hidden until stack.json lists something
     assert 'fetch("stack.json"' in html and "Not answering" in html
+
+
+# --- The Stack page ----------------------------------------------------------------
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_the_parts_are_the_ones_stack_sh_knows():
+    import re
+
+    script = (ROOT / "scripts" / "stack.sh").read_text()
+    block = script.split('PARTS="', 1)[1].split('"\n', 1)[0]
+    assert [line.split("|")[0] for line in block.splitlines()] == [name for name, _ in stack.PARTS]
+    assert all(re.fullmatch(r"[a-z0-9-]+", name) for name, _ in stack.PARTS)
+
+
+def test_a_choice_is_known_parts_in_kias_order():
+    assert stack.parts_from(["observability", "plex"]) == ["plex", "observability"]
+    assert stack.parts_from(["plex", "plex"]) == ["plex"]
+    assert stack.parts_from([]) == []
+    for bad in (["plex;reboot"], ["PLEX"], "plex", [1], None):
+        try:
+            stack.parts_from(bad)
+        except stack.StackError:
+            continue
+        raise AssertionError(bad)
+
+
+def test_the_presets_come_from_stacks():
+    found = {p["name"]: p for p in stack.presets(ROOT)}
+    assert found["plex-box"]["parts"] == ["plex"] and found["kodi"]["parts"] == []
+    assert found["everything"]["what"].startswith("Plex and Jellyfin")
+
+
+def test_asking_writes_one_request_at_a_time(tmp_path: Path):
+    rid = stack.ask(tmp_path, "check", ["plex", "observability"])
+    assert (tmp_path / "stack-request").read_text() == f"id={rid}\naction=check\nstack=plex,observability\n"
+    assert stack.waiting(tmp_path) == rid
+    try:
+        stack.ask(tmp_path, "apply", ["plex"])
+        raise AssertionError("a second request while the first waits")
+    except stack.StackError as exc:
+        assert "still working" in str(exc)
+    (tmp_path / "stack-request").rename(tmp_path / "stack-request.taken")  # the service took it
+    assert stack.waiting(tmp_path) == rid
+    (tmp_path / "stack-request.taken").unlink()  # and finished
+    assert stack.waiting(tmp_path) is None and stack.ask(tmp_path, "apply", ["plex"])
+
+
+def test_an_old_request_doesnt_block_new_ones(tmp_path: Path):
+    import os
+    import time
+
+    stack.ask(tmp_path, "check", [])
+    old = time.time() - stack.REQUEST_EXPIRES - 5
+    os.utime(tmp_path / "stack-request", (old, old))
+    assert stack.waiting(tmp_path) is None
+
+
+def test_reading_the_services_answer_and_containers(tmp_path: Path):
+    assert stack.result(tmp_path) is None and stack.containers(tmp_path) == []
+    (tmp_path / "stack-result").write_text("id=abc\naction=check\nstate=finished\nexit=0\nfinished=2026-10-24T22:00:00Z\n"
+                                           "evil=1\n\n0 problem(s), 0 warning(s).\n")  # fmt: skip
+    assert stack.result(tmp_path) == {"id": "abc", "action": "check", "state": "finished", "exit": "0",
+                                      "finished": "2026-10-24T22:00:00Z", "output": "0 problem(s), 0 warning(s).\n"}  # fmt: skip
+    (tmp_path / "stack-containers.tsv").write_text("kia\trunning\thealthy\tUp 2 hours\nweb\trunning\n\n" + "x" * 500 + "\n")
+    rows = stack.containers(tmp_path)
+    assert rows[0] == {"service": "kia", "state": "running", "health": "healthy", "status": "Up 2 hours"}
+    assert rows[1]["health"] == "" and len(rows[2]["service"]) == 80
+
+
+def test_the_service_counts_as_running_while_its_list_is_fresh(tmp_path: Path, monkeypatch):
+    import os
+    import time
+
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")
+    assert stack.page_state(tmp_path, ROOT)["service"] is False
+    (tmp_path / "stack-containers.tsv").write_text("kia\trunning\thealthy\tUp\n")
+    state = stack.page_state(tmp_path, ROOT)
+    assert state["service"] is True and state["docker"] is True and state["profiles"] == ["plex"]
+    old = time.time() - stack.SERVICE_SILENT_AFTER - 5
+    os.utime(tmp_path / "stack-containers.tsv", (old, old))
+    assert stack.page_state(tmp_path, ROOT)["service"] is False
+
+
+def api_cfg(tmp_path: Path):
+    from kia import api, auth
+
+    (tmp_path / "state").mkdir()
+    return api.ApiConfig(tmp_path / "output", tmp_path / "state", tmp_path / "profiles.toml", None,
+                         auth.Auth(tmp_path / "state", "secret"), 8743, config_file=ROOT / "kia.toml")  # fmt: skip
+
+
+def test_the_api_asks_the_service(tmp_path: Path, monkeypatch):
+    from kia import api
+
+    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex,plex-server")
+    monkeypatch.setenv("KIA_STACK", "plex")
+    cfg = api_cfg(tmp_path)
+    status, data = api.handle(cfg, "GET", "/api/stack", {}, b"", False)
+    assert status == 200 and data["chosen"] == ["plex"] and not data["secure"] and data["waiting"] is None
+    assert data["parts"][0]["name"] == "plex" and any(p["name"] == "plex-box" for p in data["presets"])
+    ask = lambda body: api.handle(cfg, "POST", "/api/stack/check", {"X-Kia-Password": "secret"}, json.dumps(body).encode(), True)
+    status, data = ask({"parts": ["plex", "observability"]})
+    assert status == 200 and data["waiting"] == data["id"]
+    assert "stack=plex,observability" in (cfg.state_dir / "stack-request").read_text()
+    assert ask({"parts": ["plex"]})[0] == 409  # one at a time
+    (cfg.state_dir / "stack-request").unlink()
+    status, data = ask({"parts": ["plex", "$(reboot)"]})
+    assert status == 400 and not (cfg.state_dir / "stack-request").exists()
+
+
+def test_the_api_without_docker_has_nothing_to_ask(tmp_path: Path, monkeypatch):
+    from kia import api
+
+    cfg = api_cfg(tmp_path)
+    assert api.handle(cfg, "GET", "/api/stack", {}, b"", True)[1]["docker"] is False
+    status, data = api.handle(cfg, "POST", "/api/stack/apply", {"X-Kia-Password": "secret"}, b'{"parts": []}', True)
+    assert status == 409 and "Docker" in data["error"] and not (cfg.state_dir / "stack-request").exists()
+
+
+def test_the_stack_page_is_in_the_menu(tmp_path: Path):
+    s = status.collect(tmp_path, tmp_path, {}, None)
+    html = status.render_stack(s)
+    assert 'id="stack-page"' in html and 'fetch("api/stack"' in html
+    # The password box and buttons use the shared form styles; the Sources page needs them too.
+    assert ".editor label.field" in html and ".editor label.field" in status.render_sources(s)
+    assert 'href="stack.html"' in status.render_html(s)
