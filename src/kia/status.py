@@ -29,6 +29,7 @@ FILES = [
     ("guide-report.html", "Guide coverage by channel and site"),
     ("mapping-report.html", "Which guide sites match which channels, including matches by name to check"),
     ("pluto.json", "Pluto TV channels playing through kia right now"),
+    ("stack.json", "The programs running next to kia, and whether each one answers"),
 ]
 RESULTS = {
     "running": "Refreshing now",
@@ -596,6 +597,61 @@ PLUTO_SCRIPT = """
 """
 
 
+STACK_STYLE = """
+.stack-tiles { grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
+.stack-tiles .tile { display: flex; gap: .55rem; align-items: flex-start; padding: var(--space-2) var(--space-3); }
+.stack-tiles .dot { margin-top: .3rem; width: .7rem; height: .7rem; }
+.stack-tiles .ok .dot { color: var(--good); }
+.stack-tiles .down { background: var(--bad-bg); }
+.stack-tiles .down .dot { color: var(--bad); }
+.stack-tiles .name { font-weight: 600; }
+"""
+
+STACK_SCRIPT = """
+<script>
+(function () {
+  var card = document.getElementById("stack");
+  if (!card) return;
+  var list = card.querySelector(".stack-tiles"), note = card.querySelector(".stack-checked");
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+  function draw(s) {
+    var services = (s && s.services) || [];
+    card.hidden = !services.length;
+    list.textContent = "";
+    var down = 0;
+    services.forEach(function (x) {
+      // Plex, Jellyfin, and Threadfin answer plain http, on this computer's address.
+      var link = x.link && (x.link.url || (x.link.port && "http://" + location.hostname + ":" + x.link.port + x.link.path));
+      var tile = el(link ? "a" : "div", "tile " + (x.ok ? "ok" : "down"));
+      if (link) { tile.href = link; tile.rel = "noopener"; }
+      if (!x.ok) down++;
+      tile.appendChild(el("span", "dot"));
+      var text = el("span");
+      text.appendChild(el("div", "name", x.title));
+      text.appendChild(el("div", "l", x.ok ? "Running" : "Not answering"));
+      tile.appendChild(text);
+      list.appendChild(tile);
+    });
+    var d = new Date(s && s.checked);
+    note.textContent = (down ? down + (down === 1 ? " part isn't" : " parts aren't") + " answering. " : "")
+      + (isNaN(d) ? "" : "Checked at " + d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) + ".");
+  }
+  function load() {
+    fetch("stack.json", { cache: "no-cache" }).then(function (r) { return r.ok ? r.json() : null; }).then(draw, function () {});
+  }
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+"""
+
+_STACK_CARD = (
+    '<section class="card" id="stack" hidden><h2>Your stack</h2>'
+    '<p class="muted">The programs running next to kia. kia checks each one every minute.</p>'
+    '<div class="tiles stack-tiles"></div><p class="muted stack-checked"></p></section>'
+)
+
+
 def _footer(s: dict, root: str = "") -> str:
     return (
         f'<a href="{PROJECT_URL}">kodi-iptv-assistant</a> {escape(s["version"])}. The same information for scripts: '
@@ -637,10 +693,11 @@ def render_html(s: dict) -> str:
         alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
     again = '<p class="muted"><a href="#getting-started" class="show-steps" hidden>Show the Getting started steps again</a></p>'
     body = (
-        f'<main>{_banner(s)}{_env_warning(s)}{_pluto_warning(s)}{_checklist_card(s)}{tiles}{alerts}{_short_playlists_card(s)}{again}</main>'
+        f'<main>{_banner(s)}{_env_warning(s)}{_pluto_warning(s)}{_STACK_CARD}{_checklist_card(s)}{tiles}{alerts}'
+        f'{_short_playlists_card(s)}{again}</main>'
     )
-    script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT
-    return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE, current="index.html")
+    script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT + STACK_SCRIPT
+    return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE + STACK_STYLE, current="index.html")
 
 
 def render_playlists(s: dict) -> str:

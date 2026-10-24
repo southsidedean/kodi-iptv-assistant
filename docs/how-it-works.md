@@ -78,7 +78,9 @@ The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every d
 
 ## The Dashboard
 
-Until you've finished setting up, `http://<your address>:8780/` starts with a **Getting started** checklist: the first refresh, the address other devices use, a player on each device, the password, your playlists, and alerts. kia ticks the steps it can check itself, you tick the rest, and you can hide it.
+With Docker, `http://<your address>:8780/` starts with **Your stack**: a tile for each program running next to kia (Threadfin, Plex, Jellyfin, Prometheus, Grafana, and the exporters, whichever you [chose](stack.md)), green when it answers and red when it doesn't. kia checks each one every minute. A tile with a page of its own, such as Plex or Threadfin, opens it. kia has no access to Docker itself, so it can't tell a program that's starting from one that has stopped; `docker compose ps` in the kia folder can.
+
+Until you've finished setting up, the page then has a **Getting started** checklist: the first refresh, the address other devices use, a player on each device, the password, your playlists, and alerts. kia ticks the steps it can check itself, you tick the rest, and you can hide it.
 
 The page shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button. kia updates the pages when a run starts and ends, and when you save a profile.
 
@@ -157,6 +159,15 @@ stale = not done or datetime.now(timezone.utc) - datetime.fromisoformat(done) > 
 sys.exit(1 if s["result"] == "failed" or (stale and s["result"] != "running") else 0)'
 ```
 
+### `stack.json`
+
+The Dashboard's **Your stack** tiles, at `http://<your address>:8780/stack.json`, with Docker only. kia rewrites it every minute.
+
+| Field | Contents |
+|---|---|
+| `checked` | When kia last checked |
+| `services` | Each program running next to kia: its `service` name in `compose.yaml`, its `title`, `ok` (whether it answered), and `link`, where a browser opens it: a `port` on kia's address and a `path`, or Grafana's `url` |
+
 ## DNS checks and alerts
 
 When a stream or guide site's name can't be looked up, kia asks public DNS servers (`[dns] verify_resolvers`) as well. If they can't find it either, the stream or site is gone, and kia just reports it. If they can, your network's DNS is the problem (an ad-blocker or the router, for example), and since that would affect Kodi too, kia raises an alert. If kia can't reach them either, a moment without internet is more likely than a DNS problem, so kia only notes it in the log. Names are tried twice on your network first, so a single slow lookup doesn't raise one. Some sites' own DNS servers send broken IPv6 answers, which make the lookup fail everywhere; kia recognizes that and reports it as the site's problem, not yours.
@@ -167,7 +178,7 @@ Alerts also cover a failed nightly run, sharp drops in working channels or guide
 
 | Folder | Contents |
 |---|---|
-| `output/` | What gets served: the playlist (`curated.m3u`) and guide, the TV-only playlist (`tv.m3u`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), the reports (each as `.html` for browsers and `.md`, plus `report.json`), the Dashboard's pages (`index.html`, `playlists.html`, `sources.html`, `guide.html`, `system.html`, and one per playlist in `playlists/`), and for scripts `status.json`, `profiles.json`, `guide-preview.json`, and `pluto.json` while Pluto TV channels play |
+| `output/` | What gets served: the playlist (`curated.m3u`) and guide, the TV-only playlist (`tv.m3u`), the profiles' playlists and guides (`<name>.m3u`, `<name>.guide.xml.gz`), the reports (each as `.html` for browsers and `.md`, plus `report.json`), the Dashboard's pages (`index.html`, `playlists.html`, `sources.html`, `guide.html`, `system.html`, and one per playlist in `playlists/`), and for scripts `status.json`, `profiles.json`, `guide-preview.json`, `stack.json` with Docker, and `pluto.json` while Pluto TV channels play |
 | `state/` | The password (`admin.json`, and `admin-password.txt` until you change it), stream history, channel numbers, the alert log, and the choices made on the Dashboard: playlists (`sources.json`), favorites, numbers, and removed channels (`channels.json`) |
 | `work/` | Intermediate files: per-site channel lists, downloaded guides, logs, and your [backups](configuration.md#backing-up-and-moving-to-another-computer) (`work/backups/`) |
 | `vendor/epg/` | kia's copy of iptv-org/epg, updated nightly |

@@ -193,7 +193,8 @@ def _plex(out: _Out, plex: PlexSessions, name: str = "plex", title: str = "Plex"
                 for x in sessions])  # fmt: skip
 
 
-def render(output_dir: Path, relay=None, plex: PlexSessions | None = None, jellyfin: PlexSessions | None = None) -> str:
+def render(output_dir: Path, relay=None, plex: PlexSessions | None = None, jellyfin: PlexSessions | None = None,
+           stack=None) -> str:
     out = _Out()
     try:
         s = json.loads((output_dir / "status.json").read_text())
@@ -248,6 +249,9 @@ def render(output_dir: Path, relay=None, plex: PlexSessions | None = None, jelly
         _plex(out, plex)
     if jellyfin is not None:
         _plex(out, jellyfin, "jellyfin", "Jellyfin")
+    if stack is not None and stack.last:
+        out.metric("kia_stack_service_up", "gauge", "1 if this part of the stack answered kia's last check (every minute).",
+                   [({"service": x["service"]}, int(x["ok"])) for x in stack.last])  # fmt: skip
 
     use = resource.getrusage(resource.RUSAGE_SELF)
     kids = resource.getrusage(resource.RUSAGE_CHILDREN)
