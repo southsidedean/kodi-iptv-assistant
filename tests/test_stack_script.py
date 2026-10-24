@@ -20,6 +20,9 @@ def kia(tmp_path: Path) -> Path:
     shutil.copy(ROOT / "scripts" / "stack.sh", folder / "scripts" / "stack.sh")
     shutil.copytree(ROOT / "stacks", folder / "stacks")
     (folder / "media").mkdir()
+    (folder / "output").mkdir()
+    for name in ("plex", "plex-2"):
+        (folder / "output" / f"{name}.m3u").write_text("#EXTM3U\n")  # the playlists Threadfin reads
     (folder / ".env").write_text("KIA_PUBLIC_URL=http://192.168.1.20:8780\nKIA_PORT=1\nCOMPOSE_PROFILES=\n"
                                  "KIA_PLEX_ADVERTISE=http://192.168.1.20:32400/\nKIA_JELLYFIN_ADVERTISE=\n")  # fmt: skip
     bin_dir = tmp_path / "bin"
@@ -29,6 +32,7 @@ def kia(tmp_path: Path) -> Path:
          'case "$*" in\n'
          '  info*) [ -n "$FAKE_NVIDIA" ] && echo " Runtimes: io.containerd.runc.v2 nvidia runc" ;;\n'
          '  *"ps --services --status running"*) printf "kia\\nweb\\njellyfin\\n" ;;\n'
+         '  *"ps --all --services"*) printf "kia\\nweb\\njellyfin\\nthreadfin-2\\n" ;;\n'
          '  *"config --services"*) printf "kia\\nweb\\nthreadfin\\nplex\\n" ;;\n'
          'esac\n')  # fmt: skip
     stub(bin_dir, "uname", 'echo "${FAKE_OS:-Linux}"\n')
@@ -94,8 +98,9 @@ def test_apply_sets_the_profiles_and_stops_what_is_no_longer_chosen(kia: Path):
     assert "KIA_STACK=plex\n" in env and "COMPOSE_PROFILES=plex,plex-server\n" in env
     assert "KIA_PLEX_URL=http://plex:32400\n" in env  # Plex in the stack, as kia reaches it
     calls = (kia.parent / "docker.log").read_text().splitlines()
-    assert any(c.endswith(" compose up -d") for c in calls)
+    assert any(c.endswith(" compose up -d --quiet-pull") for c in calls)
     assert any("rm --stop --force jellyfin" in c and c.startswith("COMPOSE_PROFILES=* ") for c in calls)  # not chosen any more
+    assert any("rm --stop --force threadfin-2" in c for c in calls)  # stopped or stuck restarting, it goes too
     assert not any("rm --stop --force kia" in c for c in calls)
     assert list((kia / "state").glob("env.before-stack-*"))  # the old .env, kept
     assert "Next for Plex" in r.stdout
@@ -123,3 +128,15 @@ def test_apply_asks_before_turning_off_what_runs_now(kia: Path):
     assert "Not changed" in r.stdout and "COMPOSE_PROFILES=plex,monitoring\n" in (kia / ".env").read_text()
     assert stack(kia, "apply", "--yes").returncode == 0
     assert "COMPOSE_PROFILES=jellyfin-server\n" in (kia / ".env").read_text()
+
+
+def test_threadfin_needs_its_playlist_first(kia: Path):
+    (kia / "output" / "plex.m3u").unlink()
+    with_stack(kia, "plex")
+    r = stack(kia, "check")
+    assert r.returncode == 1 and "no playlist named plex for Threadfin yet" in r.stdout
+    (kia / "output" / "plex-1.m3u").write_text("#EXTM3U\n")  # the split names work too
+    with_stack(kia, "plex-tuner,plex-tuner-2")
+    (kia / "output" / "plex-2.m3u").unlink()
+    r = stack(kia, "check")
+    assert "no playlist named plex-2 for the second Threadfin" in r.stdout and "named plex for" not in r.stdout

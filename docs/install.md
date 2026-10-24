@@ -26,9 +26,15 @@ curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/m
 
 (To open a terminal: on macOS, open the *Terminal* app from Applications → Utilities; on Linux, it's usually called *Terminal* in your apps menu.)
 
-It asks you to confirm the address and time zone, and at the end prints the Dashboard's address and the password for making changes. Running it again is safe; it keeps your settings. On a Raspberry Pi, or any computer with less than 6 GB of memory, it uses the lighter settings from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory.
+It asks you to confirm the address and time zone, and what this kia is for: one of the [presets](stack.md#presets), such as `kodi` (the default) for Kodi and other players, or `plex-box` for Plex in the stack. At the end it prints the Dashboard's address and the password for making changes. Running it again is safe; it keeps your settings. On a Raspberry Pi, or any computer with less than 6 GB of memory, it uses the lighter settings from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory.
 
 kia then starts its first refresh, which takes up to an hour. Wait for it to finish and check the Dashboard, as the end of [step 6](#6-start-kia) describes, then set up Kodi in [step 7](#7-set-up-kodi).
+
+To choose the preset up front, add it after `sh -s --`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh -s -- --preset plex-box
+```
 
 To do it by hand instead, or to see what it does, follow the steps below.
 
