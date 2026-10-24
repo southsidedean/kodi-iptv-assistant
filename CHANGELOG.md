@@ -9,6 +9,7 @@ Update with `scripts/update.sh`. With the `monitoring` profile on, Grafana's add
 ### Observability
 
 - Grafana answers only over HTTPS, with kia's own certificate from `tls/` (the secure Dashboard's, or yours if you put one there), so its password no longer crosses your network in plain text. Grafana checks the certificate files every minute, so kia's renewals and your own certificate need no restart. The Dashboard's **Observability** button opens the `https://` address.
+- After an update, Prometheus and the web server kept the settings they started with. Docker keeps a settings file mounted on its own pinned to the copy the container started with, and `git` replaces the file. So 0.5.4's new `gpu` and `disks` jobs never reached Prometheus on updated installs. `scripts/update.sh` now restarts whichever of the two had its settings changed by the update. If you updated to 0.5.4 another way, run `docker compose restart prometheus web` once.
 
 ## 0.5.4 (2026-10-24)
 

@@ -36,6 +36,7 @@ fi
 echo "Looking for kia's releases..."
 git fetch --quiet --tags --force origin
 before=$(git describe --tags --always)
+before_rev=$(git rev-parse HEAD)
 if [ "$target" = main ]; then
     git checkout --quiet main 2>/dev/null || git checkout --quiet -b main --track origin/main
     git pull --quiet --ff-only origin main
@@ -80,4 +81,18 @@ else
     docker compose pull --ignore-buildable
 fi
 docker compose up -d
+# Docker pins a config file mounted on its own (nginx's, Prometheus's) to the copy the
+# container started with, so after a release that changed one, that container restarts.
+changed=$(git diff --name-only "$before_rev" HEAD -- deploy/ 2>/dev/null || true)
+restart=""
+if echo "$changed" | grep -q -E '^deploy/(nginx\.conf|kia-common\.inc|kia-api\.inc|nginx-tls\.sh)$'; then restart="web"; fi
+if echo "$changed" | grep -q '^deploy/monitoring/prometheus\.yml$'; then restart="$restart prometheus"; fi
+if [ -n "$restart" ]; then
+    running=$(docker compose ps --services --status running 2>/dev/null || true)
+    for service in $restart; do
+        if echo "$running" | grep -qx "$service"; then
+            docker compose restart "$service" && echo "Restarted $service, for its new settings."
+        fi
+    done
+fi
 echo "Done: kia $(git describe --tags --always) is running."
