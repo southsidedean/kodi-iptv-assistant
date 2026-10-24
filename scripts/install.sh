@@ -239,8 +239,11 @@ if [ "$plex_next" = yes ]; then
     say "  (docs/cookbooks/plex-box.md, step 4; KIA_STACK=$stack is already set)"
     say ""
 fi
-case ",$stack," in *,jellyfin,*) say "For Jellyfin: open http://$host:8096 and follow docs/cookbooks/jellyfin-box.md, step 3."; say "" ;; esac
-case ",$stack," in *,observability,*) say "Graphs: https://$host:8788 (Grafana; docs/cookbooks/observability.md, step 3)."; say "" ;; esac
+# What's running now (with Plex, the rest starts with it, after the claim code).
+if [ "$apply_now" = yes ]; then
+    case ",$stack," in *,jellyfin,*) say "For Jellyfin: open http://$host:8096 and follow docs/cookbooks/jellyfin-box.md, step 3."; say "" ;; esac
+    case ",$stack," in *,observability,*) say "Graphs: https://$host:8788 (Grafana; docs/cookbooks/observability.md, step 3)."; say "" ;; esac
+fi
 say "Next: wait for the first refresh (the Dashboard says when it's done), then set up"
 say "Kodi or another player on each device:"
 say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/kodi.md"
