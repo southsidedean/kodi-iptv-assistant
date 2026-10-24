@@ -105,7 +105,7 @@ The dashboard's buttons lead to it from the other three.
 
 Prometheus picks new files up within a few minutes, without a restart.
 
-**Your own dashboards.** Put Grafana dashboard JSON files in `monitoring/dashboards/`; they appear in Grafana's *Local* folder. Edits you make to kia's three dashboards in Grafana aren't kept, because they're reloaded from kia's files; save a copy (*Save as*) to change one.
+**Your own dashboards.** Put Grafana dashboard JSON files in `monitoring/dashboards/`; they appear in Grafana's *Local* folder. Edits you make to kia's four dashboards in Grafana aren't kept, because they're reloaded from kia's files; save a copy (*Save as*) to change one.
 
 ## Good to know
 
@@ -121,5 +121,7 @@ Prometheus picks new files up within a few minutes, without a restart.
 **Grafana won't start: "address already in use".** Something else has port 8788. Set `KIA_GRAFANA_PORT` to another one, such as `8798`, and run `docker compose up -d`.
 
 **The Plex dashboard says "Not answering".** kia can't reach Plex, or the token is wrong. Check `KIA_PLEX_URL` and `KIA_PLEX_TOKEN` in `.env`; the [Plex guide](../plex.md#4-add-threadfin-to-plex) shows how to find a token. After a change, run `docker compose up -d`.
+
+**The TV stack dashboard has no containers, and its Compose project list is empty.** cAdvisor can't see Docker's containers when Docker keeps its images in containerd, which a new Docker install on Linux does (`docker info` shows `Storage Driver: overlayfs`; older installs show `overlay2`). The computer's own graphs still work. This is a known problem in kia 0.5.4, to be fixed in the next version.
 
 **Forgot Grafana's password, or changed `KIA_GRAFANA_PASSWORD`.** Grafana reads that setting (or makes its `admin-password.txt`) only the first time it starts. Set the one you want, then run `docker compose exec grafana grafana cli admin reset-admin-password "$(grep ^KIA_GRAFANA_PASSWORD= .env | cut -d= -f2-)"`.

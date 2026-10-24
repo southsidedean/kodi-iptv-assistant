@@ -1,14 +1,16 @@
 # Changelog
 
-## 0.5.4 (unreleased)
+## 0.5.4 (2026-10-24)
 
 ### Upgrading from 0.5.3
 
-Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/configuration.md#on-a-mac): Plex there keeps its data in `plex/config`, and you can move it to a Docker volume.
+Update with `scripts/update.sh` when nobody is watching: kia restarts, and with the `monitoring` profile on, so does Grafana, which brings back its dashboards (see *Observability*). Nothing else to do on Linux.
+
+On a Mac with Plex in the stack, see [on a Mac](docs/configuration.md#on-a-mac): Plex there keeps its data in `plex/config`, and you can move it to a Docker volume.
 
 ### Jellyfin
 
-- New `jellyfin-server` profile: Jellyfin in kia's stack, for a home TV box on free software ([Jellyfin TV box](docs/cookbooks/jellyfin-box.md)). Jellyfin reads kia's playlist and guide from the web server directly, with no Threadfin and no channel limit. It runs as your user, with a read-only system and no capabilities; your media folder is read-only to it. On a Mac, the installer keeps its database in a Docker volume, like Plex's. New settings: `KIA_JELLYFIN_ADVERTISE`, `KIA_JELLYFIN_PORT`, `KIA_JELLYFIN_NAME` (the server's name, `kia-tv-box` unless you change it), `KIA_JELLYFIN_IMAGE`, `KIA_JELLYFIN_CONFIG`, and `KIA_JELLYFIN_CACHE`.
+- New, in beta: the `jellyfin-server` profile, Jellyfin in kia's stack, for a home TV box on free software ([Jellyfin TV box](docs/cookbooks/jellyfin-box.md)). It's tested from start to finish on Linux and a Mac in a web browser, but not yet with Jellyfin's TV and phone apps. Jellyfin reads kia's playlist and guide from the web server directly, with no Threadfin and no channel limit. It runs as your user, with a read-only system and no capabilities; your media folder is read-only to it. On a Mac, the installer keeps its database in a Docker volume, like Plex's. New settings: `KIA_JELLYFIN_ADVERTISE`, `KIA_JELLYFIN_PORT`, `KIA_JELLYFIN_NAME` (the server's name, `kia-tv-box` unless you change it), `KIA_JELLYFIN_IMAGE`, `KIA_JELLYFIN_CONFIG`, and `KIA_JELLYFIN_CACHE`.
 - kia's metrics count what Jellyfin plays, like Plex: `kia_jellyfin_up`, `kia_jellyfin_sessions`, and `kia_jellyfin_session_info`, with `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN` (an API key from Jellyfin) set. Any Jellyfin works, in the stack or not. Its players get pseudonyms from the same list as Plex's.
 - kia makes the TV-only playlist (`tv.m3u`) always, not only when your list has radio, so the address Jellyfin and other players are set up with keeps working.
 - The [Jellyfin guide](docs/jellyfin.md) is checked against Jellyfin 12.3, says how often Jellyfin reads the guide again, and explains channel names that lose a leading number.
@@ -38,6 +40,10 @@ Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/con
 - Plex's database broke on a Mac. Docker there runs in a Linux machine of its own, and reaches the kia folder through a file share that Plex's database doesn't survive: scanning a library logged hundreds of database errors and left the database damaged. On a Mac, the installer now keeps Plex's data (`KIA_PLEX_CONFIG=plex-config`) and Grafana's (`KIA_GRAFANA_DATA=grafana-data`) in Docker volumes, inside Docker's own machine. Linux is unchanged.
 - kia reads the token that Plex in the stack saved when it was claimed. It found it only in `plex/config` in the kia folder, so a `KIA_PLEX_CONFIG` somewhere else, or a volume, left kia without it. Now kia gets Plex's settings, read-only, from wherever `KIA_PLEX_CONFIG` puts them.
 - Uninstalling is now `docker compose down --rmi all --volumes`, so the volumes go too.
+
+### Known problem
+
+- On a new Docker install on Linux, which keeps images in containerd, cAdvisor can't see the containers, so the TV stack dashboard's container graphs are empty. The computer's own graphs work. To be fixed in 0.5.5.
 
 ## 0.5.3 (2026-10-23)
 
