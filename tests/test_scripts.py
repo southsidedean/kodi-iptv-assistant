@@ -23,7 +23,7 @@ def test_scripts_parse_and_are_executable(script: Path):
 
 def test_service_file_dry_run():
     out = subprocess.run([str(SCRIPTS[1]), "--dry-run"], capture_output=True, text=True, check=True).stdout
-    assert not re.search(r"@[A-Z_]+@", out)  # every placeholder filled in (a PATH may hold ruby@3.4)
+    assert not re.search(r"@[A-Z_]+@", out)  # every placeholder filled in (a PATH can hold an @ too)
     assert str(ROOT) in out and "kia" in out
     if platform.system() == "Linux":
         assert f"PYTHONPATH={ROOT}/src" in out and "-m kia daemon --serve" in out and "KIA_EPG_RUNNER=local" in out
