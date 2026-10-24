@@ -27,6 +27,8 @@ NO_SENSORS = "No sensors to read here (macOS and virtual machines report none)"
 NO_UPS = "No UPS or battery node-exporter can see"
 NO_NODE = "No numbers from node-exporter on port 9100"
 NO_CONTAINERS = "No containers seen (a new Docker install: see the observability cookbook)"
+# The same, short enough for a small tile.
+GPU_OFF_TILE, DISKS_OFF_TILE, NO_UPS_TILE = "Needs monitoring-gpu", "Needs monitoring-disks", "No UPS"
 
 
 class Board:
@@ -81,7 +83,10 @@ class Board:
             d["noValue"] = no_value
         if mappings:
             d["mappings"] = mappings
-        d["thresholds"] = {"mode": "absolute", "steps": thresholds or [{"color": "blue", "value": None}]}
+        steps = thresholds or [{"color": "blue", "value": None}]
+        if steps[0]["value"] is None:  # real values start their color scale; no value at all stays plain
+            steps = [{"color": "text", "value": None}, {**steps[0], "value": -1e9}, *steps[1:]]
+        d["thresholds"] = {"mode": "absolute", "steps": steps}
         if decimals is not None:
             d["decimals"] = decimals
         p["options"] = {"colorMode": "background" if thresholds else "value", "graphMode": "none", "textMode": "value",
@@ -279,11 +284,11 @@ def hardware() -> Board:
     hot = [{"color": "green", "value": None}, {"color": "orange", "value": 75}, {"color": "red", "value": 85}]
     bad = [{"color": "green", "value": None}, {"color": "red", "value": 1}]
     b.row("Graphics card (monitoring-gpu)")
-    b.stat("Temperature", "The graphics card's temperature.", "max(DCGM_FI_DEV_GPU_TEMP)", "celsius", thresholds=hot, no_value=GPU_OFF)
-    b.stat("Power", "What the card draws now.", "sum(DCGM_FI_DEV_POWER_USAGE)", "watt", decimals=0, no_value=GPU_OFF)
+    b.stat("Temperature", "The graphics card's temperature.", "max(DCGM_FI_DEV_GPU_TEMP)", "celsius", thresholds=hot, no_value=GPU_OFF_TILE)
+    b.stat("Power", "What the card draws now.", "sum(DCGM_FI_DEV_POWER_USAGE)", "watt", decimals=0, no_value=GPU_OFF_TILE)
     b.stat("Encoder", "The card's video encoder, which Plex uses when it converts video on the card.",
-           "max(DCGM_FI_DEV_ENC_UTIL)", "percent", no_value=GPU_OFF)  # fmt: skip
-    b.stat("Decoder", "The card's video decoder.", "max(DCGM_FI_DEV_DEC_UTIL)", "percent", no_value=GPU_OFF)
+           "max(DCGM_FI_DEV_ENC_UTIL)", "percent", no_value=GPU_OFF_TILE)  # fmt: skip
+    b.stat("Decoder", "The card's video decoder.", "max(DCGM_FI_DEV_DEC_UTIL)", "percent", no_value=GPU_OFF_TILE)
     b.stat("Plex converting on the card", "Plex sessions converting video on the graphics card (hardware transcoding).",
            'sum(kia_plex_sessions{hw="gpu"}) or vector(0)')  # fmt: skip
     b.stat("Plex converting on the processor", "Plex sessions converting video on the processor: slower and hotter.",
@@ -296,16 +301,16 @@ def hardware() -> Board:
             no_value=GPU_OFF)  # fmt: skip
     b.row("Disks (monitoring-disks)")
     b.stat("Disks failing their own check", "Disks whose SMART self-assessment says they're failing: replace them soon.",
-           "count(smartctl_device_smart_status == 0) or vector(0)", thresholds=bad, w=6)  # fmt: skip
+           "count(smartctl_device_smart_status == 0) or count(smartctl_device) * 0", thresholds=bad, w=6, no_value=DISKS_OFF_TILE)  # fmt: skip
     b.stat("Bad or pending sectors", "Sectors disks have replaced, are waiting to replace, or couldn't read, in all. "
            "A number that grows means a disk is wearing out.",
            'sum(smartctl_device_attribute{attribute_name=~"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable",'
-           'attribute_value_type="raw"}) or vector(0)', thresholds=bad, w=6)  # fmt: skip
+           'attribute_value_type="raw"}) or count(smartctl_device) * 0', thresholds=bad, w=6, no_value=DISKS_OFF_TILE)  # fmt: skip
     b.stat("Hottest disk", "The warmest disk now.", 'max(smartctl_device_temperature{temperature_type="current"})', "celsius",
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 50}, {"color": "red", "value": 60}], w=6,
-           no_value=DISKS_OFF)  # fmt: skip
+           no_value=DISKS_OFF_TILE)  # fmt: skip
     b.stat("Disks", "Disks the exporter reads. USB drives that sleep, or whose case hides SMART, aren't counted.",
-           "count(smartctl_device)", w=6, no_value=DISKS_OFF)  # fmt: skip
+           "count(smartctl_device)", w=6, no_value=DISKS_OFF_TILE)  # fmt: skip
     attribute = 'max by (device) (smartctl_device_attribute{{attribute_name="{}",attribute_value_type="raw"}})'
     b.columns("Each disk", "SMART says OK (1) or failing (0); the counts should stay at 0. NVMe disks show their wear instead "
               "of the sector counts.", "device", [
@@ -350,13 +355,13 @@ def hardware() -> Board:
     b.stat("Running on", "Mains power or battery, for a UPS or laptop battery node-exporter can see.",
            'max(node_power_supply_power_source_state{state="Battery Power"}) or (max(node_power_supply_online) * 0)',
            mappings=[{"type": "value", "options": {"0": {"text": "Mains", "color": "green"}, "1": {"text": "Battery", "color": "orange"}}}],
-           thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6, no_value=NO_UPS)  # fmt: skip
+           thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6, no_value=NO_UPS_TILE)  # fmt: skip
     b.stat("Battery charge", "How full the UPS's or laptop's battery is.",
            "min(node_power_supply_current_capacity / node_power_supply_max_capacity) * 100 or min(node_power_supply_capacity)",
            "percent", thresholds=[{"color": "red", "value": None}, {"color": "orange", "value": 30}, {"color": "green", "value": 60}],
-           w=6, decimals=0, no_value=NO_UPS)  # fmt: skip
+           w=6, decimals=0, no_value=NO_UPS_TILE)  # fmt: skip
     b.stat("Battery time left", "How long the battery would last, by its own estimate.",
-           "min(node_power_supply_time_to_empty_seconds)", "s", w=6, no_value=NO_UPS)  # fmt: skip
+           "min(node_power_supply_time_to_empty_seconds)", "s", w=6, no_value=NO_UPS_TILE)  # fmt: skip
     return b
 
 
