@@ -8,6 +8,7 @@
 
 ### Changing the stack from the Dashboard
 
+- A new **Stack** page on the Dashboard shows what runs next to kia, each program's state, and on the secure page lets you choose what runs: tick the parts or start from a preset, **Check**, then **Apply**. Apply comes on only after a clean Check of the same choice, and asks first if someone's watching or if parts would stop. Without the kia-stack service, the page shows the command to run instead. `scripts/stack.sh check` now also says which running parts a choice would stop.
 - A new service, **kia-stack**, lets the Dashboard's Stack page change what runs next to kia. The kia container can't reach Docker, on purpose, so the service runs `scripts/stack.sh watch` on the computer as you, carrying out the check or apply the page asks for. Install it with `scripts/install-service.sh --stack`, or `--stack-service` when you run the installer ([how it works](docs/stack.md#changing-the-stack-from-the-dashboard)). It takes only `check` or `apply` with part names it knows, and refuses anything else.
 - `scripts/stack.sh check --stack plex,observability` checks a choice without changing `.env`, and `apply --stack` sets `KIA_STACK` first.
 

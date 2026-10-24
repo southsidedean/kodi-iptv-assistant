@@ -266,3 +266,26 @@ def test_the_stack_service_file(tmp_path: Path):
                          capture_output=True, text=True, check=True).stdout  # fmt: skip
     assert "stack.sh" in out and "watch" in out and str(ROOT) in out
     assert "@DIR@" not in out and "@PATH@" not in out and "kia daemon" not in out
+
+
+def test_check_says_what_a_choice_would_stop(kia: Path):
+    env = (kia / ".env").read_text().replace("COMPOSE_PROFILES=\n", "COMPOSE_PROFILES=plex,plex-server,plex-2\n")
+    (kia / ".env").write_text(env + "KIA_STACK=plex,plex-tuner-2\n")
+    r = stack(kia, "check", "--stack", "plex")
+    assert "Stops what runs now: plex-2" in r.stdout
+    assert "Stops what runs now" not in stack(kia, "check").stdout  # the same choice stops nothing
+
+
+def test_kia_asks_and_the_service_answers(kia: Path):
+    # The whole path: kia leaves a request (kia.stack.ask, as the Stack page does), the real
+    # scripts/stack.sh watch carries it out, and kia reads the answer the page shows.
+    from kia import stack as kia_stack
+
+    with_stack(kia, "plex")
+    (kia / "state").mkdir()
+    rid = kia_stack.ask(kia / "state", "check", kia_stack.parts_from(["jellyfin"]))
+    stack(kia, "watch", "--once")
+    answer = kia_stack.result(kia / "state")
+    assert answer["id"] == rid and answer["state"] == "finished" and answer["exit"] == "0"
+    assert "COMPOSE_PROFILES=jellyfin-server" in answer["output"] and kia_stack.waiting(kia / "state") is None
+    assert kia_stack.containers(kia / "state")[0]["service"] == "kia"

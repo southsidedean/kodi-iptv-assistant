@@ -51,6 +51,9 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `POST /api/sources/check` | Tests every stream in one playlist now: send `{"url": "..."}`. One check runs at a time, and none during a refresh. | password, HTTPS |
 | `GET /api/sources/check` | The check's progress: `running`, then `result` (`total`, `ok`, `flaky`, `dead`, and a `sample` of working channel names) or `error` | |
 | `DELETE /api/sources/check` | Stops the check that's running. Its `error` then says it was stopped. | password, HTTPS |
+| `GET /api/stack` | The Stack page: `docker` (whether kia runs with Docker), `chosen` (`KIA_STACK`'s parts), `profiles`, the `parts` and `presets` to choose from, `service` (whether the kia-stack service is running), its `containers` (`service`, `state`, `health`, `status`), `waiting` (the id of a request it hasn't answered yet), and `result`, its last answer (`id`, `action`, `state`, `exit`, `finished`, and `output`, what `scripts/stack.sh` said) | |
+| `POST /api/stack/check` | Asks the [kia-stack service](stack.md#changing-the-stack-from-the-dashboard) to check a choice: send `{"parts": ["plex", "observability"]}`. Returns its `id`; the answer appears in `GET /api/stack` a few seconds later. One request at a time. | password, HTTPS |
+| `POST /api/stack/apply` | The same, but applies the choice: sets `KIA_STACK`, then starts and stops what changed. It doesn't ask first, so check for viewers yourself. | password, HTTPS |
 | `GET /api/players` | Which pseudonym in `/metrics` and the graphs (such as `player-3fa2c1`) is which Plex player: each one's `pseudonym`, `name`, `product`, and the day it was last `seen`. | password, HTTPS |
 
 A profile's settings are the ones in [what a profile can say](profiles.md#what-a-profile-can-say), as JSON:

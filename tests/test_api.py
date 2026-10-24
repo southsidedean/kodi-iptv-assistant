@@ -270,9 +270,11 @@ PROTECTED = [
     ("POST", "/api/sources/check", {"url": "https://example.com/us.m3u"}),
     ("DELETE", "/api/sources/check", None),
     ("POST", "/api/password", {"new": "something-new"}),
+    ("POST", "/api/stack/check", {"parts": ["plex"]}),
+    ("POST", "/api/stack/apply", {"parts": ["plex"]}),
 ]
 PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
-          ("GET", "/api/sources"), ("GET", "/api/sources/check")]  # fmt: skip
+          ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack")]  # fmt: skip
 
 
 @pytest.mark.parametrize(("method", "path", "body"), PROTECTED, ids=lambda x: x if isinstance(x, str) else "")

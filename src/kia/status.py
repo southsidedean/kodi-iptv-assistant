@@ -14,7 +14,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from kia import __version__, channeleditor, editor, guideview, sourceeditor
+from kia import __version__, channeleditor, editor, guideview, sourceeditor, stackeditor
 from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
 from kia.channels import FAVORITES
@@ -650,7 +650,8 @@ STACK_SCRIPT = """
 
 _STACK_CARD = (
     '<section class="card" id="stack" hidden><h2>Your stack</h2>'
-    '<p class="muted">The programs running next to kia. kia checks each one every minute.</p>'
+    '<p class="muted">The programs running next to kia. kia checks each one every minute; '
+    '<a href="stack.html">Stack</a> has more, and changes what runs.</p>'
     '<div class="tiles stack-tiles"></div><p class="muted stack-checked"></p></section>'
 )
 
@@ -731,6 +732,13 @@ def render_sources(s: dict) -> str:
     )
     body = f"<main><h1>Sources</h1>{choose}{streams}</main>"
     return page("Sources - kia", body, _footer(s), sourceeditor.SCRIPT, sourceeditor.STYLE, current="sources.html")
+
+
+def render_stack(s: dict) -> str:
+    """Stack: what runs next to kia, and on the secure page, choosing what runs (stackeditor)."""
+    card = f'<section class="card" id="stack-page"{_secure_attr(s)} hidden><div class="body"></div></section>'
+    body = f"<main><h1>Stack</h1>{card}</main>"
+    return page("Stack - kia", body, _footer(s), stackeditor.SCRIPT, stackeditor.STYLE, current="stack.html")
 
 
 def render_guide(s: dict) -> str:
@@ -933,7 +941,8 @@ LIST_SCRIPT = r"""
 """
 
 PAGES = {"index.html": render_html, "playlists.html": render_playlists, "sources.html": render_sources,
-         "guide.html": render_guide, "system.html": render_system, "details.html": render_details}  # fmt: skip
+         "guide.html": render_guide, "stack.html": render_stack, "system.html": render_system,
+         "details.html": render_details}  # fmt: skip
 
 
 def write_pages(output_dir: Path, s: dict) -> None:
