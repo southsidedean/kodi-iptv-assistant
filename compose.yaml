@@ -59,6 +59,9 @@ services:
       # kia plex-tuners: where Plex is, and where it finds the Threadfins.
       KIA_PLEX_URL: ${KIA_PLEX_URL:-}
       KIA_PLEX_TOKEN: ${KIA_PLEX_TOKEN:-}
+      # Jellyfin's sessions in /metrics (docs/metrics.md): where Jellyfin is, and an API key.
+      KIA_JELLYFIN_URL: ${KIA_JELLYFIN_URL:-}
+      KIA_JELLYFIN_TOKEN: ${KIA_JELLYFIN_TOKEN:-}
       # The Dashboard's Graphs button (docs/cookbooks/observability.md).
       KIA_GRAFANA_URL: ${KIA_GRAFANA_URL:-}
       KIA_GRAFANA_PORT: ${KIA_GRAFANA_PORT:-}
@@ -297,6 +300,40 @@ services:
       - ${KIA_MEDIA_DIR:-./media}:/data:ro
       - ./plex/warmup:/kia-warmup:ro
 
+  # Optional: Jellyfin, free software for your media and live TV, as a home TV box with
+  # everything in one place (docs/cookbooks/jellyfin-box.md). Start it with
+  # COMPOSE_PROFILES=jellyfin-server in .env. It reads kia's playlist and guide from the web
+  # server directly, so it needs no Threadfin. Its settings and database live in
+  # jellyfin/config (or KIA_JELLYFIN_CONFIG); your media folder (KIA_MEDIA_DIR) is read-only.
+  jellyfin:
+    profiles: ["jellyfin-server"]
+    image: ${KIA_JELLYFIN_IMAGE:-jellyfin/jellyfin:latest}
+    # Jellyfin suggests this as the server's name in its setup; it shows in every Jellyfin app.
+    hostname: ${KIA_JELLYFIN_NAME:-kia-tv-box}
+    restart: unless-stopped
+    logging: *logging
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      TZ: ${TZ:-UTC}
+      # The address Jellyfin apps on your network use to reach it.
+      JELLYFIN_PublishedServerUrl: ${KIA_JELLYFIN_ADVERTISE:-}
+    ports:
+      - "${KIA_BIND:-0.0.0.0}:${KIA_JELLYFIN_PORT:-8096}:8096"
+    volumes:
+      - ${KIA_JELLYFIN_CONFIG:-./jellyfin/config}:/config
+      - ${KIA_JELLYFIN_CACHE:-./jellyfin/cache}:/cache
+      - ${KIA_MEDIA_DIR:-./media}:/data:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8096/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   # --- Monitoring (docs/cookbooks/observability.md) ------------------------------------
   # COMPOSE_PROFILES=...,monitoring adds Prometheus, Grafana, and cAdvisor; monitoring-node
   # adds node-exporter, unless this computer already runs one on port 9100.
@@ -446,10 +483,12 @@ services:
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
 
-# Docker volumes for Plex's and Grafana's databases on a Mac, where a folder shared from
-# the Mac into Docker's Linux machine breaks Plex's database within minutes.
-# KIA_PLEX_CONFIG=plex-config and KIA_GRAFANA_DATA=grafana-data use them (scripts/install.sh
-# sets both on a Mac). On Linux, the folders in the kia folder are fine.
+# Docker volumes for Plex's, Jellyfin's, and Grafana's databases on a Mac, where a folder
+# shared from the Mac into Docker's Linux machine breaks Plex's database within minutes.
+# KIA_PLEX_CONFIG=plex-config, KIA_JELLYFIN_CONFIG=jellyfin-config, and
+# KIA_GRAFANA_DATA=grafana-data use them (scripts/install.sh sets them on a Mac). On Linux,
+# the folders in the kia folder are fine.
 volumes:
   plex-config:
+  jellyfin-config:
   grafana-data:

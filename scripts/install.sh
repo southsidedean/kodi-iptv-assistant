@@ -131,12 +131,13 @@ else
         -e "s|^PGID=.*|PGID=$(id -g)|" \
         .env.example >.env)
     say "Made .env: address http://$ADDRESS:$PORT, time zone $TZ_NAME."
-    # A Mac: Plex's and Grafana's databases in Docker volumes, since a folder shared from
-    # the Mac into Docker's Linux machine breaks Plex's.
+    # A Mac: Plex's, Jellyfin's, and Grafana's databases in Docker volumes, since a folder
+    # shared from the Mac into Docker's Linux machine breaks Plex's.
     if [ "$OS" = Darwin ]; then
         (umask 077 && sed -e "s|^KIA_PLEX_CONFIG=.*|KIA_PLEX_CONFIG=plex-config|" \
+            -e "s|^KIA_JELLYFIN_CONFIG=.*|KIA_JELLYFIN_CONFIG=jellyfin-config|" \
             -e "s|^KIA_GRAFANA_DATA=.*|KIA_GRAFANA_DATA=grafana-data|" .env >.env.tmp) && mv .env.tmp .env
-        say "On a Mac, Plex's and Grafana's data go in Docker volumes (docs/configuration.md#on-a-mac)."
+        say "On a Mac, Plex's, Jellyfin's, and Grafana's data go in Docker volumes (docs/configuration.md#on-a-mac)."
     fi
     # A Raspberry Pi, or any computer with less than 6 GB of memory: settings that keep
     # the first refresh from running out of memory (docs/setups.md#raspberry-pi).

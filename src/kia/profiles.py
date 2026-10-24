@@ -60,8 +60,9 @@ class Profile:
         return f"{self.name}.guide.xml.gz"
 
 
-# A playlist kia always makes when there's radio: TV only, for players such as Jellyfin
-# that list radio stations as TV channels. A profile of your own named "tv" replaces it.
+# A playlist kia always makes: TV only, for players such as Jellyfin that list radio
+# stations as TV channels. It's there without radio too, so the address always works. A
+# profile of your own named "tv" replaces it.
 TV_ONLY = Profile("tv", title="TV only", radio=False)
 
 LISTS = ("groups", "sources", "names", "channels", "exclude_groups", "exclude_names", "exclude_channels")
@@ -325,7 +326,7 @@ def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_u
         sources = {}
     items = [(e, set(sources.get(e.key, [e.source] if e.source else []))) for e in entries]
     builtin = set()
-    if any(e.is_radio for e in entries) and TV_ONLY.name not in {p.name for p in defined}:
+    if entries and TV_ONLY.name not in {p.name for p in defined}:
         defined = [*defined, TV_ONLY]
         builtin.add(TV_ONLY.name)
     picks = {p.name: numbered(p, select(p, items)) for p in defined}

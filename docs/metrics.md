@@ -43,6 +43,7 @@ Most of the numbers change once a night or every few hours, so once a minute is 
 | `kia_plex_up` | 1 if Plex answered kia (with `KIA_PLEX_URL` set) |
 | `kia_plex_sessions{kind,video,hw,location}` | Plex sessions now: `kind` is `live` for Live TV, or `movie`, `episode`, `track`; `video` is `copy`, `transcode`, or `directplay`; `hw` is where Plex converts video, `gpu` (the graphics card) or `cpu`, and `none` when it doesn't; `location` is `lan` or `wan` |
 | `kia_plex_session_info{player,product,kind,video,location,state}` | One line per Plex player now playing. `player` is a pseudonym, such as `player-3fa2c1`, the same for a device every time; the System page on the secure Dashboard shows which is which, after the password |
+| `kia_jellyfin_up`, `kia_jellyfin_sessions{kind,video,hw,location}`, `kia_jellyfin_session_info{player,product,kind,video,location,state}` | The same for Jellyfin, with `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN` set: `kind` is `live` for live TV. `location` is `lan` when the player has an address on your network. Jellyfin's players get pseudonyms from the same list as Plex's |
 | `kia_process_cpu_seconds_total` | Processor time kia itself used |
 | `kia_children_cpu_seconds_total` | Processor time of the programs kia ran: ffprobe for stream checks, ffmpeg for Pluto, and the guide grabber |
 | `kia_process_resident_memory_bytes` | Memory kia uses |

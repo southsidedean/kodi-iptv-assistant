@@ -6,6 +6,13 @@
 
 Nothing to do on Linux. On a Mac with Plex in the stack, see [on a Mac](docs/configuration.md#on-a-mac): Plex there keeps its data in `plex/config`, and you can move it to a Docker volume.
 
+### Jellyfin
+
+- New `jellyfin-server` profile: Jellyfin in kia's stack, for a home TV box on free software ([Jellyfin TV box](docs/cookbooks/jellyfin-box.md)). Jellyfin reads kia's playlist and guide from the web server directly, with no Threadfin and no channel limit. It runs as your user, with a read-only system and no capabilities; your media folder is read-only to it. On a Mac, the installer keeps its database in a Docker volume, like Plex's. New settings: `KIA_JELLYFIN_ADVERTISE`, `KIA_JELLYFIN_PORT`, `KIA_JELLYFIN_NAME` (the server's name, `kia-tv-box` unless you change it), `KIA_JELLYFIN_IMAGE`, `KIA_JELLYFIN_CONFIG`, and `KIA_JELLYFIN_CACHE`.
+- kia's metrics count what Jellyfin plays, like Plex: `kia_jellyfin_up`, `kia_jellyfin_sessions`, and `kia_jellyfin_session_info`, with `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN` (an API key from Jellyfin) set. Any Jellyfin works, in the stack or not. Its players get pseudonyms from the same list as Plex's.
+- kia makes the TV-only playlist (`tv.m3u`) always, not only when your list has radio, so the address Jellyfin and other players are set up with keeps working.
+- The [Jellyfin guide](docs/jellyfin.md) is checked against Jellyfin 12.3, says how often Jellyfin reads the guide again, and explains channel names that lose a leading number.
+
 ### Radio
 
 - SomaFM and KEXP, from what the stations publish themselves. A `somafm:` line in `sources.txt` adds SomaFM's listener-supported, ad-free channels (51 now), with their genres and logos, from SomaFM's own channel list, so new channels arrive and retired ones go by themselves; `somafm: channels=groovesalad,dronezone` picks some. A `kexp:` line adds KEXP, Seattle's listener-supported station, and kia reads KEXP's show schedule from its public API, so its shows and DJs appear in the radio guide, like KINK's. Both lines are in `sources.txt`, turned off, and on the Dashboard's playlist list.

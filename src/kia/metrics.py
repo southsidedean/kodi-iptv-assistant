@@ -138,14 +138,15 @@ def known_players(state_dir: Path) -> list[dict]:
 
 
 class PlexSessions:
-    """Plex's sessions for /metrics, asked at most every 15 seconds, with each player's
-    pseudonym in place of its name."""
+    """A media server's sessions for /metrics (Plex's, or Jellyfin's), asked at most every 15
+    seconds, with each player's pseudonym in place of its name. Plex and Jellyfin share one
+    Players, so their pseudonyms go in one list."""
 
-    def __init__(self, server, every: float = 15, state_dir: Path | None = None) -> None:
+    def __init__(self, server, every: float = 15, state_dir: Path | None = None, players: Players | None = None) -> None:
         self.server, self.every = server, every
         self.at, self.value = -1e9, None
         self.lock = threading.Lock()
-        self.players = Players(state_dir)
+        self.players = players or Players(state_dir)
 
     def get(self) -> list[dict] | None:
         """The sessions, or None when Plex didn't answer."""
@@ -156,31 +157,34 @@ class PlexSessions:
                     for x in self.value:
                         x["pseudonym"] = self.players.name(x.get("player_id") or x["player"])
                     self.players.note(self.value)
-                except Exception:  # Plex down, or a bad token: kia_plex_up says so
+                except Exception:  # the server is down, or a bad token: kia_plex_up/kia_jellyfin_up says so
                     self.value = None
                 self.at = time.monotonic()
             return self.value
 
 
-def _plex(out: _Out, plex: PlexSessions) -> None:
+JellyfinSessions = PlexSessions  # the same, for a Jellyfin
+
+
+def _plex(out: _Out, plex: PlexSessions, name: str = "plex", title: str = "Plex") -> None:
     sessions = plex.get()
-    out.one("kia_plex_up", "gauge", "1 if Plex answered kia's last question.", int(sessions is not None))
+    out.one(f"kia_{name}_up", "gauge", f"1 if {title} answered kia's last question.", int(sessions is not None))
     if sessions is None:
         return
     groups: dict[tuple, int] = {}
     for x in sessions:
         key = (x["kind"], x["video"], x.get("hw", "none"), x["location"])
         groups[key] = groups.get(key, 0) + 1
-    out.metric("kia_plex_sessions", "gauge", "Plex sessions now, by kind (live is Live TV), video (copy, transcode, directplay), "
-               "hw (gpu or cpu when converting), and location.",
+    out.metric(f"kia_{name}_sessions", "gauge", f"{title} sessions now, by kind (live is live TV), video (copy, transcode, "
+               "directplay), hw (gpu or cpu when converting), and location.",
                [({"kind": k, "video": v, "hw": hw, "location": loc}, n) for (k, v, hw, loc), n in sorted(groups.items())]
                or [({"kind": "none", "video": "none", "hw": "none", "location": "none"}, 0)])  # fmt: skip
-    out.metric("kia_plex_session_info", "gauge", "One line per Plex player now playing (player is a pseudonym).",
+    out.metric(f"kia_{name}_session_info", "gauge", f"One line per {title} player now playing (player is a pseudonym).",
                [({"player": x["pseudonym"], **{key: x[key] for key in ("product", "kind", "video", "location", "state")}}, 1)
                 for x in sessions])  # fmt: skip
 
 
-def render(output_dir: Path, relay=None, plex: PlexSessions | None = None) -> str:
+def render(output_dir: Path, relay=None, plex: PlexSessions | None = None, jellyfin: PlexSessions | None = None) -> str:
     out = _Out()
     try:
         s = json.loads((output_dir / "status.json").read_text())
@@ -233,6 +237,8 @@ def render(output_dir: Path, relay=None, plex: PlexSessions | None = None) -> st
 
     if plex is not None:
         _plex(out, plex)
+    if jellyfin is not None:
+        _plex(out, jellyfin, "jellyfin", "Jellyfin")
 
     use = resource.getrusage(resource.RUSAGE_SELF)
     kids = resource.getrusage(resource.RUSAGE_CHILDREN)

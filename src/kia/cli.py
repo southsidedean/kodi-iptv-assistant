@@ -1088,7 +1088,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     write_settings(cfg, args.at, args.guide_every)
     update_status(cfg)
     relay = pluto_relay(cfg) if args.serve or args.api_port else None
-    numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config))  # /metrics, for Prometheus
+    players = metrics.Players(cfg.state_dir)  # one pseudonym list for Plex's and Jellyfin's players
+    numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config, players),
+                      jellyfin_sessions(args.config, players))  # /metrics, for Prometheus
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
         serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=relay, metrics=numbers)
@@ -1143,7 +1145,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                 log(f"Couldn't report it: {exc2}")
 
 
-def plex_sessions(config: str):
+def plex_sessions(config: str, players=None):
     """Plex's sessions for /metrics, with KIA_PLEX_URL set (and a token, or Plex in the stack)."""
     from kia import plex
 
@@ -1152,7 +1154,18 @@ def plex_sessions(config: str):
         return None
     base = Path(config).resolve().parent
     token = os.environ.get("KIA_PLEX_TOKEN", "") or (plex.own_token(base) if plex.in_stack(url) else None) or ""
-    return metrics.PlexSessions(plex.Plex(url, token, timeout=5, startup_wait=0), state_dir=load(Path(config)).state_dir)
+    return metrics.PlexSessions(plex.Plex(url, token, timeout=5, startup_wait=0), state_dir=load(Path(config)).state_dir,
+                                players=players)
+
+
+def jellyfin_sessions(config: str, players=None):
+    """Jellyfin's sessions for /metrics, with KIA_JELLYFIN_URL and KIA_JELLYFIN_TOKEN set."""
+    from kia import jellyfin
+
+    url, token = os.environ.get("KIA_JELLYFIN_URL", ""), os.environ.get("KIA_JELLYFIN_TOKEN", "")
+    if not url or not token:
+        return None
+    return metrics.JellyfinSessions(jellyfin.Jellyfin(url, token), state_dir=load(Path(config)).state_dir, players=players)
 
 
 def keep_plex_in_step(config: str) -> None:
