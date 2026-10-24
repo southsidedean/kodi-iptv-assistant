@@ -66,7 +66,9 @@ if [ -n "$preset" ]; then
 fi
 
 features=$(get KIA_STACK | tr ' ' ',' | tr -s ',' | sed 's/^,//; s/,$//')
+chosen=yes
 if [ -z "$features" ] && ! grep -q '^KIA_STACK=' .env; then
+    chosen=no
     # Not chosen this way yet: say what COMPOSE_PROFILES amounts to.
     profiles=$(get COMPOSE_PROFILES)
     echo "KIA_STACK isn't in .env, so COMPOSE_PROFILES decides what runs: ${profiles:-kia and its web server only}."
@@ -170,8 +172,10 @@ if [ "${mem_kb:-0}" -gt 0 ] && [ "$mem_kb" -lt 6000000 ] && [ "$heavy" -ge 2 ]; 
     warn "this computer has $((mem_kb / 1024 / 1024)) GB of memory; with $heavy of plex, jellyfin, and observability, it may run short (docs/setups.md)"
 fi
 
-echo "KIA_STACK=$features"
-echo "COMPOSE_PROFILES=$(echo "$profiles" | tr ' ' ',')"
+if [ "$chosen" = yes ]; then
+    echo "KIA_STACK=$features"
+    echo "COMPOSE_PROFILES=$(echo "$profiles" | tr ' ' ',')"
+fi
 if [ "$cmd" = check ] || [ "$cmd" = apply ]; then
     echo "$problems problem(s), $warnings warning(s)."
     [ "$problems" -eq 0 ] || exit 1
@@ -181,7 +185,7 @@ fi
 if [ "$cmd" = status ]; then
     echo
     docker compose ps --format '{{.Service}}: {{.Status}}' 2>/dev/null || echo "Docker isn't answering."
-    if has observability && running kia && running prometheus; then
+    if running kia && running prometheus; then
         echo
         echo "Dashboards (which panels have data here):"
         docker compose exec -T kia python3 -m kia check-dashboards </dev/null || true
