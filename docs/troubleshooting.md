@@ -22,7 +22,7 @@ Some channels have no guide data anywhere. They show their own name in the guide
 
 ### A channel shows another channel's programs
 
-Most likely kia matched it to a guide by name, and the name belongs to a different channel. `mapping-report.html` lists every channel matched by name, with the name the guide site uses. Add the channel's guide ID (its `tvg-id`, the name the playlist gives its guide, shown in the report, such as `CNN.us`) to `ignore_name_matches` under `[epg]` in `kia.toml`, for example `ignore_name_matches = ["News12.us@SD"]`. From the next run, the channel uses another guide source or shows its own name.
+Most likely kia matched it to a guide by name, and the name belongs to a different channel. `mapping-report.html` lists every channel matched by name, with the name the guide site uses. Add the channel's guide ID (`tvg-id` in the report, such as `CNN.us`) to `ignore_name_matches` under `[epg]` in `kia.toml`, for example `ignore_name_matches = ["News12.us@SD"]`. From the next run, the channel uses another guide source or shows its own name.
 
 ### A channel won't play
 

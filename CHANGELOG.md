@@ -55,6 +55,22 @@
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
 - A `|` in a channel's group or id no longer breaks the table in `report.md`.
 
+
+### Observability
+
+- A Jellyfin dashboard in Grafana, like Plex's: whether Jellyfin answers, what's playing now on each player (by pseudonym), live TV against your own media, copied or converted video, players away from home, and what Jellyfin in the stack sends. It needs `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN`, the same settings as Jellyfin's numbers in `/metrics` ([graphs for your TV stack](docs/cookbooks/observability.md#5-jellyfin-optional)). `.env.example` already promised it.
+- The Hardware dashboard's *Converting on the card* and *Converting on the processor* tiles count Jellyfin's sessions as well as Plex's.
+
+### Docs
+
+- The README's manual install moves the copy to kia's newest release and asks for `PUID` and `PGID`, as [installing kia](docs/install.md) does.
+- "Channel sources" for the playlists kia reads, and "playlists" for the ones it makes, on the first pages a new user reads.
+- A Raspberry Pi, or any computer with less than 6 GB of memory, changes the three lighter settings already in `.env`. Adding them near the top did nothing, because the empty lines further down win.
+- Changes to `profiles.toml` show up at the next guide refresh, within 4 hours, or now with `kia refresh-guide`; the docs said to run the hour-long stream check.
+- [Metrics](docs/metrics.md) says `/metrics` shows what's playing on Plex and Jellyfin, by pseudonym, to anyone on your network.
+- Smaller corrections: a removed channel comes back after three good nights; Start here checks the Dashboard before setting up devices; Kodi's playlist address works once the first refresh is done; `observability` includes cAdvisor; the image versions you can pin include Jellyfin's and the disk exporter's; the Plex box cookbook works on macOS too.
+- The Kodi screenshots no longer carry the display's color profile, and the TV stack screenshot shows the current dashboards.
+
 ### Installing
 
 - The `plex-elsewhere` preset stopped the installer before kia started: Threadfin needs kia's `plex` playlist, which you make on the Dashboard after the first refresh. With either Plex preset, the installer now starts kia and lists what's next in order: make the playlist, then (for Plex in the stack) get the claim code, then run `scripts/stack.sh apply`. It used to say to get the claim code first, and it ran out while `apply` waited for the playlist.

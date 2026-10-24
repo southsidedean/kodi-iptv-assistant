@@ -2,7 +2,7 @@
 
 Do this once on each Kodi device. (Using something else? See [choosing a player](players.md).) With the refresh setting in step 3, the channel list and guide then stay current without you doing anything.
 
-You need the address of the machine running kia, e.g. `http://192.168.1.20:8780` (the `KIA_PUBLIC_URL` from your `.env`). Check it first: opening `http://192.168.1.20:8780/curated.m3u` in a browser on the same network should download a file, once kia's first refresh has finished. Until then there's no playlist yet.
+You need the address of the machine running kia, e.g. `http://192.168.1.20:8780` (the `KIA_PUBLIC_URL` from your `.env`). Check it first: opening `http://192.168.1.20:8780/curated.m3u` in a browser on the same network should download a file. There's no playlist until kia's first refresh has finished.
 
 ## 1. Install Kodi
 
