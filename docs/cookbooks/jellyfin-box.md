@@ -51,7 +51,7 @@ Open `http://192.168.1.20:8096` in a browser. Jellyfin's setup takes a few scree
 
 ## 4. Add kia's channels
 
-1. Open the menu, go to **Dashboard**, then **Live TV** in the Dashboard's menu.
+1. Open the user menu (the round button at the top right), choose **Dashboard**, then **Live TV** in the Dashboard's menu.
 2. Choose **Add Tuner Device**. Set **Tuner type** to **M3U Tuner**, enter `http://web/tv.m3u` in **File or URL**, and choose **Save**. Leave the other settings as they are.
 3. Choose **Add Provider**, then **XMLTV**. Enter `http://web/tv.guide.xml.gz` in **File or URL**, and choose **Save**.
 
@@ -62,6 +62,8 @@ Jellyfin starts loading the guide straight away; with all of kia's channels it t
 ## 5. Watch
 
 Open **Live TV** in any Jellyfin app: the web page, or Jellyfin for Android, iPhone, Android TV, Fire TV, Roku, and others. Channels show with kia's numbers and guide.
+
+![Jellyfin's live TV guide on the kia-tv-box server: kia's channels by number, with their logos and the evening's shows](../../images/cookbooks/jellyfin-box-guide.png)
 
 ## 6. See what's playing (optional)
 
