@@ -22,7 +22,7 @@ Some channels have no guide data anywhere. They show their own name in the guide
 
 ### A channel shows another channel's programs
 
-Most likely kia matched it to a guide by name, and the name belongs to a different channel. `mapping-report.html` lists every channel matched by name, with the name the guide site uses. Add the channel's guide ID (its `tvg-id`, shown in the report, such as `CNN.us`) to `ignore_name_matches` under `[epg]` in `kia.toml`, for example `ignore_name_matches = ["News12.us@SD"]`. From the next run, the channel uses another guide source or shows its own name.
+Most likely kia matched it to a guide by name, and the name belongs to a different channel. `mapping-report.html` lists every channel matched by name, with the name the guide site uses. Add the channel's guide ID (its `tvg-id`, the name the playlist gives its guide, shown in the report, such as `CNN.us`) to `ignore_name_matches` under `[epg]` in `kia.toml`, for example `ignore_name_matches = ["News12.us@SD"]`. From the next run, the channel uses another guide source or shows its own name.
 
 ### A channel won't play
 
@@ -42,7 +42,6 @@ If a Pluto channel still misbehaves:
 - Open the playlist URL in a browser and look for the channel. Its address should be `http://<your address>:8780/pluto/<id>.m3u8`. If it still starts with `https://jmp2.uk/`, the relay is off, or the playlist was made before you turned it on; it changes at the next refresh.
 - Look at **Pluto TV** on the Dashboard's **System** page while the channel plays. It shows each channel playing through kia and any recent problems, such as Pluto's servers not answering.
 - If the home page says Pluto channels are playing without kia's fix, kia couldn't open a Pluto session of its own, so it's using Pluto's plain link for now. kia tries again every five minutes. Turn on the `pluto_fallback` [alert](alerts.md) to hear about it.
-- If you updated kia from 0.3.0 or earlier and Pluto channels don't play at all, run `docker compose up -d --force-recreate web` so the web server picks up its new settings.
 
 ### Sound is choppy on some channels
 
@@ -144,7 +143,7 @@ Common causes:
 kia writes its files as the user in `PUID` and `PGID`. If those don't match your user, or another user created the folders, give the folders back to yourself:
 
 ```sh
-sudo chown -R "$(id -u):$(id -g)" output state work vendor profiles tls
+sudo chown -R "$(id -u):$(id -g)" output state work vendor profiles tls plex/warmup
 ```
 
 Then set `PUID` and `PGID` in `.env` to the numbers that `id -u` and `id -g` print, and run `docker compose up -d`.

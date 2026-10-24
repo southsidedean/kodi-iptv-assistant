@@ -146,3 +146,24 @@ def test_two_threads_saving_the_players_list_at_once(tmp_path: Path):
     for t in threads:
         t.join()
     assert not failed and json.loads((tmp_path / "players.json").read_text())["i"] == 49
+
+
+def test_every_kia_number_a_dashboard_uses_is_one_kia_sends(tmp_path: Path):
+    # The Plex and Jellyfin dashboards are made from one template (scripts/dashboards.py): a
+    # misspelled name there would leave a panel saying kia isn't set up, forever.
+    (tmp_path / "status.json").write_text(json.dumps(STATUS))
+    text = metrics.render(tmp_path, FakeRelay(), plex=metrics.PlexSessions(FakePlex(), state_dir=tmp_path),
+                          jellyfin=metrics.PlexSessions(FakePlex(), state_dir=tmp_path))  # fmt: skip
+    sent = set(re.findall(r"^# TYPE (\S+)", text, re.M))
+    folder = Path(__file__).resolve().parent.parent / "deploy" / "monitoring" / "dashboards"
+    used = set()
+    for path in folder.glob("*.json"):
+        for panel in json.loads(path.read_text())["panels"]:
+            for target in panel.get("targets", []):
+                used |= set(re.findall(r"\bkia_[a-z_]+", target["expr"]))
+                # A name pattern ({__name__=~"kia_(plex|jellyfin)_sessions"}) means each of its names.
+                for a, names, b in re.findall(r'__name__=~"(kia_)\(([a-z_|]+)\)(_[a-z_]+)"', target["expr"]):
+                    used |= {a + n + b for n in names.split("|")}
+    used.discard("kia_")
+    assert {"kia_jellyfin_up", "kia_jellyfin_sessions", "kia_jellyfin_session_info"} <= used
+    assert used <= sent, sorted(used - sent)

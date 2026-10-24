@@ -1,0 +1,732 @@
+{
+ "uid": "kia-jellyfin",
+ "title": "Jellyfin",
+ "description": "Who's watching on Jellyfin, from kia (KIA_JELLYFIN_URL in .env).",
+ "tags": [
+  "kia"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": true,
+ "graphTooltip": 1,
+ "refresh": "1m",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "links": [
+  {
+   "title": "kia's dashboards",
+   "type": "dashboards",
+   "tags": [
+    "kia"
+   ],
+   "asDropdown": false
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "Now",
+   "collapsed": false,
+   "panels": [],
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   },
+   "id": 1
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Jellyfin",
+   "description": "Whether Jellyfin answered kia.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "kia_jellyfin_up",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": {
+         "text": "Not answering",
+         "color": "red"
+        },
+        "1": {
+         "text": "OK",
+         "color": "green"
+        }
+       }
+      }
+     ],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "transparent",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": -1000000000.0
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     },
+     "noValue": "kia isn't set up to ask Jellyfin (KIA_JELLYFIN_URL in .env)"
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    }
+   }
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Watching Live TV",
+   "description": "Jellyfin players on Live TV now.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 1,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kia_jellyfin_sessions{kind=\"live\"}) or vector(0)",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
+       }
+      ]
+     },
+     "noValue": "kia isn't set up to ask Jellyfin (KIA_JELLYFIN_URL in .env)"
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    }
+   }
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Watching anything",
+   "description": "Jellyfin players playing anything now.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 9,
+    "y": 1,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kia_jellyfin_sessions{kind!=\"none\"}) or vector(0)",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
+       }
+      ]
+     },
+     "noValue": "kia isn't set up to ask Jellyfin (KIA_JELLYFIN_URL in .env)"
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    }
+   }
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "Converting video",
+   "description": "Players Jellyfin is converting video for (transcoding), which takes the most processor time.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 14,
+    "y": 1,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kia_jellyfin_sessions{video=\"transcode\"}) or vector(0)",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
+       }
+      ]
+     },
+     "noValue": "kia isn't set up to ask Jellyfin (KIA_JELLYFIN_URL in .env)"
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    }
+   }
+  },
+  {
+   "id": 6,
+   "type": "stat",
+   "title": "Away from home",
+   "description": "Players outside your home network.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 19,
+    "y": 1,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kia_jellyfin_sessions{location=\"wan\"}) or vector(0)",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
+       }
+      ]
+     },
+     "noValue": "kia isn't set up to ask Jellyfin (KIA_JELLYFIN_URL in .env)"
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    }
+   }
+  },
+  {
+   "id": 7,
+   "type": "table",
+   "title": "Playing now",
+   "description": "Every Jellyfin player now, what it's playing, and how. Players are shown by a pseudonym; kia's System page (the secure one) shows which is which.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "kia_jellyfin_session_info",
+     "legendFormat": "",
+     "format": "table",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "Nothing playing"
+    },
+    "overrides": []
+   },
+   "options": {},
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "Value": true,
+       "__name__": true,
+       "instance": true,
+       "job": true
+      },
+      "indexByName": {
+       "player": 0,
+       "product": 1,
+       "kind": 2,
+       "video": 3,
+       "location": 4,
+       "state": 5
+      },
+      "renameByName": {
+       "player": "Player",
+       "product": "Product",
+       "kind": "Kind",
+       "video": "Video",
+       "location": "Location",
+       "state": "State"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "type": "row",
+   "title": "Over time",
+   "collapsed": false,
+   "panels": [],
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 24,
+    "h": 1
+   },
+   "id": 8
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Sessions by kind",
+   "description": "Live TV, movies, episodes, and music.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 14,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (kind) (kia_jellyfin_sessions{kind!=\"none\"})",
+     "legendFormat": "{{kind}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
+      "lineWidth": 2,
+      "fillOpacity": 25,
+      "gradientMode": "none",
+      "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "noValue": "Nothing played in this time"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "Sessions by video",
+   "description": "Copied as it is (copy, directplay) or converted (transcode).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 14,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (video) (kia_jellyfin_sessions{kind!=\"none\"})",
+     "legendFormat": "{{video}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
+      "lineWidth": 2,
+      "fillOpacity": 25,
+      "gradientMode": "none",
+      "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "noValue": "Nothing played in this time"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "Converting on",
+   "description": "Where Jellyfin converts video: on the graphics card (gpu) or the processor (cpu).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (hw) (kia_jellyfin_sessions{video=\"transcode\"})",
+     "legendFormat": "{{hw}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
+      "lineWidth": 2,
+      "fillOpacity": 25,
+      "gradientMode": "none",
+      "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "noValue": "Nothing converted in this time"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "Jellyfin streaming",
+   "description": "What Jellyfin in the stack sends to players. A Jellyfin outside Docker isn't here.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 30,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(container_network_transmit_bytes_total{container_label_com_docker_compose_service=\"jellyfin\"}[2m])) * 8",
+     "legendFormat": "Jellyfin"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bps",
+     "custom": {
+      "drawStyle": "line",
+      "lineInterpolation": "linear",
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "gradientMode": "none",
+      "showPoints": "never",
+      "pointSize": 4,
+      "spanNulls": false,
+      "axisPlacement": "auto",
+      "axisBorderShow": false,
+      "barAlignment": 0,
+      "insertNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "noValue": "No Jellyfin container in this stack"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  }
+ ]
+}

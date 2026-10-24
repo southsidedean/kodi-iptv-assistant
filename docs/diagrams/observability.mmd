@@ -1,7 +1,7 @@
 flowchart TB
-  kia["kia<br>refreshes, channels,<br>Pluto TV, Plex"] --> prom["Prometheus<br>keeps 30 days"]
+  kia["kia<br>refreshes, channels,<br>Pluto TV, Plex, Jellyfin"] --> prom["Prometheus<br>keeps 30 days"]
   cad["cAdvisor<br>each container"] --> prom
   node["node-exporter<br>the computer"] --> prom
   hw["Graphics card and<br>disk health (Linux)"] --> prom
-  prom --> graf["Grafana<br>kia, TV stack,<br>Plex, and Hardware"]
+  prom --> graf["Grafana<br>kia, TV stack, Plex,<br>Jellyfin, and Hardware"]
   graf --> you["Your browser, or the<br>Dashboard's Observability button"]

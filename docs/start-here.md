@@ -14,8 +14,8 @@ kia runs on one computer at home (a Mac, a Linux computer, or a Raspberry Pi; no
 ## The three steps
 
 1. Install kia on one computer. A Mac, a Linux computer, or a Raspberry Pi that stays on works best. [Installing kia](install.md) walks through it, including the two programs it needs (Docker and Git). Allow about 30 minutes, plus up to an hour for kia's first run, which you don't need to watch.
-2. Set up the devices you watch on. On a TV box, Fire TV, or computer, [Kodi](kodi.md) is the usual choice. For Plex, Jellyfin, TiviMate, phones, and others, see [choosing a player](players.md).
-3. Check the Dashboard. Open `http://<your address>:8780/` in a browser. Its **Getting started** checklist shows what's left to do. The page also shows the last refresh, the channel counts, and your playlists' addresses with Copy buttons.
+2. Check the Dashboard once the first run is done. Open `http://<your address>:8780/` in a browser. Its **Getting started** checklist shows what's left to do. The page also shows the last refresh, the channel counts, and your playlists' addresses with Copy buttons, which you need next.
+3. Set up the devices you watch on. On a TV box, Fire TV, or computer, [Kodi](kodi.md) is the usual choice. For Plex, Jellyfin, TiviMate, phones, and others, see [choosing a player](players.md).
 
 From then on kia updates the channels every night and the guide every few hours, and your devices pick up the changes by themselves.
 

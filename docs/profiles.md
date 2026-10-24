@@ -65,10 +65,10 @@ title = "Radio only"
 tv = false
 ```
 
-The name in square brackets becomes the playlist's address. Use lowercase letters, numbers, and dashes. Changes in the file show up after the next nightly run. To see them sooner, run the stream check now, which tests every stream again and takes up to an hour:
+The name in square brackets becomes the playlist's address. Use lowercase letters, numbers, and dashes. Changes in the file show up at the next guide refresh, every 4 hours. To see them now, refresh the guide, which takes a few seconds to a few minutes:
 
 ```sh
-docker compose exec kia python3 -m kia check
+docker compose exec kia python3 -m kia refresh-guide
 ```
 
 Changes made on the Dashboard show up right away.
