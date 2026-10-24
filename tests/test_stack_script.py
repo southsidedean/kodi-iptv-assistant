@@ -32,6 +32,7 @@ def kia(tmp_path: Path) -> Path:
          'case "$*" in\n'
          '  info*) [ -n "$FAKE_NVIDIA" ] && echo " Runtimes: io.containerd.runc.v2 nvidia runc" ;;\n'
          '  *"ps --services --status running"*) printf "kia\\nweb\\njellyfin\\n" ;;\n'
+         '  *"ps --all --services"*) printf "kia\\nweb\\njellyfin\\nthreadfin-2\\n" ;;\n'
          '  *"config --services"*) printf "kia\\nweb\\nthreadfin\\nplex\\n" ;;\n'
          'esac\n')  # fmt: skip
     stub(bin_dir, "uname", 'echo "${FAKE_OS:-Linux}"\n')
@@ -99,6 +100,7 @@ def test_apply_sets_the_profiles_and_stops_what_is_no_longer_chosen(kia: Path):
     calls = (kia.parent / "docker.log").read_text().splitlines()
     assert any(c.endswith(" compose up -d --quiet-pull") for c in calls)
     assert any("rm --stop --force jellyfin" in c and c.startswith("COMPOSE_PROFILES=* ") for c in calls)  # not chosen any more
+    assert any("rm --stop --force threadfin-2" in c for c in calls)  # stopped or stuck restarting, it goes too
     assert not any("rm --stop --force kia" in c for c in calls)
     assert list((kia / "state").glob("env.before-stack-*"))  # the old .env, kept
     assert "Next for Plex" in r.stdout

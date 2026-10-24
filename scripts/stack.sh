@@ -243,7 +243,8 @@ if has jellyfin && [ -z "$(get KIA_JELLYFIN_URL)" ]; then set_env KIA_JELLYFIN_U
 docker compose up -d --quiet-pull
 # Parts no longer chosen keep running until they're stopped.
 wanted=$(docker compose config --services)
-for service in $(COMPOSE_PROFILES='*' docker compose ps --services --status running 2>/dev/null); do
+# Any state: one stuck restarting, or a finished setup container, goes too.
+for service in $(COMPOSE_PROFILES='*' docker compose ps --all --services 2>/dev/null); do
     if ! echo "$wanted" | grep -qx "$service"; then
         COMPOSE_PROFILES='*' docker compose rm --stop --force "$service" && echo "Stopped $service: it isn't in KIA_STACK any more."
     fi
