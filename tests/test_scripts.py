@@ -60,6 +60,17 @@ def test_installer_puts_the_databases_in_volumes_on_a_mac():
     assert sorted(declared) == sorted(names.values())
 
 
+def test_installer_offers_every_preset_and_applies_only_a_new_env():
+    text = (ROOT / "scripts" / "install.sh").read_text()
+    presets = sorted(f.stem for f in (ROOT / "stacks").glob("*.env"))
+    help_text = text[text.index("--preset NAME"):text.index("--main")]
+    named = re.findall(r"[a-z]+(?:-[a-z]+)*", help_text.split(":", 1)[1].split("(stacks/")[0])
+    assert sorted(n for n in named if n != "or") == presets
+    start = text[text.index('step "Starting kia'):text.index('step "Done"')]
+    assert 'if [ "$new_env" = yes ]' in start and "scripts/stack.sh apply --yes" in start  # never --yes on an existing .env
+    assert "*,plex,*) plex_next=yes" in start  # Plex's claim code is the person's to get
+
+
 def test_installer_keeps_env_private():
     # .env holds the password: made with umask 077, and an older one is tightened too.
     text = (ROOT / "scripts" / "install.sh").read_text()

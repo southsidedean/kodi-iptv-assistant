@@ -14,6 +14,8 @@
 #   --tz ZONE       time zone, e.g. America/New_York
 #   --port N        port for playlists and the Dashboard (default 8780)
 #   --https-port N  port for the secure Dashboard (default 8743)
+#   --preset NAME   what this kia is for: kodi, plex-box, plex-elsewhere, jellyfin-box, or
+#                   everything (stacks/, docs/stack.md); without it, it asks (default kodi)
 #   --main          follow what's merged since the last release, instead of the release
 #   --yes           don't ask; accept what it finds
 set -eu
@@ -26,6 +28,7 @@ PORT=8780
 HTTPS_PORT=8743
 YES=0
 MAIN=no
+PRESET=""
 
 say() { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
@@ -38,9 +41,10 @@ while [ $# -gt 0 ]; do
         --tz) TZ_NAME=$2; shift 2 ;;
         --port) PORT=$2; shift 2 ;;
         --https-port) HTTPS_PORT=$2; shift 2 ;;
+        --preset) PRESET=$2; shift 2 ;;
         --main) MAIN=yes; shift ;;
         --yes|-y) YES=1; shift ;;
-        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --main, --yes. See the top of scripts/install.sh."; exit 0 ;;
+        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --preset NAME, --main, --yes. See the top of scripts/install.sh."; exit 0 ;;
         *) die "unknown option $1 (try --help)" ;;
     esac
 done
@@ -98,6 +102,7 @@ fi
 cd "$DIR"
 
 step "Settings"
+new_env=no
 if [ -f .env ]; then
     say "Keeping your existing .env. (Delete it and run this again to start over.)"
 else
@@ -130,6 +135,7 @@ else
         -e "s|^PUID=.*|PUID=$(id -u)|" \
         -e "s|^PGID=.*|PGID=$(id -g)|" \
         .env.example >.env)
+    new_env=yes
     say "Made .env: address http://$ADDRESS:$PORT, time zone $TZ_NAME."
     # A Mac: Plex's, Jellyfin's, and Grafana's databases in Docker volumes, since a folder
     # shared from the Mac into Docker's Linux machine breaks Plex's.
@@ -147,6 +153,25 @@ else
             -e "s|^KIA_MEMORY_LIMIT=.*|KIA_MEMORY_LIMIT=2g|" .env >.env.tmp) && mv .env.tmp .env
         say "This computer has little memory (or is a Raspberry Pi), so .env uses the lighter settings from docs/setups.md#raspberry-pi."
     fi
+    if [ -z "$PRESET" ]; then
+        say "What is this kia for? (docs/stack.md)"
+        for f in stacks/*.env; do say "  $(basename "$f" .env): $(sed -n '1s/^# *//p' "$f")"; done
+        PRESET=$(ask "Choose one" kodi)
+    fi
+fi
+if [ -n "$PRESET" ]; then
+    [ -f "stacks/$PRESET.env" ] || die "there's no preset $PRESET; choose one of: $(for f in stacks/*.env; do basename "$f" .env; done | tr '\n' ' ')"
+    stack=$(sed -n 's/^KIA_STACK=//p' "stacks/$PRESET.env")
+    address=$(sed -n 's|^KIA_PUBLIC_URL=http://||p' .env | sed 's|:[0-9]*$||')
+    if grep -q '^KIA_STACK=' .env; then
+        (umask 077 && sed -e "s|^KIA_STACK=.*|KIA_STACK=$stack|" .env >.env.tmp) && mv .env.tmp .env
+    else
+        printf 'KIA_STACK=%s\n' "$stack" >>.env  # an .env from before KIA_STACK
+    fi
+    # The addresses Plex and Jellyfin apps on your network use, from this computer's.
+    case ",$stack," in *,plex,*) (umask 077 && sed -e "s|^KIA_PLEX_ADVERTISE=$|KIA_PLEX_ADVERTISE=http://$address:32400/|" .env >.env.tmp) && mv .env.tmp .env ;; esac
+    case ",$stack," in *,jellyfin,*) (umask 077 && sed -e "s|^KIA_JELLYFIN_ADVERTISE=$|KIA_JELLYFIN_ADVERTISE=http://$address:8096|" .env >.env.tmp) && mv .env.tmp .env ;; esac
+    say "Preset $PRESET: KIA_STACK=${stack:-(kia and its web server only)}."
 fi
 chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.
@@ -169,6 +194,21 @@ fi
 
 step "Starting kia (the first build takes a few minutes)"
 docker compose up -d --build
+stack=$(sed -n 's/^KIA_STACK=//p' .env)
+plex_next=no
+if [ -n "$stack" ]; then
+    case ",$stack," in
+        # Plex's first start needs a claim code, which works for 4 minutes: that's yours to do.
+        *,plex,*) plex_next=yes ;;
+        # A new .env only: on an existing one, scripts/stack.sh apply asks before stopping what runs now.
+        *) if [ "$new_env" = yes ]; then
+               step "Starting the rest of the stack ($stack)"
+               scripts/stack.sh apply --yes || say "scripts/stack.sh check says what to change; then run scripts/stack.sh apply."
+           else
+               say "KIA_STACK=$stack is set; start it with:  cd $DIR && scripts/stack.sh apply"
+           fi ;;
+    esac
+fi
 
 url=$(sed -n 's/^KIA_PUBLIC_URL=//p' .env)
 host=$(printf '%s' "$url" | sed -e 's|^[a-z]*://||' -e 's|:[0-9]*$||' -e 's|/.*||')
@@ -192,6 +232,14 @@ if [ -n "$password" ]; then
 fi
 say "Playlist for players: $url/curated.m3u"
 say ""
+if [ "$plex_next" = yes ]; then
+    say "For Plex: sign in at https://plex.tv/claim, copy the code into PLEX_CLAIM in $DIR/.env, and"
+    say "within 4 minutes run:  cd $DIR && scripts/stack.sh apply"
+    say "  (docs/cookbooks/plex-box.md, step 4; KIA_STACK=$stack is already set)"
+    say ""
+fi
+case ",$stack," in *,jellyfin,*) say "For Jellyfin: open http://$host:8096 and follow docs/cookbooks/jellyfin-box.md, step 3."; say "" ;; esac
+case ",$stack," in *,observability,*) say "Graphs: https://$host:8788 (Grafana; docs/cookbooks/observability.md, step 3)."; say "" ;; esac
 say "Next: wait for the first refresh (the Dashboard says when it's done), then set up"
 say "Kodi or another player on each device:"
 say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/kodi.md"
