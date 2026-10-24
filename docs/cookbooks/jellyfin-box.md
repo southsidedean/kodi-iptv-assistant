@@ -41,28 +41,38 @@ After a minute, `docker compose ps` shows `jellyfin` as `healthy`.
 
 ## 3. Set up Jellyfin
 
-Open `http://192.168.1.20:8096` in a browser. Jellyfin's setup asks for:
+Open `http://192.168.1.20:8096` in a browser. Jellyfin's setup takes a few screens:
 
-1. **Language.**
-2. **A user and password.** This is Jellyfin's own administrator; it has nothing to do with kia's password.
-3. **Media libraries.** Add one for each kind of media, choosing its folder under `/data` (your media folder): `/data/movies` for movies, for example. You can skip this and add them later.
-4. **Metadata language** and **remote access**. The defaults are fine.
-
-Then sign in with the user you made.
+1. **Server name** and **Preferred display language**. The name is already `kia-tv-box` (`KIA_JELLYFIN_NAME` in `.env` changes it); it shows in every Jellyfin app.
+2. **Tell us about yourself:** a username and password for Jellyfin's administrator. This is Jellyfin's own account; it has nothing to do with kia's password.
+3. **Set up your media libraries:** choose **Add Media Library**, pick the **Content type** (Movies, Shows, Music, and so on), and under **Folders** choose **+** and the folder under `/data`, your media folder: `/data/movies` for movies, for example. You can also skip this and add libraries later, under **Dashboard → Libraries**.
+4. **Preferred Metadata Language** and **Set up Remote Access**: the defaults are fine.
+5. **You're Done!** Choose **Finish**, then sign in with the user you made.
 
 ## 4. Add kia's channels
 
-1. Go to **Dashboard → Live TV**.
-2. Under **Tuner Devices**, choose **+**. Set **Tuner Type** to **M3U Tuner**, enter `http://web/tv.m3u` in **File or URL**, and save.
-3. Under **TV Guide Data Providers**, choose **+ → XMLTV**. Enter `http://web/tv.guide.xml.gz` in **File or URL**, and save.
+1. Open the menu, go to **Dashboard**, then **Live TV** in the Dashboard's menu.
+2. Choose **Add Tuner Device**. Set **Tuner type** to **M3U Tuner**, enter `http://web/tv.m3u` in **File or URL**, and choose **Save**. Leave the other settings as they are.
+3. Choose **Add Provider**, then **XMLTV**. Enter `http://web/tv.guide.xml.gz` in **File or URL**, and choose **Save**.
 
-`web` is kia's web server, as Jellyfin reaches it inside Docker. `tv.m3u` is kia's playlist without radio stations: Jellyfin would show those as TV channels, numbered separately from TV ([why](../jellyfin.md#before-you-start-the-tv-only-playlist)). For fewer channels, use a [playlist you made](../profiles.md) instead, such as `http://web/kids.m3u` with `http://web/kids.guide.xml.gz`.
+`web` is kia's web server, as Jellyfin reaches it inside Docker. `tv.m3u` is kia's playlist without radio stations, which Jellyfin would show as TV channels numbered separately from TV ([why](../jellyfin.md#before-you-start-the-tv-only-playlist)). For fewer channels, use a [playlist you made](../profiles.md) instead, such as `http://web/kids.m3u` with `http://web/kids.guide.xml.gz`.
 
-Jellyfin loads the guide straight away; with all of kia's channels that takes a few minutes the first time.
+Jellyfin starts loading the guide straight away; with all of kia's channels it takes a few minutes the first time. It reads the guide again by itself every day, and kia keeps it current.
 
 ## 5. Watch
 
 Open **Live TV** in any Jellyfin app: the web page, or Jellyfin for Android, iPhone, Android TV, Fire TV, Roku, and others. Channels show with kia's numbers and guide.
+
+## 6. See what's playing (optional)
+
+With the [observability cookbook](observability.md), kia can also count what Jellyfin plays, like it does for Plex. In Jellyfin, go to **Dashboard → API Keys**, choose **New API Key**, and name it `kia`. Copy the key into `.env`, then run `docker compose up -d`:
+
+```sh
+KIA_JELLYFIN_URL=http://jellyfin:8096
+KIA_JELLYFIN_TOKEN=the-key-you-copied
+```
+
+kia's [metrics](../metrics.md) then include `kia_jellyfin_sessions`: live TV and your own media, and whether Jellyfin converts the video.
 
 ## Keeping it running
 
@@ -73,3 +83,5 @@ Open **Live TV** in any Jellyfin app: the web page, or Jellyfin for Android, iPh
 ## If something's wrong
 
 **Jellyfin has no channels, or no guide.** Check the addresses in step 4, then choose **Refresh Guide Data** on the Live TV page. `docker compose exec jellyfin curl -sI http://web/tv.m3u` should answer `200 OK`.
+
+**A channel's name is missing its first word, a number** ("Hour Free Movies" for *24 Hour Free Movies*). Jellyfin takes a number at the start of a channel name as its channel number. The channel, its number, and its guide are right; only the name is shorter.
