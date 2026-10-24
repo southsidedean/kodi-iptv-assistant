@@ -62,6 +62,14 @@ def test_every_container_limits_its_log():
     assert not unlimited, f"no log limit: {unlimited}"
 
 
+def test_grafana_never_updates_its_own_plugins():
+    # Updating a bundled plugin means deleting it from Grafana's read-only system; Grafana 13
+    # drops its Prometheus plugin first, and every dashboard goes empty.
+    grafana = compose_service("grafana")
+    assert "read_only: true" in grafana
+    assert 'GF_PLUGINS_PREINSTALL_DISABLED: "true"' in grafana and 'GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"' in grafana
+
+
 def test_containers_stay_locked_down():
     for name in ("kia", "web"):
         service = compose_service(name)
