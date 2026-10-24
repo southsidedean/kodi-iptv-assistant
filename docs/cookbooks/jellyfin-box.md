@@ -2,6 +2,8 @@
 
 [Jellyfin](https://jellyfin.org) is free software for your movies, shows, and music, with live TV built in. This guide runs it next to kia on one computer, so every Jellyfin app in the house gets kia's channels and guide, plus your own media. Jellyfin reads kia's playlist and guide directly, so there's no Threadfin and no channel limit.
 
+> **Beta.** This guide was tested from start to finish on Linux and on a Mac, with Jellyfin 12.3 in a web browser. It hasn't been tried with Jellyfin's TV and phone apps yet. If something doesn't work, please [open an issue](https://github.com/southsidedean/kodi-iptv-assistant/issues).
+
 What stays on disk, so nothing is lost when the containers restart or update:
 
 | Folder (in the kia folder) | What's in it | Set in `.env` |
