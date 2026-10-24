@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import gzip
-import re
+import json
 import shutil
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
@@ -12,25 +13,26 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from kia.history import readable
-from kia.m3u import Entry, xml_attr, xml_text
-import contextlib
+from kia.m3u import TAG_RE, Entry, xml_attr, xml_text
 
 # Marks programmes kia generated for channels without guide data. Kodi ignores unknown
 # attributes; kia uses it to skip another kia server's placeholders when reading its guide.
 PLACEHOLDER_ATTR = "kia-placeholder"
 
-_TAG_RE = re.compile(r"\s*(\(\d{3,4}p\)|\[[^\]]*\])")
 
 
 def display_name(entry: Entry) -> str:
     """"FNX KVCR-DT (720p) [Geo-blocked]" -> "FNX KVCR-DT"."""
-    return _TAG_RE.sub("", entry.name).strip() or entry.name
+    return TAG_RE.sub("", entry.name).strip() or entry.name
 
 
 def parse_time(value: str) -> datetime:
+    """An XMLTV time, "20261024120000 -0500"; with no offset, UTC. Some guides leave out
+    the space before the offset ("20261024120000-0500")."""
     value = value.strip()
-    if " " in value:
-        return datetime.strptime(value, "%Y%m%d%H%M%S %z")
+    offset = value[14:].strip()
+    if offset:
+        return datetime.strptime(f"{value[:14]} {offset}", "%Y%m%d%H%M%S %z")
     return datetime.strptime(value[:14], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
 
 
@@ -272,21 +274,20 @@ def write_preview(guide: Path, out_path: Path, now: datetime, hours: int = PREVI
     """guide-preview.json for the Dashboard's "On now" and "Next": each channel's real
     listings (not name blocks) from now to `hours` ahead, as [start, stop, title] with Unix
     times. Small enough for a browser; the page works out "now" itself. Returns the count."""
-    import json
-
     since, until = now.timestamp(), (now + timedelta(hours=hours)).timestamp()
     channels: dict[str, list] = defaultdict(list)
     count = 0
-    for el in elements(guide):
-        if not el.get(PLACEHOLDER_ATTR) and has_title(el):
-            try:
-                start, stop = parse_time(el.get("start")).timestamp(), parse_time(el.get("stop")).timestamp()
-            except (TypeError, ValueError):
-                start = stop = 0
-            if stop > since and start < until:
-                channels[el.get("channel", "")].append([int(start), int(stop), (el.findtext("title") or "").strip()])
-                count += 1
-        el.clear()
+    with _open(guide) as f:  # opened here, so it's closed when the loop ends
+        for el in elements(f):
+            if not el.get(PLACEHOLDER_ATTR) and has_title(el):
+                try:
+                    start, stop = parse_time(el.get("start")).timestamp(), parse_time(el.get("stop")).timestamp()
+                except (TypeError, ValueError):
+                    start = stop = 0
+                if stop > since and start < until:
+                    channels[el.get("channel", "")].append([int(start), int(stop), (el.findtext("title") or "").strip()])
+                    count += 1
+            el.clear()
     for slots in channels.values():
         slots.sort()
     data = {"generated": now.isoformat(timespec="seconds"), "until": int(until), "channels": channels}

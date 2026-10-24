@@ -6,6 +6,7 @@ there do we ask these backup resolvers, to verify whether the hostname really is
 
 from __future__ import annotations
 
+import ipaddress
 import random
 import re
 import socket
@@ -86,7 +87,11 @@ def parse_response(data: bytes, qid: int) -> tuple[int, list[str]]:
 
 def query(host: str, resolver: str, qtype: int = A, timeout: float = 3.0) -> tuple[int, list[str]]:
     qid = random.randrange(1 << 16)
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+    try:
+        family = socket.AF_INET6 if ipaddress.ip_address(resolver).version == 6 else socket.AF_INET
+    except ValueError:  # a name, not an address
+        family = socket.AF_INET
+    with socket.socket(family, socket.SOCK_DGRAM) as sock:
         sock.settimeout(timeout)
         sock.sendto(build_query(host, qtype, qid), (resolver, 53))
         data, _ = sock.recvfrom(4096)
@@ -136,6 +141,8 @@ def check_public(host: str, resolvers: tuple[str, ...] = PUBLIC_RESOLVERS) -> Pu
                 rcode, addrs = query(host, resolver, AAAA)
         except _QUERY_ERRORS:
             continue
+        if not addrs and rcode not in (0, 3):
+            continue  # this resolver failed (SERVFAIL, refused): ask the next one
         if not addrs:
             return PublicLookup(host, "nxdomain" if rcode == 3 else "no-records", [])
         if ipv4 and ipv6_fails_publicly(host, resolvers):

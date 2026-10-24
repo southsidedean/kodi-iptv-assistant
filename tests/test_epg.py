@@ -258,3 +258,10 @@ def test_a_control_character_in_a_name_cant_break_the_guide(tmp_path: Path):
                       placeholders=True, days=1, now=now)  # fmt: skip
     names = [d.text for d in ET.parse(out).getroot().iter("display-name")]  # parses: the guide is valid XML
     assert names == ["BadName", "RawOne"]
+
+
+def test_guide_times_with_and_without_an_offset():
+    noon_central = datetime(2026, 10, 24, 17, 0, tzinfo=timezone.utc)
+    assert xmltv.parse_time("20261024120000 -0500") == noon_central
+    assert xmltv.parse_time("20261024120000-0500") == noon_central  # no space before it
+    assert xmltv.parse_time("20261024170000") == noon_central  # none: UTC

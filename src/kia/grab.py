@@ -14,7 +14,7 @@ from pathlib import Path
 
 from kia.config import EpgConfig
 from kia import playlistguide
-from kia.native import NATIVE_GRABBERS
+from kia.native import NATIVE_GRABBERS, grab_imjh
 
 # iptv-org/epg is third-party code: its site configs change every day and come from many
 # contributors. Without Docker's own container (the "local" runner, which kia's image
@@ -228,6 +228,11 @@ def api_load(cfg: EpgConfig, log: Callable[[str], None]) -> None:
     subprocess.run(cmd or [*runner_prefix(cfg), "npm", "run", "api:load"], cwd=cfg.repo_dir, check=True, **_env(cfg))
 
 
+def _deadline(cfg: EpgConfig, start: float) -> float | None:
+    """When site_time_limit runs out for a site started at start (time.monotonic())."""
+    return start + cfg.site_time_limit * 60 if cfg.site_time_limit else None
+
+
 def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
     work = cfg.work_dir.resolve()
     output = work / "guides" / f"{site}.xml"
@@ -240,9 +245,12 @@ def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
     start = time.monotonic()
     native = NATIVE_GRABBERS.get(site) if cfg.native_grabbers else None
     if native:
+        extra = {}
+        if native is grab_imjh:  # the big one: last night's guide to fall back on, and the time limit
+            extra = {"previous": output, "deadline": _deadline(cfg, start)}
         with open(log_path, "w") as logf:
             try:
-                native(channels_file, staged, cfg.days, lambda msg: print(msg, file=logf, flush=True))
+                native(channels_file, staged, cfg.days, lambda msg: print(msg, file=logf, flush=True), **extra)
                 returncode = 0
             except Exception as exc:  # report like a failed grabber process
                 print(f"ERR: {type(exc).__name__}: {exc}", file=logf)
@@ -350,7 +358,8 @@ def grab_playlist_guides(
         start = time.monotonic()
         with open(log_path, "w") as logf:
             try:
-                counts = playlistguide.download(info, staged, cfg.days, lambda m: print(m, file=logf, flush=True))
+                counts = playlistguide.download(info, staged, cfg.days, lambda m: print(m, file=logf, flush=True),
+                                                deadline=_deadline(cfg, start))  # fmt: skip
                 staged.replace(output)  # only a good download replaces the previous guide
                 if not quick:
                     useful[site] = [u for u, n in counts.items() if n]

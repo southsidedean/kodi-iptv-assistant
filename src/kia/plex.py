@@ -189,12 +189,14 @@ class Plex:
         return out
 
 
-def _guide_port(lineup_id: str) -> str | None:
-    """The port of the Threadfin an XMLTV lineup reads, from its id."""
+def _guide_address(lineup_id: str) -> tuple[str, str] | None:
+    """The host and port of the Threadfin an XMLTV lineup reads, from its id."""
     if not lineup_id.startswith("lineup://tv.plex.providers.epg.xmltv/"):
         return None
-    url = urllib.parse.unquote(lineup_id.split("/", 3)[3].split("#")[0])
-    return urllib.parse.urlparse(url).port and str(urllib.parse.urlparse(url).port) if url.endswith("/xmltv/threadfin.xml") else None
+    url = urllib.parse.urlparse(urllib.parse.unquote(lineup_id.split("/", 3)[3].split("#")[0]))
+    if not url.path.endswith("/xmltv/threadfin.xml") or not url.port:
+        return None
+    return url.hostname or "", str(url.port)
 
 
 def set_up(plex: Plex, tuners: list[Tuner], log=print) -> dict:
@@ -211,16 +213,22 @@ def set_up(plex: Plex, tuners: list[Tuner], log=print) -> dict:
             raise PlexError(f"Plex couldn't add the tuner at {t.address}; can the Plex computer reach it?")
         devices.append(device)
     keys = {str(d["key"]) for d in devices}
+    # A lineup already in the DVR is this tuner's when it reads the same Threadfin. Threadfins
+    # on another computer differ by port (and that computer's name may have changed since);
+    # in kia's stack they share port 34400 and differ by name (threadfin, threadfin-2).
+    by_host = len({t.address.rsplit(":", 1)[-1] for t in tuners}) < len(tuners)
     dvr = next((d for d in plex.dvrs() if any(str(dv.get("key")) in keys for dv in d.get("Device", []))), None)
     for t, device in zip(tuners, devices, strict=True):
-        key, port = str(device["key"]), t.address.rsplit(":", 1)[-1]
+        key = str(device["key"])
+        host, port = t.address.rsplit(":", 1)
         if dvr is None:
             made = plex.call("POST", "/livetv/dvrs", {"device": device["uuid"], "lineup": t.lineup, "language": "eng",
                                                       "country": "usa", "postalCode": ""})  # fmt: skip
             dvr = made["MediaContainer"]["Dvr"][0]
             log(f"Made a new DVR in Plex for kia's Threadfins (DVR {dvr['key']}).")
         else:
-            if not any(_guide_port(lu.get("id", "")) == port for lu in dvr.get("Lineup", [])):
+            guides = [_guide_address(lu.get("id", "")) for lu in dvr.get("Lineup", [])]
+            if not any(g and (g == (host, port) if by_host else g[1] == port) for g in guides):
                 plex.call("PUT", f"/livetv/dvrs/{dvr['key']}/lineups", {"lineup": t.lineup})
             if not any(str(dv.get("key")) == key for dv in dvr.get("Device", [])):
                 plex.call("PUT", f"/livetv/dvrs/{dvr['key']}/devices/{key}")
@@ -377,7 +385,10 @@ def _warm_up_with_clip(plex: Plex, base: Path, log, ffmpeg: str, wait: float, bu
             time.sleep(step)
         return _play(plex, base, str(items[0]["ratingKey"]), wait)
     finally:
-        if section is not None:
-            plex.call("DELETE", f"/library/sections/{section}")
         clip.unlink(missing_ok=True)
+        if section is not None:
+            try:
+                plex.call("DELETE", f"/library/sections/{section}")
+            except (PlexError, OSError) as exc:  # don't hide what went wrong before this
+                log(f"Couldn't remove the {WARMUP_LIBRARY} library from Plex ({exc}); remove it in Plex's settings.")
 

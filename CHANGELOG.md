@@ -8,6 +8,28 @@
 - `apply` starts the profiles it chose even when `COMPOSE_PROFILES` is also set in your shell, which Docker Compose would have used instead.
 - Ports in use are found with `ss` when `nc` isn't installed, and `check` says when neither is.
 
+### Plex
+
+- With Plex in the stack and two Threadfins, `kia plex-tuners` never added the second Threadfin's guide to the DVR, so its channels got the first one's guide or none. In the stack both Threadfins use port 34400, and kia told guides apart by port. It now tells them apart by name there, and by port for Threadfins on another computer.
+- When Plex's warm-up failed and removing its library failed too, the second error hid the first, and the clip stayed in `plex/warmup`. The clip goes first now, and the reason for the failure is kept.
+
+### The guide
+
+- A refresh just after midnight UTC (evening in the Americas) left out the show on air on i.mjh.nz channels (Pluto TV, Plex, Samsung TV Plus, Roku) and in guides named by playlists, until the next one began. Shows still on at the start of the day count now.
+- `site_time_limit` now applies to those two kinds of guide too, as the docs said, not only to iptv-org's sites.
+- When one of i.mjh.nz's files fails tonight (Plex's, say), its channels keep the programmes still to come from last night's guide, instead of having none until tomorrow. A guide cut off half-way adds nothing.
+- Guide times written with no space before the offset (`20261024120000-0500`) were read as UTC.
+- A channel name's `(1080i)` comes off in the guide's channel name too, as `(720p)` always did.
+- The DNS check asks the next public resolver when one fails (SERVFAIL), instead of saying the site has no address, and asks a resolver given as an IPv6 address over IPv6.
+- A bad `min_bitrate` on a `radio-browser:` line is reported when kia reads `sources.txt`.
+
+### Smaller fixes
+
+- `kia_plex_up` and `kia_jellyfin_up` said 0 when kia couldn't write its own list of players in `state/`, though the server was fine. The sessions still count then, with no pseudonym.
+- If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
+- The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
+- A `|` in a channel's group or id no longer breaks the table in `report.md`.
+
 ### Installing
 
 - The `plex-elsewhere` preset stopped the installer before kia started: Threadfin needs kia's `plex` playlist, which you make on the Dashboard after the first refresh. With either Plex preset, the installer now starts kia and lists what's next in order: make the playlist, then (for Plex in the stack) get the claim code, then run `scripts/stack.sh apply`. It used to say to get the claim code first, and it ran out while `apply` waited for the playlist.

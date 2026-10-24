@@ -89,12 +89,17 @@ def _open_guide(url: str):
 
 
 def download(
-    info: dict, output: Path, days: int, log: Callable[[str], None], now: datetime | None = None
+    info: dict,
+    output: Path,
+    days: int,
+    log: Callable[[str], None],
+    now: datetime | None = None,
+    deadline: float | None = None,
 ) -> dict[str, int]:
     """Write the programmes for info["channels"] from info["urls"] to output.
 
     Returns the number of programmes each address gave. Raises RuntimeError if no guide
-    could be read at all.
+    could be read at all. Past deadline (time.monotonic()), the rest count as failed.
     """
     now = now or datetime.now(timezone.utc)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -111,10 +116,14 @@ def download(
             out.write(f"  <channel id={xml_attr(tid)}><display-name>{xml_text(tid)}</display-name></channel>\n")
         for url in info["urls"]:
             t0 = time.monotonic()
+            got: list[str] = []  # a guide cut off half-way adds nothing
             try:
+                if deadline is not None and t0 > deadline:
+                    raise TimeoutError("not started: past the time limit (site_time_limit)")
                 resp, stream = _open_guide(url)
                 with resp, stream:
-                    n = filter_xmltv(stream, wanted, start, end, out.write, suffix_fallback=False)
+                    n = filter_xmltv(stream, wanted, start, end, got.append, suffix_fallback=False, deadline=deadline)
+                out.writelines(got)
                 counts[url] = n
                 log(f"  {url}: {n} programmes in {time.monotonic() - t0:.1f}s")
             except (OSError, EOFError, ValueError, zlib.error, http.client.HTTPException, ET.ParseError) as exc:

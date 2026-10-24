@@ -49,6 +49,8 @@ def build_query(params: dict[str, str]) -> dict[str, str]:
         raise ValueError(f"radio-browser: top={params['top']!r} must be a number") from None
     if not 1 <= top <= MAX_TOP:
         raise ValueError(f"radio-browser: top must be between 1 and {MAX_TOP}")
+    if params.get("min_bitrate") and not params["min_bitrate"].isdigit():
+        raise ValueError(f"radio-browser: min_bitrate={params['min_bitrate']!r} must be a number, in kbps")
     query = {"hidebroken": "true", "order": "votes", "reverse": "true", "limit": str(top)}
     for key, api_key in FILTERS.items():
         if params.get(key):

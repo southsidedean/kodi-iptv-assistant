@@ -48,6 +48,7 @@ def test_sources_line_parsing():
         ("radio-browser: contry=US", "unknown filter"),
         ("radio-browser: country=US top=lots", "must be a number"),
         ("radio-browser: top=99999", "between 1 and"),
+        ("radio-browser: min_bitrate=abc", "min_bitrate='abc' must be a number"),
         ("radio-browser: jazz", "key=value"),
     ],
 )

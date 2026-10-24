@@ -39,17 +39,22 @@ def filter_xmltv(
     end: datetime,
     write: Callable[[str], None],
     suffix_fallback: bool = True,
+    deadline: float | None = None,
 ) -> int:
-    """Copy programmes for wanted source channel ids that start in [start, end).
+    """Copy programmes for wanted source channel ids that are on in [start, end): one that
+    started before start and is still on counts, so a refresh just after midnight UTC keeps
+    the show on air.
 
     wanted maps a source channel id to the tvg-ids it should appear under. Returns the
-    number of programmes written.
+    number of programmes written. Past deadline (time.monotonic()), raises TimeoutError.
     """
     # Plex ids are "<provider prefix>-<channel id>" and the prefix changes over time, while
     # the channel id doesn't; fall back to matching on the part after the last "-".
     by_suffix = {sid.rpartition("-")[2]: tvg_ids for sid, tvg_ids in wanted.items() if "-" in sid and suffix_fallback}
     written = 0
     for _, el in ET.iterparse(stream, events=("end",)):
+        if deadline is not None and time.monotonic() > deadline:
+            raise TimeoutError("stopped at the time limit (site_time_limit)")
         if el.tag != "programme":
             if el.tag == "channel":
                 el.clear()
@@ -61,7 +66,11 @@ def filter_xmltv(
                 begins = parse_time(el.get("start", ""))
             except ValueError:
                 begins = None
-            if begins and start <= begins < end:
+            try:
+                ends = parse_time(el.get("stop", "")) if el.get("stop") else begins
+            except ValueError:
+                ends = begins
+            if begins and begins < end and (start <= begins or (ends and ends > start)):
                 el.tail = None
                 for tvg_id in targets:
                     el.set("channel", tvg_id)
@@ -83,8 +92,13 @@ def grab_imjh(
     log: Callable[[str], None],
     base_url: str = IMJH_BASE,
     now: datetime | None = None,
+    previous: Path | None = None,
+    deadline: float | None = None,
 ) -> None:
-    """Write an XMLTV guide for every channel in channels_file from i.mjh.nz's published files."""
+    """Write an XMLTV guide for every channel in channels_file from i.mjh.nz's published files.
+
+    For the channels of a file that fails tonight, programmes still to come are kept from
+    previous (last night's guide), rather than leaving them empty until tomorrow."""
     by_path: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     names: dict[str, str] = {}
     for site_id, tvg_id, name in read_channel_list(channels_file):
@@ -99,22 +113,33 @@ def grab_imjh(
     log(f"i.mjh.nz: {len(names)} channels from {len(by_path)} files, {days} days")
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    failures = 0
+    failed: list[str] = []
     with open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
         for tvg_id, name in sorted(names.items()):
             out.write(f"  <channel id={xml_attr(tvg_id)}><display-name>{xml_text(name)}</display-name></channel>\n")
         for path, wanted in sorted(by_path.items()):
             t0 = time.monotonic()
+            # Written to a list first, so a file cut off half-way adds nothing.
+            got: list[str] = []
             try:
                 with fetch(f"{base_url}/{path}.xml.gz") as resp, gzip.GzipFile(fileobj=resp) as stream:
-                    n = filter_xmltv(stream, wanted, start, end, out.write)
+                    n = filter_xmltv(stream, wanted, start, end, got.append, deadline=deadline)
+                out.writelines(got)
                 log(f"  {path}: {len(wanted)} channels, {n} programmes in {time.monotonic() - t0:.1f}s")
             except (OSError, ET.ParseError, EOFError) as exc:
-                failures += 1
+                failed.append(path)
                 log(f"  {path}: ERR: {exc}")
+        if failed and previous and previous.exists():
+            keep = {tid: [tid] for path in failed for tids in by_path[path].values() for tid in tids}
+            try:
+                with open(previous, "rb") as old:
+                    n = filter_xmltv(old, keep, now, end, out.write, suffix_fallback=False)
+                log(f"  kept {n} programmes from last time for the channels of {', '.join(failed)}")
+            except (OSError, ET.ParseError) as exc:
+                log(f"  couldn't read last time's guide: {exc}")
         out.write("</tv>\n")
-    if failures == len(by_path):
+    if len(failed) == len(by_path):
         raise RuntimeError("every i.mjh.nz file failed to download")
 
 
