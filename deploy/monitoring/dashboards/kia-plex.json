@@ -90,15 +90,20 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "red",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "red",
+        "value": -1000000000.0
        },
        {
         "color": "green",
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -148,11 +153,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -202,11 +212,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -256,11 +271,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -310,11 +330,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -687,7 +712,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No Threadfin streaming to Plex now"
     },
     "overrides": []
    },

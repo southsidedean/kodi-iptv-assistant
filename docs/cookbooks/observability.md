@@ -77,13 +77,13 @@ Plex installed outside Docker isn't a container, so its processor use shows in t
 
 ## 5. The Hardware dashboard (optional)
 
-The Hardware dashboard shows the graphics card, each disk's health, temperatures and fans, software RAID, free space, and a UPS or laptop battery. Each section fills in from its own source and stays empty without it, so what you see depends on the computer.
+The Hardware dashboard shows the graphics card, each disk's health, temperatures and fans, software RAID, free space, and a UPS or laptop battery. Each section fills in from its own source, so what you see depends on the computer. A panel that has nothing to show says why, such as *Needs the monitoring-gpu profile* or *No UPS or battery node-exporter can see*.
 
 ### On Linux
 
 - **Temperatures, fans, RAID, free space, power** come from node-exporter (step 2). Most PCs have the sensors; a UPS connected by USB shows under *Power*.
 - **The graphics card:** NVIDIA cards, with [NVIDIA's Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. Add `monitoring-gpu` to the profiles. It shows the card's load and its video encoder and decoder, which Plex uses when it converts video on the card; the Plex dashboard shows which conversions run there and which on the processor.
-- **Each disk's health (SMART):** add `monitoring-disks`. It warns about a disk that fails its own check, and counts the sectors a disk has replaced or can't read, numbers that grow as it wears out. To read the disks it runs with full access to the computer (privileged); [security](../../SECURITY.md) explains what each part can do.
+- **Each disk's health (SMART):** add `monitoring-disks`. It warns about a disk that fails its own check, and counts the sectors a disk has replaced or can't read, numbers that grow as it wears out. A USB drive that's asleep, or whose case doesn't pass SMART through, isn't shown; reading it would keep waking it. To read the disks it runs with full access to the computer (privileged); [security](../../SECURITY.md) explains what each part can do.
 
 For example `COMPOSE_PROFILES=monitoring,monitoring-node,monitoring-gpu,monitoring-disks`, then `docker compose up -d`.
 

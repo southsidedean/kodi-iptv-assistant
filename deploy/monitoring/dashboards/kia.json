@@ -94,8 +94,12 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "red",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "red",
+        "value": -1000000000.0
        },
        {
         "color": "green",
@@ -106,7 +110,8 @@
         "value": 2
        }
       ]
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -156,11 +161,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -210,8 +220,12 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "orange",
@@ -222,7 +236,8 @@
         "value": 93600
        }
       ]
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -272,11 +287,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -326,12 +346,17 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -381,11 +406,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -490,7 +520,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -562,7 +593,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -634,7 +666,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -706,7 +739,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -778,7 +812,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -936,7 +971,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -1026,7 +1062,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -1120,7 +1157,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },
@@ -1192,7 +1230,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from kia yet (its first refresh may still be running)"
     },
     "overrides": []
    },

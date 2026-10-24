@@ -71,12 +71,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "celsius",
+     "noValue": "Needs monitoring-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "orange",
@@ -133,12 +138,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "watt",
+     "noValue": "Needs monitoring-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
      },
@@ -188,12 +198,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
+     "noValue": "Needs monitoring-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
      }
@@ -242,12 +257,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
+     "noValue": "Needs monitoring-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
      }
@@ -300,11 +320,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -354,11 +379,16 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -450,7 +480,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -522,7 +553,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -594,7 +626,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -644,19 +677,24 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "count(smartctl_device_smart_status == 0) or vector(0)",
+     "expr": "count(smartctl_device_smart_status == 0) or count(smartctl_device) * 0",
      "legendFormat": ""
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "Needs monitoring-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "red",
@@ -702,19 +740,24 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(smartctl_device_attribute{attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\",attribute_value_type=\"raw\"}) or vector(0)",
+     "expr": "sum(smartctl_device_attribute{attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\",attribute_value_type=\"raw\"}) or count(smartctl_device) * 0",
      "legendFormat": ""
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "Needs monitoring-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "red",
@@ -767,12 +810,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "celsius",
+     "noValue": "Needs monitoring-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "orange",
@@ -804,7 +852,7 @@
    "id": 15,
    "type": "stat",
    "title": "Disks",
-   "description": "Disks the exporter reads.",
+   "description": "Disks the exporter reads. USB drives that sleep, or whose case hides SMART, aren't counted.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -829,12 +877,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "Needs monitoring-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
      }
@@ -962,7 +1015,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
-     "noValue": "No disk data: the monitoring-disks profile is off"
+     "noValue": "Needs the monitoring-disks profile (Linux)"
     },
     "overrides": [
      {
@@ -974,6 +1027,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -986,6 +1043,10 @@
        {
         "id": "unit",
         "value": "celsius"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -998,6 +1059,10 @@
        {
         "id": "unit",
         "value": "h"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1010,6 +1075,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1022,6 +1091,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1034,6 +1107,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1046,6 +1123,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1058,6 +1139,10 @@
        {
         "id": "unit",
         "value": "percent"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      }
@@ -1176,7 +1261,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-disks profile (Linux)"
     },
     "overrides": []
    },
@@ -1237,15 +1323,20 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "red",
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1295,15 +1386,20 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "orange",
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1353,8 +1449,12 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "red",
@@ -1362,7 +1462,8 @@
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1412,8 +1513,12 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "orange",
@@ -1421,7 +1526,8 @@
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1504,7 +1610,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No sensors to read here (macOS and virtual machines report none)"
     },
     "overrides": []
    },
@@ -1576,7 +1683,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No sensors to read here (macOS and virtual machines report none)"
     },
     "overrides": []
    },
@@ -1667,6 +1775,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1679,6 +1791,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1691,6 +1807,10 @@
        {
         "id": "unit",
         "value": "short"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      },
@@ -1703,6 +1823,10 @@
        {
         "id": "unit",
         "value": "percent"
+       },
+       {
+        "id": "noValue",
+        "value": "n/a"
        }
       ]
      }
@@ -1809,7 +1933,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1866,6 +1991,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "No UPS",
      "mappings": [
       {
        "type": "value",
@@ -1885,8 +2011,12 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "green",
+        "value": -1000000000.0
        },
        {
         "color": "orange",
@@ -1939,12 +2069,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
+     "noValue": "No UPS",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "red",
+        "color": "transparent",
         "value": null
+       },
+       {
+        "color": "red",
+        "value": -1000000000.0
        },
        {
         "color": "orange",
@@ -2002,12 +2137,17 @@
    "fieldConfig": {
     "defaults": {
      "unit": "s",
+     "noValue": "No UPS",
      "thresholds": {
       "mode": "absolute",
       "steps": [
        {
-        "color": "blue",
+        "color": "text",
         "value": null
+       },
+       {
+        "color": "blue",
+        "value": -1000000000.0
        }
       ]
      }
