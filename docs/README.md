@@ -7,6 +7,7 @@ New here? Begin with [start here](start-here.md).
 - [Start here](start-here.md): what kia gives you, the three steps, and the words you'll see.
 - [Installing kia](install.md): from nothing to a working channel list, step by step.
 - [Setups](setups.md): one server for the house, a Raspberry Pi, a laptop that travels, or no Docker.
+- [Choosing the parts of kia's stack](stack.md): Plex, Jellyfin, graphs, and more, with one line in `.env` and `scripts/stack.sh`.
 - [Cookbooks](cookbooks/README.md): one goal from start to finish, such as [a home TV box with Plex](cookbooks/plex-box.md) or [Kodi and kia on one computer](cookbooks/kodi-computer.md).
 
 ## Watching

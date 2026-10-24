@@ -1,7 +1,7 @@
 {
  "uid": "kia-hardware",
  "title": "Hardware",
- "description": "The computer's graphics card, disks, temperatures, RAID, and power: from the monitoring-gpu and monitoring-disks profiles and node-exporter. A section stays empty without its source (a Mac has no graphics card or temperature data for it, for example).",
+ "description": "The computer's graphics card, disks, temperatures, RAID, and power: from the observability-gpu and observability-disks parts (docs/stack.md) and node-exporter. A panel without its source says why (a Mac has no graphics card or temperature data for it, for example).",
  "tags": [
   "kia"
  ],
@@ -31,7 +31,7 @@
  "panels": [
   {
    "type": "row",
-   "title": "Graphics card (monitoring-gpu)",
+   "title": "Graphics card (observability-gpu)",
    "collapsed": false,
    "panels": [],
    "gridPos": {
@@ -71,7 +71,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "celsius",
-     "noValue": "Needs monitoring-gpu",
+     "noValue": "Needs observability-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -138,7 +138,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "watt",
-     "noValue": "Needs monitoring-gpu",
+     "noValue": "Needs observability-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -198,7 +198,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
-     "noValue": "Needs monitoring-gpu",
+     "noValue": "Needs observability-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -257,7 +257,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
-     "noValue": "Needs monitoring-gpu",
+     "noValue": "Needs observability-gpu",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -481,7 +481,7 @@
        "mode": "off"
       }
      },
-     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
+     "noValue": "Needs observability-gpu in KIA_STACK, or the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -554,7 +554,7 @@
        "mode": "off"
       }
      },
-     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
+     "noValue": "Needs observability-gpu in KIA_STACK, or the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -627,7 +627,7 @@
        "mode": "off"
       }
      },
-     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
+     "noValue": "Needs observability-gpu in KIA_STACK, or the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -644,7 +644,7 @@
   },
   {
    "type": "row",
-   "title": "Disks (monitoring-disks)",
+   "title": "Disks (observability-disks)",
    "collapsed": false,
    "panels": [],
    "gridPos": {
@@ -684,7 +684,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
-     "noValue": "Needs monitoring-disks",
+     "noValue": "Needs observability-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -747,7 +747,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
-     "noValue": "Needs monitoring-disks",
+     "noValue": "Needs observability-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -810,7 +810,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "celsius",
-     "noValue": "Needs monitoring-disks",
+     "noValue": "Needs observability-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -877,7 +877,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
-     "noValue": "Needs monitoring-disks",
+     "noValue": "Needs observability-disks",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -1015,7 +1015,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
-     "noValue": "Needs the monitoring-disks profile (Linux)"
+     "noValue": "Needs observability-disks in KIA_STACK, or the monitoring-disks profile (Linux)"
     },
     "overrides": [
      {
@@ -1262,7 +1262,7 @@
        "mode": "off"
       }
      },
-     "noValue": "Needs the monitoring-disks profile (Linux)"
+     "noValue": "Needs observability-disks in KIA_STACK, or the monitoring-disks profile (Linux)"
     },
     "overrides": []
    },

@@ -23,14 +23,14 @@ kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and yo
 
 ## 1. Turn it on
 
-In the kia folder, add `monitoring` to `COMPOSE_PROFILES` in `.env`. You can also choose a password for Grafana; without one, Grafana makes one up on its first start (step 3 says where to find it):
+In the kia folder, add `observability` to `KIA_STACK` in `.env`, after the parts you already run, such as `KIA_STACK=plex,observability` ([the parts](../stack.md); `scripts/stack.sh` shows what runs now). You can also choose a password for Grafana; without one, Grafana makes one up on its first start (step 3 says where to find it):
 
 ```sh
-COMPOSE_PROFILES=monitoring
+KIA_STACK=observability
 KIA_GRAFANA_PASSWORD=choose-a-password
 ```
 
-Keep the profiles you already have and put `monitoring` on the end: with Threadfin for Plex, that's `COMPOSE_PROFILES=plex,monitoring`.
+Without a `KIA_STACK` line, add `monitoring` to `COMPOSE_PROFILES` yourself instead.
 
 ## 2. The computer's own numbers
 
@@ -38,13 +38,13 @@ They come from node-exporter on port 9100. How you get it depends on the compute
 
 ### On Linux
 
-If the computer doesn't run node-exporter already, add `monitoring-node` to the profiles: `COMPOSE_PROFILES=monitoring,monitoring-node`. (On Ubuntu or Debian, `systemctl status prometheus-node-exporter` shows whether it's there; if it is, you're set.)
-
-Then start everything:
+`scripts/stack.sh` adds kia's own node-exporter, unless another one already answers on port 9100 (Ubuntu's `prometheus-node-exporter` package, for example). Without `KIA_STACK`, add `monitoring-node` to `COMPOSE_PROFILES` yourself if the computer has none. Then start everything:
 
 ```sh
-docker compose up -d
+scripts/stack.sh apply
 ```
+
+(Without `KIA_STACK`: `docker compose up -d`.)
 
 ### On a Mac
 
@@ -55,11 +55,13 @@ brew install node_exporter
 brew services start node_exporter
 ```
 
-It starts with the Mac from then on (`brew services list` shows it), and kia's Prometheus finds it by itself. Leave `monitoring-node` out. Then start everything:
+It starts with the Mac from then on (`brew services list` shows it), and kia's Prometheus finds it by itself. Then start everything:
 
 ```sh
-docker compose up -d
+scripts/stack.sh apply
 ```
+
+(Without `KIA_STACK`: `docker compose up -d`, and leave `monitoring-node` out of `COMPOSE_PROFILES`.)
 
 ## 3. Open Grafana
 
@@ -77,19 +79,19 @@ Plex installed outside Docker isn't a container, so its processor use shows in t
 
 ## 5. The Hardware dashboard (optional)
 
-The Hardware dashboard shows the graphics card, each disk's health, temperatures and fans, software RAID, free space, and a UPS or laptop battery. Each section fills in from its own source, so what you see depends on the computer. A panel that has nothing to show says why, such as *Needs the monitoring-gpu profile* or *No UPS or battery node-exporter can see*.
+The Hardware dashboard shows the graphics card, each disk's health, temperatures and fans, software RAID, free space, and a UPS or laptop battery. Each section fills in from its own source, so what you see depends on the computer. A panel that has nothing to show says why, such as *Needs observability-gpu* or *No UPS or battery node-exporter can see*.
 
 ### On Linux
 
 - **Temperatures, fans, RAID, free space, power** come from node-exporter (step 2). Most PCs have the sensors; a UPS connected by USB shows under *Power*.
-- **The graphics card:** NVIDIA cards, with [NVIDIA's Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. Add `monitoring-gpu` to the profiles. It shows the card's load and its video encoder and decoder, which Plex uses when it converts video on the card; the Plex dashboard shows which conversions run there and which on the processor.
-- **Each disk's health (SMART):** add `monitoring-disks`. It warns about a disk that fails its own check, and counts the sectors a disk has replaced or can't read, numbers that grow as it wears out. A USB drive that's asleep, or whose case doesn't pass SMART through, isn't shown; reading it would keep waking it. To read the disks it runs with full access to the computer (privileged); [security](../../SECURITY.md) explains what each part can do.
+- **The graphics card:** NVIDIA cards, with [NVIDIA's Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. Add `observability-gpu` to `KIA_STACK` (the `monitoring-gpu` profile). It shows the card's load and its video encoder and decoder, which Plex uses when it converts video on the card; the Plex dashboard shows which conversions run there and which on the processor.
+- **Each disk's health (SMART):** add `observability-disks` (the `monitoring-disks` profile). It warns about a disk that fails its own check, and counts the sectors a disk has replaced or can't read, numbers that grow as it wears out. A USB drive that's asleep, or whose case doesn't pass SMART through, isn't shown; reading it would keep waking it. To read the disks it runs with full access to the computer (privileged); [security](../../SECURITY.md) explains what each part can do.
 
-For example `COMPOSE_PROFILES=monitoring,monitoring-node,monitoring-gpu,monitoring-disks`, then `docker compose up -d`.
+For example `KIA_STACK=plex,observability,observability-gpu,observability-disks`, then `scripts/stack.sh apply`. `scripts/stack.sh check` says when the computer has an NVIDIA card or disks it could show.
 
 ### On a Mac
 
-node-exporter from step 2 fills in free space and power (a UPS or the battery). The rest stays empty: macOS doesn't give node-exporter temperatures or fans, there's no NVIDIA card, and the disk-health exporter can only see Docker's own small Linux machine, so leave `monitoring-gpu` and `monitoring-disks` out.
+node-exporter from step 2 fills in free space and power (a UPS or the battery). The rest stays empty: macOS doesn't give node-exporter temperatures or fans, there's no NVIDIA card, and the disk-health exporter can only see Docker's own small Linux machine, so leave `observability-gpu` and `observability-disks` out (`scripts/stack.sh check` says so too).
 
 The dashboard's buttons lead to it from the other three.
 
@@ -112,7 +114,7 @@ Prometheus picks new files up within a few minutes, without a restart.
 - **Ports.** Grafana is on 8788 (`KIA_GRAFANA_PORT`), over HTTPS only. Prometheus is on 8789 (`KIA_PROMETHEUS_PORT`), open to this computer only, because its page has no password. Both stay off the common ports 3000 and 9090, which other programs often use.
 - **How long it keeps.** 30 days (`KIA_PROMETHEUS_RETENTION`, such as `90d`). The numbers are in `monitoring/prometheus`, and Grafana's settings in `monitoring/grafana`, in the kia folder (on a Mac, in the Docker volume `grafana-data`).
 - **kia's numbers on their own.** kia publishes them at `http://192.168.1.20:8780/metrics` for any Prometheus you already have; [metrics](../metrics.md) lists them.
-- **Turning it off.** Remove `monitoring` (and `monitoring-node`, `monitoring-gpu`, `monitoring-disks`) from `COMPOSE_PROFILES`, then `docker compose rm -sf prometheus grafana cadvisor node-exporter dcgm-exporter smartctl-exporter`. On a Mac, `brew services stop node_exporter` too. The numbers stay in `monitoring/` until you delete them.
+- **Turning it off.** Remove `observability` (and `observability-gpu`, `observability-disks`) from `KIA_STACK`, then `scripts/stack.sh apply`, which stops them. Without `KIA_STACK`, remove `monitoring` and the other `monitoring-` profiles from `COMPOSE_PROFILES`, then `docker compose rm -sf prometheus grafana cadvisor node-exporter dcgm-exporter smartctl-exporter`. On a Mac, `brew services stop node_exporter` too. The numbers stay in `monitoring/` until you delete them.
 
 ## If something's wrong
 

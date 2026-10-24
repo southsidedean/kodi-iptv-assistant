@@ -21,14 +21,14 @@ MEMORY_USED = ("(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
                " / node_memory_total_bytes)")
 PROJECT = 'container_label_com_docker_compose_project="$project"'
 # What a panel says when there's nothing to show, instead of Grafana's "No data".
-GPU_OFF = "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
-DISKS_OFF = "Needs the monitoring-disks profile (Linux)"
+GPU_OFF = "Needs observability-gpu in KIA_STACK, or the monitoring-gpu profile (an NVIDIA card, on Linux)"
+DISKS_OFF = "Needs observability-disks in KIA_STACK, or the monitoring-disks profile (Linux)"
 NO_SENSORS = "No sensors to read here (macOS and virtual machines report none)"
 NO_UPS = "No UPS or battery node-exporter can see"
 NO_NODE = "No numbers from node-exporter on port 9100"
 NO_CONTAINERS = "No containers seen: is cAdvisor running?"
 # The same, short enough for a small tile.
-GPU_OFF_TILE, DISKS_OFF_TILE, NO_UPS_TILE = "Needs monitoring-gpu", "Needs monitoring-disks", "No UPS"
+GPU_OFF_TILE, DISKS_OFF_TILE, NO_UPS_TILE = "Needs observability-gpu", "Needs observability-disks", "No UPS"
 
 
 class Board:
@@ -283,11 +283,11 @@ REAL_FS = 'fstype!~"tmpfs|overlay|squashfs|ramfs|vfat|nsfs", mountpoint!~"/Syste
 
 def hardware() -> Board:
     b = Board("kia-hardware", "Hardware", "The computer's graphics card, disks, temperatures, RAID, and power: from the "
-              "monitoring-gpu and monitoring-disks profiles and node-exporter. A section stays empty without its source "
-              "(a Mac has no graphics card or temperature data for it, for example).", NO_NODE)  # fmt: skip
+              "observability-gpu and observability-disks parts (docs/stack.md) and node-exporter. A panel without its source says "
+              "why (a Mac has no graphics card or temperature data for it, for example).", NO_NODE)  # fmt: skip
     hot = [{"color": "green", "value": None}, {"color": "orange", "value": 75}, {"color": "red", "value": 85}]
     bad = [{"color": "green", "value": None}, {"color": "red", "value": 1}]
-    b.row("Graphics card (monitoring-gpu)")
+    b.row("Graphics card (observability-gpu)")
     b.stat("Temperature", "The graphics card's temperature.", "max(DCGM_FI_DEV_GPU_TEMP)", "celsius", thresholds=hot, no_value=GPU_OFF_TILE)
     b.stat("Power", "What the card draws now.", "sum(DCGM_FI_DEV_POWER_USAGE)", "watt", decimals=0, no_value=GPU_OFF_TILE)
     b.stat("Encoder", "The card's video encoder, which Plex uses when it converts video on the card.",
@@ -303,7 +303,7 @@ def hardware() -> Board:
     b.graph("Temperature", "The graphics card's temperature.", [("DCGM_FI_DEV_GPU_TEMP", "GPU {{gpu}}")], "celsius", w=6, no_value=GPU_OFF)
     b.graph("Memory in use", "The graphics card's memory in use.", [("DCGM_FI_DEV_FB_USED * 1048576", "GPU {{gpu}}")], "bytes", w=6,
             no_value=GPU_OFF)  # fmt: skip
-    b.row("Disks (monitoring-disks)")
+    b.row("Disks (observability-disks)")
     b.stat("Disks failing their own check", "Disks whose SMART self-assessment says they're failing: replace them soon.",
            "count(smartctl_device_smart_status == 0) or count(smartctl_device) * 0", thresholds=bad, w=6, no_value=DISKS_OFF_TILE)  # fmt: skip
     b.stat("Bad or pending sectors", "Sectors disks have replaced, are waiting to replace, or couldn't read, in all. "

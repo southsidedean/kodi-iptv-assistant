@@ -6,6 +6,12 @@
 
 Update with `scripts/update.sh`. With the `monitoring` profile on, Grafana's address changes from `http://` to `https://` (same port, 8788); your browser warns about kia's certificate the first time. Bookmarks need the new address; the Dashboard's **Observability** button has it.
 
+### Choosing the parts of the stack
+
+- New `scripts/stack.sh` ([choosing the parts](docs/stack.md)): one line in `.env`, such as `KIA_STACK=plex,observability`, says which programs run next to kia (`plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, `observability-disks`). `scripts/stack.sh check` checks the choice for this computer: names it doesn't know, parts that don't go together, a Mac's limits, NVIDIA's toolkit for the graphics card, missing settings, the media folder, ports in use, and memory. `apply` then sets `COMPOSE_PROFILES`, starts what's chosen, and stops what isn't, after asking if someone is watching or if parts that run now would stop. On its own, it shows what runs and which dashboard panels have data. The cookbooks use it, and each has a preset (`scripts/stack.sh apply --preset plex-box`).
+- New `kia check-dashboards`: which Grafana panels have data on this computer, by dashboard section, and why the others don't.
+- `COMPOSE_PROFILES` works as before for installs without a `KIA_STACK` line.
+
 ### Observability
 
 - Grafana answers only over HTTPS, with kia's own certificate from `tls/` (the secure Dashboard's, or yours if you put one there), so its password no longer crosses your network in plain text. Grafana checks the certificate files every minute, so kia's renewals and your own certificate need no restart. The Dashboard's **Observability** button opens the `https://` address.
