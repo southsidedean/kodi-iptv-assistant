@@ -2,6 +2,10 @@
 
 ## 0.5.6 (unreleased)
 
+### The Dashboard's stack tiles
+
+- With Docker, the Dashboard starts with **Your stack**: a tile for each program running next to kia (Threadfin, Plex, Jellyfin, Prometheus, Grafana, and the exporters), green when it answers and red when it doesn't. kia checks each one every minute, and a tile with a page of its own (Plex, Jellyfin, Threadfin, Grafana) opens it. The same is in `stack.json` and in `/metrics` as `kia_stack_service_up` ([how it works](docs/how-it-works.md#the-dashboard)).
+
 ### Choosing the parts of the stack
 
 - An empty `KIA_STACK=` line, which every `.env` made from `.env.example` has, counted as a choice of nothing. So with Threadfin started the way [Plex](docs/plex.md) said before, with `COMPOSE_PROFILES=plex`, `scripts/stack.sh` said nothing else ran, and `apply` stopped Threadfin (after asking, or at once with `--yes`). Now, while `KIA_STACK` is empty and `COMPOSE_PROFILES` isn't, `COMPOSE_PROFILES` decides, and `check` and `apply` change nothing. The Plex guide now uses `KIA_STACK=plex-tuner` and `scripts/stack.sh apply`.

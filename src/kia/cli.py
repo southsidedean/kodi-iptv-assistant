@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, channels, locks, pluto, settings, tls
+from kia import alerts, auth, channels, locks, pluto, settings, stack, tls
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
@@ -1119,8 +1119,12 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     update_status(cfg)
     relay = pluto_relay(cfg) if args.serve or args.api_port else None
     players = metrics.Players(cfg.state_dir)  # one pseudonym list for Plex's and Jellyfin's players
+    watch = None
+    if (running := stack.profiles()) is not None:  # kia in Docker: the Dashboard's Stack tiles
+        watch = stack.Watch(cfg.output_dir, running)
+        watch.start()
     numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config, players),
-                      jellyfin_sessions(args.config, players))  # /metrics, for Prometheus
+                      jellyfin_sessions(args.config, players), watch)  # /metrics, for Prometheus
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
         serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=relay, metrics=numbers)
