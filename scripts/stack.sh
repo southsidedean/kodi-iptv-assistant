@@ -80,7 +80,7 @@ fi
 # a request can do is what you can do with this script yourself: check or apply a choice of
 # the parts it knows.
 if [ "$cmd" = watch ]; then
-    [ -z "$preset" ] && [ "$try_set" = no ] || { echo "stack: watch takes no --preset or --stack" >&2; exit 2; }
+    if [ -n "$preset" ] || [ "$try_set" = yes ]; then echo "stack: watch takes no --preset or --stack" >&2; exit 2; fi
     mkdir -p state
     # One watcher at a time; a second one would carry out the same request again.
     pidfile=state/stack-watch.pid
