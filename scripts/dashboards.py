@@ -137,8 +137,11 @@ class Board:
                 "renameByName": {key: key.capitalize(), **{f"Value #{chr(65 + i)}": name for i, (name, _, _) in enumerate(columns)}}}},
             {"id": "filterFieldsByName", "options": {"include": {"names": [key.capitalize(), *[n for n, _, _ in columns]]}}},
         ]  # fmt: skip
+        # A cell the source doesn't report (a virtual disk has no SMART status) says n/a; the panel's
+        # note is for when there's nothing at all.
         p["fieldConfig"]["overrides"] = [
-            {"matcher": {"id": "byName", "options": name}, "properties": [{"id": "unit", "value": unit}]} for name, _, unit in columns
+            {"matcher": {"id": "byName", "options": name}, "properties": [{"id": "unit", "value": unit}, {"id": "noValue", "value": "n/a"}]}
+            for name, _, unit in columns
         ]  # fmt: skip
 
     def json(self) -> dict:
