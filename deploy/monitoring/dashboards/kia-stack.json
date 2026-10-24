@@ -118,7 +118,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
     },
     "overrides": []
    },
@@ -190,7 +191,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
     },
     "overrides": []
    },
@@ -262,7 +264,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
     },
     "overrides": []
    },
@@ -334,7 +337,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
     },
     "overrides": []
    },
@@ -408,7 +412,8 @@
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -471,7 +476,8 @@
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -534,7 +540,8 @@
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -589,7 +596,8 @@
        }
       ]
      },
-     "decimals": 1
+     "decimals": 1,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -643,7 +651,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -697,7 +706,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -771,7 +781,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -852,7 +863,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },

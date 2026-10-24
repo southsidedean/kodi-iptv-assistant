@@ -71,6 +71,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "celsius",
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -133,6 +134,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "watt",
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -188,6 +190,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -242,6 +245,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -304,7 +308,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -358,7 +363,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -450,7 +456,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -522,7 +529,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -594,7 +602,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
     },
     "overrides": []
    },
@@ -663,7 +672,8 @@
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -721,7 +731,8 @@
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -767,6 +778,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "celsius",
+     "noValue": "Needs the monitoring-disks profile (Linux)",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -804,7 +816,7 @@
    "id": 15,
    "type": "stat",
    "title": "Disks",
-   "description": "Disks the exporter reads.",
+   "description": "Disks the exporter reads. USB drives that sleep, or whose case hides SMART, aren't counted.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -829,6 +841,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "Needs the monitoring-disks profile (Linux)",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -962,7 +975,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
-     "noValue": "No disk data: the monitoring-disks profile is off"
+     "noValue": "Needs the monitoring-disks profile (Linux)"
     },
     "overrides": [
      {
@@ -1176,7 +1189,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "Needs the monitoring-disks profile (Linux)"
     },
     "overrides": []
    },
@@ -1245,7 +1259,8 @@
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1303,7 +1318,8 @@
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1362,7 +1378,8 @@
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1421,7 +1438,8 @@
        }
       ]
      },
-     "decimals": 0
+     "decimals": 0,
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1504,7 +1522,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No sensors to read here (macOS and virtual machines report none)"
     },
     "overrides": []
    },
@@ -1576,7 +1595,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No sensors to read here (macOS and virtual machines report none)"
     },
     "overrides": []
    },
@@ -1809,7 +1829,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No numbers from node-exporter on port 9100"
     },
     "overrides": []
    },
@@ -1866,6 +1887,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "No UPS or battery node-exporter can see",
      "mappings": [
       {
        "type": "value",
@@ -1939,6 +1961,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "percent",
+     "noValue": "No UPS or battery node-exporter can see",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -2002,6 +2025,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "s",
+     "noValue": "No UPS or battery node-exporter can see",
      "thresholds": {
       "mode": "absolute",
       "steps": [

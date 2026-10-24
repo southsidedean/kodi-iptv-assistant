@@ -20,11 +20,19 @@ MEMORY_USED = ("(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
                " - node_memory_purgeable_bytes + node_memory_wired_bytes + node_memory_compressed_bytes)"
                " / node_memory_total_bytes)")
 PROJECT = 'container_label_com_docker_compose_project="$project"'
+# What a panel says when there's nothing to show, instead of Grafana's "No data".
+GPU_OFF = "Needs the monitoring-gpu profile (an NVIDIA card, on Linux)"
+DISKS_OFF = "Needs the monitoring-disks profile (Linux)"
+NO_SENSORS = "No sensors to read here (macOS and virtual machines report none)"
+NO_UPS = "No UPS or battery node-exporter can see"
+NO_NODE = "No numbers from node-exporter on port 9100"
+NO_CONTAINERS = "No containers seen (a new Docker install: see the observability cookbook)"
 
 
 class Board:
-    def __init__(self, uid: str, title: str, description: str) -> None:
-        self.uid, self.title, self.description = uid, title, description
+    def __init__(self, uid: str, title: str, description: str, no_value: str) -> None:
+        """no_value: what a panel says when its source sends nothing, unless it has a note of its own."""
+        self.uid, self.title, self.description, self.no_value = uid, title, description, no_value
         self.panels: list[dict] = []
         self.x = self.y = self.row_height = 0
         self.variables: list[dict] = []
@@ -65,9 +73,12 @@ class Board:
         return panel
 
     def stat(self, title: str, description: str, expr: str, unit: str = "short", w: int = 4,
-             mappings: list | None = None, thresholds: list | None = None, decimals: int | None = None) -> None:  # fmt: skip
+             mappings: list | None = None, thresholds: list | None = None, decimals: int | None = None,
+             no_value: str | None = None) -> None:  # fmt: skip
         p = self._panel("stat", title, description, [(expr, "")], w, 4, unit)
         d = p["fieldConfig"]["defaults"]
+        if no_value:
+            d["noValue"] = no_value
         if mappings:
             d["mappings"] = mappings
         d["thresholds"] = {"mode": "absolute", "steps": thresholds or [{"color": "blue", "value": None}]}
@@ -125,6 +136,9 @@ class Board:
         ]  # fmt: skip
 
     def json(self) -> dict:
+        for p in self.panels:
+            if p["type"] != "row":
+                p["fieldConfig"]["defaults"].setdefault("noValue", self.no_value)
         return {
             "uid": self.uid,
             "title": self.title,
@@ -149,7 +163,8 @@ GREEN = [{"color": "green", "value": None}]
 
 
 def kia() -> Board:
-    b = Board("kia", "kia", "kia's refreshes, channels, guide, sources, and Pluto TV relay (docs/metrics.md).")
+    b = Board("kia", "kia", "kia's refreshes, channels, guide, sources, and Pluto TV relay (docs/metrics.md).",
+              "No numbers from kia yet (its first refresh may still be running)")  # fmt: skip
     b.row("Now")
     b.stat("Last refresh", "The nightly refresh: OK, failed, or running now.",
            "kia_refresh_running * 2 + (1 - kia_refresh_running) * kia_last_refresh_success", mappings=OK_FAILED,
@@ -188,20 +203,20 @@ def kia() -> Board:
 
 
 def stack() -> Board:
-    b = Board("kia-stack", "TV stack", "Each container (kia, web, Threadfin, Plex) and the computer they run on.")
+    b = Board("kia-stack", "TV stack", "Each container (kia, web, Threadfin, Plex) and the computer they run on.", NO_NODE)
     b.variables.append({"name": "project", "label": "Compose project", "type": "query", "datasource": DS,
                         "query": {"query": "label_values(container_last_seen, container_label_com_docker_compose_project)", "refId": "P"},
                         "refresh": 2, "current": {"text": "kodi-iptv-assistant", "value": "kodi-iptv-assistant"}})  # fmt: skip
     b.row("Containers")
     b.graph("Processor per container", "Share of one processor core. Plex installed outside Docker isn't here; see the computer's processor below.",
             [(f"sum by ({SVC}) (rate(container_cpu_usage_seconds_total{{{PROJECT}}}[2m]))", f"{{{{{SVC}}}}}")],
-            "percentunit", stack=True)  # fmt: skip
+            "percentunit", stack=True, no_value=NO_CONTAINERS)  # fmt: skip
     b.graph("Memory per container", "Memory each container uses.",
-            [(f"sum by ({SVC}) (container_memory_working_set_bytes{{{PROJECT}}})", f"{{{{{SVC}}}}}")], "bytes", stack=True)  # fmt: skip
+            [(f"sum by ({SVC}) (container_memory_working_set_bytes{{{PROJECT}}})", f"{{{{{SVC}}}}}")], "bytes", stack=True, no_value=NO_CONTAINERS)  # fmt: skip
     b.graph("Sent per container", "What each container sends. Threadfin's line is the TV it's streaming to Plex.",
-            [(f"sum by ({SVC}) (rate(container_network_transmit_bytes_total{{{PROJECT}}}[2m])) * 8", f"{{{{{SVC}}}}}")], "bps")  # fmt: skip
+            [(f"sum by ({SVC}) (rate(container_network_transmit_bytes_total{{{PROJECT}}}[2m])) * 8", f"{{{{{SVC}}}}}")], "bps", no_value=NO_CONTAINERS)  # fmt: skip
     b.graph("Received per container", "What each container downloads: streams for Threadfin and Pluto, guides and checks for kia.",
-            [(f"sum by ({SVC}) (rate(container_network_receive_bytes_total{{{PROJECT}}}[2m])) * 8", f"{{{{{SVC}}}}}")], "bps")  # fmt: skip
+            [(f"sum by ({SVC}) (rate(container_network_receive_bytes_total{{{PROJECT}}}[2m])) * 8", f"{{{{{SVC}}}}}")], "bps", no_value=NO_CONTAINERS)  # fmt: skip
     b.row("The computer")
     b.stat("Processor", "How busy the processor is, all cores together.",
            '1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m]))', "percentunit", decimals=0,
@@ -225,7 +240,8 @@ def stack() -> Board:
 
 
 def plex() -> Board:
-    b = Board("kia-plex", "Plex", "Who's watching on Plex, from kia (KIA_PLEX_URL in .env).")
+    b = Board("kia-plex", "Plex", "Who's watching on Plex, from kia (KIA_PLEX_URL in .env).",
+              "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)")  # fmt: skip
     b.row("Now")
     b.stat("Plex", "Whether Plex answered kia.", "kia_plex_up",
            mappings=[{"type": "value", "options": {"0": {"text": "Not answering", "color": "red"}, "1": {"text": "OK", "color": "green"}}}],
@@ -247,7 +263,7 @@ def plex() -> Board:
             [('sum by (hw) (kia_plex_sessions{video="transcode"})', "{{hw}}")], stack=True, no_value="Nothing converted in this time")  # fmt: skip
     b.graph("Threadfin streaming", "What the Threadfins send to Plex: Live TV from kia's channels.",
             [(f'sum by ({SVC}) (rate(container_network_transmit_bytes_total{{{SVC}=~"threadfin.*"}}[2m])) * 8', f"{{{{{SVC}}}}}")],
-            "bps", w=24)  # fmt: skip
+            "bps", w=24, no_value="No Threadfin streaming to Plex now")  # fmt: skip
     return b
 
 
@@ -259,24 +275,25 @@ REAL_FS = 'fstype!~"tmpfs|overlay|squashfs|ramfs|vfat|nsfs", mountpoint!~"/Syste
 def hardware() -> Board:
     b = Board("kia-hardware", "Hardware", "The computer's graphics card, disks, temperatures, RAID, and power: from the "
               "monitoring-gpu and monitoring-disks profiles and node-exporter. A section stays empty without its source "
-              "(a Mac has no graphics card or temperature data for it, for example).")  # fmt: skip
+              "(a Mac has no graphics card or temperature data for it, for example).", NO_NODE)  # fmt: skip
     hot = [{"color": "green", "value": None}, {"color": "orange", "value": 75}, {"color": "red", "value": 85}]
     bad = [{"color": "green", "value": None}, {"color": "red", "value": 1}]
     b.row("Graphics card (monitoring-gpu)")
-    b.stat("Temperature", "The graphics card's temperature.", "max(DCGM_FI_DEV_GPU_TEMP)", "celsius", thresholds=hot)
-    b.stat("Power", "What the card draws now.", "sum(DCGM_FI_DEV_POWER_USAGE)", "watt", decimals=0)
+    b.stat("Temperature", "The graphics card's temperature.", "max(DCGM_FI_DEV_GPU_TEMP)", "celsius", thresholds=hot, no_value=GPU_OFF)
+    b.stat("Power", "What the card draws now.", "sum(DCGM_FI_DEV_POWER_USAGE)", "watt", decimals=0, no_value=GPU_OFF)
     b.stat("Encoder", "The card's video encoder, which Plex uses when it converts video on the card.",
-           "max(DCGM_FI_DEV_ENC_UTIL)", "percent")  # fmt: skip
-    b.stat("Decoder", "The card's video decoder.", "max(DCGM_FI_DEV_DEC_UTIL)", "percent")
+           "max(DCGM_FI_DEV_ENC_UTIL)", "percent", no_value=GPU_OFF)  # fmt: skip
+    b.stat("Decoder", "The card's video decoder.", "max(DCGM_FI_DEV_DEC_UTIL)", "percent", no_value=GPU_OFF)
     b.stat("Plex converting on the card", "Plex sessions converting video on the graphics card (hardware transcoding).",
            'sum(kia_plex_sessions{hw="gpu"}) or vector(0)')  # fmt: skip
     b.stat("Plex converting on the processor", "Plex sessions converting video on the processor: slower and hotter.",
            'sum(kia_plex_sessions{hw="cpu"}) or vector(0)')  # fmt: skip
     b.graph("Load, encoder, and decoder", "How busy the graphics card and its video encoder and decoder are.",
             [("DCGM_FI_DEV_GPU_UTIL", "Load (GPU {{gpu}})"), ("DCGM_FI_DEV_ENC_UTIL", "Encoder (GPU {{gpu}})"),
-             ("DCGM_FI_DEV_DEC_UTIL", "Decoder (GPU {{gpu}})")], "percent")  # fmt: skip
-    b.graph("Temperature", "The graphics card's temperature.", [("DCGM_FI_DEV_GPU_TEMP", "GPU {{gpu}}")], "celsius", w=6)
-    b.graph("Memory in use", "The graphics card's memory in use.", [("DCGM_FI_DEV_FB_USED * 1048576", "GPU {{gpu}}")], "bytes", w=6)
+             ("DCGM_FI_DEV_DEC_UTIL", "Decoder (GPU {{gpu}})")], "percent", no_value=GPU_OFF)  # fmt: skip
+    b.graph("Temperature", "The graphics card's temperature.", [("DCGM_FI_DEV_GPU_TEMP", "GPU {{gpu}}")], "celsius", w=6, no_value=GPU_OFF)
+    b.graph("Memory in use", "The graphics card's memory in use.", [("DCGM_FI_DEV_FB_USED * 1048576", "GPU {{gpu}}")], "bytes", w=6,
+            no_value=GPU_OFF)  # fmt: skip
     b.row("Disks (monitoring-disks)")
     b.stat("Disks failing their own check", "Disks whose SMART self-assessment says they're failing: replace them soon.",
            "count(smartctl_device_smart_status == 0) or vector(0)", thresholds=bad, w=6)  # fmt: skip
@@ -285,8 +302,10 @@ def hardware() -> Board:
            'sum(smartctl_device_attribute{attribute_name=~"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable",'
            'attribute_value_type="raw"}) or vector(0)', thresholds=bad, w=6)  # fmt: skip
     b.stat("Hottest disk", "The warmest disk now.", 'max(smartctl_device_temperature{temperature_type="current"})', "celsius",
-           thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 50}, {"color": "red", "value": 60}], w=6)  # fmt: skip
-    b.stat("Disks", "Disks the exporter reads.", "count(smartctl_device)", w=6)
+           thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 50}, {"color": "red", "value": 60}], w=6,
+           no_value=DISKS_OFF)  # fmt: skip
+    b.stat("Disks", "Disks the exporter reads. USB drives that sleep, or whose case hides SMART, aren't counted.",
+           "count(smartctl_device)", w=6, no_value=DISKS_OFF)  # fmt: skip
     attribute = 'max by (device) (smartctl_device_attribute{{attribute_name="{}",attribute_value_type="raw"}})'
     b.columns("Each disk", "SMART says OK (1) or failing (0); the counts should stay at 0. NVMe disks show their wear instead "
               "of the sector counts.", "device", [
@@ -298,9 +317,9 @@ def hardware() -> Board:
                   ("Unreadable sectors", attribute.format("Offline_Uncorrectable"), "short"),
                   ("Cable errors", attribute.format("UDMA_CRC_Error_Count"), "short"),
                   ("NVMe wear", "max by (device) (smartctl_device_percentage_used)", "percent"),
-              ], no_value="No disk data: the monitoring-disks profile is off")  # fmt: skip
+              ], no_value=DISKS_OFF)  # fmt: skip
     b.graph("Disk temperatures", "Each disk's temperature.",
-            [('smartctl_device_temperature{temperature_type="current"}', "{{device}}")], "celsius", w=24)  # fmt: skip
+            [('smartctl_device_temperature{temperature_type="current"}', "{{device}}")], "celsius", w=24, no_value=DISKS_OFF)  # fmt: skip
     b.row("The computer (node-exporter)")
     b.stat("Failed disks in RAID", "Disks that software RAID (mdadm) marked failed.",
            'sum(node_md_disks{state="failed"}) or vector(0)', thresholds=bad, w=6)  # fmt: skip
@@ -315,8 +334,9 @@ def hardware() -> Board:
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6, decimals=0)  # fmt: skip
     b.graph("Temperatures", "The processor's and other sensors' temperatures.",
             [("node_hwmon_temp_celsius * on (chip, sensor) group_left (label) node_hwmon_sensor_label", "{{label}}"),
-             ("node_hwmon_temp_celsius unless on (chip, sensor) node_hwmon_sensor_label", "{{chip}} {{sensor}}")], "celsius")  # fmt: skip
-    b.graph("Fans", "Fan speeds.", [("node_hwmon_fan_rpm", "{{chip}} {{sensor}}")], "rotrpm")
+             ("node_hwmon_temp_celsius unless on (chip, sensor) node_hwmon_sensor_label", "{{chip}} {{sensor}}")], "celsius",
+            no_value=NO_SENSORS)  # fmt: skip
+    b.graph("Fans", "Fan speeds.", [("node_hwmon_fan_rpm", "{{chip}} {{sensor}}")], "rotrpm", no_value=NO_SENSORS)
     b.columns("RAID arrays", "Software RAID (mdadm) arrays: disks working, failed, and spare, and how much is in sync.",
               "device", [
                   ("Working disks", 'max by (device) (node_md_disks{state="active"})', "short"),
@@ -330,13 +350,13 @@ def hardware() -> Board:
     b.stat("Running on", "Mains power or battery, for a UPS or laptop battery node-exporter can see.",
            'max(node_power_supply_power_source_state{state="Battery Power"}) or (max(node_power_supply_online) * 0)',
            mappings=[{"type": "value", "options": {"0": {"text": "Mains", "color": "green"}, "1": {"text": "Battery", "color": "orange"}}}],
-           thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6)  # fmt: skip
+           thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6, no_value=NO_UPS)  # fmt: skip
     b.stat("Battery charge", "How full the UPS's or laptop's battery is.",
            "min(node_power_supply_current_capacity / node_power_supply_max_capacity) * 100 or min(node_power_supply_capacity)",
            "percent", thresholds=[{"color": "red", "value": None}, {"color": "orange", "value": 30}, {"color": "green", "value": 60}],
-           w=6, decimals=0)  # fmt: skip
+           w=6, decimals=0, no_value=NO_UPS)  # fmt: skip
     b.stat("Battery time left", "How long the battery would last, by its own estimate.",
-           "min(node_power_supply_time_to_empty_seconds)", "s", w=6)  # fmt: skip
+           "min(node_power_supply_time_to_empty_seconds)", "s", w=6, no_value=NO_UPS)  # fmt: skip
     return b
 
 

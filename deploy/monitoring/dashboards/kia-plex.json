@@ -98,7 +98,8 @@
         "value": 1
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -152,7 +153,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -206,7 +208,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -260,7 +263,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -314,7 +318,8 @@
         "value": null
        }
       ]
-     }
+     },
+     "noValue": "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)"
     },
     "overrides": []
    },
@@ -687,7 +692,8 @@
       "thresholdsStyle": {
        "mode": "off"
       }
-     }
+     },
+     "noValue": "No Threadfin streaming to Plex now"
     },
     "overrides": []
    },
