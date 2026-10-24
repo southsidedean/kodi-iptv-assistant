@@ -25,6 +25,8 @@ import os
 import secrets
 from pathlib import Path
 
+from kia.files import temp_name
+
 # The Threadfins compose.yaml can start: their folder in the kia folder, and the .env
 # setting that names the kia playlist each one reads.
 THREADFINS = (("threadfin", "KIA_THREADFIN_PLAYLIST", "plex"), ("threadfin-2", "KIA_THREADFIN_2_PLAYLIST", "plex-2"))
@@ -80,7 +82,7 @@ def _threadfin_hash(secret: str) -> str:
 
 
 def _write_private(path: Path, text: str) -> None:
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = temp_name(path)
     tmp.unlink(missing_ok=True)
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as f:
@@ -132,7 +134,7 @@ def _turn_on_login(conf: Path, folder: str, log) -> bool:
     if current.get("authentication.web") is True:
         return False
     current["authentication.web"] = True  # only the page: Plex's access stays open
-    tmp = settings_file.with_name("settings.json.tmp")
+    tmp = temp_name(settings_file)
     tmp.write_text(json.dumps(current, indent=1) + "\n")
     tmp.replace(settings_file)
     log(f"{folder}: its page now asks for a login: admin, with the password in {folder}/conf/admin-password.txt.")

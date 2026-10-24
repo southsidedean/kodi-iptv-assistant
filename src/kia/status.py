@@ -19,6 +19,7 @@ from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
 from kia.channels import FAVORITES
 from kia.m3u import parse
+from kia.files import temp_name
 
 # Files in output/ the page links to, with what each one is for.
 FILES = [
@@ -47,14 +48,14 @@ def _load(path: Path) -> dict:
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = temp_name(path)
     tmp.write_text(text)
     tmp.replace(path)
 
 
 def update(output_dir: Path, state_dir: Path, public_url: str | None = None, **run: object) -> dict:
     """Merge `run` fields (result, started, finished, minutes, exit_code, next_run; None
-    clears one) into the saved run state, then rewrite status.json and index.html."""
+    clears one) into the saved run state, then rewrite status.json and the Dashboard's pages."""
     with _UPDATE_LOCK:  # the daemon and the page's API both update it
         return _update(output_dir, state_dir, public_url, run)
 

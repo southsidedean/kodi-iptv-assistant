@@ -106,7 +106,8 @@ def from_rules(name: str, rules: object, where_file: str = "profile") -> Profile
             try:
                 re.compile(pattern)
             except re.error as exc:
-                raise ValueError(f"{where}: {key} pattern {pattern!r}: {exc}") from None
+                raise ValueError(f"{where}: {key}: {pattern!r} isn't a pattern kia can use ({exc}). To match the "
+                                 f"text as written, put \\ before . + * ? ( ) [ ] {{ }} | ^ $, as in \\+1 for +1.") from None
     return Profile(name=name, **rules)
 
 

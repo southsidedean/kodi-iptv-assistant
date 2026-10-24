@@ -1,3 +1,4 @@
+import dataclasses
 import json
 from pathlib import Path
 
@@ -239,3 +240,29 @@ def test_a_test_check_leaves_the_history_alone(tmp_path: Path, monkeypatch):
     assert cli.main(["check", "-c", str(tmp_path / "kia.toml"), "--limit", "1"]) == 0
     assert not (tmp_path / "state" / "history.json").exists()
     assert (tmp_path / "work" / "check-test" / "report.json").exists()
+
+
+def test_numbers_cant_be_changed_while_channel_numbers_are_off(cfg):
+    off = dataclasses.replace(cfg, channel_numbers=False)
+    status, data = call(off, {"key": "Charlie.us", "number": 7})
+    assert status == 409 and "channel_numbers = false" in data["error"]
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}
+    assert api.handle(off, "POST", "/api/renumber", headers, b"{}", True)[0] == 409
+    assert api.handle(off, "GET", "/api/profiles", headers, b"", True)[1]["numbers"] is False
+    assert call(off, {"key": "Charlie.us", "favorite": True})[0] == 200  # favorites still work
+
+
+def test_the_test_button_tests_as_the_nightly_check_does(cfg, monkeypatch):
+    from kia.probe import ProbeResult
+
+    seen = {}
+
+    async def fake_probe(url, **kw):
+        seen.update(kw)
+        return ProbeResult(ok=True, elapsed=0.1)
+
+    monkeypatch.setattr("kia.probe.probe", fake_probe)
+    mine = dataclasses.replace(cfg, require_video=False, user_agent=None, ffprobe="/opt/ffprobe")  # [check] in kia.toml
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}
+    assert api.handle(mine, "POST", "/api/channel/test", headers, b'{"key": "Bravo.us"}', True)[0] == 200
+    assert seen["require_video"] is False and seen["user_agent"] is None and seen["ffprobe"] == "/opt/ffprobe"

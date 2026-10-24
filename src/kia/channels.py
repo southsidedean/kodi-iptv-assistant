@@ -24,6 +24,7 @@ from pathlib import Path
 from kia import m3u
 from kia.m3u import Entry
 from kia.numbers import ChannelNumbers
+from kia.files import temp_name
 
 STATE_FILE = "channels.json"
 FAVORITES = "Favorites"
@@ -46,7 +47,7 @@ def load(state_dir: Path) -> dict:
 
 def save(state_dir: Path, choices: dict) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
-    tmp = state_dir / (STATE_FILE + ".tmp")
+    tmp = temp_name(state_dir / STATE_FILE)
     tmp.write_text(json.dumps(choices, indent=1, sort_keys=True) + "\n")
     tmp.replace(state_dir / STATE_FILE)
 
@@ -126,7 +127,7 @@ def rebuild(output_dir: Path, state_dir: Path, epg_url: str | None, log=lambda m
         numbers.assign(entries, when, log)
     if numbered:
         numbers.save()
-    tmp = curated.with_name(curated.name + ".tmp")
+    tmp = temp_name(curated)
     tmp.write_text(m3u.write(entries, epg_url))
     tmp.replace(curated)
     return entries

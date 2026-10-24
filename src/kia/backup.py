@@ -2,9 +2,9 @@
 
 A backup holds what you can't get back by running kia again: .env, kia.toml, your
 sources file, your own playlists (playlists/), profiles (profiles/), state/ (the
-password, channel numbers, favorites, playlist choices, stream history, alerts), and
-the secure page's certificate (tls/, including its private key, so keep backups
-private). output/, work/, and vendor/ are left out; the next refresh rebuilds them.
+password, channel numbers, favorites, playlist choices, stream history, alerts),
+Threadfin's settings (threadfin/, threadfin-2/), and the secure page's certificate
+(tls/, including its private key, so keep backups private). output/, work/, and vendor/ are left out; the next refresh rebuilds them.
 
 A restore first backs up what's there now, so it can be undone, then puts the files
 back. It refuses archives that aren't kia backups, and paths that would land outside

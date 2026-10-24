@@ -20,6 +20,19 @@
 - The arm64 image (Raspberry Pi) is scanned before it's published too, not only the amd64 one.
 - [SECURITY.md](SECURITY.md) now covers the web server's privileges, Threadfin's and Grafana's passwords, and Jellyfin's setup screens, which are open to anyone on your network until you finish them (the [Jellyfin cookbook](docs/cookbooks/jellyfin-box.md) says so too).
 
+### The Dashboard
+
+- Saving a change on the Dashboard waited while the nightly check looked up Pluto TV channels in other services' lists, a request each, which could take minutes. kia looks them up first now, so the Dashboard waits only for kia to write its files.
+- The "Channel names containing" boxes are patterns, so `+1` or `A&E?` didn't do what they say. The page says so now, and a pattern kia can't use is explained in plain words, with how to match the text as written.
+- With `channel_numbers = false` in `kia.toml`, the Dashboard still offered to change numbers and Renumber everything, which did nothing. Those are hidden then, and the API says why. Letters typed in a number box no longer clear the channel's number.
+- The Test button tests a channel the way the nightly check does, with `[check]`'s `require_video`, `user_agent`, and `ffprobe`.
+- A running Check now kept its progress and Stop button when the page was drawn again (after adding a source, say), for an address with a login in it.
+- The Last refresh tile on the kia dashboard showed nothing during a refresh, instead of Refreshing.
+- After a change on the Dashboard, the System page showed the settings kia started with, even after `kia.toml` had changed.
+- A setting kia can't read, such as `KIA_RUN_AT=4am` or `KIA_EPG_DAYS=abc`, stops kia with one line naming it, instead of a Python traceback. A browser turning down kia's own certificate, or http:// sent to the secure port, is one line in the log too.
+- `kia serve` (installs without Docker) takes turns with a refresh run from another process, like the Docker setup.
+- Two writers of the same file at once (the daemon and a kia command, or Plex's and Jellyfin's numbers) could fail or lose a change; each now writes its own temporary file.
+
 ### Plex
 
 - With Plex in the stack and two Threadfins, `kia plex-tuners` never added the second Threadfin's guide to the DVR, so its channels got the first one's guide or none. In the stack both Threadfins use port 34400, and kia told guides apart by port. It now tells them apart by name there, and by port for Threadfins on another computer.

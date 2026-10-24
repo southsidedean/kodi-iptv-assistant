@@ -86,14 +86,14 @@ def final_url(url: str, timeout: float = TIMEOUT) -> str:
         return r.geturl()
 
 
-def adopt_partner_channels(entries: list[Entry], log=print, resolve=final_url) -> int:
+def partner_channels(entries: list[Entry], log=print, resolve=final_url) -> dict[str, str]:
     """Pluto TV channels that reach kia through another service's link (the Samsung TV
     Plus list has some) play through the relay too: their link ends at Pluto's stream
     server, with the same trouble at ad breaks. Only entries named for Pluto are looked
-    up, one request each. Returns how many were found."""
-    found = 0
+    up, one request each. Returns {their link: Pluto's own}."""
+    found: dict[str, str] = {}
     for e in entries:
-        if channel_id(e.url) or not _PARTNER_RE.search(e.url):
+        if e.url in found or channel_id(e.url) or not _PARTNER_RE.search(e.url):
             continue
         if "pluto" not in f"{e.name} {e.tvg_id}".lower():
             continue
@@ -103,11 +103,22 @@ def adopt_partner_channels(entries: list[Entry], log=print, resolve=final_url) -
             log(f"  {e.name}: couldn't follow its link ({exc})")
             continue
         if cid:
-            e.url = FALLBACK_URL.format(channel=cid)
-            found += 1
+            found[e.url] = FALLBACK_URL.format(channel=cid)
     if found:
-        log(f"{found} Pluto TV channels from other services' lists play through kia's Pluto relay too")
+        log(f"{len(found)} Pluto TV channels from other services' lists play through kia's Pluto relay too")
     return found
+
+
+def adopt_partner_channels(entries: list[Entry], log=print, resolve=final_url, found: dict[str, str] | None = None) -> int:
+    """Point those entries at Pluto's own links (found: from partner_channels, looked up
+    earlier). Returns how many changed."""
+    found = partner_channels(entries, log, resolve) if found is None else found
+    changed = 0
+    for e in entries:
+        if e.url in found:
+            e.url = found[e.url]
+            changed += 1
+    return changed
 
 
 def for_players(entries: list[Entry], base_url: str | None) -> list[Entry]:

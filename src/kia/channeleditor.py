@@ -138,6 +138,7 @@ SCRIPT = r"""
     var favorites = {};
     choices.favorites.forEach(function (k) { favorites[k] = true; });
     var can = info && info.editable && info.secure;
+    var numbered = everything && !(info && info.numbers === false);  // channel_numbers in kia.toml
     var head = table.querySelector("thead tr");
     head.insertBefore(el("th", { class: "fav", "aria-label": "Favorite" }), head.querySelector("th.name"));
     if (can) {
@@ -146,9 +147,9 @@ SCRIPT = r"""
       var tools = el("div", { class: "chan-tools" }, [
         el("p", { class: "muted", text: "Star a channel to make it a favorite: favorites get their own Favorites group in your players. " +
           "Test tries a channel's stream now." +
-          (everything ? " Choose a channel's number to change it everywhere; a channel already on that number moves to a free one." : "") }),
+          (numbered ? " Choose a channel's number to change it everywhere; a channel already on that number moves to a free one." : "") }),
         el("label", { for: "ch-pass" }, [el("strong", { text: "Password" }), pass]), msg]);
-      if (everything) tools.appendChild(el("div", { class: "actions" }, [el("button", { type: "button", text: "Renumber everything",
+      if (numbered) tools.appendChild(el("div", { class: "actions" }, [el("button", { type: "button", text: "Renumber everything",
         on: { click: function (ev) {
           var button = ev.currentTarget;
           if (button.getAttribute("aria-busy")) return;
@@ -201,7 +202,7 @@ SCRIPT = r"""
       var test = el("button", { type: "button", class: "test", text: "Test", "aria-label": "Test " + name(row),
         on: { click: function () { testRow(row, key, test); } } });
       row.querySelector("td.name").appendChild(test);
-      if (!everything) return;
+      if (!numbered) return;
       var num = row.querySelector("td.num"), current = num.textContent;
       var edit = el("button", { type: "button", class: "num-edit", text: current || "–",
         "aria-label": "Channel number " + (current || "none") + " for " + name(row) + ". Change it", on: { click: function () {
@@ -211,6 +212,8 @@ SCRIPT = r"""
         function done(save) {
           if (finished) return;
           finished = true;
+          // Letters in the box: some browsers then report it empty, which would clear the number.
+          if (save && box.validity && box.validity.badInput) { back(); return rowSay(row, "That isn't a number; nothing changed.", true); }
           if (!save || box.value.trim() === current) return back();
           var v = box.value.trim();
           call("PUT", "channel", { key: key, number: v ? parseInt(v, 10) : null }).then(function (r) {

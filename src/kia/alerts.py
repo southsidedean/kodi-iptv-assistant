@@ -17,6 +17,7 @@ from pathlib import Path
 
 from kia import __version__
 from kia.history import now_iso
+from kia.files import temp_name
 
 # Exit code for runs that completed but raised an alert, so schedulers can react.
 EXIT_ALERT = 3
@@ -75,7 +76,7 @@ def load_state(state_dir: Path) -> dict:
 
 def save_state(state_dir: Path, state: dict) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
-    tmp = state_dir / "alert-state.json.tmp"
+    tmp = temp_name(state_dir / "alert-state.json")
     tmp.write_text(json.dumps(state, indent=1, sort_keys=True))
     tmp.replace(state_dir / "alert-state.json")
 

@@ -22,6 +22,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from kia.files import temp_name
 from kia.m3u import Entry
 
 
@@ -114,6 +115,6 @@ class ChannelNumbers:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp = temp_name(self.path)
         tmp.write_text(json.dumps({"next": self.next, "numbers": self.numbers, "retired": self.retired}, indent=1, sort_keys=True))
         tmp.replace(self.path)

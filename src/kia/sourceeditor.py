@@ -187,6 +187,10 @@ SCRIPT = r"""
       };
       api("GET", "sources/check").then(function (r) {
         if (r._status !== 200 || !r.check) return lost();
+        // The same check: keep its full address, which this answer masks (a login in it),
+        // so the page still finds its row after it's drawn again.
+        var before = data.check;
+        if (before && before.started === r.check.started && before.url) r.check.url = before.url;
         data.check = r.check;
         showCheck(data.check, where);
         if (data.check.running) poll(where);

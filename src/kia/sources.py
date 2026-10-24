@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kia.config import Source, is_station_line, parse_sources
+from kia.files import temp_name
 
 STATE_FILE = "sources.json"
 _SECTION_RE = re.compile(r"^#\s*-{2,}\s*(.+?)\s*-{2,}")
@@ -90,7 +91,7 @@ def load_state(state_dir: Path) -> dict:
 
 def save_state(state_dir: Path, state: dict) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
-    tmp = state_dir / (STATE_FILE + ".tmp")
+    tmp = temp_name(state_dir / STATE_FILE)
     tmp.write_text(json.dumps(state, indent=1) + "\n")
     tmp.replace(state_dir / STATE_FILE)
 

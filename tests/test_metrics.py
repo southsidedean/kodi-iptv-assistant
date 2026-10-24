@@ -125,3 +125,24 @@ def test_plex_is_up_even_when_kia_cant_keep_its_players_list(tmp_path: Path):
     out = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
     assert "kia_plex_up 1" in out and 'player="player-unknown"' in out
     assert "Kitchen" not in out
+
+
+def test_two_threads_saving_the_players_list_at_once(tmp_path: Path):
+    # Plex's and Jellyfin's numbers are gathered in their own threads and share one list.
+    import threading
+
+    failed = []
+
+    def save(n):
+        for i in range(50):
+            try:
+                metrics._write_private(tmp_path / "players.json", f'{{"n": {n}, "i": {i}}}\n')
+            except OSError as exc:
+                failed.append(exc)
+
+    threads = [threading.Thread(target=save, args=(n,)) for n in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not failed and json.loads((tmp_path / "players.json").read_text())["i"] == 49
