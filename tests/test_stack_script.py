@@ -113,3 +113,13 @@ def test_without_kia_stack_it_says_what_compose_profiles_does(kia: Path):
     assert r.returncode == 1 and "KIA_STACK isn't in .env" in r.stdout
     assert stack(kia, "list").returncode == 0
     assert stack(kia, "apply", "--preset", "nope").returncode == 2
+
+
+def test_apply_asks_before_turning_off_what_runs_now(kia: Path):
+    env = (kia / ".env").read_text().replace("COMPOSE_PROFILES=\n", "COMPOSE_PROFILES=plex,monitoring\n")
+    (kia / ".env").write_text(env + "KIA_STACK=jellyfin\n")
+    r = stack(kia, "apply")  # no terminal to answer: nothing changes
+    assert "These Compose profiles stop, as KIA_STACK leaves them out: plex, monitoring" in r.stdout
+    assert "Not changed" in r.stdout and "COMPOSE_PROFILES=plex,monitoring\n" in (kia / ".env").read_text()
+    assert stack(kia, "apply", "--yes").returncode == 0
+    assert "COMPOSE_PROFILES=jellyfin-server\n" in (kia / ".env").read_text()

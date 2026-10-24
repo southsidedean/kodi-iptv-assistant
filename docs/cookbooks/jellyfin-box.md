@@ -28,14 +28,16 @@ Follow [installing kia](../install.md), steps 1 to 6. The quick way is one comma
 In the kia folder, set these lines in `.env` (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
 
 ```sh
-COMPOSE_PROFILES=jellyfin-server
+KIA_STACK=jellyfin
 KIA_JELLYFIN_ADVERTISE=http://192.168.1.20:8096
 ```
+
+`KIA_STACK` can name more than one part, such as `jellyfin,plex` for both ([the parts you can choose](../stack.md)).
 
 To use your own media folder (a second disk, or [shares on a NAS](plex-box.md#media-on-a-nas-or-another-server)), set `KIA_MEDIA_DIR=/path/to/your/media`. Then start it:
 
 ```sh
-docker compose up -d
+scripts/stack.sh apply
 docker compose ps
 ```
 

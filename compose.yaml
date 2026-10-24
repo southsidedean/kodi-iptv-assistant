@@ -66,6 +66,7 @@ services:
       KIA_GRAFANA_URL: ${KIA_GRAFANA_URL:-}
       KIA_GRAFANA_PORT: ${KIA_GRAFANA_PORT:-}
       KIA_COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+      KIA_STACK: ${KIA_STACK:-}
       KIA_THREADFIN_PORT: ${KIA_THREADFIN_PORT:-}
       KIA_THREADFIN_2_PORT: ${KIA_THREADFIN_2_PORT:-}
       # Optional; empty means use the setting in kia.toml.

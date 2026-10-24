@@ -209,6 +209,18 @@ if [ -n "$watching" ] && [ "$ask" = yes ]; then
     case "$answer" in [yY]*) ;; *) echo "Not changed. Run this again later, or with --yes."; exit 0 ;; esac
 fi
 
+# Parts that run now and aren't chosen any more: say so first (moving from COMPOSE_PROFILES
+# to KIA_STACK, a part left out would stop).
+dropped=""
+for p in $(get COMPOSE_PROFILES | tr ',' ' '); do
+    case " $profiles " in *" $p "*) ;; *) dropped="${dropped:+$dropped, }$p" ;; esac
+done
+if [ -n "$dropped" ] && [ "$ask" = yes ]; then
+    printf 'These Compose profiles stop, as KIA_STACK leaves them out: %s. Go ahead? [y/N] ' "$dropped"
+    { read -r answer </dev/tty; } 2>/dev/null || answer=n
+    case "$answer" in [yY]*) ;; *) echo "Not changed. Add what you want to keep to KIA_STACK (scripts/stack.sh list)."; exit 0 ;; esac
+fi
+
 mkdir -p state
 cp -p .env "state/env.before-stack-$(date +%Y%m%d-%H%M%S)"
 set_env COMPOSE_PROFILES "$(echo "$profiles" | tr ' ' ',')"

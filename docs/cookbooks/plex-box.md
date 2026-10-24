@@ -48,20 +48,21 @@ A claim code links the new Plex to your account the first time it starts. Sign i
 In the kia folder, set these lines in `.env` (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
 
 ```sh
-COMPOSE_PROFILES=plex,plex-server
+KIA_STACK=plex
 PLEX_CLAIM=claim-xxxxxxxxxxxxxxxxxxxx
 KIA_PLEX_ADVERTISE=http://192.168.1.20:32400/
-KIA_PLEX_URL=http://plex:32400
 ```
 
-For two tuners, use `COMPOSE_PROFILES=plex,plex-2,plex-server`. To use your own media folder (a second disk, say), set `KIA_MEDIA_DIR=/path/to/your/media`. The server is called `kia-tv-box` in Plex apps; `KIA_PLEX_NAME` changes that.
+`KIA_STACK=plex` means Plex in the stack, with Threadfin as its tuner ([the parts you can choose](../stack.md)). For two tuners, use `KIA_STACK=plex,plex-tuner-2`. To use your own media folder (a second disk, say), set `KIA_MEDIA_DIR=/path/to/your/media`. The server is called `kia-tv-box` in Plex apps; `KIA_PLEX_NAME` changes that.
 
 Then start everything:
 
 ```sh
-docker compose up -d
+scripts/stack.sh apply
 docker compose ps
 ```
+
+`scripts/stack.sh apply` checks your settings first, then sets `COMPOSE_PROFILES` and `KIA_PLEX_URL` and starts Plex and Threadfin.
 
 kia sets up Threadfin before it starts, with your playlist, its guide, and the settings that work (see the [Plex guide](../plex.md) for what they are). After a minute or two, `docker compose ps` shows `kia`, `web`, `threadfin`, and `plex`, each `healthy` or `running`.
 
