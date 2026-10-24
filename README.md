@@ -5,7 +5,7 @@
 
 # kodi-iptv-assistant
 
-Turn free internet TV into a tidy channel list with a working program guide in Kodi and other players.
+Free internet TV with a channel list that works and a guide that matches, for Kodi, Plex, Jellyfin, and other players, from one computer at home.
 
 **New here?** [Start here](docs/start-here.md) explains what you'll end up with and the three steps to get there. Every guide is listed in the [docs index](docs/README.md).
 
@@ -13,17 +13,23 @@ Turn free internet TV into a tidy channel list with a working program guide in K
 
 ## Why this exists
 
-Free TV channels streamed over the internet (IPTV) work well in Kodi, but a raw playlist of them is hard to watch. Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live. Guide data exists for many of those channels, but it's spread across dozens of sites whose channel IDs rarely match your playlist's, so Kodi can't connect them and the guide stays mostly empty. And streams change daily, so a list that works this week is half broken next month.
+Free TV channels streamed over the internet (IPTV) work well in Kodi and other players, but a raw playlist of them is hard to watch. Public playlists list thousands of streams, and on any given day a good share of them are offline, moved, or blocked where you live. Guide data exists for many of those channels, but it's spread across dozens of sites whose channel IDs rarely match your playlist's, so players can't connect them and the guide stays mostly empty. And streams change daily, so a list that works this week is half broken next month.
 
-kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in the playlists you pick and keeps one working stream per channel. It finds guide data for those channels and builds a single guide file that lines up with the list. Then it serves both on your network, so you set up each device once and it stays current.
+kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in the channel sources you pick and keeps one working stream per channel. It finds guide data for those channels and builds a single guide that lines up with the list. Then it serves both on your network, so you set up each device once and it stays current.
 
-Channels with no guide data anywhere (small local stations, for example) show their name in the guide instead of a blank row. kia can also add internet radio stations, which appear under Radio in Kodi and most other players.
+## What you get
+
+- A channel list and guide that stay current. kia checks every stream each night and refreshes the guide every 4 hours. A channel with no guide data anywhere shows its name instead of a blank row, and internet radio stations can sit alongside the TV channels.
+- Every player in the house can use them. Kodi reads kia's playlist directly, Jellyfin reads it as it is, and Plex gets the channels as Live TV through Threadfin, a TV tuner kia sets up for it. TiviMate, VLC, and phone apps work too.
+- A Dashboard in your browser says whether everything's working, lists your playlists with Copy buttons, and shows what's on now and next. With Docker, it also has a tile for each program running next to kia. On the secure Dashboard, after a password, you can make smaller playlists for people and devices (such as the kids), pick favorites and channel numbers, choose channel sources, and test a channel.
+- Pluto TV channels keep playing through their ad breaks, where most players freeze or jump back. kia plays them through a relay of its own ([how](docs/how-it-works.md#pluto-tv)).
+- kia can message your phone or email you when something breaks ([alerts](docs/alerts.md)), and Grafana can graph how it's all been running ([graphs for your TV stack](docs/cookbooks/observability.md)).
 
 ## What you need
 
-- A computer to run kia: macOS, Linux, or a Raspberry Pi 4/5. It can be the one you watch on or one that stays on for the house.
+- A computer to run kia: macOS, Linux, or a Raspberry Pi 4/5, with 4 GB of memory or more. It can be the one you watch on, or one that stays on for the house.
 - [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on macOS) and Git.
-- A player on the devices you watch on. [Kodi](https://kodi.tv/download/) is the usual choice, on Windows, macOS, Linux, Android TV, Fire TV, and others (setup below). Plex, Jellyfin, Emby, TiviMate, VLC, and phone apps work too: see [players](#players).
+- A player on each device you watch on. [Kodi](https://kodi.tv/download/) is the usual choice, on Windows, macOS, Linux, Android TV, Fire TV, and others. For the rest, see [players](#players).
 
 ## Quick start
 
@@ -33,7 +39,20 @@ New to Docker or Git? [docs/install.md](docs/install.md) walks through installin
 curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
 ```
 
-Or by hand:
+It asks for this computer's address and time zone, and what this kia is for, which is one of the [presets](docs/stack.md#presets):
+
+| Preset | For |
+|---|---|
+| `kodi` (the default) | Kodi and other players that open a playlist |
+| `plex-box` | A home TV box: Plex and Threadfin run next to kia ([cookbook](docs/cookbooks/plex-box.md)) |
+| `plex-elsewhere` | Threadfin, for a Plex you already run on another computer ([Plex](docs/plex.md)) |
+| `jellyfin-box` | A home TV box with Jellyfin ([cookbook](docs/cookbooks/jellyfin-box.md)) |
+| `everything` | Plex and Jellyfin side by side, with Prometheus and Grafana |
+
+At the end it prints the Dashboard's address and the password for changes. kia's first refresh then takes up to an hour.
+
+<details>
+<summary>Or install by hand</summary>
 
 1. Download and configure:
 
@@ -45,9 +64,9 @@ Or by hand:
    chmod 600 .env
    ```
 
-   Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`; [how to find it](docs/install.md#4-find-this-computers-address)) and `TZ` to your time zone. On Linux, also set `PUID` and `PGID` to the numbers `id -u` and `id -g` print, so you own the files kia makes (many computers use 1000 for both, the default). `scripts/update.sh --no-restart` moved the copy to kia's newest release, rather than what's been merged since.
+   `scripts/update.sh --no-restart` moves the copy to kia's newest release, rather than what's been merged since. Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (such as `http://192.168.1.20:8780`; [how to find it](docs/install.md#4-find-this-computers-address)) and `TZ` to your time zone. On Linux, also set `PUID` and `PGID` to the numbers `id -u` and `id -g` print, so you own the files kia makes (many computers use 1000 for both, the default).
 
-2. Optional: pick your channel sources, the playlists kia reads channels from. The USA list is on by default, which is enough to start. Once kia is running, you can choose others on its Dashboard ([how](docs/configuration.md#choosing-channel-sources-on-the-dashboard)). To choose them now instead, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the sources you want in `sources.local.txt`. Updating kia never touches your copy.
+2. Optional: pick your channel sources, the playlists kia reads channels from. The USA list is on by default, which is enough to start, and you can choose others on the Dashboard once kia is running ([how](docs/configuration.md#choosing-channel-sources-on-the-dashboard)). To choose them now instead, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the sources you want in `sources.local.txt`. Updating kia never touches your copy.
 
 3. Start it:
 
@@ -57,16 +76,40 @@ Or by hand:
 
    The first run takes up to an hour. Watch it with `docker compose logs -f kia`.
 
-4. Set up a player on each device you watch on. For Kodi:
-   - Install Kodi from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
-   - Add IPTV Simple Client: on the home screen choose *Add-ons*, then *Enter add-on browser* (or the box icon at the top left) → *Install from repository → PVR clients → IPTV Simple Client*.
-   - In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`. Set **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120, so Kodi picks up kia's updates. Then restart Kodi.
+</details>
 
-   Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV and Raspberry Pi: [docs/kodi.md](docs/kodi.md).
+Then set up a player on each device you watch on. For Kodi:
 
-   Using something else? See [players](#players) below.
+- Install Kodi from [kodi.tv/download](https://kodi.tv/download/) (Windows, macOS, Linux, Android; app stores on some devices).
+- Add IPTV Simple Client: on the home screen choose *Add-ons*, then *Enter add-on browser* (or the box icon at the top left) → *Install from repository → PVR clients → IPTV Simple Client*.
+- In the add-on's settings, set **Location** to *Remote path (Internet address)* and **M3U playlist URL** to `http://<your address>:8780/curated.m3u`. Set **Auto refresh mode** to *Repeated refresh* and **Refresh interval** to 120, so Kodi picks up kia's updates. Then restart Kodi.
 
-To check on kia, open `http://<your address>:8780/` in a browser. The [Dashboard](docs/how-it-works.md#the-dashboard) there shows when it last refreshed, whether that worked, how many channels it found, and any alerts. It lists the playlists kia makes, with their addresses, and links to the detailed reports. To make playlists for people and devices, or to connect other apps, use the [secure Dashboard](docs/secure-page.md) and the [API](docs/api.md). If something isn't working, [docs/troubleshooting.md](docs/troubleshooting.md) goes through the usual problems.
+Channels appear under TV, and the guide fills in by itself. Step by step, with tips for Fire TV and Raspberry Pi: [docs/kodi.md](docs/kodi.md).
+
+To check on kia, open `http://<your address>:8780/` in a browser. If something isn't working, [troubleshooting](docs/troubleshooting.md) goes through the usual problems.
+
+## Cookbooks
+
+Each [cookbook](docs/cookbooks/README.md) takes one goal from start to finish:
+
+- [A home TV box with Plex](docs/cookbooks/plex-box.md): one computer runs kia, Threadfin, and Plex, and Live TV appears in every Plex app, next to your own movies and shows.
+- [A home TV box with Jellyfin](docs/cookbooks/jellyfin-box.md): the same with Jellyfin, which is free software, with no tuner in between and no channel limit.
+- [Kodi and kia on one computer](docs/cookbooks/kodi-computer.md): a laptop or desktop that finds the channels and plays them, with nothing else to set up.
+- [A TV in every room](docs/cookbooks/every-room.md): one server for the house, a player on every TV and phone, and a playlist for each room or person.
+- [A laptop that travels](docs/cookbooks/travel-laptop.md): it checks the streams where you are and copies the guide from your home server.
+- [Graphs for your TV stack](docs/cookbooks/observability.md): Prometheus and Grafana, with dashboards for kia, the containers, Plex, Jellyfin, and the computer's hardware.
+
+## Choosing what runs
+
+One line in `.env` says which programs run next to kia, such as `KIA_STACK=plex,observability`. Then `scripts/stack.sh` checks the choice for this computer and starts it:
+
+```sh
+scripts/stack.sh check     # names it doesn't know, parts that don't go together, ports in use, memory
+scripts/stack.sh apply     # start what's chosen and stop the rest, asking first if someone's watching
+scripts/stack.sh           # what runs now, and which graphs have data
+```
+
+The parts are `plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, and `observability-disks`. [Choosing the parts](docs/stack.md) explains each one.
 
 ## Players
 
@@ -81,27 +124,32 @@ kia works with any app that opens an M3U playlist, and most of them show its gui
 | iPhone, iPad, Apple TV, Android phone or tablet | UHF, Televizo | [docs/phones.md](docs/phones.md) |
 | Computer, phone, or tablet, for a quick look (no guide) | VLC | [docs/vlc.md](docs/vlc.md) |
 
-Costs, which apps show the guide, and watching away from home are covered in [choosing a player](docs/players.md).
-
-## Setups
-
-By default, one machine serves every TV, phone, and computer in the house. kia can also run on the same computer you watch on, on a Raspberry Pi with lower settings, or on a laptop that travels: the laptop tests streams wherever you are, copies the guide from your home server when it can reach it, and builds its own when it can't. Recipes for each are in [docs/setups.md](docs/setups.md). Different people and devices can also get their own, smaller playlists, such as one for the kids: see [docs/profiles.md](docs/profiles.md).
+Costs, which apps show the guide, and watching away from home are covered in [choosing a player](docs/players.md). To make a smaller playlist for a person or device, see [playlists for people and devices](docs/profiles.md). For other ways to run kia, such as on a Raspberry Pi or without Docker, see [setups](docs/setups.md).
 
 ## Configuration
 
 | File | For |
 |---|---|
-| `sources.txt` | Which playlists and radio stations to use |
-| `.env` | How it runs on this machine: address, schedule, time zone, memory |
-| `kia.toml` | Fine-tuning: timeouts, filters, guide sources, alerts |
+| `.env` | How it runs on this computer: its address, time zone, schedule, memory, and which programs run next to it (`KIA_STACK`) |
+| `sources.txt` | Which channel sources and radio stations to use (or your own copy, `sources.local.txt`) |
+| `kia.toml` | Fine tuning: timeouts, filters, guide sources, alerts |
 
-All the settings are listed in [docs/configuration.md](docs/configuration.md).
+Most everyday choices (channel sources, playlists, favorites, channel numbers) are made on the secure Dashboard instead. All the settings are listed in [docs/configuration.md](docs/configuration.md).
 
 ## How it works
 
-Each night kia tests every stream with `ffprobe`, matches the working channels to guide sources from [iptv-org/epg](https://github.com/iptv-org/epg), downloads the guide data, and keeps the best source for each channel. When a name lookup fails, it checks public DNS to tell a dead stream from a problem on your network. The details are in [docs/how-it-works.md](docs/how-it-works.md).
+Each night kia tests every stream with `ffprobe`, matches the working channels to guide sources from [iptv-org/epg](https://github.com/iptv-org/epg), downloads the guide data, and keeps the best source for each channel. When a name lookup fails, it checks public DNS to tell a dead stream from a problem on your network. The details, and the files kia publishes for scripts (`status.json` and others), are in [how it works](docs/how-it-works.md). kia also publishes its numbers for Prometheus at `/metrics` ([metrics](docs/metrics.md)), and has an [API](docs/api.md) for other apps.
 
-If something breaks that needs you, such as your network's DNS failing or the nightly refresh crashing, kia can send a notification to your phone or by email. Setup takes about five minutes: [docs/alerts.md](docs/alerts.md).
+## Security
+
+kia is meant for your home network, and each part of it gets only what it needs:
+
+- The containers run with a read-only system and no extra privileges. kia can't reach Docker, and writes only its own folders.
+- iptv-org's guide downloader, outside code that changes daily, runs in Node.js's sandbox and sees none of kia's passwords or tokens.
+- Changes on the Dashboard need a password and are accepted only over HTTPS.
+- The published images are scanned before they go out, and come with a signed record of how they were built.
+
+[SECURITY.md](SECURITY.md) has the details, including what each optional program can do. Don't open a port for kia on your router; to watch away from home, use a VPN such as Tailscale ([away from home](docs/players.md#away-from-home)).
 
 ## Updating and stopping
 
@@ -113,7 +161,7 @@ To update kia, first read the *Upgrading* notes for the new version in the [chan
 scripts/update.sh
 ```
 
-It moves kia to its newest release, rebuilds it, and restarts it. If someone is watching through Pluto TV, Plex, or Jellyfin, it asks first, since a restart cuts them off. It also brings the latest images kia uses (its Wolfi base, nginx, and Plex, Jellyfin, Threadfin, Prometheus, and Grafana if you use them); to stay on fixed versions, see [versions](docs/configuration.md#versions). `scripts/update.sh v0.5.1` goes to a given release, and `--main` follows what's merged since the last one. Your `.env`, your own playlist list, and the stream history are kept. If you edited one of kia's own files (`sources.txt` or `kia.toml`, say), it stops and says so: keep your changes in `sources.local.txt` and `.env` instead.
+It moves kia to its newest release, rebuilds it, and restarts it. If someone is watching through Pluto TV, Plex, or Jellyfin, it asks first, since a restart cuts them off. It also brings the latest images kia uses (its Wolfi base, nginx, and Plex, Jellyfin, Threadfin, Prometheus, and Grafana if you use them); to stay on fixed versions, see [versions](docs/configuration.md#versions). `scripts/update.sh v0.5.1` goes to a given release, and `--main` follows what's merged since the last one. Your `.env`, your own channel sources, and the stream history are kept. If you edited one of kia's own files (`sources.txt` or `kia.toml`, say), it stops and says so: keep your changes in `sources.local.txt` and `.env` instead.
 
 To save your settings, playlists, and choices in one file, or to move kia to another computer, see [backing up](docs/configuration.md#backing-up-and-moving-to-another-computer).
 
@@ -126,7 +174,7 @@ Most of what kia does depends on the [iptv-org](https://github.com/iptv-org) com
 - [iptv-org/iptv](https://github.com/iptv-org/iptv) maintains the public playlists kia checks by default.
 - [iptv-org/epg](https://github.com/iptv-org/epg) provides the guide downloaders for hundreds of sites, and the table that links channels to their guides. kia runs it every night.
 
-Other playlists come from [apsattv.com](https://www.apsattv.com/), [Free-TV](https://github.com/Free-TV/IPTV), and [junguler's radio lists](https://github.com/junguler/m3u-radio-music-playlists); radio stations from [radio-browser.info](https://www.radio-browser.info/); and ready-made guides from [i.mjh.nz](https://github.com/matthuisman/i.mjh.nz). Thank you to all of them.
+Other playlists come from [apsattv.com](https://www.apsattv.com/), [Free-TV](https://github.com/Free-TV/IPTV), and [junguler's radio lists](https://github.com/junguler/m3u-radio-music-playlists); radio stations from [radio-browser.info](https://www.radio-browser.info/); and ready-made guides from [i.mjh.nz](https://github.com/matthuisman/i.mjh.nz). Plex gets its tuner from [Threadfin](https://github.com/Threadfin/Threadfin). Thank you to all of them.
 
 This project only tests and organizes publicly listed streams; it doesn't host any.
 

@@ -2,6 +2,8 @@
 
 The setups below differ only in who can reach kia and how much work the machine does. Each recipe lists the `.env` lines to change from `.env.example`.
 
+They're about where kia runs and who can reach it. To run Plex, Jellyfin, or graphs on the same computer too, see [choosing the parts of kia's stack](stack.md), or follow one of the [cookbooks](cookbooks/README.md).
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/setups-dark.svg">
   <img alt="TVs, streaming boxes, computers, phones, and tablets all use kia on an always-on machine at home. A traveling laptop runs its own kia, using the home guide." src="../images/diagrams/setups-light.svg">
