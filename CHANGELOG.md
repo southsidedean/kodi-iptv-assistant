@@ -2,6 +2,27 @@
 
 ## 0.5.6 (unreleased)
 
+### Choosing the parts of the stack
+
+- An empty `KIA_STACK=` line, which every `.env` made from `.env.example` has, counted as a choice of nothing. So with Threadfin started the way [Plex](docs/plex.md) said before, with `COMPOSE_PROFILES=plex`, `scripts/stack.sh` said nothing else ran, and `apply` stopped Threadfin (after asking, or at once with `--yes`). Now, while `KIA_STACK` is empty and `COMPOSE_PROFILES` isn't, `COMPOSE_PROFILES` decides, and `check` and `apply` change nothing. The Plex guide now uses `KIA_STACK=plex-tuner` and `scripts/stack.sh apply`.
+- `apply` starts the profiles it chose even when `COMPOSE_PROFILES` is also set in your shell, which Docker Compose would have used instead.
+- Ports in use are found with `ss` when `nc` isn't installed, and `check` says when neither is.
+
+### Installing
+
+- The `plex-elsewhere` preset stopped the installer before kia started: Threadfin needs kia's `plex` playlist, which you make on the Dashboard after the first refresh. With either Plex preset, the installer now starts kia and lists what's next in order: make the playlist, then (for Plex in the stack) get the claim code, then run `scripts/stack.sh apply`. It used to say to get the claim code first, and it ran out while `apply` waited for the playlist.
+- The installer checks that Docker is running, not only installed, so it stops with what to do (start Docker Desktop, or log out and back in after joining the docker group) before downloading anything.
+- Without a terminal (`ssh host 'curl … | sh'`, cron), it stopped at its first question. It now takes the defaults, as with `--yes`.
+- It finds this computer's address from the connection to the internet (`en5` on a Mac with a USB network adapter, say), and says so when it can't. An address typed with `http://` or a port is cleaned up, and one with characters an address can't have, or a time zone that isn't one, stops it before `.env` is written. It used to leave an empty `.env` behind, which the next run kept.
+- An option without its value (`--dir` at the end) says so, instead of a shell error.
+- On a Mac with less than 6 GB of memory, it uses the lighter settings too, and the firewall step opens the ports in `.env` rather than the default ones.
+
+### Updating
+
+- `scripts/update.sh` asks before restarting while someone watches through Jellyfin, not only Plex and Pluto TV.
+- When an update stopped after moving the files and before restarting (Docker not running, a failed build), the next run forgot that the web server's or Prometheus's settings had changed. It now keeps what the containers last started with in `state/deployed-rev`.
+- With a published image of one version (`KIA_IMAGE=…:0.5.4`), `update.sh` moved the files to the new release but pulled the old image again. It now sets `KIA_IMAGE` to the new release's version.
+
 ## 0.5.5 (2026-10-24)
 
 ### Upgrading from 0.5.4

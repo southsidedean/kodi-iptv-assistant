@@ -33,25 +33,30 @@ PRESET=""
 say() { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
 die() { printf 'Stopped: %s\n' "$*" >&2; exit 1; }
+value() { [ $# -ge 2 ] || die "$1 needs a value (try --help)"; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --dir) DIR=$2; shift 2 ;;
-        --address) ADDRESS=$2; shift 2 ;;
-        --tz) TZ_NAME=$2; shift 2 ;;
-        --port) PORT=$2; shift 2 ;;
-        --https-port) HTTPS_PORT=$2; shift 2 ;;
-        --preset) PRESET=$2; shift 2 ;;
+        --dir) value "$@"; DIR=$2; shift 2 ;;
+        --address) value "$@"; ADDRESS=$2; shift 2 ;;
+        --tz) value "$@"; TZ_NAME=$2; shift 2 ;;
+        --port) value "$@"; PORT=$2; shift 2 ;;
+        --https-port) value "$@"; HTTPS_PORT=$2; shift 2 ;;
+        --preset) value "$@"; PRESET=$2; shift 2 ;;
         --main) MAIN=yes; shift ;;
         --yes|-y) YES=1; shift ;;
         -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --preset NAME, --main, --yes. See the top of scripts/install.sh."; exit 0 ;;
         *) die "unknown option $1 (try --help)" ;;
     esac
 done
+for n in "$PORT" "$HTTPS_PORT"; do
+    case "$n" in '' | *[!0-9]*) die "a port is a number, such as 8780; not $n" ;; esac
+done
 
 # Ask when someone's at the keyboard (also when piped from curl); otherwise take the default.
+# /dev/tty is there even without a terminal (ssh without -t, cron), so try opening it.
 ask() {  # ask "Question" default -> answer
-    if [ "$YES" = 1 ] || ! [ -r /dev/tty ]; then
+    if [ "$YES" = 1 ] || ! (: </dev/tty >/dev/tty) 2>/dev/null; then
         printf '%s\n' "$2"
         return
     fi
@@ -74,7 +79,14 @@ if ! command -v docker >/dev/null 2>&1; then
     die "Docker isn't installed. Install it with:  curl -fsSL https://get.docker.com | sudo sh  then  sudo usermod -aG docker \$USER  then log out and back in, and run this again."
 fi
 if ! docker compose version >/dev/null 2>&1; then
-    die "Docker is installed but not working (or Docker Compose is missing). Start Docker Desktop (macOS), or check that your user is in the docker group (Linux: log out and back in after usermod)."
+    die "Docker Compose is missing. Docker Desktop (macOS) has it; on Linux, install Docker again with  curl -fsSL https://get.docker.com | sudo sh"
+fi
+# docker compose version doesn't need Docker running; docker info does.
+if ! docker info >/dev/null 2>&1; then
+    if [ "$OS" = Darwin ]; then
+        die "Docker isn't running. Start Docker Desktop, wait until it says it's running, then run this again."
+    fi
+    die "Docker isn't answering. Start it with  sudo systemctl start docker ; if you just ran  sudo usermod -aG docker \$USER , log out and back in first. Then run this again."
 fi
 command -v git >/dev/null 2>&1 || die "Git isn't installed. macOS: run  git --version  and accept the offer to install it. Linux: sudo apt install git (or your system's equivalent)."
 say "Docker and Git are ready."
@@ -100,6 +112,9 @@ else
     say "Downloaded kia $(git -C "$DIR" describe --tags --always) to $DIR"
 fi
 cd "$DIR"
+if [ -n "$PRESET" ] && [ ! -f "stacks/$PRESET.env" ]; then
+    die "there's no preset $PRESET; choose one of: $(for f in stacks/*.env; do basename "$f" .env; done | tr '\n' ' ')"
+fi
 
 step "Settings"
 new_env=no
@@ -107,13 +122,21 @@ if [ -f .env ]; then
     say "Keeping your existing .env. (Delete it and run this again to start over.)"
 else
     if [ -z "$ADDRESS" ]; then
+        # The address of the network connection the computer uses to reach the internet.
         if [ "$OS" = Darwin ]; then
-            ADDRESS=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
+            iface=$(route -n get default 2>/dev/null | awk '/interface:/ {print $2}')
+            ADDRESS=$( { [ -n "$iface" ] && ipconfig getifaddr "$iface"; } 2>/dev/null || ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
         else
-            ADDRESS=$(hostname -I 2>/dev/null | awk '{print $1}')
+            ADDRESS=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") {print $(i + 1); exit}}')
+            [ -n "$ADDRESS" ] || ADDRESS=$(hostname -I 2>/dev/null | awk '{print $1}')
         fi
+        [ -n "$ADDRESS" ] || say "Couldn't find this computer's address; with localhost, only this computer can use kia."
         ADDRESS=$(ask "This computer's address on your network (for other devices)" "${ADDRESS:-localhost}")
     fi
+    # Just the address: http://, a port, or a / typed with it come off.
+    ADDRESS=$(printf '%s' "$ADDRESS" | sed -e 's|^[A-Za-z]*://||' -e 's|/.*||')
+    case "$ADDRESS" in *:*:*) ;; *) ADDRESS=${ADDRESS%%:*} ;; esac
+    case "$ADDRESS" in '' | *[!A-Za-z0-9.:_[\]-]*) die "that address ($ADDRESS) has characters an address can't have; use one such as 192.168.1.20 or my-server.lan" ;; esac
     if [ -z "$TZ_NAME" ]; then
         if [ "$OS" = Darwin ]; then
             TZ_NAME=$(readlink /etc/localtime 2>/dev/null | sed 's|.*zoneinfo/||')
@@ -122,11 +145,13 @@ else
         fi
         TZ_NAME=$(ask "Your time zone" "${TZ_NAME:-Etc/UTC}")
     fi
+    case "$TZ_NAME" in '' | *[!A-Za-z0-9/_+-]*) die "that time zone ($TZ_NAME) isn't one; use a name such as America/New_York" ;; esac
     bind=0.0.0.0
     if [ "$ADDRESS" = localhost ] || [ "$ADDRESS" = 127.0.0.1 ]; then
         bind=127.0.0.1  # only this computer
     fi
     # .env holds kia's password and other secrets: readable by you only, from the start.
+    # Made as .env.new and moved into place when it's complete, so a stop half-way leaves none.
     (umask 077 && sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://$ADDRESS:$PORT|" \
         -e "s|^KIA_BIND=.*|KIA_BIND=$bind|" \
         -e "s|^KIA_PORT=.*|KIA_PORT=$PORT|" \
@@ -134,33 +159,34 @@ else
         -e "s|^TZ=.*|TZ=$TZ_NAME|" \
         -e "s|^PUID=.*|PUID=$(id -u)|" \
         -e "s|^PGID=.*|PGID=$(id -g)|" \
-        .env.example >.env)
-    new_env=yes
-    say "Made .env: address http://$ADDRESS:$PORT, time zone $TZ_NAME."
+        .env.example >.env.new)
     # A Mac: Plex's, Jellyfin's, and Grafana's databases in Docker volumes, since a folder
     # shared from the Mac into Docker's Linux machine breaks Plex's.
     if [ "$OS" = Darwin ]; then
         (umask 077 && sed -e "s|^KIA_PLEX_CONFIG=.*|KIA_PLEX_CONFIG=plex-config|" \
             -e "s|^KIA_JELLYFIN_CONFIG=.*|KIA_JELLYFIN_CONFIG=jellyfin-config|" \
-            -e "s|^KIA_GRAFANA_DATA=.*|KIA_GRAFANA_DATA=grafana-data|" .env >.env.tmp) && mv .env.tmp .env
+            -e "s|^KIA_GRAFANA_DATA=.*|KIA_GRAFANA_DATA=grafana-data|" .env.new >.env.tmp) && mv .env.tmp .env.new
         say "On a Mac, Plex's, Jellyfin's, and Grafana's data go in Docker volumes (docs/configuration.md#on-a-mac)."
     fi
     # A Raspberry Pi, or any computer with less than 6 GB of memory: settings that keep
     # the first refresh from running out of memory (docs/setups.md#raspberry-pi).
-    memory_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
+    if [ "$OS" = Darwin ]; then memory_kb=$(($(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1024)); else memory_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0); fi
     if grep -qs "Raspberry Pi" /proc/device-tree/model || { [ "${memory_kb:-0}" -gt 0 ] && [ "$memory_kb" -lt 6000000 ]; }; then
         (umask 077 && sed -e "s|^KIA_PARALLEL_SITES=.*|KIA_PARALLEL_SITES=1|" -e "s|^KIA_CHECK_CONCURRENCY=.*|KIA_CHECK_CONCURRENCY=8|" \
-            -e "s|^KIA_MEMORY_LIMIT=.*|KIA_MEMORY_LIMIT=2g|" .env >.env.tmp) && mv .env.tmp .env
+            -e "s|^KIA_MEMORY_LIMIT=.*|KIA_MEMORY_LIMIT=2g|" .env.new >.env.tmp) && mv .env.tmp .env.new
         say "This computer has little memory (or is a Raspberry Pi), so .env uses the lighter settings from docs/setups.md#raspberry-pi."
     fi
     if [ -z "$PRESET" ]; then
         say "What is this kia for? (docs/stack.md)"
         for f in stacks/*.env; do say "  $(basename "$f" .env): $(sed -n '1s/^# *//p' "$f")"; done
         PRESET=$(ask "Choose one" kodi)
+        [ -f "stacks/$PRESET.env" ] || die "there's no preset $PRESET; run this again and choose one of the names above"
     fi
+    mv .env.new .env
+    new_env=yes
+    say "Made .env: address http://$ADDRESS:$PORT, time zone $TZ_NAME."
 fi
 if [ -n "$PRESET" ]; then
-    [ -f "stacks/$PRESET.env" ] || die "there's no preset $PRESET; choose one of: $(for f in stacks/*.env; do basename "$f" .env; done | tr '\n' ' ')"
     stack=$(sed -n 's/^KIA_STACK=//p' "stacks/$PRESET.env")
     address=$(sed -n 's|^KIA_PUBLIC_URL=http://||p' .env | sed 's|:[0-9]*$||')
     if grep -q '^KIA_STACK=' .env; then
@@ -177,7 +203,10 @@ chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.
 mkdir -p output state work vendor profiles tls
 
-# kia for this computer only (KIA_BIND=127.0.0.1) needs no ports opened.
+# kia for this computer only (KIA_BIND=127.0.0.1) needs no ports opened. The ports are
+# .env's: on a second run, they may not be the ones given here.
+PORT=$(sed -n 's/^KIA_PORT=//p' .env | tail -n 1); PORT=${PORT:-8780}
+HTTPS_PORT=$(sed -n 's/^KIA_HTTPS_PORT=//p' .env | tail -n 1); HTTPS_PORT=${HTTPS_PORT:-8743}
 if [ "$OS" = Linux ] && command -v ufw >/dev/null 2>&1 && ! grep -q '^KIA_BIND=127\.0\.0\.1' .env; then
     step "Firewall"
     if sudo -n true 2>/dev/null; then
@@ -196,8 +225,9 @@ stack=$(sed -n 's/^KIA_STACK=//p' .env)
 plex_next=no apply_now=no
 case ",$stack," in
     ,,) ;;
-    # Plex's first start needs a claim code, which works for 4 minutes: that's yours to do.
-    *,plex,*) plex_next=yes ;;
+    # Threadfin needs kia's plex playlist, made on the Dashboard after the first refresh, and
+    # Plex's first start a claim code, which works for 4 minutes: those are yours to do.
+    *,plex,* | *,plex-tuner,*) plex_next=yes ;;
     # A new .env only: on an existing one, scripts/stack.sh apply asks before stopping what runs now.
     *) if [ "$new_env" = yes ]; then apply_now=yes; fi ;;
 esac
@@ -234,9 +264,17 @@ fi
 say "Playlist for players: $url/curated.m3u"
 say ""
 if [ "$plex_next" = yes ]; then
-    say "For Plex: sign in at https://plex.tv/claim, copy the code into PLEX_CLAIM in $DIR/.env, and"
-    say "within 4 minutes run:  cd $DIR && scripts/stack.sh apply"
-    say "  (docs/cookbooks/plex-box.md, step 4; KIA_STACK=$stack is already set)"
+    say "For Plex (KIA_STACK=$stack is already set):"
+    say "  1. When the first refresh is done, make the playlist named plex on the Secure Dashboard,"
+    case ",$stack," in
+        *,plex,*)
+            say "     with For Plex through Threadfin ticked (docs/cookbooks/plex-box.md, step 2)."
+            say "  2. Sign in at https://plex.tv/claim, copy the code into PLEX_CLAIM in $DIR/.env, and"
+            say "     within 4 minutes run:  cd $DIR && scripts/stack.sh apply   (step 4)" ;;
+        *)
+            say "     with For Plex through Threadfin ticked (docs/plex.md, step 1)."
+            say "  2. Run:  cd $DIR && scripts/stack.sh apply   (docs/plex.md, step 2)" ;;
+    esac
     say ""
 fi
 # What's running now (with Plex, the rest starts with it, after the claim code).

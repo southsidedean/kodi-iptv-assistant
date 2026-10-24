@@ -26,6 +26,10 @@ while [ $# -gt 0 ]; do
     shift
 done
 die() { echo "update: $*" >&2; exit 1; }
+get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
+set_env() {  # set_env NAME VALUE: replace the line
+    (umask 077 && awk -v k="$1" -v v="$2" 'BEGIN { FS = OFS = "=" } $1 == k { print k "=" v; next } { print }' .env >.env.tmp) && mv .env.tmp .env
+}
 
 [ -d .git ] || die "this isn't a git copy of kia; download it again (docs/install.md)."
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -36,7 +40,13 @@ fi
 echo "Looking for kia's releases..."
 git fetch --quiet --tags --force origin
 before=$(git describe --tags --always)
-before_rev=$(git rev-parse HEAD)
+# What the containers last started with, kept in state/deployed-rev until they've restarted,
+# so a run that stops before that (Docker not running, a failed build) isn't forgotten.
+if [ "$restart" = yes ] && [ ! -s state/deployed-rev ]; then
+    mkdir -p state
+    git rev-parse HEAD >state/deployed-rev
+fi
+before_rev=$(cat state/deployed-rev 2>/dev/null || git rev-parse HEAD)
 if [ "$target" = main ]; then
     git checkout --quiet main 2>/dev/null || git checkout --quiet -b main --track origin/main
     git pull --quiet --ff-only origin main
@@ -58,11 +68,12 @@ fi
 
 [ "$restart" = yes ] || exit 0
 
-# Nobody watching? A restart cuts off Pluto TV through kia, and Plex's Live TV through Threadfin.
-port=$(grep '^KIA_PORT=' .env 2>/dev/null | cut -d= -f2-)
+# Nobody watching? A restart cuts off Pluto TV through kia, and Live TV through Threadfin
+# (Plex) or kia's playlist (Jellyfin).
+port=$(get KIA_PORT)
 watching=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null | awk '
     /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
-    /^kia_plex_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
+    /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
     /^kia_refresh_running 1/ { r = 1 }
     END { if (n > 0) print n " playing"; else if (r) print "a refresh is running" }')
 if [ -n "$watching" ] && [ "$ask" = yes ]; then
@@ -74,7 +85,19 @@ fi
 if [ "$docker" = no ]; then
     exec scripts/install-service.sh
 fi
-if grep -q '^KIA_IMAGE=.' .env 2>/dev/null; then
+image=$(get KIA_IMAGE)
+if [ -n "$image" ]; then
+    # A published image with a version: the one for this release, to match its files.
+    case "$image" in
+        *:latest | *:main) ;;
+        *:[0-9]*)
+            if [ "$target" = main ]; then
+                echo "KIA_IMAGE=$image is a release; the files are main's. For main, build kia here (empty KIA_IMAGE)."
+            else
+                set_env KIA_IMAGE "${image%:*}:${target#v}"
+                echo "KIA_IMAGE is now ${image%:*}:${target#v}, to match."
+            fi ;;
+    esac
     docker compose pull
 else
     docker compose build --pull
@@ -95,4 +118,6 @@ if [ -n "$restart" ]; then
         fi
     done
 fi
+mkdir -p state
+git rev-parse HEAD >state/deployed-rev
 echo "Done: kia $(git describe --tags --always) is running."

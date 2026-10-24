@@ -28,7 +28,7 @@ Plex and Jellyfin can run side by side. With `KIA_STACK=` (empty), kia runs with
 
 ## Presets
 
-Each cookbook has a preset, which sets `KIA_STACK` for you:
+A preset sets `KIA_STACK` for you, for one of the common setups; the installer offers them too:
 
 ```sh
 scripts/stack.sh apply --preset plex-box
@@ -57,7 +57,7 @@ It also works out the Compose profiles: on Linux, `observability` adds kia's nod
 ## What apply does
 
 1. Runs `check`, and stops on a problem.
-2. Asks first if someone is watching Pluto TV, Plex, or Jellyfin through kia (`--yes` skips that).
+2. Asks first if someone is watching Pluto TV, Plex, or Jellyfin through kia, and if parts that run now would stop because `KIA_STACK` leaves them out (`--yes` skips both).
 3. Keeps a copy of `.env` in `state/env.before-stack-<date>`, then sets `COMPOSE_PROFILES` from `KIA_STACK`, and `KIA_PLEX_URL` or `KIA_JELLYFIN_URL` for a server in the stack if they're empty.
 4. Runs `docker compose up -d`, and stops and removes the containers of parts you took out.
 
@@ -65,4 +65,4 @@ Running it again with nothing changed restarts nothing.
 
 ## Without KIA_STACK
 
-Before `KIA_STACK`, `COMPOSE_PROFILES` in `.env` chose what runs, and it still does when there's no `KIA_STACK` line; [configuration](configuration.md) lists the profiles. `scripts/stack.sh` then shows what runs and says so. Once you add `KIA_STACK`, `apply` sets `COMPOSE_PROFILES` for you, so change `KIA_STACK` instead.
+Before `KIA_STACK`, `COMPOSE_PROFILES` in `.env` chose what runs, and it still does while `KIA_STACK` is empty or missing; [configuration](configuration.md) lists the profiles. `scripts/stack.sh` then shows what runs and says so, and `check` and `apply` change nothing. Once you set `KIA_STACK`, `apply` sets `COMPOSE_PROFILES` for you, so change `KIA_STACK` instead.
