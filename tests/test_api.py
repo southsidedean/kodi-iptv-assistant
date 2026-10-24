@@ -51,7 +51,7 @@ def test_read_and_preview(cfg):
     assert call(cfg, "GET", "/api/channels?q=cn")[1]["channels"] == [{"id": "CNN.us", "name": "CNN", "group": "News"}]
 
 
-def test_save_and_delete_need_the_password(cfg):
+def test_saving_needs_the_password_over_https(cfg):
     assert call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]})[0] == 401
     assert call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]}, password="nope")[0] == 401
     assert not cfg.profiles_file.exists()
@@ -186,17 +186,17 @@ def test_served_over_https(cfg, certs, monkeypatch):
     def put(base, **kw):
         req = urllib.request.Request(f"{base}/api/profiles/news", data=b'{"groups":["News"]}', method="PUT",
                                      headers={"X-Kia-Password": "secret", "Content-Type": "application/json"})  # fmt: skip
-        return urllib.request.urlopen(req, **kw)
+        return urllib.request.urlopen(req, timeout=10, **kw)
 
     try:
-        with urllib.request.urlopen(f"{https}/api/profiles", context=context) as r:
+        with urllib.request.urlopen(f"{https}/api/profiles", context=context, timeout=10) as r:
             assert json.load(r)["secure"] is True
         with pytest.raises(urllib.error.HTTPError) as refused:
             put(http)
         assert refused.value.code == 403
         with put(https, context=context) as r:
             assert json.load(r)["profiles"][0]["tv"] == 1
-        with urllib.request.urlopen(f"{http}/news.m3u") as r:  # playlists stay on plain HTTP
+        with urllib.request.urlopen(f"{http}/news.m3u", timeout=10) as r:  # playlists stay on plain HTTP
             assert b"CNN" in r.read()
         # Behind nginx: only its X-Kia-Secure header makes a request secure, and only from nginx.
         proxied = serve.make_server(cfg.output_dir, "127.0.0.1", 0, cfg, trust_proxy=True)
@@ -206,9 +206,9 @@ def test_served_over_https(cfg, certs, monkeypatch):
         for proxy, believed in (("127.0.0.1", True), ("192.0.2.9", False)):  # nginx here, or somewhere else
             monkeypatch.setenv("KIA_PROXY_HOST", proxy)
             serve._proxy["at"] = -1e9  # look it up again
-            with urllib.request.urlopen(claim) as r:
+            with urllib.request.urlopen(claim, timeout=10) as r:
                 assert json.load(r)["secure"] is believed, proxy
-        with urllib.request.urlopen(f"{base}/api/profiles") as r:
+        with urllib.request.urlopen(f"{base}/api/profiles", timeout=10) as r:
             assert json.load(r)["secure"] is False
         proxied.shutdown()
         serve._proxy["at"] = -1e9
@@ -251,3 +251,45 @@ def test_a_failed_https_connection_is_one_line_in_the_log(cfg, certs, capfd):
         secure.server_close()
     err = capfd.readouterr().err
     assert "didn't finish connecting (SSLError)" in err and "Traceback" not in err
+
+
+# Every API request that changes something, or shows players' names, with a body it would
+# accept. Each one asks for the password on its own (api.handle), so each is tried here.
+PROTECTED = [
+    ("PUT", "/api/profiles/kids", {"groups": ["Kids"]}),
+    ("DELETE", "/api/profiles/kids", None),
+    ("POST", "/api/channel/test", {"key": "CNN.us"}),
+    ("POST", "/api/channel/remove", {"key": "CNN.us"}),
+    ("POST", "/api/channel/restore", {"key": "CNN.us"}),
+    ("POST", "/api/renumber", None),
+    ("PUT", "/api/channel", {"key": "CNN.us", "favorite": True}),
+    ("GET", "/api/players", None),
+    ("PUT", "/api/sources", {"url": "https://example.com/us.m3u", "on": False}),
+    ("POST", "/api/sources", {"url": "https://example.com/more.m3u", "name": "more"}),
+    ("DELETE", "/api/sources?url=https://example.com/us.m3u", None),
+    ("POST", "/api/sources/check", {"url": "https://example.com/us.m3u"}),
+    ("DELETE", "/api/sources/check", None),
+    ("POST", "/api/password", {"new": "something-new"}),
+]
+PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
+          ("GET", "/api/sources"), ("GET", "/api/sources/check")]  # fmt: skip
+
+
+@pytest.mark.parametrize(("method", "path", "body"), PROTECTED, ids=lambda x: x if isinstance(x, str) else "")
+def test_every_change_needs_the_password_over_https(cfg, method, path, body):
+    assert call(cfg, method, path, body)[0] == 401
+    assert call(cfg, method, path, body, password="nope")[0] == 401
+    assert call(cfg, method, path, body, password="secret", secure=False)[0] == 403
+    assert cfg.changes == [] and not cfg.profiles_file.exists()
+
+
+def test_every_route_is_in_one_of_the_lists():
+    # A new route has to be added above, as one that needs the password or one that doesn't.
+    import inspect
+    import re
+
+    source = inspect.getsource(api.handle)
+    routes = {(m, "/api/" + "/".join(re.findall(r'"([a-z-]+)"', p)))
+              for p, m in re.findall(r'parts == \[([^\]]*)\] and method == "([A-Z]+)"', source)}  # fmt: skip
+    listed = {(m, p.split("?")[0]) for m, p, _ in PROTECTED if not p.startswith("/api/profiles/")} | set(PUBLIC)
+    assert routes == listed

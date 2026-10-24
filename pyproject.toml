@@ -13,7 +13,9 @@ license-files = ["LICENSE"]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov>=6", "hypothesis>=6.100", "ruff>=0.15", "bandit>=1.8"]
+# Exact versions, so a new release of a checker can't fail an unrelated pull request the day
+# it comes out; Dependabot proposes updates (.github/dependabot.yml).
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "hypothesis==6.170.5", "ruff==0.17.1", "bandit==1.9.4", "zizmor==1.31.1"]
 
 [project.scripts]
 kia = "kia.cli:main"
@@ -23,6 +25,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# -ra lists skipped tests and why (a missing ffmpeg, say) at the end of each run.
+addopts = "-ra --strict-markers"
 
 [tool.ruff]
 line-length = 130

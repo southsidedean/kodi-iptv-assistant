@@ -232,20 +232,21 @@ def write_guides(output_dir: Path, wanted: dict[str, set[str]]) -> set[str]:
     try:
         for f in outs.values():
             f.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="kodi-iptv-assistant">\n')
-        context = ET.iterparse(full, events=("start", "end"))
-        _, root = next(context)
-        for event, el in context:
-            if event != "end" or el.tag not in ("channel", "programme"):
-                continue
-            channel = el.get("id") if el.tag == "channel" else el.get("channel")
-            text = None
-            for name, ids in wanted.items():
-                if channel in ids:
-                    if text is None:
-                        el.tail = None
-                        text = "  " + ET.tostring(el, encoding="unicode") + "\n"
-                    outs[name].write(text)
-            root.clear()  # keep memory flat on a large guide
+        with open(full, "rb") as src:  # opened here, so it's closed even if the loop stops early
+            context = ET.iterparse(src, events=("start", "end"))
+            _, root = next(context)
+            for event, el in context:
+                if event != "end" or el.tag not in ("channel", "programme"):
+                    continue
+                channel = el.get("id") if el.tag == "channel" else el.get("channel")
+                text = None
+                for name, ids in wanted.items():
+                    if channel in ids:
+                        if text is None:
+                            el.tail = None
+                            text = "  " + ET.tostring(el, encoding="unicode") + "\n"
+                        outs[name].write(text)
+                root.clear()  # keep memory flat on a large guide
         for f in outs.values():
             f.write("</tv>\n")
     finally:

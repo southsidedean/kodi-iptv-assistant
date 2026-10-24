@@ -52,6 +52,7 @@ class Jellyfin:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 return json.loads(r.read() or b"null")
         except urllib.error.HTTPError as exc:
+            exc.close()
             hint = " (check KIA_JELLYFIN_TOKEN)" if exc.code == 401 else ""
             raise JellyfinError(f"Jellyfin answered {exc.code} to {path}{hint}") from None
         except (OSError, ValueError) as exc:

@@ -7,7 +7,10 @@
 # temporary folder, with its own ports, image name, and Compose project, so it never
 # touches a kia you run (uncommitted changes aren't in the copy). The channel source is
 # one test stream made with ffmpeg and served by kia's own web server, so no outside
-# stream is needed; the refresh still fetches iptv-org/epg, as a real one does.
+# stream is needed; the refresh still fetches iptv-org/epg, as a real one does, but a fixed
+# commit of it (epg_ref, below), so a change there can't block every pull request. Move it
+# to iptv-org's newest commit with each release; the weekly upstream workflow tries the
+# newest one meanwhile. SMOKE_EPG_REF=latest tries it here.
 # Needs Docker (with Compose), git, curl, and python3.
 set -eu
 
@@ -15,6 +18,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 port=${SMOKE_PORT:-18780}
 https_port=${SMOKE_HTTPS_PORT:-18743}
 project="kia-smoke-$$"
+epg_ref=${SMOKE_EPG_REF:-d43b000cbbb41aad7df42c556678e899c7f2a25e}  # iptv-org/epg, 2026-10-24
 work=$(mktemp -d "${TMPDIR:-/tmp}/kia-smoke.XXXXXX")
 
 compose() { docker compose -p "$project" "$@"; }
@@ -23,7 +27,8 @@ cleanup() {
     docker image rm -f kia-smoke:test >/dev/null 2>&1 || true
     rm -rf "$work"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM
 fail() {
     echo "FAIL: $*" >&2
     (cd "$work" && compose ps && compose logs --tail 60 kia web) >&2 || true
@@ -40,6 +45,7 @@ sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://localhost:$port|" \
     -e "s|^KIA_BIND=.*|KIA_BIND=127.0.0.1|" \
     -e "s|^KIA_SOURCES_FILE=.*|KIA_SOURCES_FILE=smoke.sources.txt|" \
     -e "s|^KIA_IMAGE=.*|KIA_IMAGE=kia-smoke:test|" \
+    -e "s|^KIA_EPG_GIT_REF=.*|KIA_EPG_GIT_REF=$epg_ref|" \
     -e "s|^PUID=.*|PUID=$(id -u)|" \
     -e "s|^PGID=.*|PGID=$(id -g)|" \
     .env.example >.env
@@ -54,7 +60,8 @@ compose run --rm --no-deps --entrypoint ffmpeg kia -v error -f lavfi -i testsrc=
     || fail "ffmpeg couldn't make the test stream"
 
 echo "== Start the stack and wait until it's healthy"
-compose up -d >/dev/null 2>&1 || fail "the stack doesn't start"
+compose up -d --quiet-pull 2>&1 | tail -n 20 || true
+compose ps --status running --services | grep -q '^kia$' || fail "the stack doesn't start"
 tries=0
 until [ "$(compose ps --format '{{.Service}}={{.Health}}' | grep -c '=healthy')" -ge 2 ]; do
     tries=$((tries + 1))
@@ -87,6 +94,11 @@ if [ ! -f vendor/epg/.kia/grab.cjs ] || [ ! -f vendor/epg/.kia/api-load.cjs ]; t
     fail "iptv-org's scripts weren't compiled for the sandbox"
 fi
 ok "the refresh finished, with iptv-org's scripts compiled for the sandbox"
+if [ "$epg_ref" != latest ]; then
+    got=$(git -C vendor/epg rev-parse HEAD 2>/dev/null || true)
+    [ "$got" = "$epg_ref" ] || fail "iptv-org/epg is at ${got:-nothing}, not $epg_ref"
+fi
+ok "iptv-org/epg is at $epg_ref"
 
 echo "== What kia serves"
 python3 - "$port" "$https_port" <<'EOF' || fail "see above"

@@ -141,6 +141,7 @@ class Plex:
                 break
             except urllib.error.HTTPError as exc:
                 said = exc.read(500).decode(errors="replace") if exc.fp else ""
+                exc.close()
                 if "starting up" in said and time.monotonic() < give_up:
                     time.sleep(self.retry_every)
                     continue

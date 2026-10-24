@@ -304,3 +304,23 @@ def test_a_piece_that_failed_is_tried_again():
     assert status == 200 and body.startswith(b"TSpiece:") and len(tries) == 2
     r.handle(f"/pluto/{CID}/0.ts", "192.0.2.30")
     assert len(tries) == 2  # once it worked, it's shared
+
+
+def test_the_relay_plays_the_channels_kias_playlist_has(tmp_path: Path, monkeypatch):
+    # cli.pluto_relay finds them in curated.m3u by the address for_players gives them, so the
+    # two have to agree, or every Pluto channel would be refused.
+    from types import SimpleNamespace
+
+    from kia import cli
+    from kia.m3u import write
+
+    monkeypatch.setattr(cli, "_RELAY", None)
+    monkeypatch.setattr(pluto.Relay, "keep_status_fresh", lambda self: None)
+    cfg = SimpleNamespace(pluto_relay=True, output_dir=tmp_path, state_dir=tmp_path, alerts=None)
+    cid = "65c69bbfd77d450008c7ffee"
+    entries = pluto.for_players([Entry("Pluto", f"https://jmp2.uk/plu-{cid}.m3u8", {}),
+                                 Entry("Other", "https://example.com/other.m3u8", {})], "http://192.168.1.20:8780")  # fmt: skip
+    relay = cli.pluto_relay(cfg)
+    assert relay.allowed() == set()  # no playlist yet
+    (tmp_path / "curated.m3u").write_text(write(entries, None))
+    assert relay.allowed() == {cid}

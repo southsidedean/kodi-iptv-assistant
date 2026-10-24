@@ -25,7 +25,7 @@ def test_next_run():
         ({"check": 1}, 1, 1),
     ],
 )
-def test_run_pipeline(monkeypatch, codes, expected, steps_run):
+def test_run_pipeline(monkeypatch, tmp_path, codes, expected, steps_run):
     ran = []
 
     def fake_main(argv):
@@ -33,6 +33,9 @@ def test_run_pipeline(monkeypatch, codes, expected, steps_run):
         return codes.get(argv[0], 0)
 
     monkeypatch.setattr(cli, "main", fake_main)
+    monkeypatch.chdir(tmp_path)  # kia.toml here, not the repository's, wherever pytest runs
+    (tmp_path / "kia.toml").write_text("")
+    (tmp_path / "sources.txt").write_text("https://example.com/us.m3u\n")
     assert cli.run_pipeline("kia.toml", update_epg=True) == expected
     assert len(ran) == steps_run
     if steps_run >= 2:
