@@ -67,6 +67,8 @@ def test_without_a_terminal_it_takes_the_defaults(kia: Path):
     assert "KIA_STACK=\n" in env(kia) and "KIA_PUBLIC_URL=http://192.168.1.20:1\n" in env(kia)  # preset kodi
     assert "COMPOSE_PROFILES= compose up -d --build" in calls(kia)
     assert not (kia / ".env.new").exists()
+    # A password kia made before isn't printed again, only where it is.
+    assert "not-a-real-password" not in r.stdout and "state/admin-password.txt" in r.stdout
 
 
 def test_a_plex_preset_starts_kia_and_leaves_the_rest_for_after_the_playlist(kia: Path):

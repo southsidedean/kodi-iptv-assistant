@@ -8,6 +8,18 @@
 - `apply` starts the profiles it chose even when `COMPOSE_PROFILES` is also set in your shell, which Docker Compose would have used instead.
 - Ports in use are found with `ss` when `nc` isn't installed, and `check` says when neither is.
 
+### Security
+
+- Grafana's login cookie is marked Secure and SameSite. Browsers send a cookie to every port of a computer, so before this, opening kia's plain-http Dashboard after signing in to Grafana sent Grafana's session across your network unencrypted.
+- Wrong passwords on the secure Dashboard slow down only the address that sends them: from the second one in a row, the wait doubles each time, up to a minute. Before, one person guessing held up everyone, the right password included, a second per guess. An empty password box says "Enter kia's password first." instead of "Wrong password."
+- A password with accents or emoji locked you out of changes, because browsers can't send those characters, and every page said kia didn't answer. kia now refuses such a password when you set it, and says at start when `KIA_ADMIN_PASSWORD` has one or is shorter than 8 characters.
+- The other programs' data in the kia folder (Jellyfin's users, Grafana's database and password) is hidden from kia, and ffprobe and ffmpeg, which open streams from the internet, run with none of kia's passwords or tokens.
+- kia's pages say not to load anything from other sites (Content-Security-Policy), not to guess file types, and not to send where you came from. Channel names and shows from other people's playlists were already escaped; this is a second line.
+- `kia restore` keeps a sources file of your own in its safety copy, so a restore can be undone, and writes restored files privately from the start.
+- The installer and `scripts/install-service.sh` print the Dashboard password only when kia has just made it; after that, they say where it is. `install-service.sh --dry-run` hides passwords and tokens.
+- The arm64 image (Raspberry Pi) is scanned before it's published too, not only the amd64 one.
+- [SECURITY.md](SECURITY.md) now covers the web server's privileges, Threadfin's and Grafana's passwords, and Jellyfin's setup screens, which are open to anyone on your network until you finish them (the [Jellyfin cookbook](docs/cookbooks/jellyfin-box.md) says so too).
+
 ### Plex
 
 - With Plex in the stack and two Threadfins, `kia plex-tuners` never added the second Threadfin's guide to the DVR, so its channels got the first one's guide or none. In the stack both Threadfins use port 34400, and kia told guides apart by port. It now tells them apart by name there, and by port for Threadfins on another computer.

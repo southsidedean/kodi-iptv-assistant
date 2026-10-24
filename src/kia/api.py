@@ -13,7 +13,9 @@ profile playlists and the Dashboard from the last check, which takes about a sec
 
 from __future__ import annotations
 
+import contextvars
 import json
+import math
 import re
 import threading
 import time
@@ -38,6 +40,10 @@ from kia.m3u import parse
 # Writing kia's state: shared with a refresh, even one in another process (kia.locks).
 LOCK = locks.FilesLock()
 PASSWORD_LOCK = threading.Lock()
+# Wrong passwords, by who sent them: (how many in a row, when the next try is let in). From
+# the second one, each doubles the wait, up to a minute, for that address only.
+_WRONG: dict[str, tuple[int, float]] = {}
+_CLIENT: contextvars.ContextVar[str] = contextvars.ContextVar("client", default="")
 
 
 @dataclass
@@ -512,10 +518,24 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
         raise ApiError(403, "Editing is off (KIA_EDITING=false in kia's .env file).")
     if not secure:
         raise ApiError(403, "Changes are accepted only on the secure (https://) Dashboard.")
-    with PASSWORD_LOCK:  # one check at a time: each costs 16 MB and a second when wrong
-        if not cfg.auth.check(given):
-            time.sleep(1)  # slows down guessing
-            raise ApiError(401, "Wrong password.")
+    if not given:
+        raise ApiError(401, "Enter kia's password first.")
+    client = _CLIENT.get()
+    wrong, until = _WRONG.get(client, (0, 0.0))
+    if until > time.monotonic():
+        raise ApiError(429, f"Too many wrong passwords. Try again in {math.ceil(until - time.monotonic())} seconds.")
+    with PASSWORD_LOCK:  # one check at a time: each costs 16 MB
+        right = cfg.auth.check(given)
+    if right:
+        _WRONG.pop(client, None)
+        return
+    if len(_WRONG) > 1000:  # many addresses: keep only those still waiting
+        now = time.monotonic()
+        for k in [k for k, (_, u) in _WRONG.items() if u < now]:
+            del _WRONG[k]
+    _WRONG[client] = (wrong + 1, time.monotonic() + (min(2.0**wrong, 60.0) if wrong else 0))
+    time.sleep(1)  # outside the lock: someone guessing doesn't hold up the right password
+    raise ApiError(401, "Wrong password.")
 
 
 def change_password(cfg: ApiConfig, body: dict) -> dict:
@@ -531,8 +551,11 @@ def change_password(cfg: ApiConfig, body: dict) -> dict:
     return {"password": cfg.auth.source}
 
 
-def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure: bool = False) -> tuple[int, dict]:
-    """Route one /api/ request. Returns (HTTP status, JSON body). secure: it came over HTTPS."""
+def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure: bool = False,
+           client: str = "") -> tuple[int, dict]:  # fmt: skip
+    """Route one /api/ request. Returns (HTTP status, JSON body). secure: it came over HTTPS;
+    client: who sent it, for slowing down wrong passwords."""
+    _CLIENT.set(client)
     url = urlparse(path)
     parts = [p for p in url.path.split("/") if p][1:]  # after "api"
     origin = headers.get("Origin")

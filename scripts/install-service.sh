@@ -33,8 +33,12 @@ xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/
 plist_env() {
     [ -f "$DIR/.env" ] || return 0
     grep -E '^[A-Z_][A-Z0-9_]*=.+' "$DIR/.env" | while IFS= read -r line; do
-        key=${line%%=*}
-        printf '    <key>%s</key>\n    <string>%s</string>\n' "$key" "$(xml "${line#*=}")"
+        key=${line%%=*} value=${line#*=}
+        # --dry-run shows the file on screen: passwords and tokens stay out of it.
+        if [ "$MODE" = dry-run ]; then
+            case "$key" in *PASSWORD* | *TOKEN* | *SECRET* | *NTFY_URL* | *CLAIM*) value="(from .env, not shown)" ;; esac
+        fi
+        printf '    <key>%s</key>\n    <string>%s</string>\n' "$key" "$(xml "$value")"
     done
 }
 
@@ -109,6 +113,8 @@ if ! [ -f .env ]; then
     say "Made .env with address http://${address:-localhost}:8780 and time zone ${zone:-Etc/UTC}. Edit it to change them, then run this again."
 fi
 mkdir -p output state work/logs vendor profiles tls "$(dirname "$target")"
+# The password is shown once, when kia has just made it; after that, where it is.
+[ -s state/admin-password.txt ] && had_password=yes || had_password=no
 
 # The service file can hold your .env settings (passwords included), so only you can read it.
 (umask 077 && render "$template" >"$target.tmp")
@@ -146,6 +152,8 @@ while [ $i -lt 15 ] && ! [ -s state/admin-password.txt ] && ! grep -q '^KIA_ADMI
     sleep 1
     i=$((i + 1))
 done
-if [ -s state/admin-password.txt ]; then
+if [ "$had_password" = yes ]; then
+    say "Password for changes on the Dashboard: in $DIR/state/admin-password.txt"
+elif [ -s state/admin-password.txt ]; then
     say "Password for changes on the Dashboard: $(cat state/admin-password.txt)"
 fi

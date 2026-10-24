@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, asdict
@@ -59,6 +60,16 @@ def interpret(payload: dict, require_video: bool = True) -> ProbeResult:
     return result
 
 
+# What ffprobe and ffmpeg need from kia's environment when they open streams from the
+# internet: none of kia's passwords and tokens go with them.
+_MEDIA_ENV = ("PATH", "HOME", "TMPDIR", "TZ", "LANG", "LC_ALL", "http_proxy", "https_proxy", "no_proxy",
+              "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY")  # fmt: skip
+
+
+def media_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k in _MEDIA_ENV}
+
+
 def build_command(
     url: str,
     timeout: float,
@@ -90,6 +101,7 @@ async def probe(
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=media_env(),
     )
     try:
         # ffprobe's rw_timeout only catches a server that stops sending. This also stops one

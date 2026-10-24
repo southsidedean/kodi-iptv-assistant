@@ -231,6 +231,8 @@ case ",$stack," in
     # A new .env only: on an existing one, scripts/stack.sh apply asks before stopping what runs now.
     *) if [ "$new_env" = yes ]; then apply_now=yes; fi ;;
 esac
+# The password is shown once, when kia has just made it; after that, where it is.
+[ -s state/admin-password.txt ] && had_password=yes || had_password=no
 step "Starting kia (the first build takes a few minutes)"
 if [ "$apply_now" = yes ]; then
     # Started once, with the chosen parts, so kia's first refresh isn't cut off by a restart.
@@ -258,7 +260,9 @@ say "  cd $DIR && docker compose logs -f kia"
 say ""
 say "Dashboard:          $url/"
 say "Secure Dashboard:   https://$host:${https_port:-8743}/   (for making changes; your browser warns about kia's own certificate the first time)"
-if [ -n "$password" ]; then
+if [ "$had_password" = yes ]; then
+    say "Password for changes: in $DIR/state/admin-password.txt"
+elif [ -n "$password" ]; then
     say "Password for changes: $password   (also in $DIR/state/admin-password.txt)"
 fi
 say "Playlist for players: $url/curated.m3u"

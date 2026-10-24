@@ -42,6 +42,7 @@ from urllib.parse import unquote, urljoin
 
 from kia import __version__
 from kia.m3u import Entry
+from kia.probe import media_env
 
 # jmp2.uk/plu-<id>.m3u8 (iptv-org and most lists), or a Pluto stitcher address.
 _CHANNEL_RE = re.compile(r"(?:jmp2\.uk/plu-|pluto\.tv/.*?/channel/)([0-9a-f]{24})\b", re.I)  # incl. /stitch/embed/
@@ -508,7 +509,7 @@ def probe_start(path: str, key: str | None, iv: str, ffprobe: str = "ffprobe") -
     src = ["-f", "mpegts", "-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-f", "mpegts", "-i", path]
     out = subprocess.run([ffprobe, "-v", "error", "-read_intervals", "%+3", "-show_entries",
                           "packet=codec_type,dts_time", "-of", "csv=p=0", *src],
-                         capture_output=True, text=True, timeout=30, check=False).stdout  # fmt: skip
+                         capture_output=True, text=True, timeout=30, check=False, env=media_env()).stdout  # fmt: skip
     first: dict[str, float] = {}
     for line in out.splitlines():
         kind, dts = ([*line.split(","), ""])[:2]
@@ -539,7 +540,7 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
                "-bsf:v", f"setts=pts=PTS+{tv}:dts=DTS+{tv}", "-bsf:a", f"setts=pts=PTS+{ta}:dts=DTS+{ta}",
                "-muxdelay", "0", "-muxpreload", "0", "-mpegts_flags", "+initial_discontinuity",
                "-f", "mpegts", "pipe:1"]  # fmt: skip
-        proc = subprocess.run(cmd, capture_output=True, timeout=30, check=False)
+        proc = subprocess.run(cmd, capture_output=True, timeout=30, check=False, env=media_env())
         if not proc.stdout:
             raise ValueError(proc.stderr.decode(errors="replace").strip()[-200:] or "no output")
         return proc.stdout

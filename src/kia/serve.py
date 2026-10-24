@@ -40,6 +40,15 @@ def proxy_addresses() -> frozenset[str]:
         return _proxy["addresses"]
 
 
+# The same as nginx's (deploy/kia-common.inc): kia's pages load nothing from elsewhere and
+# are never shown inside another site's page.
+SECURITY_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+
 class OutputHandler(SimpleHTTPRequestHandler):
     extensions_map = {  # noqa: RUF012
         **SimpleHTTPRequestHandler.extensions_map,
@@ -63,7 +72,8 @@ class OutputHandler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("X-Frame-Options", "DENY")
+        for name, value in SECURITY_HEADERS.items():
+            self.send_header(name, value)
         super().end_headers()
 
     def log_message(self, format, *args):
@@ -101,7 +111,8 @@ class OutputHandler(SimpleHTTPRequestHandler):
         else:
             body = self.rfile.read(length) if length else b""
             try:
-                status, data = api_module.handle(self.api, method, self.path, self.headers, body, self._secure())
+                status, data = api_module.handle(self.api, method, self.path, self.headers, body, self._secure(),
+                                                 self._viewer())  # fmt: skip
             except Exception:  # never drop the connection without an answer
                 traceback.print_exc()
                 status, data = 500, {"error": "kia hit an error doing that; its log has the details."}
