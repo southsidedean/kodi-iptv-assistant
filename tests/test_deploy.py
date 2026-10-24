@@ -147,7 +147,12 @@ def test_pipeline_uses_upstream_when_available(tmp_path, monkeypatch, upstream_u
 
 
 def test_wait_until_returns_for_past_times():
-    cli.wait_until(datetime.now().astimezone() - timedelta(minutes=5))
+    import threading
+
+    waiter = threading.Thread(target=cli.wait_until, args=(datetime.now().astimezone() - timedelta(minutes=5),), daemon=True)
+    waiter.start()
+    waiter.join(timeout=5)
+    assert not waiter.is_alive(), "wait_until waited for a time that has passed"
 
 
 def test_new_settings(tmp_path: Path, monkeypatch):

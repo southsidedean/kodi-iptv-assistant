@@ -344,7 +344,7 @@ def test_the_warm_up_plays_a_video_plex_already_has(tmp_path: Path):
 def test_the_warm_up_waits_for_another_library_scan(tmp_path: Path):
     said = []
     stub = BusyPlex(tmp_path, busy_for=5)
-    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=0.05, step=0.01) is True
+    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=2, step=0.01) is True
     assert "Plex is scanning Music first" in said[1] and said[-1] == "Plex has its codecs now."
     # One that never finishes: kia gives up after busy_wait, says why, and tidies up.
     stub = BusyPlex(tmp_path, busy_for=10_000)

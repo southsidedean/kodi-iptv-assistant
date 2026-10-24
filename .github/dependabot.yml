@@ -1,4 +1,5 @@
-# Keeps the actions in .github/workflows up to date (they're pinned to exact commits).
+# Keeps the actions in .github/workflows (pinned to exact commits) and the test and lint
+# tools in pyproject.toml's dev extra (pinned to exact versions) up to date.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -8,6 +9,15 @@ updates:
     # One pull request for all of them, and only for releases at least a week old.
     groups:
       actions:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      dev-tools:
         patterns: ["*"]
     cooldown:
       default-days: 7

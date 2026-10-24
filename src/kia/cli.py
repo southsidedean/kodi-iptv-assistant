@@ -60,6 +60,7 @@ def fetch(url: str) -> str:
         except urllib.error.HTTPError as exc:
             if (exc.code < 500 and exc.code != 429) or wait is None:
                 raise
+            exc.close()  # the error page, which isn't read
         except OSError:
             if wait is None:
                 raise

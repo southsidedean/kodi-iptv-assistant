@@ -166,7 +166,6 @@ def test_threadfin_switch_writes_curly_apostrophes(tmp_path: Path):
 def test_guides_are_rewritten_only_when_needed(tmp_path: Path):
     import gzip
     import os
-    import time
 
     out, state = tmp_path / "output", tmp_path / "state"
     out.mkdir()
@@ -186,15 +185,15 @@ def test_guides_are_rewritten_only_when_needed(tmp_path: Path):
     profiles.rebuild(out, state, pfile, None, lambda m: None)
     # kia's own TV-only guide is the full guide under another name, not a copy.
     assert os.path.samefile(out / "tv.guide.xml.gz", out / "guide.xml.gz")
+    for f in out.iterdir():  # ten seconds old, so a rewrite shows however coarse the clock is
+        os.utime(f, (f.stat().st_atime - 10, f.stat().st_mtime - 10))
     stamp = {n: (out / f"{n}.guide.xml.gz").stat().st_mtime_ns for n in ("news", "kids")}
-    time.sleep(0.01)
     # A save that changes one playlist rewrites only that one's guide.
     pfile.write_text('[news]\ngroups = ["News", "Kids"]\n[kids]\ngroups = ["Kids"]\n')
     profiles.rebuild(out, state, pfile, None, lambda m: None)
     assert (out / "news.guide.xml.gz").stat().st_mtime_ns != stamp["news"]
     assert (out / "kids.guide.xml.gz").stat().st_mtime_ns == stamp["kids"]
     # A new full guide rewrites every guide, and the TV-only one follows the new file.
-    time.sleep(0.01)
     (out / "guide.xml").write_text(guide)
     (out / "guide.xml.gz").unlink()
     with gzip.open(out / "guide.xml.gz", "wt") as f:

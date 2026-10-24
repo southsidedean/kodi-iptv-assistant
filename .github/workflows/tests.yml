@@ -13,9 +13,10 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same pull request replaces the older run.
+# A newer push to the same pull request replaces the older run. Each push to main gets a run
+# of its own, so none is skipped when merges come close together.
 concurrency:
-  group: tests-${{ github.ref }}
+  group: tests-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -35,9 +36,28 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
+      # For the Pluto TV relay's remux tests, which are skipped without it.
+      - name: ffmpeg
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
       - run: pip install -e ".[dev]"
       - name: pytest, with coverage (kia's lines the tests never run are listed, for reading, not enforced)
         run: python -m pytest -q --cov=kia --cov-report=term-missing:skip-covered
+
+  # The scripts' Darwin branches under macOS's own sh and tools, which the stand-ins on Linux
+  # only imitate. Not a required check.
+  pytest-macos:
+    name: pytest (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+      - run: pip install -e ".[dev]"
+      - run: python -m pytest -q
 
   lint:
     name: lint and security checks
@@ -50,9 +70,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.x"
-      - run: pip install -e ".[dev]" zizmor
+      - run: pip install -e ".[dev]"
       - name: ruff (bugs and risky code; settings in pyproject.toml)
-        run: ruff check src tests
+        run: ruff check src tests scripts tools
       - name: bandit (security issues in kia's code)
         run: bandit -q -c pyproject.toml -r src
       - name: shellcheck (the install and service scripts)
@@ -71,7 +91,7 @@ jobs:
       - name: compose.yaml is valid with the example settings, with every set of profiles
         run: |
           cp .env.example .env
-          for profiles in "" plex plex,plex-2 plex,plex-server monitoring monitoring,monitoring-node monitoring,monitoring-gpu,monitoring-disks plex,plex-2,plex-server,monitoring,monitoring-node,monitoring-gpu,monitoring-disks; do
+          for profiles in "" plex plex,plex-2 plex,plex-server jellyfin-server plex,plex-server,jellyfin-server monitoring monitoring,monitoring-node monitoring,monitoring-gpu,monitoring-disks plex,plex-2,plex-server,jellyfin-server,monitoring,monitoring-node,monitoring-gpu,monitoring-disks; do
             echo "COMPOSE_PROFILES=$profiles"
             COMPOSE_PROFILES="$profiles" docker compose config --quiet
           done

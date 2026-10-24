@@ -237,7 +237,7 @@ def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
     assert peak == {"jmp2.uk": 6, "other.tv": cfg.per_host}
     gaps = [b - a for a, b in zip(starts["jmp2.uk"], starts["jmp2.uk"][1:], strict=False)]
-    assert min(gaps) >= 0.045  # starts at least host_delay_ms apart
+    assert min(gaps) >= 0.04  # starts host_delay_ms (50) apart, give or take the clock's resolution
 
 
 def test_per_site_connections_and_delay(tmp_path: Path, monkeypatch):

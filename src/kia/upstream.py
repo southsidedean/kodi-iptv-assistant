@@ -35,6 +35,8 @@ def download_guide(base_url: str, dest: Path, timeout: float = 30) -> None:
                 pass
     except (urllib.error.URLError, OSError, EOFError, zlib.error, http.client.HTTPException) as exc:
         tmp.unlink(missing_ok=True)
+        if isinstance(exc, urllib.error.HTTPError):
+            exc.close()
         raise UpstreamError(f"{url}: {getattr(exc, 'reason', exc)}") from exc
     if not (head.startswith(b"<?xml") or head.startswith(b"<tv")):
         tmp.unlink(missing_ok=True)

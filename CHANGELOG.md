@@ -54,6 +54,7 @@
 - If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
 - A `|` in a channel's group or id no longer breaks the table in `report.md`.
+- Writing each playlist's guide left guide.xml open until Python tidied up, and error pages from Plex, Jellyfin, another kia, and channel sources were never closed. Both are closed when kia is done with them.
 
 
 ### Observability
