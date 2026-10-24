@@ -141,6 +141,19 @@ if has plex; then
         warn "if this is Plex's first start, set PLEX_CLAIM from plex.tv/claim first, or Plex won't be on your account"
     fi
 fi
+# Threadfin reads kia's playlist for Plex, and stops with an error while it doesn't exist.
+if has plex || has plex-tuner; then
+    first=$(get KIA_THREADFIN_PLAYLIST)
+    if [ -n "$first" ] && [ ! -f "output/$first.m3u" ]; then
+        problem "there's no playlist named $first (KIA_THREADFIN_PLAYLIST) for Threadfin yet: make it on the secure Dashboard, under Playlists"
+    elif [ -z "$first" ] && [ ! -f output/plex.m3u ] && [ ! -f output/plex-1.m3u ]; then
+        problem "there's no playlist named plex for Threadfin yet: make it on the secure Dashboard, under Playlists, with For Plex through Threadfin ticked (docs/cookbooks/plex-box.md, step 2)"
+    fi
+    if has plex-tuner-2; then
+        second=$(get KIA_THREADFIN_2_PLAYLIST); second=${second:-plex-2}
+        [ -f "output/$second.m3u" ] || problem "there's no playlist named $second for the second Threadfin yet: make it on the secure Dashboard"
+    fi
+fi
 if has plex-tuner && [ -z "$(get KIA_PLEX_URL)" ]; then
     warn "KIA_PLEX_URL is empty, so kia can't add its tuners to Plex for you (docs/plex.md)"
 fi
@@ -227,7 +240,7 @@ set_env COMPOSE_PROFILES "$(echo "$profiles" | tr ' ' ',')"
 if has plex && [ -z "$(get KIA_PLEX_URL)" ]; then set_env KIA_PLEX_URL http://plex:32400; fi
 if has jellyfin && [ -z "$(get KIA_JELLYFIN_URL)" ]; then set_env KIA_JELLYFIN_URL http://jellyfin:8096; fi
 
-docker compose up -d
+docker compose up -d --quiet-pull
 # Parts no longer chosen keep running until they're stopped.
 wanted=$(docker compose config --services)
 for service in $(COMPOSE_PROFILES='*' docker compose ps --services --status running 2>/dev/null); do
