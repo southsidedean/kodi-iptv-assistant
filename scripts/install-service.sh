@@ -6,25 +6,33 @@
 #   scripts/install-service.sh --uninstall  stop and remove the service
 #   scripts/install-service.sh --dry-run    show the service file without installing
 #
+# With --stack (and the same options), it's the kia-stack service instead, for kia with
+# Docker: scripts/stack.sh watch, which carries out the changes you make on the Dashboard's
+# Stack page (docs/stack.md). It needs only Docker and the kia folder's .env.
+#
 # It needs Python 3.11+ (nothing else from Python), ffmpeg, git, and openssl, and Node.js 22+ for guide downloads
 # from websites. Settings come from .env (copy .env.example) and kia.toml, the same as
 # with Docker. kia serves the playlists, the Dashboard, and the secure page itself.
 set -eu
 
 DIR=$(cd "$(dirname "$0")/.." && pwd)
-MODE=install
-case "${1:-}" in
-    --uninstall) MODE=uninstall ;;
-    --dry-run) MODE=dry-run ;;
-    "") ;;
-    *) printf 'Usage: %s [--uninstall | --dry-run]\n' "$0" >&2; exit 2 ;;
-esac
+MODE=install STACK=no
+for arg in "$@"; do
+    case "$arg" in
+        --uninstall) MODE=uninstall ;;
+        --dry-run) MODE=dry-run ;;
+        --stack) STACK=yes ;;
+        *) printf 'Usage: %s [--stack] [--uninstall | --dry-run]\n' "$0" >&2; exit 2 ;;
+    esac
+done
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'Stopped: %s\n' "$*" >&2; exit 1; }
 OS=$(uname -s)
-LABEL=io.github.southsidedean.kia
-UNIT=$HOME/.config/systemd/user/kia.service
+# kia itself, or the kia-stack service: their names, and the templates in deploy/.
+if [ "$STACK" = yes ]; then NAME=kia-stack; else NAME=kia; fi
+LABEL=io.github.southsidedean.$NAME
+UNIT=$HOME/.config/systemd/user/$NAME.service
 PLIST=$HOME/Library/LaunchAgents/$LABEL.plist
 
 xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
@@ -57,22 +65,52 @@ if [ "$MODE" = uninstall ]; then
         launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
         rm -f "$PLIST"
     else
-        systemctl --user disable --now kia 2>/dev/null || true
+        systemctl --user disable --now "$NAME" 2>/dev/null || true
         rm -f "$UNIT"
         systemctl --user daemon-reload 2>/dev/null || true
     fi
-    say "Removed the kia service. Your settings and data in $DIR are untouched."
+    say "Removed the $NAME service. Your settings and data in $DIR are untouched."
     exit 0
 fi
 
 case "$OS" in
-    Darwin) template=$DIR/deploy/kia.plist; target=$PLIST ;;
-    Linux) template=$DIR/deploy/kia.service; target=$UNIT ;;
+    Darwin) template=$DIR/deploy/$NAME.plist; target=$PLIST ;;
+    Linux) template=$DIR/deploy/$NAME.service; target=$UNIT ;;
     *) die "this script is for macOS and Linux" ;;
 esac
 
 if [ "$MODE" = dry-run ]; then
     render "$template"
+    exit 0
+fi
+
+# The kia-stack service: Docker and kia's .env are all it needs, and it holds no settings.
+if [ "$STACK" = yes ]; then
+    command -v docker >/dev/null 2>&1 || die "Docker isn't installed. The kia-stack service is for kia with Docker."
+    [ -f "$DIR/.env" ] || die "there's no .env in $DIR. Install kia first (docs/install.md)."
+    mkdir -p "$DIR/state" "$DIR/work/logs" "$(dirname "$target")"
+    render "$template" >"$target.tmp"
+    mv "$target.tmp" "$target"
+    if [ "$OS" = Darwin ]; then
+        launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+        tries=0
+        until launchctl bootstrap "gui/$(id -u)" "$target" 2>/dev/null; do
+            tries=$((tries + 1))
+            [ $tries -lt 10 ] || die "launchd didn't start kia-stack. Try: launchctl bootstrap gui/$(id -u) $target"
+            sleep 1
+        done
+        say "Installed $target and started it. It starts again when you log in. Log: $DIR/work/logs/kia-stack.log"
+    else
+        systemctl --user daemon-reload
+        systemctl --user enable kia-stack >/dev/null 2>&1
+        systemctl --user restart kia-stack
+        say "Installed $target and started it. Log: journalctl --user -u kia-stack -f"
+        if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" != yes ]; then
+            say "Right now it runs only while you're logged in. To keep it running, and start it at boot, run once:"
+            say "  sudo loginctl enable-linger $(id -un)"
+        fi
+    fi
+    say "The Dashboard's Stack page can now change what runs next to kia."
     exit 0
 fi
 

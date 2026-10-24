@@ -1,0 +1,21 @@
+# The kia-stack service for Linux: scripts/stack.sh watch, which carries out the changes you
+# make on the Dashboard's Stack page (docs/stack.md). It runs as you, a systemd user
+# service, because changing the stack needs Docker, which the kia container can't reach.
+# scripts/install-service.sh --stack fills in the paths.
+#   systemctl --user status kia-stack        is it running?
+#   journalctl --user -u kia-stack -f        what it has done
+[Unit]
+Description=kia-stack: changes kia's stack when you ask on the Dashboard
+After=docker.service network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@DIR@
+Environment=PATH=@PATH@
+ExecStart=/bin/sh @DIR@/scripts/stack.sh watch
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

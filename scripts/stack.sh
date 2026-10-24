@@ -6,18 +6,23 @@
 #   scripts/stack.sh check              check KIA_STACK; change nothing
 #   scripts/stack.sh apply              check, then start what's chosen and stop the rest
 #   scripts/stack.sh apply --preset P   first set KIA_STACK from stacks/P.env
+#   scripts/stack.sh check --stack S    check S as if it were KIA_STACK; change nothing
+#   scripts/stack.sh apply --stack S    first set KIA_STACK to S
 #   scripts/stack.sh list               the parts you can choose, and the presets
+#   scripts/stack.sh watch              run for the Dashboard's Stack page (the kia-stack service)
 #   --yes                               don't ask, even if someone is watching
 set -eu
 
 cd "$(dirname "$0")/.."
-cmd=status preset="" ask=yes
+cmd=status preset="" try="" try_set=no ask=yes once=no
 while [ $# -gt 0 ]; do
     case "$1" in
-        status | check | apply | list) cmd=$1 ;;
+        status | check | apply | list | watch) cmd=$1 ;;
         --preset) [ $# -gt 1 ] || { echo "stack: --preset needs a name (scripts/stack.sh list)" >&2; exit 2; }; preset=$2; shift ;;
+        --stack) [ $# -gt 1 ] || { echo "stack: --stack needs the parts, such as plex,observability" >&2; exit 2; }; try=$2; try_set=yes; shift ;;
+        --once) once=yes ;;  # watch: one round, then stop (for tests)
         --yes | -y) ask=no ;;
-        -h | --help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h | --help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "stack: unknown option $1 (see --help)" >&2; exit 2 ;;
     esac
     shift
@@ -62,6 +67,91 @@ fi
 
 [ -f .env ] || { echo "stack: no .env here; install kia first (docs/install.md)" >&2; exit 1; }
 
+# --- watch ---------------------------------------------------------------------------
+# The Dashboard's Stack page can't run Docker: the kia container has no Docker socket, on
+# purpose. Instead, kia leaves a request in state/stack-request, and this loop, running on
+# the computer as you (the kia-stack service: scripts/install-service.sh --stack), carries
+# it out with check or apply and leaves the answer in state/stack-result. Every 30 seconds
+# it also writes what each container is doing to state/stack-containers.tsv, for the
+# Dashboard to show.
+#
+# The kia container can write to state/, so the request is untrusted. It's read as plain
+# key=value lines and never run, and each value has to match a strict pattern. So the most
+# a request can do is what you can do with this script yourself: check or apply a choice of
+# the parts it knows.
+if [ "$cmd" = watch ]; then
+    [ -z "$preset" ] && [ "$try_set" = no ] || { echo "stack: watch takes no --preset or --stack" >&2; exit 2; }
+    mkdir -p state
+    # One watcher at a time; a second one would carry out the same request again.
+    pidfile=state/stack-watch.pid
+    if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+        echo "stack: another watch is already running (process $(cat "$pidfile"))" >&2
+        exit 1
+    fi
+    echo $$ >"$pidfile"
+    trap 'rm -f "$pidfile"' EXIT
+    trap 'exit 0' INT TERM
+
+    field() { grep "^$1=" "$2" 2>/dev/null | head -n 1 | cut -d= -f2- || true; }
+    # The answer for kia: a few key=value lines, a blank line, then what the script said.
+    answer() {  # answer ID ACTION STATE EXIT [FILE WITH THE OUTPUT]
+        {
+            printf 'id=%s\naction=%s\nstate=%s\nexit=%s\nfinished=%s\n\n' "$1" "$2" "$3" "$4" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            if [ -n "${5:-}" ]; then tail -n 200 "$5"; fi
+        } >state/stack-result.tmp
+        mv state/stack-result.tmp state/stack-result
+    }
+    # Each container, one per line, tab between: service, state, health, and Docker's status text.
+    containers() {
+        if docker compose ps --all --format '{{.Service}}	{{.State}}	{{.Health}}	{{.Status}}' >state/stack-containers.tmp 2>/dev/null; then
+            mv state/stack-containers.tmp state/stack-containers.tsv
+        else
+            rm -f state/stack-containers.tmp  # Docker isn't answering: keep the last good list
+        fi
+    }
+    take_request() {
+        [ -f state/stack-request ] || return 0
+        # Taken by renaming it, so kia can leave the next request while this one runs.
+        mv state/stack-request state/stack-request.taken || return 0
+        req=state/stack-request.taken
+        id=$(field id "$req") action=$(field action "$req") parts=$(field stack "$req")
+        # Without a proper id there's no one to answer: kia always sends one.
+        case "$id" in "" | *[!A-Za-z0-9-]*) echo "stack: ignored a request without a proper id"; rm -f "$req"; return 0 ;; esac
+        if [ ${#id} -gt 64 ]; then echo "stack: ignored a request with a long id"; rm -f "$req"; return 0; fi
+        why=""
+        case "$action" in check | apply) ;; *) why="it asked for something other than check or apply"; action=unknown ;; esac
+        case "$parts" in *[!a-z0-9,-]*) why="the parts can only be names such as plex,observability" ;; esac
+        if [ ${#parts} -gt 200 ]; then why="the list of parts is too long"; fi
+        # One left while this service was stopped is too old to act on now.
+        if [ -n "$(find "$req" -mmin +10 2>/dev/null)" ]; then why="it was more than 10 minutes old"; fi
+        if [ -n "$why" ]; then
+            echo "stack: refused request $id: $why"
+            echo "Refused: $why." >state/stack-watch.out
+            answer "$id" "$action" refused 2 state/stack-watch.out
+            rm -f "$req" state/stack-watch.out
+            return 0
+        fi
+        echo "stack: $action KIA_STACK=$parts (request $id)"
+        answer "$id" "$action" running ""  # so the Dashboard can say it's under way
+        if [ "$action" = apply ]; then set -- apply --stack "$parts" --yes; else set -- check --stack "$parts"; fi
+        code=0
+        sh scripts/stack.sh "$@" >state/stack-watch.out 2>&1 </dev/null || code=$?
+        answer "$id" "$action" finished "$code" state/stack-watch.out
+        rm -f "$req" state/stack-watch.out
+        containers  # apply changes what runs: show it at once
+    }
+
+    echo "stack: watching for requests from the Dashboard's Stack page (Ctrl-C stops)"
+    round=0
+    while :; do
+        if [ $((round % 10)) -eq 0 ]; then containers; fi  # every 30 seconds
+        take_request
+        [ "$once" = no ] || exit 0
+        round=$((round + 1))
+        sleep 3
+    done
+fi
+
 if [ -n "$preset" ]; then
     [ "$cmd" = apply ] || { echo "stack: --preset goes with apply" >&2; exit 2; }
     [ -f "stacks/$preset.env" ] || { echo "stack: there's no preset $preset (scripts/stack.sh list)" >&2; exit 2; }
@@ -70,11 +160,25 @@ if [ -n "$preset" ]; then
     echo "KIA_STACK=$chosen (preset $preset)"
 fi
 
-features=$(get KIA_STACK | tr ' ' ',' | tr -s ',' | sed 's/^,//; s/,$//')
+if [ "$try_set" = yes ]; then
+    # Only names, commas, and dashes: the Dashboard sends this through watch, and set_env
+    # hands it to awk, which would read a backslash in it as the start of an escape.
+    case "$try" in *[!a-z0-9,\ -]*) echo "stack: --stack takes part names, such as plex,observability (scripts/stack.sh list)" >&2; exit 2 ;; esac
+    [ "$cmd" = check ] || [ "$cmd" = apply ] || { echo "stack: --stack goes with check or apply" >&2; exit 2; }
+    [ -z "$preset" ] || { echo "stack: use --preset or --stack, not both" >&2; exit 2; }
+    if [ "$cmd" = apply ]; then
+        set_env KIA_STACK "$try"
+        echo "KIA_STACK=$try"
+    fi
+fi
+
+# check --stack tries a choice without changing .env; otherwise the choice is .env's.
+if [ "$try_set" = yes ]; then features=$try; else features=$(get KIA_STACK); fi
+features=$(echo "$features" | tr ' ' ',' | tr -s ',' | sed 's/^,//; s/,$//')
 chosen=yes
 # Not chosen this way yet: no KIA_STACK line (an .env from before it), or an empty one next
 # to COMPOSE_PROFILES set by hand. Then COMPOSE_PROFILES decides, and apply leaves it alone.
-if [ -z "$features" ] && [ -z "$preset" ] && { ! grep -q '^KIA_STACK=' .env || [ -n "$(get COMPOSE_PROFILES)" ]; }; then
+if [ -z "$features" ] && [ -z "$preset" ] && [ "$try_set" = no ] && { ! grep -q '^KIA_STACK=' .env || [ -n "$(get COMPOSE_PROFILES)" ]; }; then
     chosen=no
     profiles=$(get COMPOSE_PROFILES)
     if grep -q '^KIA_STACK=' .env; then why="KIA_STACK is empty"; else why="KIA_STACK isn't in .env"; fi

@@ -34,6 +34,7 @@ def kia(tmp_path: Path) -> Path:
          '  *"ps --services --status running"*) printf "kia\\nweb\\njellyfin\\n" ;;\n'
          '  *"ps --all --services"*) printf "kia\\nweb\\njellyfin\\nthreadfin-2\\n" ;;\n'
          '  *"config --services"*) printf "kia\\nweb\\nthreadfin\\nplex\\n" ;;\n'
+         '  *"ps --all --format"*) printf "kia\\trunning\\thealthy\\tUp 2 hours\\n" ;;\n'
          'esac\n')  # fmt: skip
     stub(bin_dir, "uname", 'echo "${FAKE_OS:-Linux}"\n')
     stub(bin_dir, "nc", 'exit 1\n')  # nothing listens anywhere
@@ -161,3 +162,107 @@ def test_apply_starts_its_profiles_even_with_others_in_the_shell(kia: Path):
     assert r.returncode == 0, r.stdout + r.stderr
     calls = (kia.parent / "docker.log").read_text().splitlines()
     assert "COMPOSE_PROFILES=plex,plex-server compose up -d --quiet-pull" in calls
+
+
+def request(kia: Path, **fields: str) -> Path:
+    """A request from the Dashboard's Stack page, as kia leaves it in state/."""
+    (kia / "state").mkdir(exist_ok=True)
+    path = kia / "state" / "stack-request"
+    path.write_text("".join(f"{k}={v}\n" for k, v in fields.items()))
+    return path
+
+
+def answer(kia: Path) -> tuple[dict, str]:
+    head, _, said = (kia / "state" / "stack-result").read_text().partition("\n\n")
+    return dict(line.split("=", 1) for line in head.splitlines()), said
+
+
+def test_check_can_try_a_choice_without_changing_env(kia: Path):
+    with_stack(kia, "plex")
+    before = (kia / ".env").read_text()
+    r = stack(kia, "check", "--stack", "jellyfin")
+    assert r.returncode == 0 and "COMPOSE_PROFILES=jellyfin-server" in r.stdout
+    assert (kia / ".env").read_text() == before
+
+
+def test_stack_takes_part_names_only(kia: Path):
+    # Whatever reaches --stack goes into .env through awk, which reads backslashes as escapes.
+    for odd in ("plex;reboot", "plex\\n", "plex$(id)", "PLEX"):
+        r = stack(kia, "check", "--stack", odd)
+        assert r.returncode == 2 and "part names" in r.stderr, odd
+
+
+def test_watch_carries_out_a_check_and_lists_the_containers(kia: Path):
+    with_stack(kia, "plex")
+    before = (kia / ".env").read_text()
+    request(kia, id="req-1", action="check", stack="jellyfin")
+    r = stack(kia, "watch", "--once")
+    assert r.returncode == 0, r.stderr
+    head, said = answer(kia)
+    assert head["id"] == "req-1" and head["action"] == "check" and head["state"] == "finished" and head["exit"] == "0"
+    assert "COMPOSE_PROFILES=jellyfin-server" in said
+    assert (kia / ".env").read_text() == before and not (kia / "state" / "stack-request").exists()
+    assert (kia / "state" / "stack-containers.tsv").read_text() == "kia\trunning\thealthy\tUp 2 hours\n"
+    assert not (kia / "state" / "stack-watch.pid").exists()  # removed when it stops
+
+
+def test_watch_applies_a_new_choice(kia: Path):
+    with_stack(kia, "plex")
+    request(kia, id="req-2", action="apply", stack="jellyfin")
+    stack(kia, "watch", "--once")
+    head, _ = answer(kia)
+    assert head["state"] == "finished" and head["exit"] == "0"
+    assert "KIA_STACK=jellyfin" in (kia / ".env").read_text()
+    assert "COMPOSE_PROFILES=jellyfin-server compose up -d" in (kia.parent / "docker.log").read_text()
+
+
+@pytest.mark.parametrize(("fields", "why"), [
+    ({"action": "rm"}, "other than check or apply"),
+    ({"stack": "plex$(touch hacked)"}, "only be names"),
+    ({"stack": "plex\\nobservability"}, "only be names"),
+    ({"stack": "plex," * 60}, "too long"),
+])  # fmt: skip
+def test_watch_refuses_a_request_it_cant_trust(kia: Path, fields, why):
+    with_stack(kia, "plex")
+    before = (kia / ".env").read_text()
+    request(kia, **{"id": "req-3", "action": "apply", "stack": "jellyfin", **fields})
+    stack(kia, "watch", "--once")
+    head, said = answer(kia)
+    assert head["state"] == "refused" and head["exit"] == "2" and why in said
+    assert (kia / ".env").read_text() == before and "up -d" not in (kia.parent / "docker.log").read_text()
+    assert not list(kia.rglob("hacked"))
+
+
+def test_watch_refuses_an_old_request(kia: Path):
+    import os
+    import time
+
+    path = request(kia, id="req-4", action="apply", stack="jellyfin")
+    old = time.time() - 20 * 60
+    os.utime(path, (old, old))
+    stack(kia, "watch", "--once")
+    head, said = answer(kia)
+    assert head["state"] == "refused" and "10 minutes old" in said
+
+
+def test_watch_ignores_a_request_without_a_proper_id(kia: Path):
+    request(kia, id="../../etc", action="check", stack="plex")
+    r = stack(kia, "watch", "--once")
+    assert "without a proper id" in r.stdout and not (kia / "state" / "stack-result").exists()
+    assert not (kia / "state" / "stack-request").exists() and not (kia / "state" / "stack-request.taken").exists()
+
+
+def test_only_one_watch_at_a_time(kia: Path):
+    import os
+
+    (kia / "state").mkdir()
+    (kia / "state" / "stack-watch.pid").write_text(f"{os.getpid()}\n")  # this test's own process: alive
+    r = stack(kia, "watch", "--once")
+    assert r.returncode == 1 and "already running" in r.stderr
+
+
+def test_the_stack_service_file(tmp_path: Path):
+    out = subprocess.run(["sh", str(ROOT / "scripts" / "install-service.sh"), "--stack", "--dry-run"],
+                         capture_output=True, text=True, check=True).stdout  # fmt: skip
+    assert "stack.sh" in out and "watch" in out and str(ROOT) in out
+    assert "@DIR@" not in out and "@PATH@" not in out and "kia daemon" not in out
