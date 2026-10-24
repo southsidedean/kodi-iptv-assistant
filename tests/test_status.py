@@ -262,6 +262,18 @@ def test_a_readable_env_file_is_flagged(tmp_path: Path):
         assert 'id="env-warning"' not in status.render_html(s)
 
 
+def test_the_observability_button_opens_grafana_over_https(monkeypatch):
+    from kia import htmlpage
+
+    monkeypatch.delenv("KIA_GRAFANA_URL", raising=False)
+    monkeypatch.delenv("KIA_GRAFANA_PORT", raising=False)
+    monkeypatch.setenv("KIA_PUBLIC_URL", "http://192.168.1.20:8780")
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex,monitoring")
+    assert htmlpage.grafana_url() == "https://192.168.1.20:8788"  # Grafana in the stack serves HTTPS only
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")
+    assert htmlpage.grafana_url() is None
+
+
 def test_the_header_buttons_open_in_a_new_tab(monkeypatch):
     from kia import htmlpage
 
