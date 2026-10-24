@@ -2,6 +2,14 @@
 
 ## 0.5.5 (unreleased)
 
+### Upgrading from 0.5.4
+
+Update with `scripts/update.sh`. With the `monitoring` profile on, Grafana's address changes from `http://` to `https://` (same port, 8788); your browser warns about kia's certificate the first time. Bookmarks need the new address; the Dashboard's **Observability** button has it.
+
+### Observability
+
+- Grafana answers only over HTTPS, with kia's own certificate from `tls/` (the secure Dashboard's, or yours if you put one there), so its password no longer crosses your network in plain text. Grafana checks the certificate files every minute, so kia's renewals and your own certificate need no restart. The Dashboard's **Observability** button opens the `https://` address.
+
 ## 0.5.4 (2026-10-24)
 
 ### Upgrading from 0.5.3

@@ -63,7 +63,7 @@ docker compose up -d
 
 ## 3. Open Grafana
 
-Go to `http://192.168.1.20:8788`, with your kia's address, and sign in as `admin` with the password from step 1. If you didn't choose one, it's in `monitoring/grafana/admin-password.txt` in the kia folder; on a Mac, `docker compose exec grafana cat /var/lib/grafana/admin-password.txt` shows it ([why](../configuration.md#on-a-mac)). The kia dashboard opens first; the buttons at the top lead to the other three. kia's own Dashboard also gets an **Observability** button that opens it.
+Go to `https://192.168.1.20:8788`, with your kia's address. Grafana uses kia's own certificate, the same as the [secure Dashboard](../secure-page.md), so your browser warns about it the first time; accept it for this address. Sign in as `admin` with the password from step 1. If you didn't choose one, it's in `monitoring/grafana/admin-password.txt` in the kia folder; on a Mac, `docker compose exec grafana cat /var/lib/grafana/admin-password.txt` shows it ([why](../configuration.md#on-a-mac)). The kia dashboard opens first; the buttons at the top lead to the other three. kia's own Dashboard also gets an **Observability** button that opens it.
 
 The graphs start when Prometheus does, so they fill in over the following hours, and the refreshes over the following nights.
 
@@ -109,7 +109,7 @@ Prometheus picks new files up within a few minutes, without a restart.
 
 ## Good to know
 
-- **Ports.** Grafana is on 8788 (`KIA_GRAFANA_PORT`). Prometheus is on 8789 (`KIA_PROMETHEUS_PORT`), open to this computer only, because its page has no password. Both stay off the common ports 3000 and 9090, which other programs often use.
+- **Ports.** Grafana is on 8788 (`KIA_GRAFANA_PORT`), over HTTPS only. Prometheus is on 8789 (`KIA_PROMETHEUS_PORT`), open to this computer only, because its page has no password. Both stay off the common ports 3000 and 9090, which other programs often use.
 - **How long it keeps.** 30 days (`KIA_PROMETHEUS_RETENTION`, such as `90d`). The numbers are in `monitoring/prometheus`, and Grafana's settings in `monitoring/grafana`, in the kia folder (on a Mac, in the Docker volume `grafana-data`).
 - **kia's numbers on their own.** kia publishes them at `http://192.168.1.20:8780/metrics` for any Prometheus you already have; [metrics](../metrics.md) lists them.
 - **Turning it off.** Remove `monitoring` (and `monitoring-node`, `monitoring-gpu`, `monitoring-disks`) from `COMPOSE_PROFILES`, then `docker compose rm -sf prometheus grafana cadvisor node-exporter dcgm-exporter smartctl-exporter`. On a Mac, `brew services stop node_exporter` too. The numbers stay in `monitoring/` until you delete them.
@@ -117,6 +117,10 @@ Prometheus picks new files up within a few minutes, without a restart.
 ## If something's wrong
 
 **The computer's graphs are empty.** Nothing is answering on port 9100. On Linux, add `monitoring-node` to `COMPOSE_PROFILES` (step 2); if a firewall runs on the computer, it has to let Docker's network reach port 9100. On a Mac, check that node-exporter runs (`brew services list`) and start it with `brew services start node_exporter`.
+
+**The browser says "Client sent an HTTP request to an HTTPS server".** The address starts with `http://`; use `https://`. Grafana answers only over HTTPS.
+
+**Grafana keeps restarting, or won't start after kia was reinstalled.** It reads kia's certificate from `tls/` in the kia folder, which kia makes when it starts; `docker compose logs grafana` says if a file is missing. Start kia first (`docker compose up -d`).
 
 **Grafana won't start: "address already in use".** Something else has port 8788. Set `KIA_GRAFANA_PORT` to another one, such as `8798`, and run `docker compose up -d`.
 

@@ -375,7 +375,12 @@ services:
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    depends_on: [prometheus]
+    # kia makes the HTTPS certificate when it starts; Grafana reads it from tls/.
+    depends_on:
+      prometheus:
+        condition: service_started
+      kia:
+        condition: service_healthy
     # The admin password: KIA_GRAFANA_PASSWORD, or else a random one made on the first start
     # and saved in monitoring/grafana/admin-password.txt. Never Grafana's default "admin".
     # Grafana reads it only when it sets itself up, the first time it starts.
@@ -404,6 +409,12 @@ services:
       # need only the bundled Prometheus plugin; a new image brings its updates.
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
+      # HTTPS only, with kia's own certificate (the secure Dashboard's, in tls/), or yours if
+      # you put one there. Grafana checks the files every minute, so a renewal needs no restart.
+      GF_SERVER_PROTOCOL: https
+      GF_SERVER_CERT_FILE: /etc/kia-tls/fullchain.pem
+      GF_SERVER_CERT_KEY: /etc/kia-tls/privkey.pem
+      GF_SERVER_CERTS_WATCH_INTERVAL: 1m
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/kia/kia.json
       # A soft memory budget: Grafana gives memory back sooner (it peaks around 1 GB on its first start).
       GOMEMLIMIT: 384MiB
@@ -414,6 +425,7 @@ services:
       - ./deploy/monitoring/dashboards:/etc/grafana/dashboards/kia:ro
       - ./monitoring/dashboards:/etc/grafana/dashboards/local:ro
       - ${KIA_GRAFANA_DATA:-./monitoring/grafana}:/var/lib/grafana
+      - ./tls:/etc/kia-tls:ro
 
   cadvisor:
     profiles: ["monitoring"]
