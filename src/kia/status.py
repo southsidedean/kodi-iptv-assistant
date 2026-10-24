@@ -731,14 +731,14 @@ def render_sources(s: dict) -> str:
         '<div class="body"></div></section>'
     )
     body = f"<main><h1>Sources</h1>{choose}{streams}</main>"
-    return page("Sources - kia", body, _footer(s), sourceeditor.SCRIPT, sourceeditor.STYLE, current="sources.html")
+    return page("Sources - kia", body, _footer(s), sourceeditor.SCRIPT, editor.STYLE + sourceeditor.STYLE, current="sources.html")
 
 
 def render_stack(s: dict) -> str:
     """Stack: what runs next to kia, and on the secure page, choosing what runs (stackeditor)."""
     card = f'<section class="card" id="stack-page"{_secure_attr(s)} hidden><div class="body"></div></section>'
     body = f"<main><h1>Stack</h1>{card}</main>"
-    return page("Stack - kia", body, _footer(s), stackeditor.SCRIPT, stackeditor.STYLE, current="stack.html")
+    return page("Stack - kia", body, _footer(s), stackeditor.SCRIPT, editor.STYLE + stackeditor.STYLE, current="stack.html")
 
 
 def render_guide(s: dict) -> str:

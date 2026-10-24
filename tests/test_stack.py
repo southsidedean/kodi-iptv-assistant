@@ -226,4 +226,6 @@ def test_the_stack_page_is_in_the_menu(tmp_path: Path):
     s = status.collect(tmp_path, tmp_path, {}, None)
     html = status.render_stack(s)
     assert 'id="stack-page"' in html and 'fetch("api/stack"' in html
+    # The password box and buttons use the shared form styles; the Sources page needs them too.
+    assert ".editor label.field" in html and ".editor label.field" in status.render_sources(s)
     assert 'href="stack.html"' in status.render_html(s)

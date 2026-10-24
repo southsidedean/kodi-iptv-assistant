@@ -11,7 +11,9 @@ asking, so the page asks instead.
 """
 
 STYLE = """
-/* The Stack page */
+/* The Stack page (with the shared form styles, editor.STYLE) */
+#stack-page section + section { margin-top: var(--space-4); }
+#stack-page h2 { margin-top: 0; }
 #stack-page table { width: 100%; border-collapse: collapse; }
 #stack-page th, #stack-page td { text-align: left; padding: .4rem .5rem; border-top: 1px solid var(--line); vertical-align: top; }
 #stack-page th { color: var(--muted); font-weight: 600; font-size: var(--step--1); }
