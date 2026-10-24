@@ -38,13 +38,13 @@ For two tuners, make two playlists named `plex-1` and `plex-2`, each with **For 
 In kia's folder, set this line in the `.env` file (it's already there, empty):
 
 ```sh
-COMPOSE_PROFILES=plex
+KIA_STACK=plex-tuner
 ```
 
-For two tuners, write `COMPOSE_PROFILES=plex,plex-2` instead. Then start it:
+For two tuners, write `KIA_STACK=plex-tuner,plex-tuner-2` instead. Add any other parts you use, such as `observability` ([choosing the parts](stack.md)). Don't use `plex` here: that part runs Plex itself too, for a Plex in kia's stack. Then check the choice and start it:
 
 ```sh
-docker compose up -d
+scripts/stack.sh apply
 docker compose ps
 ```
 

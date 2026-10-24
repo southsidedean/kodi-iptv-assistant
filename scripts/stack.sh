@@ -17,7 +17,7 @@ while [ $# -gt 0 ]; do
         status | check | apply | list) cmd=$1 ;;
         --preset) [ $# -gt 1 ] || { echo "stack: --preset needs a name (scripts/stack.sh list)" >&2; exit 2; }; preset=$2; shift ;;
         --yes | -y) ask=no ;;
-        -h | --help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h | --help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "stack: unknown option $1 (see --help)" >&2; exit 2 ;;
     esac
     shift
@@ -42,7 +42,12 @@ set_env() {  # set_env NAME VALUE: replace the line, or add it
     fi
 }
 has() { case ",$features," in *",$1,"*) return 0 ;; esac; return 1; }
-listening() { command -v nc >/dev/null 2>&1 && nc -z -w 2 127.0.0.1 "$1" >/dev/null 2>&1; }
+listening() {  # something answers on this port here
+    if command -v nc >/dev/null 2>&1; then nc -z -w 2 127.0.0.1 "$1" >/dev/null 2>&1
+    elif command -v ss >/dev/null 2>&1; then ss -Hltn "sport = :$1" 2>/dev/null | grep -q .
+    else return 1
+    fi
+}
 running() { docker compose ps --services --status running 2>/dev/null | grep -qx "$1"; }
 
 if [ "$cmd" = list ]; then
@@ -67,12 +72,14 @@ fi
 
 features=$(get KIA_STACK | tr ' ' ',' | tr -s ',' | sed 's/^,//; s/,$//')
 chosen=yes
-if [ -z "$features" ] && ! grep -q '^KIA_STACK=' .env; then
+# Not chosen this way yet: no KIA_STACK line (an .env from before it), or an empty one next
+# to COMPOSE_PROFILES set by hand. Then COMPOSE_PROFILES decides, and apply leaves it alone.
+if [ -z "$features" ] && [ -z "$preset" ] && { ! grep -q '^KIA_STACK=' .env || [ -n "$(get COMPOSE_PROFILES)" ]; }; then
     chosen=no
-    # Not chosen this way yet: say what COMPOSE_PROFILES amounts to.
     profiles=$(get COMPOSE_PROFILES)
-    echo "KIA_STACK isn't in .env, so COMPOSE_PROFILES decides what runs: ${profiles:-kia and its web server only}."
-    echo "To choose with this script instead, add a KIA_STACK line (scripts/stack.sh list shows the parts)."
+    if grep -q '^KIA_STACK=' .env; then why="KIA_STACK is empty"; else why="KIA_STACK isn't in .env"; fi
+    echo "$why, so COMPOSE_PROFILES decides what runs: ${profiles:-kia and its web server only}."
+    echo "To choose with this script instead, set KIA_STACK (scripts/stack.sh list shows the parts)."
     [ "$cmd" = status ] || exit 1
 fi
 
@@ -101,6 +108,9 @@ IFS=$old_ifs
 if has plex && has plex-tuner; then problem "plex already brings its tuner; leave plex-tuner out"; fi
 if has plex-tuner-2 && ! has plex && ! has plex-tuner; then problem "plex-tuner-2 goes with plex or plex-tuner"; fi
 
+if ! command -v nc >/dev/null 2>&1 && ! command -v ss >/dev/null 2>&1; then
+    note "neither nc nor ss is installed, so ports already in use can't be checked"
+fi
 nvidia=no
 if docker info 2>/dev/null | grep -qi nvidia; then nvidia=yes; fi
 if [ "$OS" = Darwin ]; then
@@ -143,11 +153,12 @@ if has plex; then
 fi
 # Threadfin reads kia's playlist for Plex, and stops with an error while it doesn't exist.
 if has plex || has plex-tuner; then
+    if has plex; then guide="docs/cookbooks/plex-box.md, step 2"; else guide="docs/plex.md, step 1"; fi
     first=$(get KIA_THREADFIN_PLAYLIST)
     if [ -n "$first" ] && [ ! -f "output/$first.m3u" ]; then
         problem "there's no playlist named $first (KIA_THREADFIN_PLAYLIST) for Threadfin yet: make it on the secure Dashboard, under Playlists"
     elif [ -z "$first" ] && [ ! -f output/plex.m3u ] && [ ! -f output/plex-1.m3u ]; then
-        problem "there's no playlist named plex for Threadfin yet: make it on the secure Dashboard, under Playlists, with For Plex through Threadfin ticked (docs/cookbooks/plex-box.md, step 2)"
+        problem "there's no playlist named plex for Threadfin yet: make it on the secure Dashboard, under Playlists, with For Plex through Threadfin ticked ($guide)"
     fi
     if has plex-tuner-2; then
         second=$(get KIA_THREADFIN_2_PLAYLIST); second=${second:-plex-2}
@@ -240,9 +251,11 @@ set_env COMPOSE_PROFILES "$(echo "$profiles" | tr ' ' ',')"
 if has plex && [ -z "$(get KIA_PLEX_URL)" ]; then set_env KIA_PLEX_URL http://plex:32400; fi
 if has jellyfin && [ -z "$(get KIA_JELLYFIN_URL)" ]; then set_env KIA_JELLYFIN_URL http://jellyfin:8096; fi
 
-docker compose up -d --quiet-pull
+# The profiles given here too: one exported in this shell would win over .env's.
+compose_profiles=$(echo "$profiles" | tr ' ' ',')
+COMPOSE_PROFILES=$compose_profiles docker compose up -d --quiet-pull
 # Parts no longer chosen keep running until they're stopped.
-wanted=$(docker compose config --services)
+wanted=$(COMPOSE_PROFILES=$compose_profiles docker compose config --services)
 # Any state: one stuck restarting, or a finished setup container, goes too.
 for service in $(COMPOSE_PROFILES='*' docker compose ps --all --services 2>/dev/null); do
     if ! echo "$wanted" | grep -qx "$service"; then

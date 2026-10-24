@@ -135,8 +135,29 @@ def test_threadfin_needs_its_playlist_first(kia: Path):
     with_stack(kia, "plex")
     r = stack(kia, "check")
     assert r.returncode == 1 and "no playlist named plex for Threadfin yet" in r.stdout
+    assert "plex-box.md, step 2" in r.stdout  # Plex in the stack: the cookbook
     (kia / "output" / "plex-1.m3u").write_text("#EXTM3U\n")  # the split names work too
     with_stack(kia, "plex-tuner,plex-tuner-2")
     (kia / "output" / "plex-2.m3u").unlink()
     r = stack(kia, "check")
     assert "no playlist named plex-2 for the second Threadfin" in r.stdout and "named plex for" not in r.stdout
+    (kia / "output" / "plex-1.m3u").unlink()
+    assert "docs/plex.md, step 1" in stack(kia, "check").stdout  # a Plex elsewhere: the Plex guide
+
+
+def test_an_empty_kia_stack_leaves_compose_profiles_set_by_hand_alone(kia: Path):
+    env = (kia / ".env").read_text().replace("COMPOSE_PROFILES=\n", "COMPOSE_PROFILES=plex\n")
+    (kia / ".env").write_text(env + "KIA_STACK=\n")  # as .env.example has it, then docs/plex.md by hand before 0.5.6
+    r = stack(kia, "check")
+    assert r.returncode == 1 and "KIA_STACK is empty, so COMPOSE_PROFILES decides what runs: plex" in r.stdout
+    assert stack(kia, "apply", "--yes").returncode == 1
+    assert "COMPOSE_PROFILES=plex\n" in (kia / ".env").read_text()
+    assert not (kia.parent / "docker.log").exists() or "up -d" not in (kia.parent / "docker.log").read_text()
+    assert stack(kia, "apply", "--preset", "plex-elsewhere", "--yes").returncode == 0  # a preset is a choice
+
+
+def test_apply_starts_its_profiles_even_with_others_in_the_shell(kia: Path):
+    r = stack(kia, "apply", "--preset", "plex-box", "--yes", COMPOSE_PROFILES="monitoring")
+    assert r.returncode == 0, r.stdout + r.stderr
+    calls = (kia.parent / "docker.log").read_text().splitlines()
+    assert "COMPOSE_PROFILES=plex,plex-server compose up -d --quiet-pull" in calls

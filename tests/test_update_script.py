@@ -1,5 +1,6 @@
 """scripts/update.sh: moves kia to its newest release (not a test release, not main),
-refuses when kia's own files were changed, and asks before restarting while someone watches."""
+refuses when kia's own files were changed, and asks before restarting while someone watches.
+Docker and curl are stand-ins."""
 
 import shutil
 import subprocess
@@ -93,3 +94,40 @@ def test_services_restart_when_their_mounted_config_files_change(copy: Path):
     log.write_text("")
     assert update(copy, "v0.4.0").returncode == 0  # already there: nothing changed, nothing restarts
     assert not any(c.startswith("compose restart") for c in log.read_text().splitlines())
+
+
+def test_asks_first_while_someone_watches_through_jellyfin(copy: Path):
+    (copy.parent / "bin" / "curl").write_text(
+        '#!/bin/sh\nprintf \'kia_jellyfin_sessions{kind="live",video="copy",hw="none",location="lan"} 1\\n\'\n')
+    (copy.parent / "bin" / "curl").chmod(0o755)
+    r = update(copy)  # no terminal to answer: not restarted
+    assert r.returncode == 0 and "kia says: 1 playing" in r.stdout and "Not restarted" in r.stdout
+    assert not (copy.parent / "docker.log").exists()
+
+
+def test_a_failed_run_still_restarts_what_changed_on_the_next_one(copy: Path):
+    origin = copy.parent / "origin"
+    (origin / "deploy").mkdir()
+    (origin / "deploy" / "nginx.conf").write_text("server {}\n")
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "new settings")
+    git(origin, "tag", "v0.4.0")
+    log = copy.parent / "docker.log"
+    (copy.parent / "bin" / "docker").write_text(
+        f'#!/bin/sh\necho "$*" >> {log}\n'
+        '[ -e "$HOME/docker-down" ] && exit 1\n'
+        'case "$*" in *"ps --services --status running"*) echo web ;; esac\n')
+    (copy.parent / "docker-down").touch()
+    assert update(copy, "v0.4.0").returncode != 0  # Docker isn't running: the files moved, nothing restarted
+    (copy.parent / "docker-down").unlink()
+    r = update(copy, "v0.4.0")
+    assert r.returncode == 0 and "Restarted web" in r.stdout
+    assert update(copy, "v0.4.0").returncode == 0 and "Restarted web" not in update(copy, "v0.4.0").stdout
+
+
+def test_a_published_image_follows_the_release(copy: Path):
+    (copy / ".env").write_text("KIA_PORT=1\nKIA_IMAGE=ghcr.io/example/kia:0.1.0\n")
+    r = update(copy)
+    assert r.returncode == 0, r.stderr
+    assert "KIA_IMAGE=ghcr.io/example/kia:0.2.0\n" in (copy / ".env").read_text()
+    assert (copy.parent / "docker.log").read_text().splitlines() == ["compose pull", "compose up -d"]

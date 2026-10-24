@@ -69,7 +69,7 @@ def test_installer_offers_every_preset_and_applies_only_a_new_env():
     start = text[text.index('step "Starting kia'):text.index('step "Done"')]
     choose = text[text.index('plex_next=no apply_now=no'):text.index('step "Starting kia')]
     assert 'if [ "$new_env" = yes ]; then apply_now=yes' in choose  # never --yes on an existing .env
-    assert "*,plex,*) plex_next=yes" in choose  # Plex's claim code is the person's to get
+    assert "*,plex,* | *,plex-tuner,*) plex_next=yes" in choose  # the playlist and claim code are the person's
     assert "scripts/stack.sh apply --yes" in start
 
 
