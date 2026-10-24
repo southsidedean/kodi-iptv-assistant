@@ -98,7 +98,7 @@ Every page has the same menu at the top, a **Documentation** button that opens t
 
 <img src="../images/kia-timeline-phone.png" width="300" alt="A playlist's Timeline on a phone: three hours from 11 PM, channel names down the side, a red line at the current time, and a tapped show's title and times under its channel">
 
-![kia's Dashboard: the menu, a banner saying everything's working, the Getting started checklist, the channel counts, and four playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
+![kia's Dashboard: the menu, a banner saying everything's working, the Your stack tiles for Threadfin, Plex, Grafana, and the exporters, the Getting started checklist, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 

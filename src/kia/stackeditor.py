@@ -201,13 +201,15 @@ SCRIPT = r"""
   }
 
   function answered(res, action, parts) {
-    card.show(res.output);
     var ok = res.exit === "0";
+    // After an apply, what runs has changed: draw the page again, then show the answer.
+    if (action === "apply") draw();
+    card.show(res.output);
     if (res.state === "refused") card.say("The kia-stack service refused it: see below.", true);
     else if (action === "check") card.say(ok ? "No problems. Apply makes the change." : "Check found problems: see below. Apply stays off until they're fixed.", !ok);
-    else card.say(ok ? "Done. What runs now is below." : "The change didn't finish: see below.", !ok);
+    else card.say(ok ? "Done. What runs now is above." : "The change didn't finish: see below.", !ok);
+    // Apply needs a new Check after this: of this choice, if this was one that passed.
     checked = action === "check" ? { parts: parts, code: res.exit, output: res.output } : null;
-    if (action === "apply") { draw(); card.show(res.output); card.say(ok ? "Done. What runs now is above." : "The change didn't finish: see below.", !ok); return; }
     finish();
   }
   function finish() { card.buttons[0].disabled = !data.service; card.changed(); }
