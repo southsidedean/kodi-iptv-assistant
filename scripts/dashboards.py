@@ -249,31 +249,47 @@ def stack() -> Board:
     return b
 
 
-def plex() -> Board:
-    b = Board("kia-plex", "Plex", "Who's watching on Plex, from kia (KIA_PLEX_URL in .env).",
-              "kia isn't set up to ask Plex (KIA_PLEX_URL in .env)")  # fmt: skip
+def media(name: str, title: str, url: str) -> Board:
+    """The Plex or Jellyfin dashboard: who's watching, from kia's kia_<name>_* numbers."""
+    off = f"kia isn't set up to ask {title} ({url} in .env)"
+    b = Board(f"kia-{name}", title, f"Who's watching on {title}, from kia ({url} in .env).", off)
+    sessions = f"kia_{name}_sessions"
     b.row("Now")
-    b.stat("Plex", "Whether Plex answered kia.", "kia_plex_up",
+    b.stat(title, f"Whether {title} answered kia.", f"kia_{name}_up",
            mappings=[{"type": "value", "options": {"0": {"text": "Not answering", "color": "red"}, "1": {"text": "OK", "color": "green"}}}],
            thresholds=[{"color": "red", "value": None}, {"color": "green", "value": 1}])  # fmt: skip
-    b.stat("Watching Live TV", "Plex players on Live TV now.", 'sum(kia_plex_sessions{kind="live"}) or vector(0)', w=5)
-    b.stat("Watching anything", "Plex players playing anything now.", 'sum(kia_plex_sessions{kind!="none"}) or vector(0)', w=5)
-    b.stat("Converting video", "Players Plex is converting video for (transcoding), which takes the most processor time.",
-           'sum(kia_plex_sessions{video="transcode"}) or vector(0)', w=5)  # fmt: skip
-    b.stat("Away from home", "Players outside your home network.", 'sum(kia_plex_sessions{location="wan"}) or vector(0)', w=5)
-    b.table("Playing now", "Every Plex player now, what it's playing, and how. Players are shown by a pseudonym; "
-            "kia's System page (the secure one) shows which is which.", "kia_plex_session_info",
+    b.stat("Watching Live TV", f"{title} players on Live TV now.", f'sum({sessions}{{kind="live"}}) or vector(0)', w=5)
+    b.stat("Watching anything", f"{title} players playing anything now.", f'sum({sessions}{{kind!="none"}}) or vector(0)', w=5)
+    b.stat("Converting video", f"Players {title} is converting video for (transcoding), which takes the most processor time.",
+           f'sum({sessions}{{video="transcode"}}) or vector(0)', w=5)  # fmt: skip
+    b.stat("Away from home", "Players outside your home network.", f'sum({sessions}{{location="wan"}}) or vector(0)', w=5)
+    b.table("Playing now", f"Every {title} player now, what it's playing, and how. Players are shown by a pseudonym; "
+            "kia's System page (the secure one) shows which is which.", f"kia_{name}_session_info",
             ["player", "product", "kind", "video", "location", "state"], no_value="Nothing playing")  # fmt: skip
     b.row("Over time")
-    b.graph("Sessions by kind", "Live TV, movies, episodes, and music.", [('sum by (kind) (kia_plex_sessions{kind!="none"})', "{{kind}}")],
+    b.graph("Sessions by kind", "Live TV, movies, episodes, and music.", [(f'sum by (kind) ({sessions}{{kind!="none"}})', "{{kind}}")],
             stack=True, no_value="Nothing played in this time")  # fmt: skip
     b.graph("Sessions by video", "Copied as it is (copy, directplay) or converted (transcode).",
-            [('sum by (video) (kia_plex_sessions{kind!="none"})', "{{video}}")], stack=True, no_value="Nothing played in this time")  # fmt: skip
-    b.graph("Converting on", "Where Plex converts video: on the graphics card (gpu) or the processor (cpu).",
-            [('sum by (hw) (kia_plex_sessions{video="transcode"})', "{{hw}}")], stack=True, no_value="Nothing converted in this time")  # fmt: skip
+            [(f'sum by (video) ({sessions}{{kind!="none"}})', "{{video}}")], stack=True, no_value="Nothing played in this time")  # fmt: skip
+    b.graph("Converting on", f"Where {title} converts video: on the graphics card (gpu) or the processor (cpu).",
+            [(f'sum by (hw) ({sessions}{{video="transcode"}})', "{{hw}}")], stack=True, no_value="Nothing converted in this time")  # fmt: skip
+    return b
+
+
+def plex() -> Board:
+    b = media("plex", "Plex", "KIA_PLEX_URL")
     b.graph("Threadfin streaming", "What the Threadfins send to Plex: Live TV from kia's channels.",
             [(f'sum by ({SVC}) (rate(container_network_transmit_bytes_total{{{SVC}=~"threadfin.*"}}[2m])) * 8', f"{{{{{SVC}}}}}")],
             "bps", w=24, no_value="No Threadfin streaming to Plex now")  # fmt: skip
+    return b
+
+
+def jellyfin() -> Board:
+    b = media("jellyfin", "Jellyfin", "KIA_JELLYFIN_URL")
+    # Jellyfin reads kia's channels itself, so what it sends players is its own container's traffic.
+    b.graph("Jellyfin streaming", "What Jellyfin in the stack sends to players. A Jellyfin outside Docker isn't here.",
+            [(f'sum(rate(container_network_transmit_bytes_total{{{SVC}="jellyfin"}}[2m])) * 8', "Jellyfin")],
+            "bps", w=24, no_value="No Jellyfin container in this stack")  # fmt: skip
     return b
 
 
@@ -291,13 +307,14 @@ def hardware() -> Board:
     b.row("Graphics card (observability-gpu)")
     b.stat("Temperature", "The graphics card's temperature.", "max(DCGM_FI_DEV_GPU_TEMP)", "celsius", thresholds=hot, no_value=GPU_OFF_TILE)
     b.stat("Power", "What the card draws now.", "sum(DCGM_FI_DEV_POWER_USAGE)", "watt", decimals=0, no_value=GPU_OFF_TILE)
-    b.stat("Encoder", "The card's video encoder, which Plex uses when it converts video on the card.",
+    b.stat("Encoder", "The card's video encoder, which Plex and Jellyfin use when they convert video on the card.",
            "max(DCGM_FI_DEV_ENC_UTIL)", "percent", no_value=GPU_OFF_TILE)  # fmt: skip
     b.stat("Decoder", "The card's video decoder.", "max(DCGM_FI_DEV_DEC_UTIL)", "percent", no_value=GPU_OFF_TILE)
-    b.stat("Plex converting on the card", "Plex sessions converting video on the graphics card (hardware transcoding).",
-           'sum(kia_plex_sessions{hw="gpu"}) or vector(0)')  # fmt: skip
-    b.stat("Plex converting on the processor", "Plex sessions converting video on the processor: slower and hotter.",
-           'sum(kia_plex_sessions{hw="cpu"}) or vector(0)')  # fmt: skip
+    servers = '__name__=~"kia_(plex|jellyfin)_sessions"'
+    b.stat("Converting on the card", "Plex and Jellyfin sessions converting video on the graphics card (hardware transcoding).",
+           f'sum({{{servers}, hw="gpu"}}) or vector(0)')  # fmt: skip
+    b.stat("Converting on the processor", "Plex and Jellyfin sessions converting video on the processor: slower and hotter.",
+           f'sum({{{servers}, hw="cpu"}}) or vector(0)')  # fmt: skip
     b.graph("Load, encoder, and decoder", "How busy the graphics card and its video encoder and decoder are.",
             [("DCGM_FI_DEV_GPU_UTIL", "Load (GPU {{gpu}})"), ("DCGM_FI_DEV_ENC_UTIL", "Encoder (GPU {{gpu}})"),
              ("DCGM_FI_DEV_DEC_UTIL", "Decoder (GPU {{gpu}})")], "percent", no_value=GPU_OFF)  # fmt: skip
@@ -373,7 +390,7 @@ def hardware() -> Board:
 def write() -> list[Path]:
     OUT.mkdir(parents=True, exist_ok=True)
     paths = []
-    for board in (kia(), stack(), plex(), hardware()):
+    for board in (kia(), stack(), plex(), jellyfin(), hardware()):
         path = OUT / f"{board.uid}.json"
         path.write_text(json.dumps(board.json(), indent=1) + "\n")
         paths.append(path)

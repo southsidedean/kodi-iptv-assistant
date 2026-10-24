@@ -80,4 +80,4 @@ KIA_ALERT_EVENTS=dns_local,run_failed,channels_drop,guide_drop,site_failing,dail
 
 The thresholds are in `kia.toml` under `[alerts]`: `drop_percent` (default 25) and `site_fail_runs` (default 3).
 
-Alerts for the events you've turned on are also recorded in `state/alerts.log`, whether or not notifications are set up, and a run that raised one exits with code 3, in case you monitor kia with other tools.
+Alerts for the events you've turned on are also recorded in `state/alerts.log`, whether or not notifications are set up, and a run that raised one exits with code 3 (the daily summary isn't an alert, so it's neither), in case you monitor kia with other tools.

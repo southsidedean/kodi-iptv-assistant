@@ -40,13 +40,14 @@ Or by hand:
    ```sh
    git clone https://github.com/southsidedean/kodi-iptv-assistant.git
    cd kodi-iptv-assistant
+   scripts/update.sh --no-restart
    cp .env.example .env
    chmod 600 .env
    ```
 
-   Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`; [how to find it](docs/install.md#4-find-this-computers-address)) and `TZ` to your time zone.
+   Open `.env` and set `KIA_PUBLIC_URL` to this computer's address (e.g. `http://192.168.1.20:8780`; [how to find it](docs/install.md#4-find-this-computers-address)) and `TZ` to your time zone. On Linux, also set `PUID` and `PGID` to the numbers `id -u` and `id -g` print, so you own the files kia makes (many computers use 1000 for both, the default). `scripts/update.sh --no-restart` moved the copy to kia's newest release, rather than what's been merged since.
 
-2. Optional: pick your playlists. The USA list is on by default, which is enough to start. Once kia is running, you can choose others on its Dashboard ([how](docs/configuration.md#choosing-channel-sources-on-the-dashboard)). To choose them now instead, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the playlists you want in `sources.local.txt`. Updating kia never touches your copy.
+2. Optional: pick your channel sources, the playlists kia reads channels from. The USA list is on by default, which is enough to start. Once kia is running, you can choose others on its Dashboard ([how](docs/configuration.md#choosing-channel-sources-on-the-dashboard)). To choose them now instead, copy the list with `cp sources.txt sources.local.txt`, set `KIA_SOURCES_FILE=sources.local.txt` in `.env`, then remove the `#` in front of the sources you want in `sources.local.txt`. Updating kia never touches your copy.
 
 3. Start it:
 
@@ -65,7 +66,7 @@ Or by hand:
 
    Using something else? See [players](#players) below.
 
-To check on kia, open `http://<your address>:8780/` in a browser. The [Dashboard](docs/how-it-works.md#the-dashboard) there shows when it last refreshed, whether that worked, how many channels it found, and any alerts. It lists your playlists with their addresses, and links to the detailed reports. To make playlists for people and devices, or to connect other apps, use the [secure Dashboard](docs/secure-page.md) and the [API](docs/api.md). If something isn't working, [docs/troubleshooting.md](docs/troubleshooting.md) goes through the usual problems.
+To check on kia, open `http://<your address>:8780/` in a browser. The [Dashboard](docs/how-it-works.md#the-dashboard) there shows when it last refreshed, whether that worked, how many channels it found, and any alerts. It lists the playlists kia makes, with their addresses, and links to the detailed reports. To make playlists for people and devices, or to connect other apps, use the [secure Dashboard](docs/secure-page.md) and the [API](docs/api.md). If something isn't working, [docs/troubleshooting.md](docs/troubleshooting.md) goes through the usual problems.
 
 ## Players
 
@@ -112,7 +113,7 @@ To update kia, first read the *Upgrading* notes for the new version in the [chan
 scripts/update.sh
 ```
 
-It moves kia to its newest release, rebuilds it, and restarts it. If someone is watching through Pluto TV or Plex's Live TV, it asks first, since a restart cuts them off. It also brings the latest images kia uses (its Wolfi base, nginx, and Plex, Prometheus, and Grafana if you use them); to stay on fixed versions, see [versions](docs/configuration.md#versions). `scripts/update.sh v0.5.1` goes to a given release, and `--main` follows what's merged since the last one. Your `.env`, your own playlist list, and the stream history are kept. If you edited one of kia's own files (`sources.txt` or `kia.toml`, say), it stops and says so: keep your changes in `sources.local.txt` and `.env` instead.
+It moves kia to its newest release, rebuilds it, and restarts it. If someone is watching through Pluto TV, Plex, or Jellyfin, it asks first, since a restart cuts them off. It also brings the latest images kia uses (its Wolfi base, nginx, and Plex, Jellyfin, Threadfin, Prometheus, and Grafana if you use them); to stay on fixed versions, see [versions](docs/configuration.md#versions). `scripts/update.sh v0.5.1` goes to a given release, and `--main` follows what's merged since the last one. Your `.env`, your own playlist list, and the stream history are kept. If you edited one of kia's own files (`sources.txt` or `kia.toml`, say), it stops and says so: keep your changes in `sources.local.txt` and `.env` instead.
 
 To save your settings, playlists, and choices in one file, or to move kia to another computer, see [backing up](docs/configuration.md#backing-up-and-moving-to-another-computer).
 

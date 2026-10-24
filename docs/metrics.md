@@ -2,7 +2,7 @@
 
 kia publishes its numbers at `/metrics`, in the format [Prometheus](https://prometheus.io/) reads: `http://192.168.1.20:8780/metrics`, with your kia's address. Prometheus can then keep their history, and [Grafana](https://grafana.com/) can graph them and warn you when something changes, such as a nightly refresh that failed or a channel source that lost half its streams.
 
-The numbers are the ones the Dashboard shows, so nothing on the page is secret, and it needs no password.
+The page needs no password. It holds no passwords or tokens, and mostly the numbers the Dashboard shows. With Plex or Jellyfin set up, it also shows what's playing on them now (live TV or a movie, at home or away), with a pseudonym in place of each player's name. Anyone on your network can read it.
 
 ## Collecting them
 

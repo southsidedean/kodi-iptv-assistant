@@ -1,6 +1,6 @@
 # A home TV box: kia, Threadfin, and Plex in containers
 
-One computer runs everything: kia finds and checks free TV channels and builds their guide, Threadfin presents them as a TV tuner, and Plex Media Server shows them as Live TV in every Plex app, next to your own movies and shows. It all runs in Docker, set up from one settings file, and it keeps itself up to date.
+One computer runs everything: kia finds and checks free TV channels and builds their guide, Threadfin presents them as a TV tuner, and Plex Media Server shows them as Live TV in every Plex app, next to your own movies and shows. It all runs in Docker, set up from one settings file, and one command updates it all.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../images/diagrams/plex-box-dark.svg">
@@ -20,7 +20,7 @@ If Plex already runs on another computer, or outside Docker, use the [Plex guide
 
 ## What you need
 
-- A computer that stays on, running Linux with Docker. A small PC or an old laptop is enough for Live TV; converting video for your own media takes more.
+- A computer that stays on, running Linux or macOS with Docker. (On a Mac, Plex in Docker converts video on the processor only, not the graphics chip.) A small PC or an old laptop is enough for Live TV; converting video for your own media takes more.
 - A free [Plex account](https://www.plex.tv/sign-up/). Watching Live TV is free; recording needs [Plex Pass](https://www.plex.tv/plex-pass/).
 - About 3 GB of disk for kia and Plex, plus room for your media.
 
@@ -73,14 +73,14 @@ docker compose exec kia python3 -m kia plex-tuners
 ```
 
 ```text
-Plex hasn't downloaded its codecs yet, which Live TV needs; playing a short clip so it does.
+Plex hasn't downloaded its codecs yet, which Live TV needs; playing a few seconds of video so it does.
 Plex has its codecs now.
 Made a new DVR in Plex for kia's Threadfins (DVR 2).
 Plex: 442 channels, guide http://threadfin:34400/xmltv/threadfin.xml
 Plex is loading the guide now; the channels show under Live TV in a few minutes.
 ```
 
-kia uses Plex's own sign-in, so there's no token to find. A new Plex downloads its codecs (the parts that read video and sound) only when it first plays a video, and Live TV can't play without them, so the first time, kia plays a 10-second test clip through Plex and then removes it. From now on, kia brings Plex up to date after each refresh, so new channels arrive in Plex by themselves.
+kia uses Plex's own sign-in, so there's no token to find. A new Plex downloads its codecs (the parts that read video and sound) only when it first plays a video, and Live TV can't play without them, so the first time, kia plays a few seconds of one of your videos through Plex, or, with no library yet, a 10-second test clip it adds and then removes. From now on, kia brings Plex up to date after each refresh, so new channels arrive in Plex by themselves.
 
 ## 6. Watch
 

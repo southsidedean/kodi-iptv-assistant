@@ -173,7 +173,7 @@
    "id": 4,
    "type": "stat",
    "title": "Encoder",
-   "description": "The card's video encoder, which Plex uses when it converts video on the card.",
+   "description": "The card's video encoder, which Plex and Jellyfin use when they convert video on the card.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -290,8 +290,8 @@
   {
    "id": 6,
    "type": "stat",
-   "title": "Plex converting on the card",
-   "description": "Plex sessions converting video on the graphics card (hardware transcoding).",
+   "title": "Converting on the card",
+   "description": "Plex and Jellyfin sessions converting video on the graphics card (hardware transcoding).",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -309,7 +309,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(kia_plex_sessions{hw=\"gpu\"}) or vector(0)",
+     "expr": "sum({__name__=~\"kia_(plex|jellyfin)_sessions\", hw=\"gpu\"}) or vector(0)",
      "legendFormat": ""
     }
    ],
@@ -349,8 +349,8 @@
   {
    "id": 7,
    "type": "stat",
-   "title": "Plex converting on the processor",
-   "description": "Plex sessions converting video on the processor: slower and hotter.",
+   "title": "Converting on the processor",
+   "description": "Plex and Jellyfin sessions converting video on the processor: slower and hotter.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -368,7 +368,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(kia_plex_sessions{hw=\"cpu\"}) or vector(0)",
+     "expr": "sum({__name__=~\"kia_(plex|jellyfin)_sessions\", hw=\"cpu\"}) or vector(0)",
      "legendFormat": ""
     }
    ],

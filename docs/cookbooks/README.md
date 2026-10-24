@@ -7,4 +7,4 @@ Each cookbook is one goal, from start to finish, built from kia's pieces. The ot
 - [Kodi and kia on one computer](kodi-computer.md). A laptop or desktop finds free channels, builds their guide, and plays them in Kodi, with nothing else to set up.
 - [A laptop that travels](travel-laptop.md). Your channels on the road: the laptop checks the streams where you are and copies the guide from your home server.
 - [A TV in every room](every-room.md). One server for the whole house, a player on every TV and phone, and a playlist for each room or person, such as the kids.
-- [Graphs for your TV stack](observability.md). Prometheus and Grafana in kia's stack, with dashboards for kia, the containers, and Plex.
+- [Graphs for your TV stack](observability.md). Prometheus and Grafana in kia's stack, with dashboards for kia, the containers, Plex, Jellyfin, and the computer's hardware.

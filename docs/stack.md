@@ -20,7 +20,7 @@ scripts/stack.sh           # what runs, and which dashboard panels have data
 | `plex-tuner` | Threadfin as the tuner for a Plex on another computer ([Plex](plex.md)) |
 | `plex-tuner-2` | A second Threadfin, for more than 480 channels in Plex; with `plex` or `plex-tuner` |
 | `jellyfin` | Jellyfin in the stack ([home TV box with Jellyfin](cookbooks/jellyfin-box.md)) |
-| `observability` | Prometheus and Grafana, and on Linux node-exporter for the computer's own numbers ([graphs](cookbooks/observability.md)) |
+| `observability` | Prometheus, Grafana, and cAdvisor, and on Linux node-exporter for the computer's own numbers ([graphs](cookbooks/observability.md)) |
 | `observability-gpu` | The graphics card on the Hardware dashboard: an NVIDIA card, on Linux |
 | `observability-disks` | Each disk's health on the Hardware dashboard: Linux |
 
@@ -52,7 +52,7 @@ They're in `stacks/` in the kia folder. Add your own parts to `KIA_STACK` afterw
 - **Warnings:** settings a part needs and doesn't have yet, such as `KIA_PLEX_ADVERTISE` or a claim code for Plex's first start; on a Mac, a database in a folder rather than a [Docker volume](configuration.md#on-a-mac), or no node-exporter from Homebrew; a computer with less than 6 GB of memory running more than one of Plex, Jellyfin, and the graphs.
 - **Hints:** on Linux, an NVIDIA card or disks it could show on the Hardware dashboard.
 
-It also works out the Compose profiles: on Linux, `observability` adds kia's node-exporter unless another one already answers on port 9100.
+It also works out the Compose profiles, the names `compose.yaml` groups its containers under: on Linux, `observability` adds kia's node-exporter unless another one already answers on port 9100.
 
 ## What apply does
 

@@ -230,7 +230,7 @@ def grafana_url() -> str | None:
 
 
 def header(root: str = "", current: str = "") -> str:
-    """The logo, the Documentation (and Graphs) buttons, and the menu. current: the page shown, from NAV."""
+    """The logo, the Documentation (and Observability) buttons, and the menu. current: the page shown, from NAV."""
     here = ' aria-current="page"'
     links = "".join(f'<a href="{root}{href}"{here if href == current else ""}>{label}</a>' for href, label in NAV)
     grafana = grafana_url()

@@ -55,6 +55,22 @@
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
 - A `|` in a channel's group or id no longer breaks the table in `report.md`.
 
+
+### Observability
+
+- A Jellyfin dashboard in Grafana, like Plex's: whether Jellyfin answers, what's playing now on each player (by pseudonym), live TV against your own media, copied or converted video, players away from home, and what Jellyfin in the stack sends. It needs `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN`, the same settings as Jellyfin's numbers in `/metrics` ([graphs for your TV stack](docs/cookbooks/observability.md#5-jellyfin-optional)). `.env.example` already promised it.
+- The Hardware dashboard's *Converting on the card* and *Converting on the processor* tiles count Jellyfin's sessions as well as Plex's.
+
+### Docs
+
+- The README's manual install moves the copy to kia's newest release and asks for `PUID` and `PGID`, as [installing kia](docs/install.md) does.
+- "Channel sources" for the playlists kia reads, and "playlists" for the ones it makes, on the first pages a new user reads.
+- A Raspberry Pi, or any computer with less than 6 GB of memory, changes the three lighter settings already in `.env`. Adding them near the top did nothing, because the empty lines further down win.
+- Changes to `profiles.toml` show up at the next guide refresh, within 4 hours, or now with `kia refresh-guide`; the docs said to run the hour-long stream check.
+- [Metrics](docs/metrics.md) says `/metrics` shows what's playing on Plex and Jellyfin, by pseudonym, to anyone on your network.
+- Smaller corrections: a removed channel comes back after three good nights; Start here checks the Dashboard before setting up devices; Kodi's playlist address works once the first refresh is done; `observability` includes cAdvisor; the image versions you can pin include Jellyfin's and the disk exporter's; the Plex box cookbook works on macOS too.
+- The Kodi screenshots no longer carry the display's color profile, and the TV stack screenshot shows the current dashboards.
+
 ### Installing
 
 - The `plex-elsewhere` preset stopped the installer before kia started: Threadfin needs kia's `plex` playlist, which you make on the Dashboard after the first refresh. With either Plex preset, the installer now starts kia and lists what's next in order: make the playlist, then (for Plex in the stack) get the claim code, then run `scripts/stack.sh apply`. It used to say to get the claim code first, and it ran out while `apply` waited for the playlist.
@@ -76,11 +92,11 @@
 
 Update with `scripts/update.sh`. With the `monitoring` profile on, Grafana's address changes from `http://` to `https://` (same port, 8788); your browser warns about kia's certificate the first time. Bookmarks need the new address; the Dashboard's **Observability** button has it.
 
-0.5.4's `scripts/update.sh` doesn't yet restart Prometheus and the web server when their settings change (see *Observability*), so after this update run `docker compose restart prometheus web` once if the `monitoring` profile is on, or `docker compose restart web` if it isn't. Later updates do it for you.
+0.5.4's `scripts/update.sh` doesn't yet restart Prometheus and the web server when their settings change (see *Observability*), so after this update run `docker compose restart prometheus` once if the `monitoring` profile is on. The web server's settings didn't change. Later updates do it for you.
 
 ### Choosing the parts of the stack
 
-- New `scripts/stack.sh` ([choosing the parts](docs/stack.md)): one line in `.env`, such as `KIA_STACK=plex,observability`, says which programs run next to kia (`plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, `observability-disks`). `scripts/stack.sh check` checks the choice for this computer: names it doesn't know, parts that don't go together, a Mac's limits, NVIDIA's toolkit for the graphics card, missing settings, Threadfin's playlist (Threadfin stops and restarts over and over without one), the media folder, ports in use, and memory. `apply` then sets `COMPOSE_PROFILES`, starts what's chosen, and stops what isn't, after asking if someone is watching or if parts that run now would stop. On its own, it shows what runs and which dashboard panels have data. The cookbooks use it, and each has a preset (`scripts/stack.sh apply --preset plex-box`).
+- New `scripts/stack.sh` ([choosing the parts](docs/stack.md)): one line in `.env`, such as `KIA_STACK=plex,observability`, says which programs run next to kia (`plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, `observability-disks`). `scripts/stack.sh check` checks the choice for this computer: names it doesn't know, parts that don't go together, a Mac's limits, NVIDIA's toolkit for the graphics card, missing settings, Threadfin's playlist (Threadfin stops and restarts over and over without one), the media folder, ports in use, and memory. `apply` then sets `COMPOSE_PROFILES`, starts what's chosen, and stops what isn't, after asking if someone is watching or if parts that run now would stop. On its own, it shows what runs and which dashboard panels have data. The Plex and Jellyfin TV box cookbooks use it, and [presets](docs/stack.md#presets) cover the usual setups (`scripts/stack.sh apply --preset plex-box`).
 - The installer asks what this kia is for and sets `KIA_STACK` from that preset (`kodi` unless you choose another), or takes `--preset NAME`. It then starts the preset's parts once, and its next steps cover only what it started.
 - New `kia check-dashboards`: which Grafana panels have data on this computer, by dashboard section, and why the others don't.
 - `COMPOSE_PROFILES` works as before for installs without a `KIA_STACK` line.
@@ -89,7 +105,7 @@ Update with `scripts/update.sh`. With the `monitoring` profile on, Grafana's add
 
 - Grafana answers only over HTTPS, with kia's own certificate from `tls/` (the secure Dashboard's, or yours if you put one there), so its password no longer crosses your network in plain text. Grafana checks the certificate files every minute, so kia's renewals and your own certificate need no restart. The Dashboard's **Observability** button opens the `https://` address.
 - After an update, Prometheus and the web server kept the settings they started with. Docker keeps a settings file mounted on its own pinned to the copy the container started with, and `git` replaces the file. So 0.5.4's new `gpu` and `disks` jobs never reached Prometheus on updated installs. `scripts/update.sh` now restarts whichever of the two had its settings changed by the update. If you updated to 0.5.4 another way, run `docker compose restart prometheus web` once.
-- A dashboard panel with nothing to show says why, instead of Grafana's *No data*: *Needs observability-gpu in KIA_STACK, or the monitoring-gpu profile (an NVIDIA card, on Linux)*, *No UPS or battery node-exporter can see*, *No sensors to read here (macOS and virtual machines report none)*, *Nothing played in this time*, and so on. Every panel has one, and a test keeps it that way.
+- A dashboard panel with nothing to show says why, instead of Grafana's *No data*: *Needs observability-gpu in KIA_STACK, or the monitoring-gpu profile (an NVIDIA card, on Linux)*, *No UPS*, *No sensors to read here (macOS and virtual machines report none)*, *Nothing played in this time*, and so on. Every panel has one, and a test keeps it that way.
 - On a new Docker install on Linux, which keeps images in containerd, the TV stack dashboard showed no containers: cAdvisor found them only through containerd, which it wasn't given. cAdvisor now reads containerd's socket too (Docker's `moby` namespace), and Prometheus keeps the two container labels the dashboards use. Older Docker installs and Macs work as before. This was a known problem in 0.5.4.
 
 ## 0.5.4 (2026-10-24)

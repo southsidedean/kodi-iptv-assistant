@@ -7,7 +7,7 @@ This guide takes you from nothing to a working channel list and program guide in
 | You need | Details | Why |
 |---|---|---|
 | A computer to run kia | macOS, Linux, or a Raspberry Pi 4/5 (64-bit) with 4 GB of memory or more | It tests streams and builds the guide every night. It can be the computer you watch on, or one that stays on for the whole house ([setups](setups.md)). |
-| Docker | Docker Desktop on macOS; Docker Engine on Linux | Runs kia and everything it needs in one package, so you don't install the pieces yourself. |
+| Docker | Docker Desktop on macOS; Docker Engine (Docker without the desktop app) on Linux | Runs kia and everything it needs in one package, so you don't install the pieces yourself. |
 | Git | Any recent version | Downloads kia and makes updating a one-line command. |
 | Kodi | Version 21 or newer is a good choice | Plays the channels. Install it on each device you watch on ([Kodi setup](kodi.md)). |
 | About 2 GB of disk space | | For kia, its downloads, and the guide. |
@@ -92,7 +92,7 @@ Kodi needs an address to reach kia. If Kodi runs on this same computer, use `loc
 - macOS: run `ipconfig getifaddr en0` (or `en1` if that prints nothing), e.g. `192.168.1.20`.
 - Linux: run `hostname -I`. It may print several; use the one that looks like your other devices' addresses, usually starting with `192.168.` or `10.`.
 
-This address can change when the computer restarts. To keep it fixed, set up a DHCP reservation in your router's settings (often under *LAN* or *DHCP*).
+This address can change when the computer restarts. To keep it fixed, set up a DHCP reservation in your router's settings (often under *LAN* or *DHCP*), which tells the router to always give this computer the same address.
 
 ## 5. Configure kia
 
@@ -110,15 +110,15 @@ KIA_PUBLIC_URL=http://192.168.1.20:8780
 TZ=America/New_York
 ```
 
-Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). On a Raspberry Pi, also add the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory. If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
+Use your address from step 4 (or `localhost`) and your [time zone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). On a Raspberry Pi, or any computer with less than 6 GB of memory, also change the three lines from [Setups → Raspberry Pi](setups.md#raspberry-pi); they're already in the file, empty, further down. That way the first refresh doesn't run out of memory. If Kodi runs on this computer only, also set `KIA_BIND=127.0.0.1`. Set `PUID` and `PGID` to the numbers that `id -u` and `id -g` print. They tell kia which user should own the files it creates, so you can open and delete them without `sudo`. Many computers use 1000 for both, which is the default.
 
-Choosing playlists is optional: the USA list is on by default, which is enough to start. You can change it any time, most easily on the Dashboard once kia is running ([choosing playlists on the Dashboard](configuration.md#choosing-channel-sources-on-the-dashboard)). To choose now instead, make your own copy of the list, so updating kia never touches your choices:
+Choosing channel sources, the playlists kia reads channels from, is optional: the USA list is on by default, which is enough to start. You can change it any time, most easily on the Dashboard once kia is running ([choosing channel sources on the Dashboard](configuration.md#choosing-channel-sources-on-the-dashboard)). To choose now instead, make your own copy of the list, so updating kia never touches your choices:
 
 ```sh
 cp sources.txt sources.local.txt
 ```
 
-In `.env`, set `KIA_SOURCES_FILE=sources.local.txt` (the line is already there, empty). Then open `sources.local.txt` and remove the `#` at the start of each playlist you want. The USA list is on already. Each line shows roughly how many streams it has; more streams make the nightly check longer. The same file can add radio stations, as its comments explain.
+In `.env`, set `KIA_SOURCES_FILE=sources.local.txt` (the line is already there, empty). Then open `sources.local.txt` and remove the `#` at the start of each source you want. The USA list is on already. Each line shows roughly how many streams it has; more streams make the nightly check longer. The same file can add radio stations, as its comments explain.
 
 ## 6. Start kia
 
@@ -134,7 +134,7 @@ kia also made a password for changing things on the Dashboard, such as [playlist
 
 If other devices can't connect (more in [troubleshooting](troubleshooting.md#other-devices-cant-connect)):
 
-- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and `sudo ufw allow 8743/tcp` (the secure Dashboard).
+- Linux with a firewall (ufw, Ubuntu's usual one): `sudo ufw allow 8780/tcp` and `sudo ufw allow 8743/tcp` (the secure Dashboard).
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
 
 From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Between runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`). Kodi picks up each update within two hours, with the setting in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in to your computer* setting).

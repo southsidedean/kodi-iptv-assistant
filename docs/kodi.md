@@ -2,7 +2,7 @@
 
 Do this once on each Kodi device. (Using something else? See [choosing a player](players.md).) With the refresh setting in step 3, the channel list and guide then stay current without you doing anything.
 
-You need the address of the machine running kia, e.g. `http://192.168.1.20:8780` (the `KIA_PUBLIC_URL` from your `.env`). Check it first: opening `http://192.168.1.20:8780/curated.m3u` in a browser on the same network should download a file.
+You need the address of the machine running kia, e.g. `http://192.168.1.20:8780` (the `KIA_PUBLIC_URL` from your `.env`). Check it first: opening `http://192.168.1.20:8780/curated.m3u` in a browser on the same network should download a file. There's no playlist until kia's first refresh has finished.
 
 ## 1. Install Kodi
 
@@ -12,7 +12,7 @@ Get it from [kodi.tv/download](https://kodi.tv/download/), which has instruction
 - Android phones, tablets, Android TV, Google TV, Nvidia Shield: Google Play Store.
 - Amazon Fire TV: Kodi isn't in Amazon's store. Install it with the free *Downloader* app; kodi.tv's Android page and the [Kodi Wiki](https://kodi.wiki/view/Main_Page) walk through it.
 - Raspberry Pi or a dedicated TV box: [LibreELEC](https://libreelec.tv/) is a ready-made system that boots straight into Kodi.
-- Apple TV and iPhone: possible, but it needs sideloading; see the Kodi wiki.
+- Apple TV and iPhone: possible, but it needs sideloading (installing an app from outside the App Store); see the Kodi wiki.
 
 To learn more about Kodi itself, such as installing it on other devices, using a remote, or changing its look, see the [Kodi Wiki](https://kodi.wiki/view/Main_Page).
 

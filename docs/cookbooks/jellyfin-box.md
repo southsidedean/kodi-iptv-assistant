@@ -71,14 +71,13 @@ Open **Live TV** in any Jellyfin app: the web page, or Jellyfin for Android, iPh
 
 ## 6. See what's playing (optional)
 
-With the [observability cookbook](observability.md), kia can also count what Jellyfin plays, like it does for Plex. In Jellyfin, go to **Dashboard → API Keys**, choose **New API Key**, and name it `kia`. Copy the key into `.env`, then run `docker compose up -d`:
+kia can also count what Jellyfin plays, like it does for Plex. In Jellyfin, go to **Dashboard → API Keys**, choose **New API Key**, and name it `kia`. Copy the key into `.env`, then run `docker compose up -d`. `scripts/stack.sh apply` already set `KIA_JELLYFIN_URL` in step 2, so the key is all it needs:
 
 ```sh
-KIA_JELLYFIN_URL=http://jellyfin:8096
 KIA_JELLYFIN_TOKEN=the-key-you-copied
 ```
 
-kia's [metrics](../metrics.md) then include `kia_jellyfin_sessions`: live TV and your own media, and whether Jellyfin converts the video.
+kia's [metrics](../metrics.md) then include `kia_jellyfin_sessions`: live TV and your own media, and whether Jellyfin converts the video. With the [observability cookbook](observability.md), the Jellyfin dashboard in Grafana graphs them.
 
 ## Keeping it running
 

@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for reporting this. [Troubleshooting](https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/troubleshooting.md) covers the most common problems, so it's worth a look first.
 
-        Please remove anything private before posting: addresses and host names, ntfy topic names, and paths that include your name.
+        Please remove anything private before posting: passwords and tokens (Plex, Jellyfin, email), addresses and host names, ntfy topic names, and paths that include your name.
   - type: textarea
     id: what
     attributes:
