@@ -85,7 +85,7 @@ class Board:
             d["mappings"] = mappings
         steps = thresholds or [{"color": "blue", "value": None}]
         if steps[0]["value"] is None:  # real values start their color scale; no value at all stays plain
-            steps = [{"color": "text", "value": None}, {**steps[0], "value": -1e9}, *steps[1:]]
+            steps = [{"color": "transparent", "value": None}, {**steps[0], "value": -1e9}, *steps[1:]]
         d["thresholds"] = {"mode": "absolute", "steps": steps}
         if decimals is not None:
             d["decimals"] = decimals
