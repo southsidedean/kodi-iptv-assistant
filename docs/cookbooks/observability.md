@@ -126,6 +126,4 @@ Prometheus picks new files up within a few minutes, without a restart.
 
 **The Plex dashboard says "Not answering".** kia can't reach Plex, or the token is wrong. Check `KIA_PLEX_URL` and `KIA_PLEX_TOKEN` in `.env`; the [Plex guide](../plex.md#4-add-threadfin-to-plex) shows how to find a token. After a change, run `docker compose up -d`.
 
-**The TV stack dashboard has no containers, and its Compose project list is empty.** cAdvisor can't see Docker's containers when Docker keeps its images in containerd, which a new Docker install on Linux does (`docker info` shows `Storage Driver: overlayfs`; older installs show `overlay2`). The computer's own graphs still work. This is a known problem in kia 0.5.4, to be fixed in the next version.
-
 **Forgot Grafana's password, or changed `KIA_GRAFANA_PASSWORD`.** Grafana reads that setting (or makes its `admin-password.txt`) only the first time it starts. Set the one you want, then run `docker compose exec grafana grafana cli admin reset-admin-password "$(grep ^KIA_GRAFANA_PASSWORD= .env | cut -d= -f2-)"`.

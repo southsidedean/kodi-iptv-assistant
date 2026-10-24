@@ -62,6 +62,17 @@ def test_every_container_limits_its_log():
     assert not unlimited, f"no log limit: {unlimited}"
 
 
+def test_cadvisor_sees_containers_in_containerd():
+    # A new Docker install keeps images in containerd; cAdvisor finds its containers only
+    # through containerd's socket, and then labels them with everything, so Prometheus keeps
+    # just the two labels the dashboards use.
+    cadvisor = compose_service("cadvisor")
+    assert "/run/containerd:/run/containerd:ro" in cadvisor and "--containerd-namespace=moby" in cadvisor
+    prom = (ROOT / "deploy" / "monitoring" / "prometheus.yml").read_text()
+    job = prom[prom.index("job_name: cadvisor"):prom.index("job_name: node")]
+    assert "labeldrop" in job and "container_label_com_docker_compose_${1}" in job
+
+
 def test_grafana_never_updates_its_own_plugins():
     # Updating a bundled plugin means deleting it from Grafana's read-only system; Grafana 13
     # drops its Prometheus plugin first, and every dashboard goes empty.
