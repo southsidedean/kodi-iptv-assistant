@@ -70,3 +70,26 @@ def test_stops_when_kias_own_files_were_changed(copy: Path):
     r = update(copy)
     assert r.returncode == 1 and "were changed here" in r.stderr
     assert git(copy, "describe", "--tags") == "v0.1.0" and (copy / "compose.yaml").read_text() == "# mine\n"
+
+
+def test_services_restart_when_their_mounted_config_files_change(copy: Path):
+    # Docker keeps a file mounted on its own pinned to the copy the container started with.
+    origin = copy.parent / "origin"
+    (origin / "deploy" / "monitoring").mkdir(parents=True)
+    (origin / "deploy" / "nginx.conf").write_text("server {}\n")
+    (origin / "deploy" / "monitoring" / "prometheus.yml").write_text("scrape_configs: []\n")
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "new settings")
+    git(origin, "tag", "v0.4.0")
+    log = copy.parent / "docker.log"
+    (copy.parent / "bin" / "docker").write_text(
+        f'#!/bin/sh\necho "$*" >> {log}\n'
+        'case "$*" in *"ps --services --status running"*) printf "kia\\nweb\\nplex\\n" ;; esac\n')  # no Prometheus running
+    r = update(copy, "v0.4.0")
+    assert r.returncode == 0, r.stderr
+    calls = log.read_text().splitlines()
+    assert "compose restart web" in calls and "compose restart prometheus" not in calls  # only what runs
+    assert "Restarted web" in r.stdout
+    log.write_text("")
+    assert update(copy, "v0.4.0").returncode == 0  # already there: nothing changed, nothing restarts
+    assert not any(c.startswith("compose restart") for c in log.read_text().splitlines())
