@@ -119,7 +119,7 @@
        "mode": "off"
       }
      },
-     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
+     "noValue": "No containers seen: is cAdvisor running?"
     },
     "overrides": []
    },
@@ -192,7 +192,7 @@
        "mode": "off"
       }
      },
-     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
+     "noValue": "No containers seen: is cAdvisor running?"
     },
     "overrides": []
    },
@@ -265,7 +265,7 @@
        "mode": "off"
       }
      },
-     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
+     "noValue": "No containers seen: is cAdvisor running?"
     },
     "overrides": []
    },
@@ -338,7 +338,7 @@
        "mode": "off"
       }
      },
-     "noValue": "No containers seen (a new Docker install: see the observability cookbook)"
+     "noValue": "No containers seen: is cAdvisor running?"
     },
     "overrides": []
    },

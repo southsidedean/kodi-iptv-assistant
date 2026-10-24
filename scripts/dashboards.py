@@ -26,7 +26,7 @@ DISKS_OFF = "Needs the monitoring-disks profile (Linux)"
 NO_SENSORS = "No sensors to read here (macOS and virtual machines report none)"
 NO_UPS = "No UPS or battery node-exporter can see"
 NO_NODE = "No numbers from node-exporter on port 9100"
-NO_CONTAINERS = "No containers seen (a new Docker install: see the observability cookbook)"
+NO_CONTAINERS = "No containers seen: is cAdvisor running?"
 # The same, short enough for a small tile.
 GPU_OFF_TILE, DISKS_OFF_TILE, NO_UPS_TILE = "Needs monitoring-gpu", "Needs monitoring-disks", "No UPS"
 
