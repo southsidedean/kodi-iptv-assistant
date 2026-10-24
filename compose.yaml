@@ -433,7 +433,9 @@ services:
     restart: unless-stopped
     logging: *logging
     # It reads Docker's socket to name the containers, which is as good as full access to
-    # this computer, so it gets nothing else: a read-only system and no capabilities.
+    # this computer, so it gets nothing else: a read-only system and no capabilities. A new
+    # Docker install keeps its images in containerd, where cAdvisor finds the containers only
+    # through containerd's socket (Docker's own namespace, moby); older installs work either way.
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -441,6 +443,7 @@ services:
     # it costs far less processor time that way.
     command:
       - --docker_only=true
+      - --containerd-namespace=moby
       - --housekeeping_interval=30s
       - --store_container_labels=false
       - --whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service
@@ -448,6 +451,7 @@ services:
     volumes:
       - /:/rootfs:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/containerd:/run/containerd:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
 
