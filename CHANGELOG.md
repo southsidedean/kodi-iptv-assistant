@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.6.1 (unreleased)
+## 0.6.1 (2026-10-25)
+
+### Upgrading from 0.6.0
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). If your assistant already uses kia's MCP server, it picks up the two new tools and the prompts the next time it connects; nothing to change. To set up another assistant, see [kia and AI assistants](docs/mcp.md).
 
 ### AI assistants
 
