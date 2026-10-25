@@ -124,3 +124,22 @@ def test_quick_refresh_fetches_only_the_guides_that_had_our_channels(server, tmp
     grab.grab_playlist_guides(cfg, spec, lambda m: None, quick=True)
     log = (tmp_path / "work" / "logs" / "playlist-free.log").read_text()
     assert "ours.xml" in log and "other.xml" not in log
+
+
+def test_a_guide_that_fails_tonight_keeps_its_channels_and_its_place(server, tmp_path: Path):
+    www, base = server
+    now = datetime.now(timezone.utc)
+    (www / "a.xml").write_bytes(guide({"A": ["News"]}, now))
+    (www / "b.xml").write_bytes(guide({"B": [f"Film {h}" for h in range(24)]}, now))
+    cfg = EpgConfig(work_dir=tmp_path / "work")
+    spec = {"playlist-free": {"urls": [f"{base}/a.xml", f"{base}/b.xml"], "channels": {"A": ["A"], "B": ["B"]}}}
+    grab.grab_playlist_guides(cfg, spec, lambda m: None)
+    (www / "b.xml").unlink()  # tonight b.xml is gone
+    (r,) = grab.grab_playlist_guides(cfg, spec, lambda m: None)
+    assert r.returncode == 0  # a.xml still worked
+    text = (tmp_path / "work" / "guides" / "playlist-free.xml").read_text()
+    later = f"Film {min(now.hour + 2, 23)}"
+    assert "<title>News</title>" in text and f"<title>{later}</title>" in text  # B's still to come, from last time
+    assert "<title>Film 0</title>" not in text or now.hour == 0  # but not what's over
+    used = json.loads((tmp_path / "work" / "playlist-guides-used.json").read_text())
+    assert used == {"playlist-free": [f"{base}/a.xml", f"{base}/b.xml"]}  # quick refreshes keep trying b.xml

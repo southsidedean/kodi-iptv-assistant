@@ -151,3 +151,14 @@ def test_renumber_from_one_keeping_pins(tmp_path: Path):
     es[2].pinned_number = 1  # C was chosen to be number 1
     n.renumber(es, "2026-01-02T00:00:00+00:00")
     assert [e.attrs["tvg-chno"] for e in es] == ["2", "3", "1", "4", "1"]
+
+
+def test_a_forgotten_number_above_the_counter_isnt_handed_out(tmp_path: Path):
+    path = tmp_path / "channel-numbers.json"
+    n = ChannelNumbers(path)
+    n.assign([pinned(tv("A"), 5), tv("B")], "2026-10-19T09:00:00+00:00")  # B gets 1; the counter is at 2
+    n.numbers["tv"]["A.us"]["last_seen"] = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+    n.forget_older_than(30)  # A's 5 is retired
+    new = [tv(name) for name in ("B", "C", "D", "E", "F")]
+    n.assign(new, "2026-11-30T09:00:00+00:00")
+    assert numbers(new) == {"B": "1", "C": "2", "D": "3", "E": "4", "F": "6"}  # 5 is skipped

@@ -8,7 +8,9 @@ from xml.sax.saxutils import escape, quoteattr
 
 # Characters XML doesn't allow, which have no place in a name or address anyway. One of
 # them in a channel name from someone's playlist would make the whole guide unreadable.
-CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufffe\uffff]")
+# Half a surrogate pair (\ud800 to \udfff) can come from JSON ("\ud83d" alone, in a
+# station name); it can't even be written as UTF-8.
+CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ud800-\udfff\ufffe\uffff]")
 
 
 def xml_text(text: str) -> str:

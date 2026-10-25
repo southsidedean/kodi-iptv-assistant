@@ -439,3 +439,41 @@ def test_the_retry_tests_no_more_at_once_than_concurrency(tmp_path: Path, monkey
     cfg.concurrency, cfg.host_delay_ms = 1, 0
     asyncio.run(cli.probe_all([m3u.Entry(str(i), f"http://host{i}/x") for i in range(6)], cfg, verbose=False))
     assert seen["max"] == 1
+
+
+def test_a_first_fetch_that_failed_is_tried_again(tmp_path: Path, monkeypatch):
+    origin = make_origin(tmp_path, branch="main")
+    monkeypatch.setattr(grab, "install_deps", lambda cfg, log: None)
+    real_run = subprocess.run
+    monkeypatch.setattr(grab.subprocess, "run", lambda cmd, *a, **k: real_run(cmd, *a, **k) if cmd[0] == "git"
+                        else subprocess.CompletedProcess(cmd, 0))  # fmt: skip
+    repo = tmp_path / "vendor" / "epg"
+    cfg = EpgConfig(repo_dir=repo, work_dir=tmp_path / "work", git_url=str(tmp_path / "gone"), runner="local")
+    with pytest.raises(subprocess.CalledProcessError):  # no internet at the first start
+        grab.ensure_repo(cfg, update=False, log=lambda m: None)
+    assert (repo / ".git").is_dir() and not (repo / "package-lock.json").exists()
+    cfg.git_url = str(origin)
+    grab.ensure_repo(cfg, update=False, log=lambda m: None)  # kia map, by hand, without --update
+    assert (repo / "package-lock.json").read_text() == "v1"
+    assert not grab._never_fetched(repo)
+
+
+def test_a_grab_that_cant_start_fails_only_its_own_site(tmp_path: Path, monkeypatch):
+    cfg = EpgConfig(repo_dir=tmp_path / "epg", work_dir=tmp_path / "work", native_grabbers=False, parallel_sites=2)
+    (cfg.repo_dir / "node_modules").mkdir(parents=True)
+    channels = tmp_path / "work" / "channels"
+    channels.mkdir(parents=True)
+    for site in ("a.com", "b.com"):
+        (channels / f"{site}.channels.xml").write_text("<channels/>")
+
+    def grab_site(cfg, site, path):
+        if site == "a.com":
+            raise FileNotFoundError("docker")
+        return grab.GrabResult(site, 0, 1.0, tmp_path / "b.log", tmp_path / "b.xml")
+
+    monkeypatch.setattr(grab, "grab_site", grab_site)
+    monkeypatch.setattr(grab, "sandboxed", lambda *a: True)
+    said = []
+    results = {r.site: r.returncode for r in grab.grab_all(cfg, None, said.append)}
+    assert results == {"a.com": 1, "b.com": 0}
+    assert any("a.com: couldn't start" in m for m in said)

@@ -61,7 +61,9 @@ def load_site_channels(repo_dir: Path) -> list[SiteChannel]:
                 continue
             if not is_safe_site(el.get("site", "")):
                 continue  # used as a file name; never let one reach outside work/
-            extra = {k: v for k, v in el.attrib.items() if k not in ("site", "site_id", "lang", "xmltv_id")}
+            # A namespaced attribute reads as "{uri}name", which can't be written back as XML.
+            extra = {k: v for k, v in el.attrib.items()
+                     if k not in ("site", "site_id", "lang", "xmltv_id") and not k.startswith("{")}  # fmt: skip
             found.append(
                 SiteChannel(
                     site=el.get("site", ""),
