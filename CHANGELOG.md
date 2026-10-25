@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.6.2 (unreleased)
+## 0.6.2 (2026-10-25)
+
+### Upgrading from 0.6.1
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). With `KIA_PLEX_URL` set, `kia doctor plex` reports what kia found in Plex after the next refresh; until then it says kia hasn't added the tuners yet. To see it sooner, use **Add Live TV to Plex** on the Stack page.
 
 ### Asking kia why
 
