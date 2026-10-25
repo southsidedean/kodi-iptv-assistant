@@ -71,14 +71,14 @@ class FakePlex:
 
 def test_plex_players_appear_by_pseudonym_only(tmp_path: Path):
     state = tmp_path / "state"
-    out = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    out = metrics.render(tmp_path, plex=metrics.MediaSessions(FakePlex(), state_dir=state))
     assert "Kitchen" not in out and "Grandma" not in out
     names = re.findall(r'kia_plex_session_info\{player="(player-[0-9a-f]{6})"', out)
     assert len(set(names)) == 2
     assert 'kia_plex_sessions{kind="live",video="copy",hw="none",location="lan"} 1' in out
     assert 'kia_plex_sessions{kind="movie",video="transcode",hw="gpu",location="wan"} 1' in out
     # The same device keeps its pseudonym, after a restart too (the key is kept in state/).
-    again = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    again = metrics.render(tmp_path, plex=metrics.MediaSessions(FakePlex(), state_dir=state))
     assert re.findall(r'kia_plex_session_info\{player="(player-[0-9a-f]{6})"', again) == names
     assert (state / "metrics-key").stat().st_mode & 0o077 == 0
     # Which is which, for the secure page only.
@@ -91,7 +91,7 @@ def test_players_names_need_the_password(tmp_path: Path):
     from kia import api, auth
 
     state = tmp_path / "state"
-    metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    metrics.render(tmp_path, plex=metrics.MediaSessions(FakePlex(), state_dir=state))
     cfg = api.ApiConfig(tmp_path, state, tmp_path / "profiles.toml", None, auth.Auth(state, "secret"), 8743)
 
     def call(password, secure):
@@ -122,7 +122,7 @@ def test_plex_is_up_even_when_kia_cant_keep_its_players_list(tmp_path: Path):
     state = tmp_path / "state"
     state.mkdir()
     (state / "metrics-key").mkdir()  # can't be read as the key: kia's own files fail, not Plex
-    out = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state))
+    out = metrics.render(tmp_path, plex=metrics.MediaSessions(FakePlex(), state_dir=state))
     assert "kia_plex_up 1" in out and 'player="player-unknown"' in out
     assert "Kitchen" not in out
 
@@ -152,8 +152,8 @@ def test_every_kia_number_a_dashboard_uses_is_one_kia_sends(tmp_path: Path):
     # The Plex and Jellyfin dashboards are made from one template (scripts/dashboards.py): a
     # misspelled name there would leave a panel saying kia isn't set up, forever.
     (tmp_path / "status.json").write_text(json.dumps(STATUS))
-    text = metrics.render(tmp_path, FakeRelay(), plex=metrics.PlexSessions(FakePlex(), state_dir=tmp_path),
-                          jellyfin=metrics.PlexSessions(FakePlex(), state_dir=tmp_path))  # fmt: skip
+    text = metrics.render(tmp_path, FakeRelay(), plex=metrics.MediaSessions(FakePlex(), state_dir=tmp_path),
+                          jellyfin=metrics.MediaSessions(FakePlex(), state_dir=tmp_path))  # fmt: skip
     sent = set(re.findall(r"^# TYPE (\S+)", text, re.M))
     folder = Path(__file__).resolve().parent.parent / "deploy" / "monitoring" / "dashboards"
     used = set()
@@ -173,7 +173,7 @@ def test_players_that_look_the_same_share_a_line(tmp_path: Path):
     plex = FakePlex()
     plex.playing = [{"player": "", "player_id": "", "product": "Plex Web", "kind": "live", "video": "copy",
                      "location": "lan", "state": "playing"}] * 2  # fmt: skip
-    out = metrics.render(tmp_path, plex=metrics.PlexSessions(plex, state_dir=tmp_path / "state"))
+    out = metrics.render(tmp_path, plex=metrics.MediaSessions(plex, state_dir=tmp_path / "state"))
     lines = [line for line in out.splitlines() if line.startswith("kia_plex_session_info{")]
     assert len(lines) == 1 and lines[0].endswith(" 2")
 
@@ -188,8 +188,8 @@ def test_plex_and_jellyfin_are_asked_at_the_same_time(tmp_path: Path):
 
     state = tmp_path / "state"
     began = time.monotonic()
-    out = metrics.render(tmp_path, plex=metrics.PlexSessions(Slow(), state_dir=state),
-                         jellyfin=metrics.PlexSessions(Slow(), state_dir=state))  # fmt: skip
+    out = metrics.render(tmp_path, plex=metrics.MediaSessions(Slow(), state_dir=state),
+                         jellyfin=metrics.MediaSessions(Slow(), state_dir=state))  # fmt: skip
     assert time.monotonic() - began < 0.9 and "kia_plex_up 1" in out and "kia_jellyfin_up 1" in out
 
 
@@ -204,7 +204,7 @@ def test_a_plex_that_turned_kia_away_is_asked_with_its_new_token(tmp_path: Path,
 
     server = Unclaimed()
     renewed = []
-    s = metrics.PlexSessions(server, every=0, state_dir=tmp_path / "state",
+    s = metrics.MediaSessions(server, every=0, state_dir=tmp_path / "state",
                              renew=lambda: (renewed.append(1), setattr(server, "token", "claimed")))  # fmt: skip
     assert s.get() is None and renewed == [1]
     assert "didn't answer" in capsys.readouterr().err  # said once, when it stops answering

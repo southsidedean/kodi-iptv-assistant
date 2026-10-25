@@ -74,13 +74,13 @@ def test_jellyfin_in_metrics_next_to_plex(server, tmp_path: Path):
             return [{"player": "Den Roku", "player_id": "roku-1", "product": "Plex for Roku", "kind": "live",
                      "video": "copy", "hw": "none", "location": "lan", "state": "playing"}]  # fmt: skip
 
-    text = metrics.render(tmp_path, plex=metrics.PlexSessions(FakePlex(), state_dir=state, players=players),
-                          jellyfin=metrics.JellyfinSessions(jellyfin.Jellyfin(server, "secret"), state_dir=state, players=players))  # fmt: skip
+    text = metrics.render(tmp_path, plex=metrics.MediaSessions(FakePlex(), state_dir=state, players=players),
+                          jellyfin=metrics.MediaSessions(jellyfin.Jellyfin(server, "secret"), state_dir=state, players=players))  # fmt: skip
     assert "kia_jellyfin_up 1" in text and "kia_plex_up 1" in text
     assert 'kia_jellyfin_sessions{kind="live",video="copy",hw="none",location="lan"} 1' in text
     assert 'kia_jellyfin_sessions{kind="movie",video="transcode",hw="gpu",location="wan"} 1' in text
     assert "Living room TV" not in text and "Phone" not in text  # pseudonyms only
     known = json.loads((state / metrics.PLAYERS_FILE).read_text())
     assert {v["name"] for v in known.values()} == {"Den Roku", "Living room TV", "Phone", "Laptop"}  # one list for both
-    down = metrics.render(tmp_path, jellyfin=metrics.JellyfinSessions(jellyfin.Jellyfin("http://127.0.0.1:9", "x"), state_dir=state))
+    down = metrics.render(tmp_path, jellyfin=metrics.MediaSessions(jellyfin.Jellyfin("http://127.0.0.1:9", "x"), state_dir=state))
     assert "kia_jellyfin_up 0" in down
