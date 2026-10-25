@@ -2,6 +2,10 @@
 
 ## 0.6.0 (unreleased)
 
+### Asking kia why
+
+- `kia doctor` says what's wrong and why, from what kia has already written down: whether the last refresh worked, its alerts, playlists whose streams all fail, a guide that's mostly empty, parts of the stack that don't answer. `kia doctor channel <name>` explains one channel: whether its stream works and how it has done, or why it was left out, and where its guide comes from, or why it has none, quoting the guide site's log when that's the reason. Each answer names the file that shows it and what to do, and `--json` gives the same for scripts. It changes nothing and works offline ([troubleshooting](docs/troubleshooting.md)).
+
 ## 0.5.7 (2026-10-25)
 
 ### Upgrading from 0.5.6

@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import gzip
+import json
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -140,6 +141,10 @@ def test_damaged_guide_file_is_skipped(tmp_path: Path):
     cli.build_guide(cfg, entries, {"good.tv": good, "bad.tv": bad}, {"A.us": ["good.tv"], "B.us": ["bad.tv"]})
     guide = (tmp_path / "output" / "guide.xml").read_text()
     assert "<title>x</title>" in guide and 'channel="B.us" kia-placeholder="1"' in guide
+    # kia doctor reads which source each channel got: A from good.tv, B from nothing.
+    choices = json.loads((tmp_path / "work" / "guide-choices.json").read_text())
+    assert choices["A.us"]["site"] == "good.tv" and choices["A.us"]["programs"] == 1 and choices["A.us"]["ends"]
+    assert choices["B.us"] == {"site": None, "hours_24h": 0.0, "programs": 0, "ends": None}
 
 
 def test_grab_dns_ignores_names_that_resolve_again(monkeypatch, tmp_path: Path):

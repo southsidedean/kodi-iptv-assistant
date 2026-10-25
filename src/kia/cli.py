@@ -671,6 +671,10 @@ def build_guide(
     now = datetime.now(timezone.utc)
     choices = xmltv.choose_sources([e.tvg_id for e in entries], site_slots, site_order, now)
     epg = cfg.epg
+    # Which source each channel got, for kia doctor ("why does this channel show only its name?").
+    write_atomic(epg.work_dir / "guide-choices.json", json.dumps(
+        {c.tvg_id: {"site": c.site, "hours_24h": c.hours_24h, "programs": c.programmes,
+                    "ends": c.ends.isoformat() if c.ends else None} for c in choices.values()}, indent=1))  # fmt: skip
     out = cfg.output_dir / "guide.xml"
     xmltv.write_guide(
         out, entries, choices, site_files, epg.placeholders, epg.days, now, epg.placeholder_hours, epg.radio_placeholders
@@ -950,6 +954,26 @@ def refresh_settings_and_status(cfg: Config) -> None:
         saved = {}
     write_settings(cfg, saved.get("run_at"), saved.get("guide_every"))
     update_status(cfg)
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Plain answers to "why?" from the files kia keeps (kia.doctor). 1 when something needs you."""
+    from kia import doctor
+
+    cfg = load_config(args)
+    topic, words = (args.what[0], args.what[1:]) if args.what else ("", [])
+    if topic == "channel":
+        reports = doctor.channel(cfg, " ".join(words))
+    elif not topic:
+        reports = [doctor.overview(cfg)]
+    else:
+        log(f"kia doctor doesn't know {topic!r}. Try: kia doctor, or kia doctor channel <name>")
+        return 2
+    if args.json:
+        print(json.dumps([r.to_dict() for r in reports], indent=1))
+    else:
+        print(doctor.render(reports), end="")
+    return 1 if any(r.worst == doctor.PROBLEM for r in reports) else 0
 
 
 def cmd_settings(args: argparse.Namespace) -> int:
@@ -1464,6 +1488,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_renumber)
 
+    p = sub.add_parser("doctor", help="explain what's wrong, from what kia has written down: kia doctor, or kia doctor channel <name>")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("what", nargs="*", help="nothing for an overview, or: channel <name or ID>")
+    p.add_argument("--json", action="store_true", help="the answer as JSON, for scripts")
+    p.set_defaults(func=cmd_doctor)
     p = sub.add_parser("settings", help="show the settings kia is running with, and where each is changed")
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_settings)

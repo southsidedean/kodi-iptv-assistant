@@ -4,6 +4,15 @@ Start with kia's [Dashboard](how-it-works.md#the-dashboard) at `http://<your add
 
 The commands on this page run in a terminal, in the kia folder, on the computer that runs kia.
 
+**Ask kia first.** `kia doctor` reads what kia wrote down about the last refresh and says what's wrong, which file shows it, and what to do. `kia doctor channel <name>` does the same for one channel: whether its stream works, and why its guide is full, partial, or only its name. It changes nothing and works offline. With Docker:
+
+```sh
+docker compose exec kia python3 -m kia doctor
+docker compose exec kia python3 -m kia doctor channel "CNN"
+```
+
+Without Docker, run `PYTHONPATH=src python3 -m kia doctor` in the kia folder.
+
 Not sure where to look? Start at the top:
 
 <picture>
