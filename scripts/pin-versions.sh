@@ -32,6 +32,26 @@ digest() {  # digest IMAGE: the image's repository digest, e.g. nginx@sha256:...
 base_image=$(grep '^KIA_BASE_IMAGE=' .env | cut -d= -f2-); base_image=${base_image:-cgr.dev/chainguard/wolfi-base:latest}
 nginx_image=$(grep '^KIA_NGINX_IMAGE=' .env | cut -d= -f2-); nginx_image=${nginx_image:-nginx:alpine}
 base=$(digest "$base_image"); nginx=$(digest "$nginx_image")
+case "$base_image" in *@sha256:*) ;; *)
+  if [ -z "$base" ]; then
+    # Docker's builder (BuildKit) doesn't keep the base image with the others, so it's often
+    # not here to read. Pin the newest one instead, by its digest, and say so.
+    # Its digest is the hash of its manifest, byte for byte: kept in a file, since $(...)
+    # would drop a newline at its end. Nothing read, nothing pinned.
+    manifest=$(mktemp)
+    remote=""
+    if docker buildx imagetools inspect --raw "$base_image" >"$manifest" 2>/dev/null && [ -s "$manifest" ]; then
+      remote=$({ sha256sum "$manifest" 2>/dev/null || shasum -a 256 "$manifest"; } | cut -d' ' -f1)
+    fi
+    rm -f "$manifest"
+    case "$remote" in
+      [0-9a-f]*[0-9a-f]) base="${base_image%:*}@sha256:$remote"
+        echo "The base image kia was built on isn't kept on this computer, so this pins today's newest;"
+        echo "docker compose up -d --build rebuilds kia on it." ;;
+      *) echo "Couldn't find the base image's digest ($base_image), so it isn't pinned." >&2 ;;
+    esac
+  fi ;;
+esac
 epg=$(git -C vendor/epg rev-parse HEAD 2>/dev/null || true)
 [ -n "$base" ] && set_env KIA_BASE_IMAGE "$base" && echo "KIA_BASE_IMAGE=$base"
 [ -n "$nginx" ] && set_env KIA_NGINX_IMAGE "$nginx" && echo "KIA_NGINX_IMAGE=$nginx"

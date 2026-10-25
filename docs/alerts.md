@@ -68,7 +68,7 @@ The settings view on the Dashboard shows only whether email is set up, never the
 
 ## Other ways to be notified
 
-`KIA_ALERT_COMMAND` runs any shell command for each alert, inside the kia container, with `$KIA_ALERT_EVENT`, `$KIA_ALERT_TITLE`, and `$KIA_ALERT_MESSAGE` set. The container includes `curl`, so anything with a simple web address for posting messages works. You can use ntfy, email, and a command together.
+`KIA_ALERT_COMMAND` runs any shell command for each alert, inside the kia container, with `$KIA_ALERT_EVENT`, `$KIA_ALERT_TITLE`, and `$KIA_ALERT_MESSAGE` set. The container includes `curl`, so anything with a simple web address for posting messages works. In `.env`, put the command in single quotes, such as `KIA_ALERT_COMMAND='curl -d "$KIA_ALERT_MESSAGE" https://example.com/hook'`: without them, Docker fills in `$KIA_ALERT_MESSAGE` itself, from `.env`, before kia ever sees it, and it comes out empty. You can use ntfy, email, and a command together.
 
 ## Choosing events
 

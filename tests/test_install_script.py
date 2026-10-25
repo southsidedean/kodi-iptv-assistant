@@ -134,3 +134,26 @@ def test_no_stack_service_skips_it(kia: Path):
     stub(kia / "scripts", "install-service.sh", f'echo "$*" >> {called}\n')
     r = install(kia, "--no-stack-service")
     assert r.returncode == 0 and not called.exists() and "kia-stack service lets you choose" not in r.stdout
+
+
+def test_piped_from_curl_it_hands_over_to_the_copys_own_installer(kia: Path):
+    # The copy's own installer (a release's) is a stand-in that shows what it was given.
+    (kia / "scripts" / "install.sh").write_text('#!/bin/sh\necho "the copy\'s installer: $* ($KIA_INSTALL_HANDED_OVER)"\n')
+    full = {"PATH": f"{kia.parent / 'bin'}:/usr/bin:/bin", "HOME": str(kia.parent)}
+    r = subprocess.run(["sh", "-s", "--", "--dir", str(kia), "--tz", "Etc/UTC", "--port", "1", "--preset", "kodi", "--yes"],
+                       input=(ROOT / "scripts" / "install.sh").read_text(), cwd=kia.parent, env=full, capture_output=True,
+                       text=True, start_new_session=True, check=False)  # fmt: skip
+    assert r.returncode == 0, r.stderr
+    assert f"the copy's installer: --dir {kia} --port 1 --https-port 8743 --tz Etc/UTC --preset kodi --yes (1)" in r.stdout
+    assert not (kia / ".env").exists()  # main's installer made nothing itself
+
+
+@pytest.mark.parametrize("public, advertised", [("https://my-server.lan:8780/", "http://my-server.lan:32400/"),
+                                                ("http://[fd00::5]:8780", "http://[fd00::5]:32400/"),
+                                                ("", ""), ("http://localhost:8780", "")])  # fmt: skip
+def test_the_preset_reads_this_computers_address_from_any_public_url(kia: Path, public: str, advertised: str):
+    text = (kia / ".env.example").read_text()
+    (kia / ".env").write_text(text.replace("KIA_PUBLIC_URL=\n", f"KIA_PUBLIC_URL={public}\n"))  # a second run: .env is there
+    r = install(kia, "--preset", "plex-box", "--yes")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert f"KIA_PLEX_ADVERTISE={advertised}\n" in env(kia)

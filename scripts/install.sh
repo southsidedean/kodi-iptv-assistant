@@ -118,6 +118,19 @@ else
     fi
     say "Downloaded kia $(git -C "$DIR" describe --tags --always) to $DIR"
 fi
+# Piped from curl, this is main's installer, while the copy is at a release: hand over to
+# the release's own, which knows its files and settings, with the same choices. Once only.
+if [ "$here" != "$(cd "$DIR" && pwd)" ] && [ -f "$DIR/scripts/install.sh" ] && [ -z "${KIA_INSTALL_HANDED_OVER:-}" ]; then
+    set -- --dir "$DIR" --port "$PORT" --https-port "$HTTPS_PORT"
+    [ -n "$ADDRESS" ] && set -- "$@" --address "$ADDRESS"
+    [ -n "$TZ_NAME" ] && set -- "$@" --tz "$TZ_NAME"
+    [ -n "$PRESET" ] && set -- "$@" --preset "$PRESET"
+    [ "$MAIN" = yes ] && set -- "$@" --main
+    [ "$STACK_SERVICE" = yes ] && set -- "$@" --stack-service
+    [ "$STACK_SERVICE" = no ] && set -- "$@" --no-stack-service
+    [ "$YES" = 1 ] && set -- "$@" --yes
+    KIA_INSTALL_HANDED_OVER=1 exec sh "$DIR/scripts/install.sh" "$@"
+fi
 cd "$DIR"
 if [ -n "$PRESET" ] && [ ! -f "stacks/$PRESET.env" ]; then
     die "there's no preset $PRESET; choose one of: $(for f in stacks/*.env; do basename "$f" .env; done | tr '\n' ' ')"
@@ -142,7 +155,11 @@ else
     fi
     # Just the address: http://, a port, or a / typed with it come off.
     ADDRESS=$(printf '%s' "$ADDRESS" | sed -e 's|^[A-Za-z]*://||' -e 's|/.*||')
-    case "$ADDRESS" in *:*:*) ;; *) ADDRESS=${ADDRESS%%:*} ;; esac
+    case "$ADDRESS" in
+        \[*\]*) ADDRESS=${ADDRESS%%]*}] ;;  # an IPv6 address in brackets: drop a port after it
+        *:*:*) ADDRESS="[$ADDRESS]" ;;      # a bare IPv6 address: in an address it needs brackets
+        *) ADDRESS=${ADDRESS%%:*} ;;        # a name or IPv4 address: drop a port
+    esac
     case "$ADDRESS" in '' | *[!A-Za-z0-9.:_[\]-]*) die "that address ($ADDRESS) has characters an address can't have; use one such as 192.168.1.20 or my-server.lan" ;; esac
     if [ -z "$TZ_NAME" ]; then
         if [ "$OS" = Darwin ]; then
@@ -195,37 +212,38 @@ else
 fi
 if [ -n "$PRESET" ]; then
     stack=$(sed -n 's/^KIA_STACK=//p' "stacks/$PRESET.env")
-    address=$(sed -n 's|^KIA_PUBLIC_URL=http://||p' .env | sed 's|:[0-9]*$||')
+    # The host in KIA_PUBLIC_URL, as stack.sh reads it: http:// or https://, a port, a path
+    # or slash after it, an IPv6 address in brackets. Nothing usable (empty, localhost, or
+    # characters an address can't have): the advertise settings stay empty for you to fill.
+    address=$(sed -n 's/^KIA_PUBLIC_URL=//p' .env | tail -n 1 | sed -e 's#^[A-Za-z]*://##' -e 's#/.*$##')
+    case "$address" in
+        \[*\]*) address=${address%%]*}]; case "$address" in *[!0-9A-Fa-f:\[\]]*) address="" ;; esac ;;
+        *) address=${address%%:*}; case "$address" in *[!A-Za-z0-9.-]*) address="" ;; esac ;;
+    esac
+    case "$address" in localhost | 127.* | "[::1]") address="" ;; esac
     if grep -q '^KIA_STACK=' .env; then
         (umask 077 && sed -e "s|^KIA_STACK=.*|KIA_STACK=$stack|" .env >.env.tmp) && mv .env.tmp .env
     else
         printf 'KIA_STACK=%s\n' "$stack" >>.env  # an .env from before KIA_STACK
     fi
     # The addresses Plex and Jellyfin apps on your network use, from this computer's.
-    case ",$stack," in *,plex,*) (umask 077 && sed -e "s|^KIA_PLEX_ADVERTISE=$|KIA_PLEX_ADVERTISE=http://$address:32400/|" .env >.env.tmp) && mv .env.tmp .env ;; esac
-    case ",$stack," in *,jellyfin,*) (umask 077 && sed -e "s|^KIA_JELLYFIN_ADVERTISE=$|KIA_JELLYFIN_ADVERTISE=http://$address:8096|" .env >.env.tmp) && mv .env.tmp .env ;; esac
+    if [ -n "$address" ]; then
+        case ",$stack," in *,plex,*) (umask 077 && sed -e "s|^KIA_PLEX_ADVERTISE=$|KIA_PLEX_ADVERTISE=http://$address:32400/|" .env >.env.tmp) && mv .env.tmp .env ;; esac
+        case ",$stack," in *,jellyfin,*) (umask 077 && sed -e "s|^KIA_JELLYFIN_ADVERTISE=$|KIA_JELLYFIN_ADVERTISE=http://$address:8096|" .env >.env.tmp) && mv .env.tmp .env ;; esac
+    fi
     say "Preset $PRESET: KIA_STACK=${stack:-(kia and its web server only)}."
 fi
 chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.
 mkdir -p output state work vendor profiles tls
 
-# kia for this computer only (KIA_BIND=127.0.0.1) needs no ports opened. The ports are
-# .env's: on a second run, they may not be the ones given here.
-PORT=$(sed -n 's/^KIA_PORT=//p' .env | tail -n 1); PORT=${PORT:-8780}
-HTTPS_PORT=$(sed -n 's/^KIA_HTTPS_PORT=//p' .env | tail -n 1); HTTPS_PORT=${HTTPS_PORT:-8743}
+# Docker lets connections to the ports it publishes past ufw by itself, so ufw rules
+# neither open them nor close them: KIA_BIND does (127.0.0.1 for this computer only). Saying
+# so beats opening ports in ufw, which would look like protection it isn't.
 if [ "$OS" = Linux ] && command -v ufw >/dev/null 2>&1 && ! grep -q '^KIA_BIND=127\.0\.0\.1' .env; then
     step "Firewall"
-    if sudo -n true 2>/dev/null; then
-        if sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-            sudo ufw allow "$PORT/tcp" >/dev/null && sudo ufw allow "$HTTPS_PORT/tcp" >/dev/null
-            say "Opened ports $PORT and $HTTPS_PORT in ufw so other devices can reach kia."
-        else
-            say "ufw is installed but off; nothing to do."
-        fi
-    else
-        say "If ufw is on, let other devices in with:  sudo ufw allow $PORT/tcp && sudo ufw allow $HTTPS_PORT/tcp"
-    fi
+    say "Docker's ports go around ufw, so devices on your network reach kia without opening any."
+    say "To keep kia and its stack to this computer, set KIA_BIND=127.0.0.1 in .env (docs/configuration.md)."
 fi
 
 stack=$(sed -n 's/^KIA_STACK=//p' .env)

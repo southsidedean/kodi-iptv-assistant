@@ -48,6 +48,10 @@ else
 fi
 
 need_root() { [ "$(id -u)" = 0 ] || die "run it with sudo: sudo $0 $cmd ..."; }
+# A name or folder as grep reads it: a dot in movies.4k would match any character, so
+# movies-4k's lines would count as its too.
+literal() { printf '%s' "$1" | sed 's/[][\\.*^$]/\\&/g'; }
+name_re=$(literal "$name") base_re=$(literal "$BASE") map_re=$(literal "${MAP:+${MAP#/etc/}}")  # MAP: macOS only
 check_name() {
     [ -n "$name" ] || die "give the share a name, such as movies (see --help)"
     case "$name" in *[!A-Za-z0-9._-]* | .*) die "a name has letters, digits, dots, dashes, and underscores: $name" ;; esac
@@ -85,13 +89,13 @@ case "$cmd" in
         mode=ro; [ "$rw" = yes ] && mode=rw
         if [ "$OS" = Darwin ]; then
             touch "$MAP"
-            grep -v "^${name}[[:space:]]" "$MAP" > "$MAP.new" || true
+            grep -v "^${name_re}[[:space:]]" "$MAP" > "$MAP.new" || true
             printf '%s\t-%s,%s\t%s\n' "$name" "$mode" "${opts#-}" "$share" >> "$MAP.new"
             mv "$MAP.new" "$MAP" && chmod 644 "$MAP"
             mkdir -p "$BASE"
-            if ! grep -q "^${BASE}[[:space:]].*${MAP#/etc/}" /etc/auto_master; then
-                ! grep -q "[[:space:]]${MAP#/etc/}[[:space:]]" /etc/auto_master || die "/etc/auto_master already puts ${MAP#/etc/} in another folder; give that one as --base"
-                ! grep -q "^${BASE}[[:space:]]" /etc/auto_master || die "/etc/auto_master already mounts something else at $BASE; choose another folder with --base"
+            if ! grep -q "^${base_re}[[:space:]].*${map_re}" /etc/auto_master; then
+                ! grep -q "[[:space:]]${map_re}[[:space:]]" /etc/auto_master || die "/etc/auto_master already puts ${MAP#/etc/} in another folder; give that one as --base"
+                ! grep -q "^${base_re}[[:space:]]" /etc/auto_master || die "/etc/auto_master already mounts something else at $BASE; choose another folder with --base"
                 backup /etc/auto_master
                 printf '%s\t\t%s\t-nosuid,nobrowse\n' "$BASE" "${MAP#/etc/}" >> /etc/auto_master
             fi
@@ -99,7 +103,7 @@ case "$cmd" in
         else
             mkdir -p "$BASE/$name"
             backup /etc/fstab
-            grep -v "[[:space:]]${BASE}/${name}[[:space:]].* # kia-media$" /etc/fstab > /etc/fstab.new || true
+            grep -v "[[:space:]]${base_re}/${name_re}[[:space:]].* # kia-media$" /etc/fstab > /etc/fstab.new || true
             printf '%s %s nfs %s,%s 0 0 # kia-media\n' "$share" "$BASE/$name" "$mode" "$opts" >> /etc/fstab.new
             cat /etc/fstab.new > /etc/fstab && rm /etc/fstab.new
             systemctl daemon-reload
@@ -117,16 +121,16 @@ case "$cmd" in
     remove)
         need_root; check_name
         if [ "$OS" = Darwin ]; then
-            if [ ! -f "$MAP" ] || ! grep -q "^${name}[[:space:]]" "$MAP"; then die "there's no share named $name ($0 list)"; fi
-            grep -v "^${name}[[:space:]]" "$MAP" > "$MAP.new" || true
+            if [ ! -f "$MAP" ] || ! grep -q "^${name_re}[[:space:]]" "$MAP"; then die "there's no share named $name ($0 list)"; fi
+            grep -v "^${name_re}[[:space:]]" "$MAP" > "$MAP.new" || true
             mv "$MAP.new" "$MAP" && chmod 644 "$MAP"
             umount "$BASE/$name" 2>/dev/null || true
             automount -c
         else
-            grep -q "[[:space:]]${BASE}/${name}[[:space:]].* # kia-media$" /etc/fstab || die "there's no share named $name ($0 list)"
+            grep -q "[[:space:]]${base_re}/${name_re}[[:space:]].* # kia-media$" /etc/fstab || die "there's no share named $name ($0 list)"
             umount "$BASE/$name" 2>/dev/null || true
             backup /etc/fstab
-            grep -v "[[:space:]]${BASE}/${name}[[:space:]].* # kia-media$" /etc/fstab > /etc/fstab.new || true
+            grep -v "[[:space:]]${base_re}/${name_re}[[:space:]].* # kia-media$" /etc/fstab > /etc/fstab.new || true
             cat /etc/fstab.new > /etc/fstab && rm /etc/fstab.new
             systemctl stop "$(systemd-escape --path --suffix=automount "$BASE/$name")" 2>/dev/null || true
             systemctl daemon-reload

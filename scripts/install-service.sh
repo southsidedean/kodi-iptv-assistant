@@ -42,6 +42,11 @@ plist_env() {
     [ -f "$DIR/.env" ] || return 0
     grep -E '^[A-Z_][A-Z0-9_]*=.+' "$DIR/.env" | while IFS= read -r line; do
         key=${line%%=*} value=${line#*=}
+        # Quotes around the whole value, as Docker and systemd read them: not part of it.
+        case "$value" in
+            \'*\') value=${value#\'} value=${value%\'} ;;
+            \"*\") value=${value#\"} value=${value%\"} ;;
+        esac
         # --dry-run shows the file on screen: passwords and tokens stay out of it.
         if [ "$MODE" = dry-run ]; then
             case "$key" in *PASSWORD* | *TOKEN* | *SECRET* | *NTFY_URL* | *CLAIM*) value="(from .env, not shown)" ;; esac

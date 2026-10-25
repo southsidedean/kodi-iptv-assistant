@@ -34,7 +34,9 @@ services:
       - /tmp
       # Other programs' data in the kia folder, which kia never reads: empty in kia's view,
       # so a stream that broke ffprobe couldn't reach Jellyfin's users or the password Grafana
-      # made. (The rest of the kia folder, .env included, stays readable: kia needs it.)
+      # made. The rest of the kia folder stays readable, because kia needs it: .env, with any
+      # passwords set there (KIA_GRAFANA_PASSWORD, say), and with Plex in the stack, Plex's
+      # settings, which hold its sign-in.
       - /data/jellyfin:size=1m,mode=0500
       - /data/monitoring:size=1m,mode=0500
     cap_drop:
@@ -163,7 +165,8 @@ services:
       retries: 3
       start_period: 20s
     volumes:
-      # Only the results; nothing else in the project folder is visible to the web server.
+      # The results, its own settings, and the certificate and key; nothing else in the kia
+      # folder is visible to the web server.
       - ./output:/srv/output:ro
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./deploy/kia-common.inc:/etc/nginx/conf.d/kia-common.inc:ro
@@ -194,6 +197,10 @@ services:
     command: ["threadfin-setup"]
     restart: "no"
     logging: *logging
+    tmpfs:
+      # As in kia's container: other programs' data stays out of view.
+      - /data/jellyfin:size=1m,mode=0500
+      - /data/monitoring:size=1m,mode=0500
     volumes:
       - ./:/data:ro
       - ./threadfin/conf:/data/threadfin/conf
@@ -506,7 +513,8 @@ services:
   # The disks' own health (SMART), for the Hardware dashboard: failing sectors, errors,
   # temperature, and wear; COMPOSE_PROFILES=...,monitoring-disks. Reading SMART data takes
   # the disks themselves, so this one runs privileged, as root: full access to the computer.
-  # It gets nothing else, and no port: only Prometheus reads it, on Docker's network.
+  # It gets nothing else, and no published port: on Docker's network, only Prometheus asks
+  # it for anything, though any container there could.
   smartctl-exporter:
     profiles: ["monitoring-disks"]
     image: ${KIA_SMARTCTL_IMAGE:-quay.io/prometheuscommunity/smartctl-exporter:latest}

@@ -14,7 +14,7 @@ pytestmark = pytest.mark.skipif(not shutil.which("sh"), reason="needs sh")
 @pytest.fixture
 def kia(tmp_path: Path) -> Path:
     """A kia folder with the script, the presets, an .env, and stand-ins for docker, uname, and nc:
-    Linux, nothing on port 9100, Docker without NVIDIA, kia and jellyfin running."""
+    Linux, nothing on port 9100, Docker without NVIDIA, kia and jellyfin running, nobody watching."""
     folder = tmp_path / "kia"
     (folder / "scripts").mkdir(parents=True)
     shutil.copy(ROOT / "scripts" / "stack.sh", folder / "scripts" / "stack.sh")
@@ -38,6 +38,7 @@ def kia(tmp_path: Path) -> Path:
          'esac\n')  # fmt: skip
     stub(bin_dir, "uname", 'echo "${FAKE_OS:-Linux}"\n')
     stub(bin_dir, "nc", 'exit 1\n')  # nothing listens anywhere
+    stub(bin_dir, "curl", 'echo "kia_pluto_channels_playing 0"\n')  # kia's numbers: nobody watching
     return folder
 
 
@@ -441,3 +442,11 @@ def test_the_service_passes_a_claim_code_on_and_refuses_a_bad_one(kia: Path):
     request(kia, id="req-12", action="check", stack="plex", claim="claim-abc")
     stack(kia, "watch", "--once")
     assert answer(kia)[0]["state"] == "refused"
+
+
+def test_kia_running_without_an_answer_isnt_taken_as_nobody_watching(kia: Path):
+    stub(kia.parent / "bin", "curl", "exit 7\n")  # kia runs (docker says so) but its numbers don't answer
+    (kia / ".env").write_text((kia / ".env").read_text() + "KIA_STACK=jellyfin\n")
+    r = stack(kia, "apply")  # no terminal to answer
+    assert "can't tell who's watching" in r.stdout and "Not changed" in r.stdout
+    assert "--yes" in r.stdout

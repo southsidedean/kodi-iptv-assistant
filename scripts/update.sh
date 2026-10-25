@@ -61,6 +61,12 @@ if [ "$restart" = yes ] && [ ! -s "$deployed" ]; then
 fi
 before_rev=$(commit_or_empty "$deployed")
 before_rev=${before_rev:-$(git rev-parse HEAD)}
+# A copy that follows main (set up with --main) keeps following it. The newest release is
+# older than main, so moving there would quietly undo what main has; name a release for that.
+if [ -z "$target" ] && [ "$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)" = main ]; then
+    echo "This copy follows main, so it stays on main (to go back to a release, name it: scripts/update.sh vX.Y.Z)."
+    target=main
+fi
 if [ "$target" = main ]; then
     git checkout --quiet main 2>/dev/null || git checkout --quiet -b main --track origin/main
     git pull --quiet --ff-only origin main
@@ -85,11 +91,19 @@ fi
 # Nobody watching? A restart cuts off Pluto TV through kia, and Live TV through Threadfin
 # (Plex) or kia's playlist (Jellyfin).
 port=$(get KIA_PORT)
-watching=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null | awk '
-    /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
-    /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
-    /^kia_refresh_running 1/ { r = 1 }
-    END { if (n > 0) print n " playing"; else if (r) print "a refresh is running" }')
+if numbers=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null); then
+    watching=$(printf '%s\n' "$numbers" | awk '
+        /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
+        /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
+        /^kia_refresh_running 1/ { r = 1 }
+        END { if (n > 0) print n " playing"; else if (r) print "a refresh is running" }')
+elif [ "$docker" = yes ] && ! docker compose ps --services --status running 2>/dev/null | grep -qx kia; then
+    watching=""  # kia isn't running, so nobody is watching through it
+else
+    # kia runs but didn't answer (busy, or a port that isn't KIA_PORT): that's not the
+    # same as nobody watching.
+    watching="no answer from kia's numbers, so it can't tell who's watching"
+fi
 if [ -n "$watching" ] && [ "$ask" = yes ]; then
     printf 'kia says: %s. Restart now anyway? [y/N] ' "$watching"
     { read -r answer </dev/tty; } 2>/dev/null || answer=n  # no terminal: don't restart
@@ -101,9 +115,14 @@ if [ "$docker" = no ]; then
 fi
 image=$(get KIA_IMAGE)
 if [ -n "$image" ]; then
-    # A published image with a version: the one for this release, to match its files.
-    case "$image" in
-        *:latest | *:main) ;;
+    # A published image with a version: the one for this release, to match its files. The
+    # version is after the last ":" of the name's last part: my-server.lan:5000/kia has a
+    # port, not a version. An image pinned by its digest (@sha256:...) stays as you set it.
+    name=${image##*/} tag=""
+    case "$name" in *:*) tag=${name##*:} ;; esac
+    case "$image:$tag" in
+        *@*) echo "KIA_IMAGE is pinned by its digest, so it stays as it is; change it to this release's yourself." ;;
+        *:latest | *:main | *:) ;;
         *:[0-9]*)
             if [ "$target" = main ]; then
                 echo "KIA_IMAGE=$image is a release; the files are main's. For main, build kia here (empty KIA_IMAGE)."

@@ -59,6 +59,17 @@ jobs:
             org.opencontainers.image.title=kodi-iptv-assistant
             org.opencontainers.image.description=A tidy free-TV channel list and program guide for Kodi and other players
             org.opencontainers.image.licenses=AGPL-3.0-only
+      # One base image for the three builds below, by digest: wolfi-base:latest changes often,
+      # and the image pushed should be built on the one the scans saw. (The apk packages
+      # are fetched again in each build, from the cache when it has them.)
+      - id: base
+        name: Pin the base image for this run
+        env:
+          BASE: cgr.dev/chainguard/wolfi-base:latest
+        run: |
+          digest=$(docker buildx imagetools inspect --raw "$BASE" | sha256sum | cut -d' ' -f1)
+          echo "image=${BASE%:*}@sha256:$digest" >>"$GITHUB_OUTPUT"
+          echo "Base image: ${BASE%:*}@sha256:$digest"
       - name: Build the amd64 image to scan before anything is pushed
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -66,6 +77,7 @@ jobs:
           platforms: linux/amd64
           load: true
           pull: true
+          build-args: BASE_IMAGE=${{ steps.base.outputs.image }}
           tags: kia-scan:local
           cache-from: type=gha
       - name: No fixable high or critical CVEs (known exceptions in .trivyignore)
@@ -84,6 +96,7 @@ jobs:
           platforms: linux/arm64
           load: true
           pull: true
+          build-args: BASE_IMAGE=${{ steps.base.outputs.image }}
           tags: kia-scan:arm64
           cache-from: type=gha
       - name: No fixable high or critical CVEs on arm64 either (its packages can differ)
@@ -102,6 +115,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true
+          build-args: BASE_IMAGE=${{ steps.base.outputs.image }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           sbom: true
