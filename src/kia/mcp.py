@@ -101,6 +101,14 @@ TOOLS = [
      "kia doctor on the whole guide: when it was last rebuilt and how many channels have a full, partial, "
      "or no guide; which guide sites it comes from; sites failing their downloads, with their logs' errors; "
      "and how many channels matched a site that sent nothing, or matched no site at all.", _NO_ARGS),
+    ("kia_pluto", "Pluto TV",
+     "kia doctor on Pluto TV through kia's fix: how many channels use it, what's playing now and for how "
+     "many devices, channels playing Pluto's plain link instead (which freezes at ad breaks), their last "
+     "problems, and the fallback alerts of the last week.", _NO_ARGS),
+    ("kia_setup", "kia's setup",
+     "kia doctor on kia's own setup: the secure Dashboard's certificate, whether the first password kia made "
+     "is still in use, where alerts go, free space for kia's folders, the address players are given, and "
+     "stream tests that all fail at once.", _NO_ARGS),
     ("kia_plex", "Plex",
      "Why Plex shows no channels, or too few: whether Threadfin answers and which kia playlist it reads, "
      "whether that playlist fits Plex's 480-channel limit, what kia found when it last added its tuners to "
@@ -263,6 +271,14 @@ def _guide(conf: Config, _args: dict, _api) -> dict:
     return doctor.guide(conf).to_dict()
 
 
+def _pluto(conf: Config, _args: dict, _api) -> dict:
+    return doctor.pluto(conf).to_dict()
+
+
+def _setup(conf: Config, _args: dict, _api) -> dict:
+    return doctor.setup(conf).to_dict()
+
+
 def _plex(conf: Config, _args: dict, _api) -> dict:
     return doctor.plex(conf).to_dict()
 
@@ -275,7 +291,7 @@ def _jellyfin(conf: Config, _args: dict, _api) -> dict:
     return doctor.jellyfin(conf).to_dict()
 
 
-RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": _find, "kia_plex": _plex, "kia_guide": _guide,
+RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": _find, "kia_plex": _plex, "kia_guide": _guide, "kia_pluto": _pluto, "kia_setup": _setup,
        "kia_hardware": _hardware, "kia_jellyfin": _jellyfin,
        "kia_playlists": _playlists, "kia_stack": _stack, "kia_settings": _settings,
        "kia_whats_on": _whats_on, "kia_docs": _docs}  # fmt: skip
@@ -294,7 +310,7 @@ PROMPTS = [
 def _prompt_text(name: str, args: dict) -> str:
     if name == "kia-checkup":
         return ("Use kia's tools to check on my kia. Start with kia_overview, then look into anything it flags "
-                "(kia_channel for a channel, kia_guide for the guide, kia_playlists for a playlist, kia_stack for a program next to kia, "
+                "(kia_channel for a channel, kia_guide for the guide, kia_pluto for Pluto TV, kia_setup for kia's own setup, kia_playlists for a playlist, kia_stack for a program next to kia, "
                 "kia_plex for Plex, kia_jellyfin for Jellyfin, kia_hardware for the computer). "
                 "Explain what's wrong in plain words and what I should do, with links from kia_docs where they help. "
                 "Only suggest commands that kia's docs give.")

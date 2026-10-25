@@ -99,11 +99,11 @@ def test_a_part_of_the_stack_that_doesnt_answer(kia):
 
 
 def test_env_readable_by_others_and_pluto_fallback(kia):
-    status(kia, env_private=False)
-    write(kia, "output/pluto.json", {"fallback": True, "channels": []})
+    status(kia, env_private=False, pluto_channels={"5f0" * 8: "Pluto Westerns"})
+    write(kia, "output/pluto.json", {"updated": iso(NOW), "channels": [{"id": "5f0" * 8, "viewers": 1, "fallback_minutes": 6}]})
     t = titles(overview(kia))
     assert ".env can be read by other users on this computer" in t
-    assert "A Pluto TV channel is playing without kia's fix" in t
+    assert "Pluto Westerns is playing without kia's fix" in t
 
 
 # One channel
