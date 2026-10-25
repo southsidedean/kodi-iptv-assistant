@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "SECURITY.md", *sorted((ROOT / "docs").glob("*.md")),
         *sorted((ROOT / "docs" / "cookbooks").glob("*.md"))]  # fmt: skip
@@ -43,7 +45,7 @@ def test_env_settings_reach_docker_and_docs():
 
 def test_env_example_has_no_inline_comments():
     # Docker Compose reads "KEY=   # note" as the value "# note".
-    bad = [line for line in (ROOT / ".env.example").read_text().splitlines() if re.match(r"^[A-Z_]+=.*#", line)]
+    bad = [line for line in (ROOT / ".env.example").read_text().splitlines() if re.match(r"^[A-Z][A-Z0-9_]*=.*#", line)]  # KIA_THREADFIN_2_PORT too
     assert not bad, bad
 
 
@@ -97,6 +99,13 @@ def test_containers_stay_locked_down():
     # Plex's token, wherever KIA_PLEX_CONFIG puts Plex's settings (a folder, or a volume on a Mac).
     assert "- ${KIA_PLEX_CONFIG:-./plex/config}:/data/plex/config:ro" in kia
     assert (ROOT / "plex" / "config" / ".gitkeep").exists()
+    # Jellyfin's users and Grafana's password stay out of view of kia and threadfin-setup,
+    # which both see the kia folder.
+    for name in ("kia", "threadfin-setup"):
+        service = compose_service(name)
+        assert "- ./:/data:ro" in service
+        for hidden in ("/data/jellyfin", "/data/monitoring"):
+            assert f"- {hidden}:size=1m,mode=0500" in service, (name, hidden)
 
 
 def github_anchor(heading: str) -> str:
@@ -134,8 +143,11 @@ def test_every_folder_compose_mounts_is_in_the_repository():
     import subprocess
 
     root = Path(__file__).resolve().parent.parent
+    if not (root / ".git").exists():
+        pytest.skip("needs the git copy (a downloaded archive has no list of tracked files)")
     tracked = set(subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True, check=True).stdout.split())
-    mounts = re.findall(r"^\s+- \./([^:\s]*):", (root / "compose.yaml").read_text(), re.M)
+    # ./folder:..., and a default in a setting, ${KIA_PLEX_CONFIG:-./plex/config}:...
+    mounts = re.findall(r"^\s+- (?:\./|\$\{[A-Z0-9_]+:-\./)([^:\s}]*)\}?:", (root / "compose.yaml").read_text(), re.M)
     folders = [m.rstrip("/") for m in mounts if m and "." not in Path(m).name]
     assert "threadfin/conf" in folders and "state" in folders
     missing = [f for f in folders if not any(t.startswith(f"{f}/") for t in tracked)]  # a .gitkeep, or real files

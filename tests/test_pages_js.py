@@ -1,6 +1,7 @@
 """The Dashboard's scripts: nothing else in the tests runs them, so a syntax slip would
 only show up in a browser."""
 
+import os
 import re
 import shutil
 import subprocess
@@ -34,7 +35,8 @@ def test_there_are_scripts_to_check():
 @pytest.mark.parametrize(("where", "body"), scripts(), ids=[w for w, _ in scripts()])
 def test_each_script_parses(where: str, body: str, tmp_path: Path):
     if not shutil.which("node"):
-        pytest.skip("needs Node.js")
+        # On CI a skip would hide a page that no longer works in a browser: fail instead.
+        (pytest.fail if os.environ.get("CI") else pytest.skip)("needs Node.js")
     js = tmp_path / "page.js"
     js.write_text(body)
     result = subprocess.run(["node", "--check", str(js)], capture_output=True, text=True, check=False)

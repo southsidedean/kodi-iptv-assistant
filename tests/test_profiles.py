@@ -205,3 +205,11 @@ def test_guides_are_rewritten_only_when_needed(tmp_path: Path):
     (out / "kids.guide.xml.gz").unlink()
     profiles.rebuild(out, state, pfile, None, lambda m: None)
     assert (out / "kids.guide.xml.gz").exists()
+
+
+def test_a_name_with_a_line_break_at_the_end_is_refused():
+    # "$" in a pattern matches before a final line break, so "kids\n" used to pass and
+    # become a file name with a line break in it.
+    with pytest.raises(ValueError, match="lowercase letters"):
+        profiles.from_rules("kids\n", {})
+    assert profiles.from_rules("kids", {}).name == "kids"

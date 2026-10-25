@@ -195,6 +195,7 @@ def test_served_over_https(cfg, certs, monkeypatch):
             assert json.load(r)["secure"] is True
         with pytest.raises(urllib.error.HTTPError) as refused:
             put(http)
+        refused.value.close()
         assert refused.value.code == 403
         with put(https, context=context) as r:
             assert json.load(r)["profiles"][0]["tv"] == 1
@@ -227,7 +228,7 @@ def test_wrong_passwords_slow_down_only_who_sends_them(cfg):
     assert try_("nope", "192.0.2.9") == 401
     assert try_("nope", "192.0.2.9") == 401  # the second wrong one in a row: a wait from now on
     assert try_("nope", "192.0.2.9") == 429 and try_("secret", "192.0.2.9") == 429
-    assert try_("secret", "192.0.2.10") != 429  # someone else's right password still works
+    assert try_("secret", "192.0.2.10") == 200  # someone else's right password still works
     assert api.handle(cfg, "PUT", "/api/profiles/x", {"Host": "tv.lan:8743"}, b"{}", True)[1] == {
         "error": "Enter kia's password first."}  # fmt: skip
 
@@ -283,10 +284,15 @@ PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/chan
 
 @pytest.mark.parametrize(("method", "path", "body"), PROTECTED, ids=lambda x: x if isinstance(x, str) else "")
 def test_every_change_needs_the_password_over_https(cfg, method, path, body):
+    def files() -> dict[str, bytes]:  # everything kia could have written: state/, output/, profiles, a stack request
+        root = cfg.output_dir.parent
+        return {str(f.relative_to(root)): f.read_bytes() for f in sorted(root.rglob("*")) if f.is_file()}
+
+    before = files()
     assert call(cfg, method, path, body)[0] == 401
     assert call(cfg, method, path, body, password="nope")[0] == 401
     assert call(cfg, method, path, body, password="secret", secure=False)[0] == 403
-    assert cfg.changes == [] and not cfg.profiles_file.exists()
+    assert cfg.changes == [] and files() == before
 
 
 def test_every_route_is_in_one_of_the_lists():
@@ -299,6 +305,11 @@ def test_every_route_is_in_one_of_the_lists():
               for p, m in re.findall(r'parts == \[([^\]]*)\] and method == "([A-Z]+)"', source)}  # fmt: skip
     listed = {(m, p.split("?")[0]) for m, p, _ in PROTECTED if not p.startswith("/api/profiles/")} | set(PUBLIC)
     assert routes == listed
+    # Routes written another way (parts[0] == "sources" and method in (...), say): each part of
+    # the API the code names is in one of the lists.
+    named = set(re.findall(r'parts(?:\[0\]|\[:1\])? == \[?"([a-z-]+)"', source))
+    covered = {p.split("/")[2].split("?")[0] for _, p, _ in PROTECTED} | {p.split("/")[2] for _, p in PUBLIC}
+    assert named and named <= covered, named - covered
 
 
 def test_nginx_sets_who_asked_and_clears_the_secure_flag_itself():
@@ -386,3 +397,10 @@ def test_grafanas_link_brackets_an_ipv6_address(monkeypatch):
     monkeypatch.setenv("KIA_COMPOSE_PROFILES", "monitoring")
     monkeypatch.setenv("KIA_PUBLIC_URL", "http://[fd00::5]:8780")
     assert htmlpage.grafana_url() == "https://[fd00::5]:8788"
+
+
+def test_a_body_that_isnt_json_and_an_address_kia_doesnt_have(cfg):
+    status, data = api.handle(cfg, "POST", "/api/preview", {"Host": "tv.lan:8743"}, b"{not json", True)
+    assert status == 400 and data["error"] == "The request wasn't valid JSON."
+    status, _ = call(cfg, "GET", "/api/nothing-here")
+    assert status == 404

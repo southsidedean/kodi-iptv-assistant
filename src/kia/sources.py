@@ -24,7 +24,7 @@ from kia.files import temp_name
 
 STATE_FILE = "sources.json"
 _SECTION_RE = re.compile(r"^#\s*-{2,}\s*(.+?)\s*-{2,}")
-_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")  # the whole name: used with fullmatch
 _PLAYLIST_RE = re.compile(r"^(https?://\S+|(radio-browser|somafm|kexp):.*)$", re.I)
 
 
@@ -189,7 +189,7 @@ def check_new(url: str, name: str, taken: set[str]) -> tuple[str, str]:
         raise ValueError("Enter a playlist address starting with http:// or https://.")
     if len(url) > 2000:
         raise ValueError("That address is too long.")
-    if name and not _NAME_RE.match(name):
+    if name and not _NAME_RE.fullmatch(name):
         raise ValueError("Use lowercase letters, numbers, and dashes for the name, up to 40.")
     try:
         parsed = parse_sources(url + (f" name={name}" if name and is_station_line(url) else f" {name}" if name else ""))

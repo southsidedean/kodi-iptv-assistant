@@ -62,7 +62,6 @@ def cfg(tmp_path: Path, monkeypatch) -> api.ApiConfig:
     out, state = tmp_path / "output", tmp_path / "state"
     out.mkdir()
     es = entries()
-    ChannelNumbers(state / "channel-numbers.json").assign(es, "2026-10-20T00:00:00+00:00")
     n = ChannelNumbers(state / "channel-numbers.json")
     n.assign(es, "2026-10-20T00:00:00+00:00")
     n.save()

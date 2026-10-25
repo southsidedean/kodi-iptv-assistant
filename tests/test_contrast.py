@@ -14,6 +14,9 @@ PAIRS = [
     ("good", "good-bg", 4.5), ("warn", "warn-bg", 4.5), ("bad", "bad-bg", 4.5), ("info", "info-bg", 4.5),
     ("good", "card", 4.5), ("warn", "card", 4.5), ("bad", "card", 4.5), ("info", "card", 4.5),
     ("control", "card", 3), ("control", "bg", 3),
+    ("card", "info", 4.5),  # a primary button's label
+    ("fg", "bad-bg", 4.5),  # an error message
+    ("card", "good", 3),  # the tick in a done step of Getting started
     ("bar-full", "card", 3), ("bar-part", "card", 3), ("bar-dead", "card", 3),
 ]  # fmt: skip
 

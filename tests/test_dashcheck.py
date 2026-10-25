@@ -46,3 +46,36 @@ def test_a_short_tile_note_gives_way_to_its_panel_note():
               dashcheck.Panel("Hardware", "Graphics card", "Plex", True, "")]  # fmt: skip
     assert dashcheck.report(panels) == [
         "Hardware / Graphics card: 1 of 3 panels have data (Needs the monitoring-gpu profile (an NVIDIA card, on Linux))"]
+
+
+def test_against_a_prometheus_that_turns_one_query_down(tmp_path: Path):
+    import threading
+    import urllib.parse
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Prometheus(BaseHTTPRequestHandler):
+        def do_GET(self):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)["query"][0]
+            if "DCGM" in q:  # a query Prometheus can't parse: 400, as it answers bad syntax
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b'{"status":"error","errorType":"bad_data"}')
+                return
+            body = {"status": "success", "data": {"result": [{"value": [0, "1"]}]}} if "thermal" in q else {"status": "success"}
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps(body).encode())
+
+        def log_message(self, *a):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Prometheus)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    panels = dashcheck.check(f"http://127.0.0.1:{server.server_port}", board(tmp_path), timeout=5)
+    # The refused query is one empty panel; an answer without data.result is another; the
+    # rest are still asked.
+    assert [(p.title, p.has_data) for p in panels] == [("Temperature", False), ("Temperatures", True), ("Per container", False)]
+
+
+def test_a_dashboard_variable_with_capitals_is_filled_in():
+    assert dashcheck._query('x{job="$Job", host=~"$host_2"}') == 'x{job=~".+", host=~".+"}'

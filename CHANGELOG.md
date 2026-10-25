@@ -163,6 +163,8 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - When Pluto gave a session of less than half an hour, the relay opened a new one at every clip change, more often than Pluto likes. It now renews in the session's last quarter. A channel watched for days no longer keeps a growing list of every player and clip it has seen.
 - A `|` in a channel's group or id no longer breaks the table in `report.md`.
 - `scripts/nfs-media.sh` read a dot in a share's name as any character, so `movies.4k` also matched `movies-4k`'s lines.
+- `kia check-dashboards` (and `scripts/stack.sh status`) said Prometheus didn't answer when it turned down a single query. That panel now counts as empty and the rest are still checked.
+- A playlist name, or a guide site's name, with a line break at its end passed kia's check, since `$` in a pattern matches before one.
 - On the secure Sources page, the password box was unstyled and tiny, with its label and hint run together.
 - Writing each playlist's guide left guide.xml open until Python tidied up, and error pages from Plex, Jellyfin, another kia, and channel sources were never closed. Both are closed when kia is done with them.
 

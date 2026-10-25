@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -26,13 +27,21 @@ def _query(expr: str) -> str:
     """A panel's query as Prometheus takes it: Grafana's variables filled in."""
     expr = re.sub(r"\$__rate_interval|\$__interval", "2m", expr)
     expr = re.sub(r"\$__range", "1h", expr)
-    return re.sub(r'=~?"\$[a-z_]+"', '=~".+"', expr)  # a dashboard variable: any value
+    return re.sub(r'=~?"\$[A-Za-z_][A-Za-z0-9_]*"', '=~".+"', expr)  # a dashboard variable: any value
 
 
 def _ask(prometheus: str, expr: str, timeout: float) -> int:
     url = prometheus.rstrip("/") + "/api/v1/query?" + urllib.parse.urlencode({"query": _query(expr)})
-    with urllib.request.urlopen(url, timeout=timeout) as r:
-        return len(json.load(r)["data"]["result"])
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            answer = json.load(r)
+    except urllib.error.HTTPError as exc:
+        # Prometheus answered, but turned this one query down (a metric name it reads as bad
+        # syntax, say): no data for this panel, and the others are still asked.
+        exc.close()
+        return 0
+    result = answer.get("data", {}).get("result") if isinstance(answer, dict) else None
+    return len(result) if isinstance(result, list) else 0
 
 
 def check(prometheus: str, folder: Path = DASHBOARDS, timeout: float = 20, ask=_ask) -> list[Panel]:
