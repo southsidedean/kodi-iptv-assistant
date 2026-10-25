@@ -131,3 +131,43 @@ def test_a_published_image_follows_the_release(copy: Path):
     assert r.returncode == 0, r.stderr
     assert "KIA_IMAGE=ghcr.io/example/kia:0.2.0\n" in (copy / ".env").read_text()
     assert (copy.parent / "docker.log").read_text().splitlines() == ["compose pull", "compose up -d"]
+
+
+def test_what_was_deployed_is_kept_where_kia_cant_write(copy: Path):
+    # state/ is writable by the kia container. The record of what the containers started
+    # with lives in git's folder instead, and an old one in state/ is taken only if it's a
+    # commit: anything else (--output=FILE, say) would reach git as an option.
+    target = copy.parent / "victim"
+    target.write_text("keep me\n")
+    (copy / "state").mkdir()
+    (copy / "state" / "deployed-rev").write_text(f"--output={target}\n")
+    r = update(copy)
+    assert r.returncode == 0, r.stderr
+    assert target.read_text() == "keep me\n" and not (copy / "state" / "deployed-rev").exists()
+    assert (copy / ".git" / "kia-deployed-rev").read_text().strip() == git(copy, "rev-parse", "HEAD")
+
+
+def test_an_old_record_of_a_real_commit_is_taken_over(copy: Path):
+    v1 = git(copy, "rev-parse", "HEAD")
+    (copy / "state").mkdir()
+    (copy / "state" / "deployed-rev").write_text(v1 + "\n")
+    origin = copy.parent / "origin"
+    (origin / "deploy").mkdir()
+    (origin / "deploy" / "nginx.conf").write_text("server {}\n")
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "new settings")
+    git(origin, "tag", "v0.4.0")
+    (copy.parent / "bin" / "docker").write_text(
+        f'#!/bin/sh\necho "$*" >> {copy.parent / "docker.log"}\n'
+        'case "$*" in *"ps --services --status running"*) echo web ;; esac\n')
+    r = update(copy, "v0.4.0")
+    assert r.returncode == 0 and "Restarted web" in r.stdout  # it knew the containers ran v0.1.0's files
+
+
+def test_a_link_left_in_state_is_removed_not_followed(copy: Path):
+    target = copy.parent / "victim"
+    target.write_text("keep me\n")
+    (copy / "state").mkdir()
+    (copy / "state" / "deployed-rev").symlink_to(target)
+    assert update(copy).returncode == 0
+    assert target.read_text() == "keep me\n" and not (copy / "state" / "deployed-rev").is_symlink()

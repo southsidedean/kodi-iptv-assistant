@@ -172,16 +172,18 @@ SCRIPT = r"""
     }, function () { card.say(DOWN, true); card.buttons[0].disabled = !data.service; card.changed(); });
   }
 
-  // Every two seconds until the answer to this request is there. kia may be restarting
-  // (an apply that changes what runs restarts it), so a missing answer means "try again,
-  // less often", for up to five minutes.
-  function wait(id, action, parts, since, every) {
+  // Every two seconds until the answer to this request is there. While the service
+  // works on it, keep asking, however long an apply takes (it can download images). kia
+  // may restart too (an apply that changes what runs restarts it), so no answer at all
+  // means "try again, less often", for up to five minutes.
+  function wait(id, action, parts, since, every, lostSince) {
     clearTimeout(polling);
     polling = setTimeout(function () {
       var lost = function () {
-        if (Date.now() - since > 300000) { card.say("No answer after five minutes. Check the kia-stack service's log on the computer.", true); return finish(); }
+        var gone = lostSince || Date.now();
+        if (Date.now() - gone > 300000) { card.say("No answer from kia for five minutes. Is kia running?", true); return finish(); }
         card.say(action === "apply" ? "kia is restarting with the new choice… (this page keeps asking)" : "kia didn't answer for a moment, trying again…");
-        wait(id, action, parts, since, Math.min(every * 2, 15000));
+        wait(id, action, parts, since, Math.min(every * 2, 15000), gone);
       };
       fetch("api/stack", { cache: "no-cache" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d) return lost();
@@ -190,10 +192,15 @@ SCRIPT = r"""
           data = Object.assign(data, d);
           return answered(res, action, parts);
         }
-        if (Date.now() - since > 30000 && d.waiting === id && !d.service) {
+        if (d.waiting !== id && !(res && res.id === id)) {
+          // Neither waiting nor answered: the service never took it, and it has expired.
+          card.say("The kia-stack service didn't pick the request up within 5 minutes. Is it running on the computer?", true);
+          return finish();
+        }
+        if (Date.now() - since > 30000 && !d.service) {
           card.say("The kia-stack service hasn't picked the request up. Is it running on the computer?", true);
         } else {
-          card.say(res && res.id === id && res.state === "running" ? (action === "check" ? "Checking…" : "Applying… this can take a minute or two.") : "Waiting for the kia-stack service…");
+          card.say(res && res.id === id && res.state === "running" ? (action === "check" ? "Checking…" : "Applying… this can take a few minutes the first time, while Docker downloads.") : "Waiting for the kia-stack service…");
         }
         wait(id, action, parts, since, 2000);
       }, lost);

@@ -59,19 +59,19 @@ def node_permission() -> tuple[str, ...] | None:
 
 
 def _esbuild(cfg: EpgConfig, log: Callable[[str], None]) -> Path | None:
-    """esbuild: the checkout's own, or kia's (installed once, from npm, without running any
-    install scripts). None if there's neither and it can't be installed."""
+    """kia's own esbuild, a fixed version installed once from npm without running any
+    install scripts. None if it can't be installed.
+
+    Never the checkout's own (node_modules/.bin/esbuild): that comes from iptv-org's
+    dependencies, and compiling runs it outside Node's sandbox, with kia's access."""
     repo = cfg.repo_dir.resolve()
-    theirs = repo / "node_modules" / ".bin" / "esbuild"
-    if theirs.exists():
-        return theirs
     tools = repo.parent / "kia-tools"
     ours = tools / "node_modules" / ".bin" / "esbuild"
     try:
         if ours.exists() and subprocess.run([str(ours), "--version"], capture_output=True, text=True,
                                             timeout=60, check=False).stdout.strip() == ESBUILD:  # fmt: skip
             return ours
-        log(f"iptv-org/epg brings no esbuild; installing kia's own (esbuild {ESBUILD}) to compile its scripts")
+        log(f"Installing kia's own esbuild ({ESBUILD}) to compile iptv-org/epg's scripts")
         tools.mkdir(parents=True, exist_ok=True)
         subprocess.run(["npm", "install", "--prefix", str(tools), "--no-save", "--no-audit", "--no-fund", "--ignore-scripts",
                         f"esbuild@{ESBUILD}"], env=epg_env(cfg, home=True), check=True, capture_output=True, timeout=600)  # fmt: skip
@@ -153,8 +153,31 @@ def runner_prefix(cfg: EpgConfig, name: str | None = None) -> list[str]:
 
 def _git(repo: Path, *args: str) -> None:
     # The checkout runs third-party code (npm packages) that can write to it. Turning hooks
-    # off means nothing planted in .git/hooks runs when kia updates it.
-    subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-C", str(repo), *args], check=True)
+    # off means nothing planted in .git/hooks runs when kia updates it, and fsmonitor off
+    # means no program named in the config does either (_reset_git_config covers the rest).
+    subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-C", str(repo), *args],
+                   check=True)  # fmt: skip
+
+
+def _reset_git_config(repo: Path, url: str) -> None:
+    """Rewrite the checkout's git settings from scratch, and drop .git/info/attributes.
+
+    With the Docker runner, iptv-org's code runs with the checkout mounted read-write, so it
+    could write settings that make git run a command when kia next updates it: a "filter"
+    for files that checkout passes through it, say, set in .git/config and switched on in
+    .git/info/attributes. kia needs none of those settings, so it writes only its own."""
+    if any(c in url for c in '\n\r"\\'):
+        raise OSError(f"the epg git address can't hold line breaks or quotes: {url[:80]!r}")
+    git_dir = repo / ".git"
+    if not git_dir.is_dir() or git_dir.is_symlink():
+        raise OSError(f"{git_dir} isn't a folder")
+    (git_dir / "info" / "attributes").unlink(missing_ok=True)
+    config = git_dir / "config"
+    config.unlink(missing_ok=True)  # a link there is replaced, never written through
+    config.write_text(
+        "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n"
+        f'[remote "origin"]\n\turl = {url}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n'
+    )
 
 
 def ensure_repo(cfg: EpgConfig, update: bool, log: Callable[[str], None]) -> None:
@@ -188,7 +211,7 @@ def _update_repo(cfg: EpgConfig, fresh: bool, log: Callable[[str], None]) -> Non
         _git(repo, "remote", "add", "origin", cfg.git_url)
     else:
         log(f"Updating the epg checkout to {cfg.git_ref}...")
-        _git(repo, "remote", "set-url", "origin", cfg.git_url)
+        _reset_git_config(repo, cfg.git_url)
     # Fetching by name works the same for branches, tags, and (on GitHub) commit hashes.
     # "latest" is the remote's HEAD: its default branch, whatever it's called.
     ref = "HEAD" if cfg.git_ref in ("", "latest") else cfg.git_ref

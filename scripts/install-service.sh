@@ -50,6 +50,13 @@ plist_env() {
     done
 }
 
+# The kia folder's path goes into the service file as it is. systemd reads a space or % in
+# it as something else, and launchd's XML an & or <, so a path with any of those (or a
+# quote or backslash) would make a broken service, or one that runs something else.
+case "$DIR" in
+    *[[:space:]%\&\<\>\"\'\\]*) die "the kia folder's path, $DIR, has a space or one of % & < > \" ' \\ in it, which a service file can't hold. Move the kia folder to a path without them, then run this again." ;;
+esac
+
 render() {  # template -> service file text (values via the environment, so awk leaves them as they are)
     KIA_R_DIR=$DIR KIA_R_PATH=$PATH KIA_R_PYTHON=$(command -v python3 || echo python3) KIA_R_ENV=$(plist_env) awk '
         BEGIN { dir = ENVIRON["KIA_R_DIR"]; path = ENVIRON["KIA_R_PATH"]; python = ENVIRON["KIA_R_PYTHON"]; env = ENVIRON["KIA_R_ENV"] }

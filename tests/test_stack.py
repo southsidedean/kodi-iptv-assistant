@@ -134,63 +134,79 @@ def test_the_presets_come_from_stacks():
     assert found["everything"]["what"].startswith("Plex and Jellyfin")
 
 
+def project(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """A kia folder with the presets: (the folder, its state/, its stack-service/)."""
+    folder = tmp_path / "kia"
+    (folder / "state").mkdir(parents=True)
+    (folder / "stack-service").mkdir()
+    (folder / "stacks").symlink_to(ROOT / "stacks")
+    return folder, folder / "state", folder / "stack-service"
+
+
 def test_asking_writes_one_request_at_a_time(tmp_path: Path):
-    rid = stack.ask(tmp_path, "check", ["plex", "observability"])
-    assert (tmp_path / "stack-request").read_text() == f"id={rid}\naction=check\nstack=plex,observability\n"
-    assert stack.waiting(tmp_path) == rid
+    _, state, service = project(tmp_path)
+    rid = stack.ask(state, service, "check", ["plex", "observability"])
+    assert (state / "stack-request").read_text() == f"id={rid}\naction=check\nstack=plex,observability\n"
+    assert stack.waiting(state, service) == rid
     try:
-        stack.ask(tmp_path, "apply", ["plex"])
+        stack.ask(state, service, "apply", ["plex"])
         raise AssertionError("a second request while the first waits")
     except stack.StackError as exc:
         assert "still working" in str(exc)
-    (tmp_path / "stack-request").rename(tmp_path / "stack-request.taken")  # the service took it
-    assert stack.waiting(tmp_path) == rid
-    (tmp_path / "stack-request.taken").unlink()  # and finished
-    assert stack.waiting(tmp_path) is None and stack.ask(tmp_path, "apply", ["plex"])
+    (state / "stack-request").rename(service / "request")  # the service took it
+    assert stack.waiting(state, service) == rid
+    (service / "request").unlink()  # and finished
+    assert stack.waiting(state, service) is None and stack.ask(state, service, "apply", ["plex"])
 
 
 def test_an_old_request_doesnt_block_new_ones(tmp_path: Path):
     import os
     import time
 
-    stack.ask(tmp_path, "check", [])
+    _, state, service = project(tmp_path)
+    stack.ask(state, service, "check", [])
     old = time.time() - stack.REQUEST_EXPIRES - 5
-    os.utime(tmp_path / "stack-request", (old, old))
-    assert stack.waiting(tmp_path) is None
+    os.utime(state / "stack-request", (old, old))
+    assert stack.waiting(state, service) is None
 
 
 def test_reading_the_services_answer_and_containers(tmp_path: Path):
-    assert stack.result(tmp_path) is None and stack.containers(tmp_path) == []
-    (tmp_path / "stack-result").write_text("id=abc\naction=check\nstate=finished\nexit=0\nfinished=2026-10-24T22:00:00Z\n"
-                                           "evil=1\n\n0 problem(s), 0 warning(s).\n")  # fmt: skip
-    assert stack.result(tmp_path) == {"id": "abc", "action": "check", "state": "finished", "exit": "0",
-                                      "finished": "2026-10-24T22:00:00Z", "output": "0 problem(s), 0 warning(s).\n"}  # fmt: skip
-    (tmp_path / "stack-containers.tsv").write_text("kia\trunning\thealthy\tUp 2 hours\nweb\trunning\n\n" + "x" * 500 + "\n")
-    rows = stack.containers(tmp_path)
+    _, _, service = project(tmp_path)
+    assert stack.result(service) is None and stack.containers(service) == []
+    (service / "result").write_text("id=abc\naction=check\nstate=finished\nexit=0\nfinished=2026-10-24T22:00:00Z\n"
+                                    "evil=1\n\n0 problem(s), 0 warning(s).\n")  # fmt: skip
+    assert stack.result(service) == {"id": "abc", "action": "check", "state": "finished", "exit": "0",
+                                     "finished": "2026-10-24T22:00:00Z", "output": "0 problem(s), 0 warning(s).\n"}  # fmt: skip
+    (service / "containers.tsv").write_text("kia\trunning\thealthy\tUp 2 hours\nweb\trunning\n\n" + "x" * 500 + "\n")
+    rows = stack.containers(service)
     assert rows[0] == {"service": "kia", "state": "running", "health": "healthy", "status": "Up 2 hours"}
     assert rows[1]["health"] == "" and len(rows[2]["service"]) == 80
 
 
-def test_the_service_counts_as_running_while_its_list_is_fresh(tmp_path: Path, monkeypatch):
+def test_the_service_counts_as_running_while_its_list_is_fresh_or_it_works(tmp_path: Path, monkeypatch):
     import os
     import time
 
+    folder, state, service = project(tmp_path)
     monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")
-    assert stack.page_state(tmp_path, ROOT)["service"] is False
-    (tmp_path / "stack-containers.tsv").write_text("kia\trunning\thealthy\tUp\n")
-    state = stack.page_state(tmp_path, ROOT)
-    assert state["service"] is True and state["docker"] is True and state["profiles"] == ["plex"]
+    assert stack.page_state(state, folder)["service"] is False
+    (service / "containers.tsv").write_text("kia\trunning\thealthy\tUp\n")
+    page = stack.page_state(state, folder)
+    assert page["service"] is True and page["docker"] is True and page["profiles"] == ["plex"]
     old = time.time() - stack.SERVICE_SILENT_AFTER - 5
-    os.utime(tmp_path / "stack-containers.tsv", (old, old))
-    assert stack.page_state(tmp_path, ROOT)["service"] is False
+    os.utime(service / "containers.tsv", (old, old))
+    assert stack.page_state(state, folder)["service"] is False
+    # An apply downloading images for minutes: the list is old, but the service is working.
+    (service / "result").write_text("id=abc\naction=apply\nstate=running\nexit=\nfinished=x\n\n")
+    assert stack.page_state(state, folder)["service"] is True
 
 
 def api_cfg(tmp_path: Path):
     from kia import api, auth
 
-    (tmp_path / "state").mkdir()
-    return api.ApiConfig(tmp_path / "output", tmp_path / "state", tmp_path / "profiles.toml", None,
-                         auth.Auth(tmp_path / "state", "secret"), 8743, config_file=ROOT / "kia.toml")  # fmt: skip
+    folder, state, _ = project(tmp_path)
+    return api.ApiConfig(folder / "output", state, folder / "profiles.toml", None,
+                         auth.Auth(state, "secret"), 8743, config_file=folder / "kia.toml")  # fmt: skip
 
 
 def test_the_api_asks_the_service(tmp_path: Path, monkeypatch):
@@ -229,3 +245,14 @@ def test_the_stack_page_is_in_the_menu(tmp_path: Path):
     # The password box and buttons use the shared form styles; the Sources page needs them too.
     assert ".editor label.field" in html and ".editor label.field" in status.render_sources(s)
     assert 'href="stack.html"' in status.render_html(s)
+
+
+def test_the_api_refuses_a_body_that_isnt_an_object(tmp_path: Path, monkeypatch):
+    from kia import api
+
+    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")
+    cfg = api_cfg(tmp_path)
+    for body in (b"[]", b"null", b'"plex"'):
+        status, data = api.handle(cfg, "POST", "/api/stack/check", {"X-Kia-Password": "secret"}, body, True)
+        assert status == 400 and "parts" in data["error"], body

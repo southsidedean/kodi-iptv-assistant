@@ -324,3 +324,41 @@ def test_the_relay_plays_the_channels_kias_playlist_has(tmp_path: Path, monkeypa
     assert relay.allowed() == set()  # no playlist yet
     (tmp_path / "curated.m3u").write_text(write(entries, None))
     assert relay.allowed() == {cid}
+
+
+def test_an_answer_too_big_is_refused_without_reading_it_all(monkeypatch):
+    # The relay downloads from other people's servers; one huge answer must not fill memory.
+    read = []
+
+    class Huge:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def geturl(self):
+            return "https://example.com/piece.ts"
+
+        def read(self, n=-1):
+            read.append(n)
+            return b"x" * (n if n >= 0 else 10**9)
+
+    monkeypatch.setattr(pluto._OPENER, "open", lambda req, timeout=None: Huge())
+    with pytest.raises(pluto.TooBig):
+        pluto.fetch("https://example.com/piece.ts")
+    assert read == [pluto.MAX_DOWNLOAD + 1]  # asked for one byte over the limit, no more
+    with pytest.raises(pluto.TooBig):  # and not asked again: it won't be smaller next time
+        pluto.fetch_retry("https://example.com/piece.ts")
+
+
+def test_pieces_of_channels_not_playing_dont_take_places(tmp_path: Path):
+    fake = FakePluto([media([(0, AD.format(n=960, sig="a"))])])
+    r, _ = relay(fake)
+    ids = [f"{n:024x}" for n in range(pluto.MAX_CHANNELS)]
+    for cid in ids:  # old piece addresses, or someone trying them
+        status, _, _ = r.handle(f"/pluto/{cid}/0.ts", "192.0.2.9")
+        assert status == 404
+    assert r.channels == {}
+    status, _, _ = r.handle(f"/pluto/{CID}.m3u8", "192.0.2.9")  # a real viewer still gets in
+    assert status == 200

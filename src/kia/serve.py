@@ -101,6 +101,13 @@ class OutputHandler(SimpleHTTPRequestHandler):
     def _api(self, method: str) -> bool:
         if not self.api or not self.path.startswith("/api/"):
             return False
+        # An API address has no ;parameters, escaped slashes, or dot segments. One that has
+        # them was made to reach kia through another of nginx's locations, which don't say
+        # whether a request came over HTTPS, so it's refused.
+        route = self.path.split("?", 1)[0]
+        if ";" in route or "%2f" in route.lower() or "%2e" in route.lower() or "/." in route:
+            self._json(400, {"error": "Bad request."})
+            return True
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
@@ -117,19 +124,24 @@ class OutputHandler(SimpleHTTPRequestHandler):
             except Exception:  # never drop the connection without an answer
                 traceback.print_exc()
                 status, data = 500, {"error": "kia hit an error doing that; its log has the details."}
+        self._json(status, data)
+        return True
+
+    def _json(self, status: int, data: dict) -> None:
         payload = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
-        return True
 
     # Pluto TV channels (kia.pluto), when the server was given the relay.
     relay = None
 
     def _viewer(self) -> str:
-        """Who's asking, to count viewers (behind nginx, the address nginx passes on)."""
+        """Who's asking: to count Pluto viewers, and to slow down wrong passwords per address.
+        Behind nginx, the address nginx passes on, which nginx sets itself for /api/,
+        /pluto/, and /metrics (deploy/), so a browser can't choose it."""
         return (self._from_proxy() and self.headers.get("X-Real-IP")) or self.client_address[0]
 
     def _pluto(self) -> bool:
