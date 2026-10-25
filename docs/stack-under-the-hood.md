@@ -67,6 +67,11 @@ kia's container has no Docker socket, on purpose: kia runs other people's code (
 
 ### A request, from click to answer
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/stack-request-dark.svg">
+  <img alt="A request from the Stack page, step by step. The page sends Check or Apply to kia with the password, over HTTPS. kia checks the parts and claim code, then leaves state/stack-request with the id, action, and parts. The kia-stack service looks every 3 seconds, renames the request into stack-service/, and checks it again. It answers running, runs scripts/stack.sh check or apply, gets back what the script printed, then writes containers.tsv and the finished result. The page asks kia every few seconds and gets the answer for its id." src="../images/diagrams/stack-request-light.svg">
+</picture>
+
 1. You choose **Check** or **Apply** on the secure page. The browser sends your choice to kia's API with the password, over HTTPS only ([API](api.md)).
 2. kia checks the parts and any claim code. If the service is still working on a request, kia refuses a new one. Then kia writes `state/stack-request`, readable only by its owner, through a temporary file renamed into place, so the service never sees half a request:
 

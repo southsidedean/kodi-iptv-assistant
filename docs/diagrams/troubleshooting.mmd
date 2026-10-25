@@ -1,0 +1,10 @@
+flowchart TB
+  start["Open the Dashboard:<br>http://your address:8780/"] --> opens{"Does it open?"}
+  opens -->|"not even on<br>the kia computer"| wontstart["kia won't start"]
+  opens -->|"only on<br>the kia computer"| connect["Other devices<br>can't connect"]
+  opens -->|yes| refresh{"Did the last<br>refresh work?"}
+  refresh -->|no| failed["The Dashboard says<br>the refresh failed"]
+  refresh -->|yes| player{"What's wrong<br>in the player?"}
+  player --> nochan["No channels"]
+  player --> noguide["Channels, but the<br>guide is empty"]
+  player --> noplay["A channel<br>won't play"]

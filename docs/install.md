@@ -28,6 +28,19 @@ curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/m
 
 It asks you to confirm the address and time zone, and what this kia is for: one of the [presets](stack.md#presets), such as `kodi` (the default) for Kodi and other players, or `plex-box` for Plex in the stack. With a Plex preset, it starts kia first, and prints what to do once the first refresh is done: make the playlist for Plex, then start the rest. At the end it prints the Dashboard's address and the password for making changes. Running it again is safe; it keeps your settings. It then asks whether to install the kia-stack service (yes unless you say no), which lets you add Plex, Jellyfin, or the graphs later on the Dashboard's Stack page, without a terminal ([how](stack-dashboard.md)). `--no-stack-service` skips it; `--stack-service` installs it without asking. On a Raspberry Pi, or any computer with less than 6 GB of memory, it uses the lighter settings from [Setups → Raspberry Pi](setups.md#raspberry-pi), so the first refresh doesn't run out of memory.
 
+Near the end, it prints what to keep, like this (with your address, folder, and password):
+
+```text
+== Done
+kia is running its first refresh now, which takes up to an hour. Watch it with:
+  cd ~/kodi-iptv-assistant && docker compose logs -f kia
+
+Dashboard:          http://192.168.1.20:8780/
+Secure Dashboard:   https://192.168.1.20:8743/   (for making changes; your browser warns about kia's own certificate the first time)
+Password for changes: kxq7-m2pa-9fht   (also in ~/kodi-iptv-assistant/state/admin-password.txt)
+Playlist for players: http://192.168.1.20:8780/curated.m3u
+```
+
 kia then starts its first refresh, which takes up to an hour. Wait for it to finish and check the Dashboard, as the end of [step 6](#6-start-kia) describes, then set up Kodi in [step 7](#7-set-up-kodi).
 
 To choose the preset up front, add it after `sh -s --`:
@@ -129,6 +142,8 @@ docker compose up -d --build
 The first time, this downloads and builds kia (a few minutes), then starts the first run right away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia` (press Ctrl+C to stop watching; kia keeps running).
 
 When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [Dashboard](how-it-works.md#the-dashboard), with the channel counts and your playlist's address. If another device will use kia, open that address on it too.
+
+![kia's Dashboard after the first refresh: the menu, a banner saying everything's working, the Your stack tiles, the Getting started checklist, the channel counts, and the playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 kia also made a password for changing things on the Dashboard, such as [playlists for people and devices](profiles.md). It's in `state/admin-password.txt` in the kia folder; [the secure Dashboard](secure-page.md) explains it.
 

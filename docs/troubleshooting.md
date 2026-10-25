@@ -4,6 +4,15 @@ Start with kia's [Dashboard](how-it-works.md#the-dashboard) at `http://<your add
 
 The commands on this page run in a terminal, in the kia folder, on the computer that runs kia.
 
+Not sure where to look? Start at the top:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/troubleshooting-dark.svg">
+  <img alt="Where to look. Open the Dashboard at http://your address:8780/. If it doesn't open even on the kia computer, see kia won't start. If it opens only on the kia computer, see other devices can't connect. If it opens, did the last refresh work? If not, see the Dashboard says the refresh failed. If it did, what's wrong in the player: no channels, channels but the guide is empty, or a channel won't play, each with its own section below." src="../images/diagrams/troubleshooting-light.svg">
+</picture>
+
+[kia won't start](#kia-wont-start) · [other devices can't connect](#other-devices-cant-connect) · [the refresh failed](#the-dashboard-says-the-refresh-failed) · [no channels](#no-channels) · [the guide is empty](#channels-but-the-guide-is-empty) · [a channel won't play](#a-channel-wont-play)
+
 ## In Kodi
 
 ### No channels
