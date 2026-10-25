@@ -455,6 +455,16 @@ fi
 set_env COMPOSE_PROFILES "$(echo "$profiles" | tr ' ' ',')"
 if has plex && [ -z "$(get KIA_PLEX_URL)" ]; then set_env KIA_PLEX_URL http://plex:32400; fi
 if has jellyfin && [ -z "$(get KIA_JELLYFIN_URL)" ]; then set_env KIA_JELLYFIN_URL http://jellyfin:8096; fi
+# A part that's dropped takes its address in the stack with it, so kia stops asking a Plex or
+# Jellyfin that's gone (kia doctor would report it). Choosing the part again sets it back, just
+# above. An address that points anywhere else, such as a Plex on another computer, is yours and
+# stays, and so do the tokens: Jellyfin keeps its API keys in its own folder, which stays too.
+if ! has plex && [ "$(get KIA_PLEX_URL)" = http://plex:32400 ]; then
+    set_env KIA_PLEX_URL "" && echo "Emptied KIA_PLEX_URL: Plex isn't in KIA_STACK any more."
+fi
+if ! has jellyfin && [ "$(get KIA_JELLYFIN_URL)" = http://jellyfin:8096 ]; then
+    set_env KIA_JELLYFIN_URL "" && echo "Emptied KIA_JELLYFIN_URL: Jellyfin isn't in KIA_STACK any more."
+fi
 
 # The profiles given here too: one exported in this shell would win over .env's.
 compose_profiles=$(echo "$profiles" | tr ' ' ',')

@@ -6,6 +6,7 @@
 
 - `kia doctor jellyfin` explains why Jellyfin shows no channels, or no guide. With kia's API key for Jellyfin (`KIA_JELLYFIN_TOKEN`), it asks Jellyfin which playlist and guide its Live TV reads and checks them: whether they're kia's, whether the playlist has radio stations (which Jellyfin numbers apart from TV), and whether the guide goes with it. It also checks how many channels Jellyfin shows and how its last guide refresh went. **Ask kia what's wrong** on the Dashboard includes its problems, scripts can ask `GET /api/doctor/jellyfin`, and AI assistants get a `kia_jellyfin` tool ([Jellyfin](docs/jellyfin.md#if-somethings-wrong)).
 - `kia doctor plex` (and so **Ask kia what's wrong**) no longer reports problems with a Plex that's gone. After a switch from Plex to Jellyfin, the Threadfin folder and `KIA_PLEX_URL` stay behind, and it took them for a Plex that kia feeds. It now goes by kia's last check of the stack, and says when `KIA_PLEX_URL` names a Plex that isn't in it. `kia doctor jellyfin` does the same for `KIA_JELLYFIN_URL`.
+- `scripts/stack.sh apply` (and **Apply** on the Stack page) now empties `KIA_PLEX_URL` or `KIA_JELLYFIN_URL` when Plex or Jellyfin leaves the stack, if it still holds the container's own address. Choosing the part again sets it back. An address that points anywhere else stays, and so do the tokens.
 
 ## 0.6.3 (2026-10-25)
 
