@@ -1,9 +1,11 @@
 name: upstream
 
 # Every week: does kia still work with the newest iptv-org/epg? It changes every day, and
-# if it moves its scripts, kia would quietly run its code without Node's sandbox. This
-# fetches it the way kia does and downloads a little guide in the sandbox
-# (scripts/upstream-check.py). Not on pull requests: it depends on outside sites.
+# if it moves its scripts, kia would run its code without Node's sandbox and say so only in
+# its log. This fetches it the way kia does and downloads a little guide in the sandbox
+# (scripts/upstream-check.py). And have the images compose.yaml pins to a version (Threadfin,
+# the graphics card's exporter) had a newer release (scripts/pinned-images.py)? Not on pull
+# requests: both depend on outside sites.
 
 on:
   schedule:
@@ -31,3 +33,13 @@ jobs:
           node-version: "24"
       - run: pip install -e .
       - run: python scripts/upstream-check.py
+
+  images:
+    name: newer releases of the pinned images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/pinned-images.py
