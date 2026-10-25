@@ -116,6 +116,7 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 | `refresh-guide` | The quick refresh between nights: the quick guide sources only, then the guide |
 | `sync` | Takes the guide from another kia server (`KIA_UPSTREAM_URL`) |
 | `probe <address>` | Tests one stream address and prints what ffprobe found: the same test as the nightly check, for a stream that isn't in a playlist yet |
+| `doctor` | What's wrong and why, from what kia has written down, with the file that shows it and what to do. `doctor channel <name>` explains one channel's stream and guide. `--json` gives the same for scripts |
 | `settings` | The settings kia is running with, and where each is changed |
 | `password` | Where the Dashboard's password is. `--reset` makes a new one |
 | `tls` | The secure Dashboard's certificate. `--self-signed` makes a new one of kia's own |
