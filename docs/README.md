@@ -7,6 +7,7 @@ New here? Begin with [start here](start-here.md).
 - [Start here](start-here.md): what kia gives you, the three steps, and the words you'll see.
 - [Installing kia](install.md): from nothing to a working channel list, step by step.
 - [Setups](setups.md): one server for the house, a Raspberry Pi, a laptop that travels, or no Docker.
+- [Your stack from the Dashboard](stack-dashboard.md): Plex, Jellyfin, or graphs, chosen on the Dashboard's Stack page, start to finish.
 - [Choosing the parts of kia's stack](stack.md): Plex, Jellyfin, graphs, and more, with one line in `.env` and `scripts/stack.sh`.
 - [Cookbooks](cookbooks/README.md): one goal from start to finish, such as [a home TV box with Plex](cookbooks/plex-box.md) or [Kodi and kia on one computer](cookbooks/kodi-computer.md).
 
@@ -31,5 +32,6 @@ New here? Begin with [start here](start-here.md).
 
 - [Configuration](configuration.md): every setting.
 - [How it works](how-it-works.md): what happens each night, the reports, and the Dashboard.
+- [The stack under the hood](stack-under-the-hood.md): how `KIA_STACK`, `scripts/stack.sh`, the Stack page, and the kia-stack service fit together.
 - [Using kia from scripts and other apps](api.md)
 - [Metrics for Prometheus](metrics.md): kia's numbers, for graphs and alerts in Grafana.

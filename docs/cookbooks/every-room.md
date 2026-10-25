@@ -4,7 +4,7 @@ One computer that stays on runs kia for the whole house. Every TV, tablet, and p
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../images/diagrams/every-room-dark.svg">
-  <img alt="kia on a home server, with a playlist for each room or person, feeds the living room TV (Kodi or TiviMate), the kids' tablet (the kids' playlist), Plex apps through Threadfin, and phones (UHF or Televizo)." src="../../images/diagrams/every-room-light.svg">
+  <img alt="kia on a home server, with a playlist for each room or person, feeds the living room TV (Kodi or TiviMate), the kids' tablet (the kids' playlist), Plex apps through Threadfin or Jellyfin apps, and phones (UHF or Televizo)." src="../../images/diagrams/every-room-light.svg">
 </picture>
 
 ## What you need

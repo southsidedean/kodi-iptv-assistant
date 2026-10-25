@@ -1,6 +1,6 @@
 # Configuration
 
-Three files, from most to least often changed:
+Four files, from most to least often changed:
 
 - `sources.txt`: which playlists and radio stations to check. The easiest way to choose them is on the Dashboard ([choosing playlists](#choosing-channel-sources-on-the-dashboard)). In the file:
   - Remove `#` to turn a line on. Add your own URLs or file paths, one per line.
@@ -13,7 +13,7 @@ Three files, from most to least often changed:
 
 When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists and `KIA_TLS_NAMES` are the exceptions: `.env` adds to `kia.toml`'s list instead of replacing it.
 
-To see the settings kia is running with, open **System** on the Dashboard, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-channel-sources-on-the-dashboard)), settings can't be changed from the Dashboard.
+To see the settings kia is running with, open **System** on the Dashboard, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-channel-sources-on-the-dashboard)) and what runs next to kia ([the Stack page](stack-dashboard.md)), settings can't be changed from the Dashboard.
 
 ## `.env`
 
@@ -182,10 +182,11 @@ A restore first saves the settings that are there now, in `work/backups/before-r
 To remove kia, in the kia folder:
 
 ```sh
+scripts/install-service.sh --stack --uninstall
 docker compose down --rmi all --volumes
 ```
 
-(`--volumes` also removes the Docker volumes for Plex, Jellyfin, and Grafana [on a Mac](#on-a-mac).) Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back.
+The first line removes the [kia-stack service](stack.md#changing-the-stack-from-the-dashboard), if you installed it; it's safe to run either way. (`--volumes` also removes the Docker volumes for Plex, Jellyfin, and Grafana [on a Mac](#on-a-mac).) Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back.
 
 **Before you delete it, check what else is in it.** With Plex in the stack ([the home TV box](cookbooks/plex-box.md)), the kia folder can hold your movies, shows, and music (`media/`, unless `KIA_MEDIA_DIR` points elsewhere) and Plex's library and watch history (`plex/`). With monitoring on, it holds the graphs' history (`monitoring/`). Move anything you want to keep out of the folder first. If you opened ports in a Linux firewall, close them with `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`. On each device, remove kia's address from the player (in Kodi, disable or uninstall IPTV Simple Client). Without Docker, `scripts/install-service.sh --uninstall` removes the service first.
 
@@ -203,7 +204,7 @@ To update kia and both images, run `scripts/update.sh` in the kia folder ([updat
 
 To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions of iptv-org/epg, the base image, and nginx into it. Threadfin is already pinned (`KIA_THREADFIN_IMAGE`); Plex, Jellyfin, and the monitoring images follow their latest release unless you set `KIA_PLEX_IMAGE`, `KIA_JELLYFIN_IMAGE`, `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE`, or `KIA_SMARTCTL_IMAGE` to a version. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, an exact image in `KIA_BASE_IMAGE` or `KIA_NGINX_IMAGE`, by digest (e.g. `nginx:alpine@sha256:...`), and a Node.js major version in `KIA_NODE_VERSION` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). Pinned versions don't receive fixes until you change them.
 
-Both containers run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, in Node.js's sandbox, where it can't change kia itself, your settings, or anything else on the computer, and can't read your passwords. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
+kia's two containers, kia and the web server, run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, and the web server sees only `output/`. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, in Node.js's sandbox, where it can't change kia itself, your settings, or anything else on the computer, and can't read your passwords. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
 
 ### The published image
 

@@ -6,7 +6,7 @@ They're about where kia runs and who can reach it. To run Plex, Jellyfin, or gra
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/setups-dark.svg">
-  <img alt="TVs, streaming boxes, computers, phones, and tablets all use kia on an always-on machine at home. A traveling laptop runs its own kia, using the home guide." src="../images/diagrams/setups-light.svg">
+  <img alt="kia on an always-on machine at home serves TVs, streaming boxes, computers, phones, and tablets. A traveling laptop runs its own kia, and gets the home guide from it." src="../images/diagrams/setups-light.svg">
 </picture>
 
 ## Home server

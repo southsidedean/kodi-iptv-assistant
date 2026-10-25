@@ -4,6 +4,11 @@
 
 > **Beta.** This guide was tested from start to finish on Linux and on a Mac, with Jellyfin 12.3 in a web browser. It hasn't been tried with Jellyfin's TV and phone apps yet. If something doesn't work, please [open an issue](https://github.com/southsidedean/kodi-iptv-assistant/issues).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../images/diagrams/jellyfin-box-dark.svg">
+  <img alt="kia's playlist and guide go straight to Jellyfin, with no tuner in between. Your media folder is read-only to Jellyfin. Jellyfin serves the Jellyfin apps on your TV, phone, and browser." src="../../images/diagrams/jellyfin-box-light.svg">
+</picture>
+
 What stays on disk, so nothing is lost when the containers restart or update:
 
 | Folder (in the kia folder) | What's in it | Set in `.env` |
@@ -27,7 +32,7 @@ Follow [installing kia](../install.md), steps 1 to 6. The quick way is one comma
 
 In the kia folder, set these lines in `.env` (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
 
-```sh
+```ini
 KIA_STACK=jellyfin
 KIA_JELLYFIN_ADVERTISE=http://192.168.1.20:8096
 ```
@@ -73,7 +78,7 @@ Open **Live TV** in any Jellyfin app: the web page, or Jellyfin for Android, iPh
 
 kia can also count what Jellyfin plays, like it does for Plex. In Jellyfin, go to **Dashboard → API Keys**, choose **New API Key**, and name it `kia`. Copy the key into `.env`, then run `docker compose up -d`. `scripts/stack.sh apply` already set `KIA_JELLYFIN_URL` in step 2, so the key is all it needs:
 
-```sh
+```ini
 KIA_JELLYFIN_TOKEN=the-key-you-copied
 ```
 

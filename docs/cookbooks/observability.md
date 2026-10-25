@@ -24,16 +24,18 @@ kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and yo
 
 ## 1. Turn it on
 
-In the kia folder, add `observability` to `KIA_STACK` in `.env`, after the parts you already run, such as `KIA_STACK=plex,observability` ([the parts](../stack.md); `scripts/stack.sh` shows what runs now). You can also choose a password for Grafana; without one, Grafana makes one up on its first start (step 3 says where to find it):
+The easiest way is the Dashboard's Stack page: choose a card *with graphs*, or tick `observability` under **Choose the parts yourself**, then **Check** and **Apply** ([your stack from the Dashboard](../stack-dashboard.md)).
 
-```sh
+In a terminal instead: in the kia folder, run `scripts/stack.sh` to see what `KIA_STACK` holds now, then add `observability` to it in `.env`, keeping the parts already there. For example, with Plex in the stack, `KIA_STACK=plex` becomes `KIA_STACK=plex,observability`; with Kodi only, it's `KIA_STACK=observability`. You can also choose a password for Grafana; without one, Grafana makes one up on its first start (step 3 says where to find it):
+
+```ini
 KIA_STACK=plex,observability
 KIA_GRAFANA_PASSWORD=choose-a-password
 ```
 
-Here `plex` stands for the parts you already had; with Kodi only, it's just `KIA_STACK=observability`.
+Then run `scripts/stack.sh apply`.
 
-Without a `KIA_STACK` line, add `monitoring` to `COMPOSE_PROFILES` yourself instead.
+Without a `KIA_STACK` line, add `monitoring` to `COMPOSE_PROFILES` yourself instead, or move to `KIA_STACK` first ([how](../stack.md#without-kia_stack)).
 
 ## 2. The computer's own numbers
 
@@ -84,7 +86,7 @@ Plex installed outside Docker isn't a container, so its processor use shows in t
 
 The Jellyfin dashboard reads Jellyfin through kia, with `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN` in `.env`. With Jellyfin in the stack ([Jellyfin TV box](jellyfin-box.md)), `scripts/stack.sh apply` has already set `KIA_JELLYFIN_URL=http://jellyfin:8096`. For a Jellyfin elsewhere, use its address, such as `http://192.168.1.20:8096`. Either way, kia needs an API key: in Jellyfin, go to **Dashboard → API Keys**, choose **New API Key**, and name it `kia`. Copy the key into `.env`, then run `docker compose up -d`:
 
-```sh
+```ini
 KIA_JELLYFIN_TOKEN=the-key-you-copied
 ```
 
@@ -103,8 +105,6 @@ For example `KIA_STACK=plex,observability,observability-gpu,observability-disks`
 ### On a Mac
 
 node-exporter from step 2 fills in free space and power (a UPS or the battery). The rest stays empty: macOS doesn't give node-exporter temperatures or fans, there's no NVIDIA card, and the disk-health exporter can only see Docker's own small Linux machine, so leave `observability-gpu` and `observability-disks` out (`scripts/stack.sh check` says so too).
-
-The buttons at the top of each dashboard lead to it.
 
 ## Adding your own
 

@@ -37,7 +37,7 @@ For two tuners, make two playlists named `plex-1` and `plex-2`, each with **For 
 
 In kia's folder, set this line in the `.env` file (it's already there, empty):
 
-```sh
+```ini
 KIA_STACK=plex-tuner
 ```
 

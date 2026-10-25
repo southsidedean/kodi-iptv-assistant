@@ -47,7 +47,7 @@ A claim code links the new Plex to your account the first time it starts. Sign i
 
 In the kia folder, set these lines in `.env` (they're already in the file, empty; fill those in, because Docker Compose uses the last copy of a line):
 
-```sh
+```ini
 KIA_STACK=plex
 PLEX_CLAIM=claim-xxxxxxxxxxxxxxxxxxxx
 KIA_PLEX_ADVERTISE=http://192.168.1.20:32400/

@@ -1,0 +1,4 @@
+flowchart TB
+  kia["kia<br>playlist and guide"] --> jf["Jellyfin<br>reads them directly,<br>no tuner in between"]
+  media["Your media folder<br>read-only to Jellyfin"] --> jf
+  jf --> apps["Jellyfin apps on your<br>TV, phone, and browser"]
