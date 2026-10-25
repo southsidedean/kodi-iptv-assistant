@@ -123,7 +123,7 @@ Claude Desktop starts local programs, not servers at an address, so it reaches k
       "args": ["-y", "mcp-remote", "https://192.168.1.20:8743/api/mcp", "--transport", "http-only", "--header", "Authorization:${KIA_AUTH}"],
       "env": {
         "KIA_AUTH": "Bearer <token>",
-        "NODE_EXTRA_CA_CERTS": "/Users/you/kia-cert.pem"
+        "NODE_EXTRA_CA_CERTS": "/path/to/kia-cert.pem"
       }
     }
   }

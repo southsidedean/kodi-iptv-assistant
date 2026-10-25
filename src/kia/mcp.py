@@ -326,7 +326,7 @@ Then start Codex with the token, and trusting kia's certificate:
         "vscode": f"""In VS Code, run "MCP: Open User Configuration" and add kia (VS Code asks for the token the
 first time, and keeps it out of the file):
 
-{json.dumps({"inputs": [{"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}],
+{json.dumps({"inputs": [{"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}],  # nosec B105  # VS Code's setting that hides the token as it's typed
              "servers": {"kia": {"type": "http", "url": address, "headers": {"Authorization": "Bearer ${input:kia-token}"}}}}, indent=2)}
 
 The token: {token}
