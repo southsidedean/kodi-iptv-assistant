@@ -285,7 +285,7 @@ def setup_for(assistant: str, address: str, token: str) -> str:
     """The setup text for one assistant. Raises KeyError for one kia doesn't know."""
     bearer = f"Bearer {token}"
     # "password": true is VS Code's setting that hides the token as it's typed, not a password.
-    prompt = {"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}  # nosec B105
+    prompt = {"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}
     vscode = json.dumps({"inputs": [prompt], "servers": {"kia": {"type": "http", "url": address,
                          "headers": {"Authorization": "Bearer ${input:kia-token}"}}}}, indent=2)  # fmt: skip
     texts = {
