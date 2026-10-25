@@ -97,6 +97,10 @@ TOOLS = [
     ("kia_settings", "Settings",
      "The settings kia is running with, and where each is changed (.env or kia.toml). Secrets show only "
      "whether they're set.", _NO_ARGS),
+    ("kia_guide", "The guide",
+     "kia doctor on the whole guide: when it was last rebuilt and how many channels have a full, partial, "
+     "or no guide; which guide sites it comes from; sites failing their downloads, with their logs' errors; "
+     "and how many channels matched a site that sent nothing, or matched no site at all.", _NO_ARGS),
     ("kia_plex", "Plex",
      "Why Plex shows no channels, or too few: whether Threadfin answers and which kia playlist it reads, "
      "whether that playlist fits Plex's 480-channel limit, what kia found when it last added its tuners to "
@@ -255,6 +259,10 @@ def _docs(conf: Config, args: dict, _api) -> dict:
                          "text": body[:DOC_EXCERPT]} for _, name, heading, body in scored[:DOC_RESULTS]]}  # fmt: skip
 
 
+def _guide(conf: Config, _args: dict, _api) -> dict:
+    return doctor.guide(conf).to_dict()
+
+
 def _plex(conf: Config, _args: dict, _api) -> dict:
     return doctor.plex(conf).to_dict()
 
@@ -267,7 +275,7 @@ def _jellyfin(conf: Config, _args: dict, _api) -> dict:
     return doctor.jellyfin(conf).to_dict()
 
 
-RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": _find, "kia_plex": _plex,
+RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": _find, "kia_plex": _plex, "kia_guide": _guide,
        "kia_hardware": _hardware, "kia_jellyfin": _jellyfin,
        "kia_playlists": _playlists, "kia_stack": _stack, "kia_settings": _settings,
        "kia_whats_on": _whats_on, "kia_docs": _docs}  # fmt: skip
@@ -286,7 +294,7 @@ PROMPTS = [
 def _prompt_text(name: str, args: dict) -> str:
     if name == "kia-checkup":
         return ("Use kia's tools to check on my kia. Start with kia_overview, then look into anything it flags "
-                "(kia_channel for a channel, kia_playlists for a playlist, kia_stack for a program next to kia, "
+                "(kia_channel for a channel, kia_guide for the guide, kia_playlists for a playlist, kia_stack for a program next to kia, "
                 "kia_plex for Plex, kia_jellyfin for Jellyfin, kia_hardware for the computer). "
                 "Explain what's wrong in plain words and what I should do, with links from kia_docs where they help. "
                 "Only suggest commands that kia's docs give.")

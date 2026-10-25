@@ -11,6 +11,7 @@ computer's numbers, and jellyfin asks Jellyfin, with kia's API key, what it has 
 
     kia doctor                  how kia is doing, and anything that needs you
     kia doctor channel <name>   one channel: its stream, and its guide
+    kia doctor guide            the whole guide: how old, where it comes from, what's missing
     kia doctor plex             why Plex shows no channels, or too few
     kia doctor hardware         the computer: disks, RAID, memory, heat, power
     kia doctor jellyfin         why Jellyfin shows no channels, or no guide
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 import os
 import re
 import urllib.parse
@@ -157,6 +159,7 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
         report.findings.append(Finding(NOTE, "A Pluto TV channel is playing without kia's fix",
                                        "Pluto wouldn't open a session, so kia is passing on its plain link, which can freeze at ad breaks. kia tries again every 5 minutes.",
                                        ["output/pluto.json"], "docs/pluto-under-the-hood.md#when-pluto-wont-play-along"))  # fmt: skip
+    report.findings += [f for f in guide(cfg, now).findings if f.level == PROBLEM]
     # Plex's problems too, when kia feeds a Plex (its notes and all-clear stay in `kia doctor plex`),
     # and the hardware's, when Prometheus answered kia's last check of the stack.
     report.findings += [f for f in plex(cfg).findings if f.level == PROBLEM]
@@ -379,6 +382,95 @@ def _log_errors(path: Path) -> list[str]:
         return []
     errors = [_quote(line) for line in lines if "ERR" in line or "Error" in line or "error:" in line]
     return errors[-LOG_LINES:]
+
+
+# The guide
+
+
+TOP_SITES = 6  # the guide sites named in "where it comes from"; the rest are counted
+
+
+def guide(cfg: Config, now: datetime | None = None) -> Report:
+    """The whole guide: when it was last built, how many channels it covers, which sites it comes
+    from, sites that keep failing, and channels that got nothing. From the files the last guide
+    build left (output/status.json, work/guide-choices.json, work/mapping.json, the sites' logs)."""
+    now = now or datetime.now(timezone.utc)
+    report = Report("The guide")
+    status = _json(cfg.output_dir / "status.json") or {}
+    built = _when(status.get("guide_updated"))
+    if not built:
+        report.findings.append(Finding(NOTE, "kia hasn't built a guide yet", "The first one comes with the first refresh, which can take up to an hour.",
+                                       ["output/status.json"]))  # fmt: skip
+        return report
+    c = status.get("coverage") if isinstance(status.get("coverage"), dict) else {}
+    counts = f"{c.get('full', '?')} TV channels have a full guide, {c.get('partial', '?')} a partial one, and {c.get('none', '?')} only their name."
+    if now - built > STALE_AFTER:
+        report.findings.append(Finding(PROBLEM, f"The guide hasn't been rebuilt since {readable(built.isoformat())}",
+                                       "kia rebuilds it every night and refreshes it every few hours, so players are showing old listings. "
+                                       "kia doctor says why the last refresh failed, if it did.",
+                                       ["output/status.json"], f"{DOCS}#the-dashboard-says-the-refresh-failed"))  # fmt: skip
+    else:
+        report.findings.append(Finding(OK, f"The guide was rebuilt on {readable(built.isoformat())}", counts, ["output/status.json"]))
+    work = cfg.epg.work_dir
+    choices = _json(work / "guide-choices.json")
+    if choices is None:
+        report.findings.append(Finding(NOTE, "Which site each channel's guide comes from isn't recorded yet",
+                                       "The next guide build records it, within a few hours.", ["work/guide-choices.json"]))  # fmt: skip
+        return report
+    picked = {k: v.get("site") for k, v in choices.items() if isinstance(v, dict)}
+    sites = sorted(((n, s) for s, n in Counter(x for x in picked.values() if isinstance(x, str) and x).items()), key=lambda x: (-x[0], x[1]))
+    if sites:
+        named = ", ".join(f"{_quote(s, 60)} ({n})" for n, s in sites[:TOP_SITES])
+        more = f", and {len(sites) - TOP_SITES} more" if len(sites) > TOP_SITES else ""
+        report.findings.append(Finding(OK, f"It comes from {len(sites)} guide source{'' if len(sites) == 1 else 's'}",
+                                       f"The most channels from {named}{more}.", ["work/guide-choices.json"]))  # fmt: skip
+    report.findings += _failing_sites(cfg)
+    # Radio stations aren't expected to have a guide (almost none do), as in the coverage count.
+    playlist = cfg.output_dir / "curated.m3u"
+    radio = {e.tvg_id for e in m3u.parse(playlist.read_text(encoding="utf-8", errors="replace")) if e.is_radio} if playlist.is_file() else set()
+    empty = [k for k, site in picked.items() if not site and k not in radio]
+    if cfg.upstream_url:
+        if empty:
+            report.findings.append(Finding(NOTE, f"{len(empty)} channels got nothing from the upstream server",
+                                           "They show only their name. The upstream kia's own kia doctor guide says why.",
+                                           ["work/guide-choices.json"], "docs/guide-under-the-hood.md#with-an-upstream-server"))  # fmt: skip
+        return report
+    mapping = _json(work / "mapping.json") or {}
+    matched = {k: list_of(mapping.get(k), str) for k in empty}
+    nothing = {k: v for k, v in matched.items() if v}
+    if nothing:
+        by_site = sorted(((n, s) for s, n in Counter(s for v in nothing.values() for s in v).items()), key=lambda x: (-x[0], x[1]))
+        named = ", ".join(f"{_quote(s, 60)} ({n})" for n, s in by_site[:TOP_SITES])
+        report.findings.append(Finding(NOTE, f"{len(nothing)} channel{'' if len(nothing) == 1 else 's'} matched a guide site that sent nothing for the next day",
+                                       f"Mostly from {named}. Those sites had nothing for them this time; kia doctor channel <name> explains one.",
+                                       ["work/mapping.json", "work/guide-choices.json"],
+                                       "docs/guide-under-the-hood.md#when-a-channels-guide-is-wrong-or-missing"))  # fmt: skip
+    unmatched = len(empty) - len(nothing)
+    if unmatched:
+        report.findings.append(Finding(NOTE, f"{unmatched} channel{'' if unmatched == 1 else 's'} matched no guide source",
+                                       "No guide site lists their IDs or exactly their names, so they show only their name. That's common "
+                                       "for some playlists; mapping-report.html lists possible matches to check.",
+                                       ["work/mapping.json", "output/mapping-report.html"], "docs/guide-under-the-hood.md#matching-kia-map"))  # fmt: skip
+    return report
+
+
+def _failing_sites(cfg: Config) -> list[Finding]:
+    """Guide sites on a streak of failed downloads (state/alert-state.json), with their logs' last errors."""
+    streaks = (_json(cfg.state_dir / "alert-state.json") or {}).get("site_failures")
+    streaks = streaks if isinstance(streaks, dict) else {}
+    found = []
+    for site, runs in sorted(streaks.items()):
+        if not isinstance(runs, int) or runs < 1 or not isinstance(site, str):
+            continue
+        # The site's name comes from a guide source; it's only a file name here if it's a plain one.
+        lines = _log_errors(cfg.epg.work_dir / "logs" / f"{site}.log") if re.fullmatch(r"[\w.-]+", site) else []
+        found.append(Finding(PROBLEM if runs >= cfg.alerts.site_fail_runs else NOTE,
+                             f"{_quote(site, 60)} failed its last {runs} download{'' if runs == 1 else 's'}",
+                             "Its channels use older listings, or another site's, until it works again. "
+                             + ("Its log says: " + " / ".join(lines) + ". " if lines else "")
+                             + "If it stays broken, add it to KIA_EXCLUDE_SITES.",
+                             ["state/alert-state.json", f"work/logs/{_quote(site, 60)}.log"], "docs/configuration.md"))  # fmt: skip
+    return found
 
 
 # Plex

@@ -242,6 +242,8 @@ def test_the_command_text_json_and_exit_codes(kia, capsys):
     assert report["findings"][0]["evidence"] == ["output/curated.m3u", "output/report.json"]
     assert cli.main(["doctor", "-c", config, "hardware"]) == 0  # a note: without Prometheus there's nothing to ask
     assert "kia can't see the hardware without Prometheus" in capsys.readouterr().out
+    assert cli.main(["doctor", "-c", config, "guide"]) == 0
+    assert "kia hasn't built a guide yet" in capsys.readouterr().out
     assert cli.main(["doctor", "-c", config, "jellyfin"]) == 0
     assert "Jellyfin isn't set up with kia" in capsys.readouterr().out
     assert cli.main(["doctor", "-c", config, "nonsense"]) == 2
@@ -295,6 +297,57 @@ def test_damaged_files_of_the_wrong_shape(kia):
     status(kia, alerts="x", sources=[1, "y"], coverage=[1])
     write(kia, "output/stack.json", {"services": "nope"})
     assert overview(kia).findings and channel(kia, "cnn")[0].findings
+
+
+# The guide
+
+
+def guide_setup(base: Path) -> None:
+    status(base, guide_updated=iso(NOW - 2 * HOUR), coverage={"full": 2, "partial": 1, "none": 2})
+    write(base, "work/guide-choices.json", {
+        "A.us": {"site": "pluto.tv"}, "B.us": {"site": "pluto.tv"}, "C.us": {"site": "tvguide.com"},
+        "D.us": {"site": None}, "E.us": {"site": None}, "R.us": {"site": None}})  # fmt: skip
+    write(base, "work/mapping.json", {"A.us": ["pluto.tv"], "D.us": ["distro.tv"]})
+    write(base, "output/curated.m3u", '#EXTM3U\n#EXTINF:-1 tvg-id="R.us" radio="true",Radio\nhttps://r\n')
+
+
+def test_guide_all_told(kia):
+    guide_setup(kia)
+    r = doctor.guide(load(kia / "kia.toml"), NOW)
+    assert r.worst == doctor.NOTE
+    assert titles(r) == ["The guide was rebuilt on " + doctor.readable(iso(NOW - 2 * HOUR)), "It comes from 2 guide sources",
+                         "1 channel matched a guide site that sent nothing for the next day", "1 channel matched no guide source"]  # fmt: skip
+    assert r.findings[0].detail == "2 TV channels have a full guide, 1 a partial one, and 2 only their name."
+    assert r.findings[1].detail == "The most channels from pluto.tv (2), tvguide.com (1)."
+    assert "distro.tv (1)" in r.findings[2].detail  # and the radio station isn't counted as missing a guide
+
+
+def test_guide_problems(kia):
+    guide_setup(kia)
+    status(kia, guide_updated=iso(NOW - 30 * HOUR))
+    write(kia, "state/alert-state.json", {"site_failures": {"distro.tv": 3, "xumo.tv": 1, "../x": 5, "y": "many"}})
+    write(kia, "work/logs/distro.tv.log", "[ERR] Connection refused for https://me:pw@epg/listings\n")
+    r = doctor.guide(load(kia / "kia.toml"), NOW)
+    t = titles(r)
+    assert t[0].startswith("The guide hasn't been rebuilt since") and r.findings[0].level == doctor.PROBLEM
+    failing = {f.title: f for f in r.findings if "download" in f.title}
+    assert failing["distro.tv failed its last 3 downloads"].level == doctor.PROBLEM  # the alert's threshold
+    assert failing["xumo.tv failed its last 1 download"].level == doctor.NOTE
+    assert "Connection refused" in failing["distro.tv failed its last 3 downloads"].detail
+    assert "pw" not in failing["distro.tv failed its last 3 downloads"].detail
+    assert failing["../x failed its last 5 downloads"].detail.startswith("Its channels")  # no log read for an odd name
+    assert not any(f.title.startswith("y ") for f in r.findings)
+    # The overview carries the guide's problems.
+    assert "distro.tv failed its last 3 downloads" in titles(overview(kia))
+
+
+def test_guide_before_its_first_build_and_with_an_upstream(kia):
+    assert titles(doctor.guide(load(kia / "kia.toml"), NOW)) == ["kia hasn't built a guide yet"]
+    status(kia, guide_updated=iso(NOW))
+    assert titles(doctor.guide(load(kia / "kia.toml"), NOW))[-1] == "Which site each channel's guide comes from isn't recorded yet"
+    guide_setup(kia)
+    (kia / "kia.toml").write_text('[upstream]\nurl = "http://192.168.1.20:8780"\n')
+    assert titles(doctor.guide(load(kia / "kia.toml"), NOW))[-1] == "2 channels got nothing from the upstream server"
 
 
 # Plex

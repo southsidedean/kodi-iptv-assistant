@@ -77,7 +77,7 @@ With `KIA_UPSTREAM_URL`, kia skips matching and downloading. It downloads the ot
 
 ## When a channel's guide is wrong or missing
 
-**Why?** next to the channel on its playlist's page, or `kia doctor channel <name>`, reads the files below for that channel and explains them. To read them yourself:
+**Why?** next to the channel on its playlist's page, or `kia doctor channel <name>`, reads the files below for that channel and explains them. `kia doctor guide` does it for the whole guide: its age, the sites it comes from, sites on a streak of failed downloads (with their logs' errors), and the channels that matched a site that sent nothing or matched none. To read them yourself:
 
 | What you see | Where to look |
 |---|---|
