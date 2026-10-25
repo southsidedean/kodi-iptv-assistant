@@ -523,3 +523,18 @@ def test_the_check_marks_entries_from_your_own_playlists(tmp_path: Path, monkeyp
     cfg = load(make_cfg(tmp_path))
     (e,) = cli.load_entries(cfg, None)
     assert e.yours
+
+
+def test_a_playlist_from_the_internet_cant_name_a_guide_on_your_network(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    text = ('#EXTM3U x-tvg-url="http://192.168.1.20:9090/guide.xml,https://8.8.8.8/guide.xml"\n'
+            '#EXTINF:-1 tvg-id="A.us",A\nhttps://8.8.8.8/a.m3u8\n')  # fmt: skip
+    monkeypatch.setattr(cli, "fetch", lambda url: text)
+    (tmp_path / "sources.txt").write_text("https://8.8.8.8/us.m3u us\nhttps://8.8.8.8/eu.m3u eu lan\n")
+    (tmp_path / "kia.toml").write_text('[check]\nffprobe = "true"\n')
+    said = []
+    monkeypatch.setattr(cli, "log", said.append)
+    us, eu = cli.load_entries(load(tmp_path / "kia.toml"), None)
+    assert us.guide_urls == ("https://8.8.8.8/guide.xml",)
+    assert any("us: left out 1 of its guides, on your own network" in m for m in said)
+    assert len(eu.guide_urls) == 2  # marked lan: its guides may be on your network

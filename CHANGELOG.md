@@ -8,6 +8,12 @@ Update with `scripts/update.sh`. To choose what runs from the Dashboard's new St
 
 If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes: `COMPOSE_PROFILES` still decides. To use the Stack page, move to `KIA_STACK` first, using [the table](docs/stack.md#without-kia_stack). The profile `plex` (Threadfin only) is the part `plex-tuner`, not `plex`.
 
+Three changes can need a step of your own:
+
+- kia checks the numbers and patterns in `kia.toml` when it starts. A value 0.5.5 took, such as `days = "3"` (a number in quotes) or `timeout = 0`, now stops kia with one line naming it, in `docker compose logs kia`. Fix the line, then `docker compose up -d`.
+- kia no longer tests streams on your own network that come from a playlist from the internet ([why](SECURITY.md#playlists-from-the-internet)), so if one of those lists pointed at your network, its channels drop out. Your own playlist files, and playlists downloaded from an address on your network, aren't affected. For a list from elsewhere whose streams really are on your network, add the word `lan` after its name in your sources file.
+- The installer no longer opens kia's ports in ufw, since connections to Docker's ports get past ufw on their own. Rules an earlier install added can go: `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`.
+
 ### Changing the stack from the Dashboard
 
 - A new **Stack** page on the Dashboard shows what runs next to kia, each program's state, and on the secure page lets you choose what runs: tick the parts or start from a preset, **Check**, then **Apply**. Apply comes on only after a clean Check of the same choice, and asks first if someone's watching or if parts would stop. Without the kia-stack service, the page shows the command to run instead. `scripts/stack.sh check` now also says which running parts a choice would stop.
@@ -114,7 +120,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 
 ### Security
 
-- A playlist from the internet can no longer have kia's nightly check send requests to your own network: your router, a printer, or the other containers of kia's stack. kia tests a stream from such a playlist only when its address is on the internet, and the report says why it left one out. Your own playlists (files on this computer, or downloaded from an address on your network, such as a tuner or Threadfin) aren't affected, and the word `lan` on a playlist's line in the sources file allows it for one from elsewhere. [Security](SECURITY.md#playlists-from-the-internet) says what this does and doesn't stop.
+- A playlist from the internet can no longer have kia's nightly check send requests to your own network: your router, a printer, or the other containers of kia's stack. kia tests a stream from such a playlist only when its address is on the internet, and the report says why it left one out. The guides the playlist names for itself are held to the same rule. Your own playlists (files on this computer, or downloaded from an address on your network, such as a tuner or Threadfin) aren't affected, and the word `lan` on a playlist's line in the sources file allows it for one from elsewhere. [Security](SECURITY.md#playlists-from-the-internet) says what this does and doesn't stop.
 - `scripts/update.sh` kept what the containers last started with in `state/deployed-rev`, which the kia container can write, and passed it to git as it was. A kia container that had been taken over could have written an option there that emptied any file of yours on the next update. It's kept in git's own folder now, and used only if it's a commit; an old copy in `state/` is taken over once, if it is one, and removed.
 - `scripts/stack.sh apply --preset` wrote the preset's `KIA_STACK` to `.env` before checking it, so a refused or cancelled apply still changed it, with no copy of `.env` kept. `.env` changes now only once the check has passed and the questions are answered, and the copy of `.env` is made as a new file, never written through something already at that name.
 - The Pluto TV relay downloads at most 16 MB for any one address, so a server that sends far more (a broken one, or a hostile one reached through Pluto's redirects) can't fill kia's memory. A request for a piece of a channel that isn't playing no longer holds one of the 20 places until it times out.
