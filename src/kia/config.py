@@ -218,19 +218,19 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         sources_file=None if urls else sources_file,
         config_file=path.resolve(),
         concurrency=_at_least_one("concurrency", _env_int("KIA_CHECK_CONCURRENCY", check.get("concurrency", 20))),
-        timeout=check.get("timeout", 15.0),
+        timeout=_number("[check] timeout", check.get("timeout", 15.0), above=0),
         per_host=_at_least_one("per_host", check.get("per_host", 2)),
         per_host_limits={host: _at_least_one(f"per_host_limits {host}", n)
                          for host, n in dict(check.get("per_host_limits", {})).items()},
-        host_delay_ms=check.get("host_delay_ms", 100),
+        host_delay_ms=_whole("[check] host_delay_ms", check.get("host_delay_ms", 100), 0),
         require_video=check.get("require_video", True),
-        grace_failures=check.get("grace_failures", 2),
+        grace_failures=_whole("[check] grace_failures", check.get("grace_failures", 2), 0),
         merge_duplicates=check.get("merge_duplicates", True),
         user_agent=check.get("user_agent", DEFAULT_USER_AGENT) or None,
         ffprobe=check.get("ffprobe", "ffprobe"),
         exclude_groups=_merge_env_list("KIA_EXCLUDE_GROUPS", filters.get("exclude_groups", [])),
         exclude_labels=filters.get("exclude_labels", []),
-        exclude_name_patterns=filters.get("exclude_name_patterns", []),
+        exclude_name_patterns=_patterns(filters.get("exclude_name_patterns", [])),
         output_dir=base / output.get("dir", "output"),
         state_dir=base / output.get("state_dir", "state"),
         epg_url=output.get("epg_url") or _derive_epg_url(output),
@@ -242,7 +242,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         https_port=_env_int("KIA_HTTPS_PORT", output.get("https_port", 8743)),
         tls_names=_merge_env_list("KIA_TLS_NAMES", list(output.get("tls_names", []))),
         alerts=_load_alerts(data.get("alerts", {})),
-        history_days=check.get("history_days", 30),
+        history_days=_whole("[check] history_days", check.get("history_days", 30), 1),
         upstream_url=_upstream_url(data.get("upstream", {})),
         upstream_fallback=_upstream_fallback(data.get("upstream", {})),
         pluto_relay=env_bool("KIA_PLUTO_RELAY", data.get("pluto", {}).get("relay", True)),
@@ -263,6 +263,35 @@ def _at_least_one(name: str, value: object) -> int:
     """Limits on streams tested at once: 0 would make the check wait forever."""
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"[check] {name} = {value!r}: expected a whole number, 1 or more")
+    return value
+
+
+def _whole(name: str, value: object, least: int) -> int:
+    """A whole number from kia.toml, checked when it's read: a typo such as days = "3" would
+    otherwise stop the refresh hours later, part way through."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < least:
+        raise ValueError(f"{name} = {value!r}: expected a whole number, {least} or more")
+    return value
+
+
+def _number(name: str, value: object, above: float, most: float | None = None) -> float:
+    """A number from kia.toml (whole or not), more than `above` and at most `most`."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= above or (most is not None and value > most):
+        limits = f"more than {above:g}" + (f" and at most {most:g}" if most is not None else "")
+        raise ValueError(f"{name} = {value!r}: expected a number, {limits}")
+    return value
+
+
+def _patterns(value: object) -> list[str]:
+    """[filters] exclude_name_patterns: regular expressions, compiled once here, so a broken
+    one is reported at the start instead of stopping every check."""
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise ValueError(f"[filters] exclude_name_patterns = {value!r}: expected a list of quoted patterns")
+    for pattern in value:
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"[filters] exclude_name_patterns: {pattern!r} isn't a valid pattern ({exc})") from None
     return value
 
 
@@ -317,8 +346,8 @@ def _load_alerts(alerts: dict) -> AlertConfig:
         command=os.environ.get("KIA_ALERT_COMMAND") or alerts.get("command") or None,
         ntfy_url=(os.environ.get("KIA_NTFY_URL") or alerts.get("ntfy_url") or "").strip() or None,
         events=tuple(chosen),
-        drop_percent=alerts.get("drop_percent", 25),
-        site_fail_runs=alerts.get("site_fail_runs", 3),
+        drop_percent=_number("[alerts] drop_percent", alerts.get("drop_percent", 25), above=0, most=100),
+        site_fail_runs=_whole("[alerts] site_fail_runs", alerts.get("site_fail_runs", 3), 1),
         email=_load_email(alerts.get("email", {})),
     )
 
@@ -374,15 +403,15 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
     return EpgConfig(
         repo_dir=base / epg.get("repo_dir", d.repo_dir),
         work_dir=base / epg.get("work_dir", d.work_dir),
-        days=_env_int("KIA_EPG_DAYS", epg.get("days", d.days)),
-        max_sites_per_channel=epg.get("max_sites_per_channel", d.max_sites_per_channel),
+        days=_env_int("KIA_EPG_DAYS", _whole("[epg] days", epg.get("days", d.days), 1)),
+        max_sites_per_channel=_whole("[epg] max_sites_per_channel", epg.get("max_sites_per_channel", d.max_sites_per_channel), 1),
         prefer_sites=epg.get("prefer_sites", []),
         exclude_sites=_merge_env_list("KIA_EXCLUDE_SITES", epg.get("exclude_sites", [])),
         # KIA_EPG_RUNNER lets the Docker image (which bundles Node) force "local".
         runner=os.environ.get("KIA_EPG_RUNNER") or epg.get("runner", d.runner),
         docker_image=epg.get("docker_image", d.docker_image),
-        parallel_sites=_env_int("KIA_PARALLEL_SITES", epg.get("parallel_sites", d.parallel_sites)),
-        max_connections=epg.get("max_connections", d.max_connections),
+        parallel_sites=_env_int("KIA_PARALLEL_SITES", _whole("[epg] parallel_sites", epg.get("parallel_sites", d.parallel_sites), 1)),
+        max_connections=_whole("[epg] max_connections", epg.get("max_connections", d.max_connections), 1),
         placeholders=env_bool("KIA_PLACEHOLDERS", epg.get("placeholders", d.placeholders)),
         placeholder_hours=_placeholder_hours(epg.get("placeholder_hours", d.placeholder_hours)),
         radio_placeholders=env_bool("KIA_RADIO_PLACEHOLDERS", epg.get("radio_placeholders", d.radio_placeholders)),
@@ -391,7 +420,7 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         native_grabbers=epg.get("native_grabbers", d.native_grabbers),
         name_matching=epg.get("name_matching", d.name_matching),
         playlist_guides=epg.get("playlist_guides", d.playlist_guides),
-        site_time_limit=epg.get("site_time_limit", d.site_time_limit),
+        site_time_limit=_whole("[epg] site_time_limit", epg.get("site_time_limit", d.site_time_limit), 0),
         site_connections=dict(epg.get("site_connections", {})),
         site_delay_ms=dict(epg.get("site_delay_ms", {})),
         accept_name_matches=epg.get("accept_name_matches", []),

@@ -7,6 +7,7 @@ flock (on Windows, where there's no flock, they hold within one process only).
 
 - refresh(): one refresh at a time (the nightly run, a guide refresh, or a step run by
   hand). It doesn't wait: a second one gets Busy, with what's running and since when.
+  `kia check --url` doesn't take it: it writes to work/check-test, not the refresh's files.
 - FilesLock: the short sections that write kia's state (channel choices, numbers, profiles)
   and the Dashboard's saves take turns. It waits; those sections take moments.
 """

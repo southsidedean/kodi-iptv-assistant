@@ -1,8 +1,9 @@
 """The settings kia is running with, for the Dashboard's System page and `kia settings`.
 
-Read only: settings are changed in .env and kia.toml, never from the web (the playlists
-kia checks can also be chosen on the Dashboard; see kia.sources). Anything
-secret (the password, the ntfy address, the alert command) shows only whether it's set.
+Read only. Settings are changed in .env and kia.toml. A few can also be changed on the
+Dashboard's secure page: the playlists kia checks (kia.sources), the password, and
+KIA_STACK (the Stack page, carried out by the kia-stack service). Anything secret (the
+password, the ntfy address, the alert command) shows only whether it's set.
 """
 
 from __future__ import annotations
@@ -111,6 +112,9 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Alert command", _set(a.command), ENV + "KIA_ALERT_COMMAND"),
             ("Events", _list(a.events), ENV + "KIA_ALERT_EVENTS"),
         ]),
+        ("Stack", [
+            ("Parts", _stack(), "the Dashboard (Stack page), or " + ENV + "KIA_STACK"),
+        ]),
     ]  # fmt: skip
     if cfg.upstream_url:
         sections[4][1].append(("If that server is unreachable", cfg.upstream_fallback, ENV + "KIA_UPSTREAM_FALLBACK"))
@@ -118,6 +122,17 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
         {"title": title, "rows": [{"name": n, "value": v, "change": c} for n, v, c in rows]}
         for title, rows in sections
     ]
+
+
+def _stack() -> str:
+    """KIA_STACK, as compose.yaml hands it to kia. Empty: COMPOSE_PROFILES chooses."""
+    parts = [p for p in os.environ.get("KIA_STACK", "").replace(" ", ",").split(",") if p]
+    if parts:
+        return _list(parts)
+    if "KIA_COMPOSE_PROFILES" not in os.environ:
+        return "not running in Docker"
+    profiles = [p.strip() for p in os.environ["KIA_COMPOSE_PROFILES"].split(",") if p.strip()]
+    return f"not set (COMPOSE_PROFILES: {_list(profiles)})" if profiles else "kia only"
 
 
 def _relative(cfg: Config, path) -> str:
