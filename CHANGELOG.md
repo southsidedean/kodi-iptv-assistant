@@ -2,6 +2,10 @@
 
 ## 0.5.7 (unreleased)
 
+### Maintenance
+
+- A weekly check says when an image `compose.yaml` pins to a tested version (Threadfin, the graphics card's exporter) has a newer release of the same kind (`scripts/pinned-images.py`).
+
 ## 0.5.6 (2026-10-24)
 
 ### Upgrading from 0.5.5
