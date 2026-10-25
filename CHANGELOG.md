@@ -6,6 +6,7 @@
 
 - [kia and AI assistants](docs/mcp.md), a full guide to kia's MCP server: which assistants can use it and which can't (assistants in a company's cloud, such as ChatGPT and claude.ai, can't reach kia at home), setup for Claude Code, Gemini CLI, Claude Desktop, Codex, VS Code, and Cursor, trusting kia's certificate, what the assistant sees, privacy and safety, a table of errors and fixes, and a reference for developers.
 - `kia mcp-token --for <assistant>` prints the setup for `claude-code` (the default), `claude-desktop`, `gemini`, `codex`, `vscode`, `cursor`, or `curl`, with your address and token filled in.
+- Two more tools: `kia_whats_on` (what's on a channel now and next) and `kia_docs` (searches the docs installed with your kia, so an assistant can give kia's own steps and links). And two starter prompts, **kia checkup** and **explain a channel**, which Claude Code offers as slash commands.
 - `kia mcp` runs the MCP server over standard input and output, for an assistant on the same computer as kia, which starts it itself: no certificate, token, or network. With Docker: `docker compose exec -T kia python3 -m kia mcp`.
 
 ## 0.6.0 (2026-10-25)
