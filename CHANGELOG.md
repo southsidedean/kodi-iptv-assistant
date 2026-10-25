@@ -2,6 +2,10 @@
 
 ## 0.6.3 (unreleased)
 
+### Asking kia why
+
+- `kia doctor hardware` checks the computer kia runs on, from the numbers the stack's Prometheus keeps for Grafana's Hardware dashboard: disks that are nearly full, software RAID with a failed disk, memory errors, the processor slowing down for heat, and running on a battery. With their exporters, it also checks each disk's health (SMART: failing its own check, sectors it couldn't read or has replaced, heat, an SSD's wear) and the graphics card's temperature. **Ask kia what's wrong** on the Dashboard includes its problems when Prometheus is in the stack, scripts can ask `GET /api/doctor/hardware`, and AI assistants get a `kia_hardware` tool ([observability](docs/cookbooks/observability.md#if-somethings-wrong)).
+
 ## 0.6.2 (2026-10-25)
 
 ### Upgrading from 0.6.1

@@ -966,10 +966,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         reports = doctor.channel(cfg, " ".join(words))
     elif topic == "plex":
         reports = [doctor.plex(cfg)]
+    elif topic == "hardware":
+        reports = [doctor.hardware(cfg)]
     elif not topic:
         reports = [doctor.overview(cfg)]
     else:
-        log(f"kia doctor doesn't know {topic!r}. Try: kia doctor, kia doctor channel <name>, or kia doctor plex")
+        log(f"kia doctor doesn't know {topic!r}. Try: kia doctor, kia doctor channel <name>, kia doctor plex, or kia doctor hardware")
         return 2
     if args.json:
         print(json.dumps([r.to_dict() for r in reports], indent=1))
