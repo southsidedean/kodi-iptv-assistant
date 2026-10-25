@@ -15,7 +15,7 @@ dependencies = []
 [project.optional-dependencies]
 # Exact versions, so a new release of a checker can't fail an unrelated pull request the day
 # it comes out; Dependabot proposes updates (.github/dependabot.yml).
-dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "hypothesis==6.170.5", "ruff==0.17.1", "bandit==1.9.4", "zizmor==1.31.1"]
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "hypothesis==6.170.5", "pytest-timeout==2.4.0", "ruff==0.17.1", "bandit==1.9.4", "zizmor==1.31.1"]
 
 [project.scripts]
 kia = "kia.cli:main"
@@ -27,6 +27,11 @@ where = ["src"]
 testpaths = ["tests"]
 # -ra lists skipped tests and why (a missing ffmpeg, say) at the end of each run.
 addopts = "-ra --strict-markers"
+# A test that hangs (a server that never answers, a lock never let go) fails after a minute,
+# with a traceback of where it was stuck, instead of holding CI until GitHub's six-hour limit.
+# The slowest test takes a few seconds; a test that needs longer says so with
+# @pytest.mark.timeout(seconds).
+timeout = 60
 
 [tool.ruff]
 line-length = 130
