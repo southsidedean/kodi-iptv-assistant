@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodi-iptv-assistant"
-version = "0.6.2"
+version = "0.6.3.dev0"
 description = "Curate working IPTV streams and build a matching EPG for Kodi's IPTV Simple client"
 readme = "README.md"
 requires-python = ">=3.11"
