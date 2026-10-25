@@ -36,15 +36,17 @@ A preset sets `KIA_STACK` for you, for one of the common setups. The installer o
 scripts/stack.sh apply --preset plex-box
 ```
 
-| Preset | Card | `KIA_STACK` | Needs |
-|---|---|---|---|
-| `kodi` | Kodi and other players | (empty): kia and its web server | Nothing more than kia itself |
-| `plex-box` | Plex TV box | `plex` | About 2 GB more memory, and a free Plex account |
-| `plex-box-graphs` | Plex TV box with graphs | `plex,observability` | About 2.5 GB more memory, and a free Plex account |
-| `plex-elsewhere` | Threadfin for your Plex | `plex-tuner` | A Plex you already run |
-| `jellyfin-box` | Jellyfin TV box | `jellyfin` | About 2 GB more memory |
-| `jellyfin-box-graphs` | Jellyfin TV box with graphs | `jellyfin,observability` | About 2.5 GB more memory |
-| `everything` | Everything | `plex,jellyfin,observability` | About 5 GB more memory (8 GB or more in all), and a free Plex account |
+| Preset | Card | `KIA_STACK` | Needs | Asks you for |
+|---|---|---|---|---|
+| `kodi` | Kodi and other players | (empty): kia and its web server | Nothing more than kia itself | Nothing more |
+| `plex-box` | Plex TV box | `plex` | About 2 GB more memory, and a free Plex account | Plex's playlist, a claim code, your media folder |
+| `plex-box-graphs` | Plex TV box with graphs | `plex,observability` | About 2.5 GB more memory, and a free Plex account | Plex's playlist, a claim code, your media folder |
+| `plex-elsewhere` | Threadfin for your Plex | `plex-tuner` | A Plex you already run | Plex's playlist, your Plex's address and token |
+| `jellyfin-box` | Jellyfin TV box | `jellyfin` | About 2 GB more memory | Your media folder |
+| `jellyfin-box-graphs` | Jellyfin TV box with graphs | `jellyfin,observability` | About 2.5 GB more memory | Your media folder, an API key from Jellyfin |
+| `everything` | Everything | `plex,jellyfin,observability` | About 5 GB more memory (8 GB or more in all), and a free Plex account | Plex's playlist, a claim code, an API key from Jellyfin, your media folder |
+
+"Plex's playlist" is a playlist named `plex`, made on the Dashboard, which Threadfin reads. Your media folder is `media/` in the kia folder unless you set `KIA_MEDIA_DIR`. The cards, the installer, and `scripts/stack.sh list` say what each one asks for before you choose it.
 
 They're in `stacks/` in the kia folder. Add your own parts to `KIA_STACK` afterwards, such as `observability-gpu` on a computer with an NVIDIA card.
 

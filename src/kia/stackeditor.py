@@ -31,7 +31,7 @@ STYLE = """
   border: 1px solid var(--line); border-radius: var(--radius-small); }
 @media (pointer: coarse) { .presets button { min-height: 44px; } }
 .preset-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--space-2); margin: var(--space-2) 0; }
-.preset-card { display: grid; gap: .3rem; text-align: left; padding: var(--space-2) var(--space-3); border-radius: var(--radius-small);
+.preset-card { display: grid; gap: .3rem; align-content: start; text-align: left; padding: var(--space-2) var(--space-3); border-radius: var(--radius-small);
   background: var(--card); color: var(--fg); border: 1px solid var(--control); font: inherit; cursor: pointer; min-height: 44px; }
 .preset-card .what { color: var(--fg); font-size: var(--step--1); }
 .preset-card small { color: var(--muted); }
@@ -127,7 +127,9 @@ SCRIPT = r"""
       var b = el("button", { type: "button", class: "preset-card", "aria-pressed": "false",
         on: { click: function () { data.parts.forEach(function (x) { boxes[x.name].checked = p.parts.indexOf(x.name) >= 0; }); changed(); } } },
         [el("strong", { text: p.title }), el("span", { class: "what", text: p.what.replace(/\s*\(docs\/[^)]*\)\.?$/, ".") }),
-         el("small", { text: p.needs })]);
+         el("small", { text: p.needs }),
+         // What it asks of you, before you choose it: a claim code, a folder, an API key.
+         p.asks && p.asks !== "Nothing more." ? el("small", { class: "asks", text: "Asks you for: " + p.asks }) : null]);
       b.parts = p.parts.slice().sort();
       cardButtons.push(b);
       cards.appendChild(b);

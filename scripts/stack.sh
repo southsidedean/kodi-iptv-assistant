@@ -83,6 +83,8 @@ if [ "$cmd" = list ]; then
     echo "Presets (scripts/stack.sh apply --preset NAME):"
     for f in stacks/*.env; do
         printf '  %-20s %s\n' "$(basename "$f" .env)" "$(sed -n '1s/^# *//p' "$f")"
+        asks=$(sed -n 's/^# asks: *//p' "$f")
+        case "$asks" in "" | "Nothing more.") ;; *) printf '  %-20s Asks you for: %s\n' "" "$asks" ;; esac
     done
     exit 0
 fi

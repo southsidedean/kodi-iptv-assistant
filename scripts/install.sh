@@ -202,7 +202,11 @@ else
     fi
     if [ -z "$PRESET" ]; then
         say "What is this kia for? (docs/stack.md)"
-        for f in stacks/*.env; do say "  $(basename "$f" .env): $(sed -n 's/^# title: *//p' "$f"). $(sed -n 's/^# needs: *//p' "$f")"; done
+        for f in stacks/*.env; do
+            say "  $(basename "$f" .env): $(sed -n 's/^# title: *//p' "$f"). $(sed -n 's/^# needs: *//p' "$f")"
+            asks=$(sed -n 's/^# asks: *//p' "$f")  # what it asks of you once chosen, said before
+            case "$asks" in "" | "Nothing more.") ;; *) say "      Asks you for: $asks" ;; esac
+        done
         PRESET=$(ask "Choose one" kodi)
         [ -f "stacks/$PRESET.env" ] || die "there's no preset $PRESET; run this again and choose one of the names above"
     fi

@@ -157,3 +157,10 @@ def test_the_preset_reads_this_computers_address_from_any_public_url(kia: Path, 
     r = install(kia, "--preset", "plex-box", "--yes")
     assert r.returncode == 0, r.stdout + r.stderr
     assert f"KIA_PLEX_ADVERTISE={advertised}\n" in env(kia)
+
+
+def test_the_preset_menu_says_what_each_one_asks_of_you(kia: Path):
+    r = install(kia, "--yes")  # no preset given: the menu is shown, and the default taken
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "What is this kia for?" in r.stdout
+    assert "Asks you for: A playlist named plex, made on the Dashboard; a claim code from plex.tv/claim" in r.stdout
