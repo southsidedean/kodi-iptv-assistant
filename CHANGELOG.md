@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.6.5 (unreleased)
+## 0.6.5 (2026-10-25)
+
+### Upgrading from 0.6.4
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). If your assistant uses kia's MCP server, it picks up the `kia_guide` tool the next time it connects.
 
 ### Asking kia why
 
