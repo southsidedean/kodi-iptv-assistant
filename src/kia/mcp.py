@@ -284,6 +284,10 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
 def setup_for(assistant: str, address: str, token: str) -> str:
     """The setup text for one assistant. Raises KeyError for one kia doesn't know."""
     bearer = f"Bearer {token}"
+    # "password": true is VS Code's setting that hides the token as it's typed, not a password.
+    prompt = {"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}  # nosec B105
+    vscode = json.dumps({"inputs": [prompt], "servers": {"kia": {"type": "http", "url": address,
+                         "headers": {"Authorization": "Bearer ${input:kia-token}"}}}}, indent=2)  # fmt: skip
     texts = {
         "claude-code": f"""In a terminal, add kia to Claude Code (for every project):
 
@@ -326,8 +330,7 @@ Then start Codex with the token, and trusting kia's certificate:
         "vscode": f"""In VS Code, run "MCP: Open User Configuration" and add kia (VS Code asks for the token the
 first time, and keeps it out of the file):
 
-{json.dumps({"inputs": [{"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}],  # nosec B105  # VS Code's setting that hides the token as it's typed
-             "servers": {"kia": {"type": "http", "url": address, "headers": {"Authorization": "Bearer ${input:kia-token}"}}}}, indent=2)}
+{vscode}
 
 The token: {token}
 """,
