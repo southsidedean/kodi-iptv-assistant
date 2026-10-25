@@ -282,8 +282,23 @@ def test_presets_have_a_title_and_what_they_need():
     assert stack.presets(ROOT)[0]["name"] == "kodi"  # simplest first, by "# order:"
     assert len({p["order"] for p in stack.presets(ROOT)}) == len(stack.presets(ROOT))
     for p in stack.presets(ROOT):
-        assert p["title"] and p["title"] != p["name"] and p["needs"] and p["what"], p["name"]
+        assert p["title"] and p["title"] != p["name"] and p["needs"] and p["what"] and p["asks"], p["name"]
         stack.parts_from(p["parts"])  # every part is one kia knows
+    asks = {p["name"]: p["asks"] for p in stack.presets(ROOT)}
+    # What each one asks of you, said before you choose it: Plex's claim code and its
+    # playlist, Jellyfin's API key for its graphs.
+    assert asks["kodi"] == "Nothing more."
+    for name in ("plex-box", "plex-box-graphs", "everything"):
+        assert "plex.tv/claim" in asks[name] and "playlist named plex" in asks[name], name
+    assert "KIA_PLEX_TOKEN" in asks["plex-elsewhere"] and "plex.tv/claim" not in asks["plex-elsewhere"]
+    assert "KIA_JELLYFIN_TOKEN" in asks["jellyfin-box-graphs"] and "KIA_JELLYFIN_TOKEN" not in asks["jellyfin-box"]
+
+
+def test_the_cards_say_what_a_preset_asks_of_you():
+    from kia import stackeditor
+
+    script = "".join(v for v in vars(stackeditor).values() if isinstance(v, str) and "<script>" in v)
+    assert '"Asks you for: " + p.asks' in script and 'p.asks !== "Nothing more."' in script
 
 
 def test_adding_live_tv_to_plex_from_the_page(tmp_path: Path, monkeypatch):

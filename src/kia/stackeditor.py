@@ -127,7 +127,9 @@ SCRIPT = r"""
       var b = el("button", { type: "button", class: "preset-card", "aria-pressed": "false",
         on: { click: function () { data.parts.forEach(function (x) { boxes[x.name].checked = p.parts.indexOf(x.name) >= 0; }); changed(); } } },
         [el("strong", { text: p.title }), el("span", { class: "what", text: p.what.replace(/\s*\(docs\/[^)]*\)\.?$/, ".") }),
-         el("small", { text: p.needs })]);
+         el("small", { text: p.needs }),
+         // What it asks of you, before you choose it: a claim code, a folder, an API key.
+         p.asks && p.asks !== "Nothing more." ? el("small", { class: "asks", text: "Asks you for: " + p.asks }) : null]);
       b.parts = p.parts.slice().sort();
       cardButtons.push(b);
       cards.appendChild(b);

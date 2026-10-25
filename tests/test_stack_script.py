@@ -464,3 +464,10 @@ def test_little_memory_and_two_heavy_parts_is_a_warning(kia: Path):
     r = stack(kia, "check", "--stack", "jellyfin,observability", FAKE_OS="Darwin")
     assert "this computer has 4 GB of memory; with 2 of plex, jellyfin, and observability" in r.stdout
     assert "of memory" not in stack(kia, "check", "--stack", "jellyfin", FAKE_OS="Darwin").stdout  # one is fine
+
+
+def test_the_list_says_what_each_preset_asks_of_you(kia: Path):
+    out = stack(kia, "list").stdout
+    assert "Asks you for: A playlist named plex, made on the Dashboard; a claim code from plex.tv/claim" in out
+    kodi = next(line for line in out.splitlines() if line.strip().startswith("kodi "))
+    assert "Asks you for" not in out.split(kodi, 1)[1].splitlines()[1]  # nothing more for kodi

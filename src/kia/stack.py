@@ -198,8 +198,9 @@ def parts_from(value) -> list[str]:
 
 def presets(project_dir: Path) -> list[dict]:
     """The presets in stacks/, for the Stack page's cards: each one's name, title, what it's
-    for (its first line), what it needs (the "# title:" and "# needs:" lines), and parts, in
-    the order their "# order:" lines give."""
+    for (its first line), what it needs (memory, accounts) and asks of you (a claim code, a
+    folder) from its "# title:", "# needs:", and "# asks:" lines, and parts, in the order
+    their "# order:" lines give."""
     out = []
     for path in sorted((project_dir / "stacks").glob("*.env")):
         try:
@@ -212,7 +213,7 @@ def presets(project_dir: Path) -> list[dict]:
         names = [p for p in stack.replace(" ", ",").split(",") if p]
         order = comments.get("order", "")
         out.append({"name": path.stem, "title": comments.get("title") or path.stem, "what": what, "needs": comments.get("needs", ""),
-                    "parts": names, "order": int(order) if order.isdigit() else 99})  # fmt: skip
+                    "asks": comments.get("asks", ""), "parts": names, "order": int(order) if order.isdigit() else 99})  # fmt: skip
     # Simplest first: each preset's "# order:" line, then its name.
     return sorted(out, key=lambda p: (p["order"], p["name"]))
 
