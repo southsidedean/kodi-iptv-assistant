@@ -259,3 +259,35 @@ def test_the_dashboard_and_playlist_pages_offer_it(kia):
     # Answers go into the page as text; only kia's own docs pages become links.
     assert "innerHTML" not in doctorview.SCRIPT and htmlpage.DOCS_URL in doctorview.SCRIPT
     assert "window.kiaWhy(root, row.dataset.id || name(row), into)" in channeleditor.SCRIPT
+
+
+@pytest.mark.parametrize(("text", "hidden", "kept"), [
+    ("https://user:p@ss@host/x", "p@ss", "host/x"),
+    ("1https://me:secret@host/", "secret", "host/"),
+    ("//me:secret@host/live", "secret", "host/live"),
+    ("http://u:secret@[fd00::5]:80/", "secret", "[fd00::5]:80/"),
+    ("http://host:8080/get.php?username=USER&password=PASS", "PASS", "get.php?username="),
+    ("http://host:8080/live/USER/PASS/123.ts", "PASS", "/live/"),
+    ("url=https%3A%2F%2Fuser%3Asecret%40host%2F", "secret", "host"),
+    ("me:secret@host:8080/live", "secret", "host:8080/live"),
+    ("HTTPS://U:SECRET@HOST/", "SECRET", "HOST/"),
+])
+def test_logins_in_addresses_are_hidden(text, hidden, kept):
+    shown = doctor.hide_logins(text)
+    assert hidden not in shown and kept in shown and "•••" in shown
+
+
+@pytest.mark.parametrize("text", ["mail me@example.com", "ERR: getaddrinfo ENOTFOUND x.tv", "https://example.com/docs#a"])
+def test_ordinary_text_is_left_alone(text):
+    assert doctor.hide_logins(text) == text
+
+
+def test_damaged_files_of_the_wrong_shape(kia):
+    kept(kia, CNN)
+    write(kia, "output/report.json", [1, 2])
+    write(kia, "work/mapping.json", {"CNN.us@SD": "not a list"})
+    write(kia, "state/alert-state.json", {"site_failures": [1]})
+    write(kia, "state/history.json", {"https://a/cnn.m3u8": "x"})
+    status(kia, alerts="x", sources=[1, "y"], coverage=[1])
+    write(kia, "output/stack.json", {"services": "nope"})
+    assert overview(kia).findings and channel(kia, "cnn")[0].findings

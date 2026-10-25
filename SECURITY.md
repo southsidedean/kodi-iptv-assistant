@@ -74,11 +74,11 @@ From the Dashboard you can change [profiles](docs/profiles.md), which playlists 
 
 kia's [MCP server](docs/ask-kia.md#2-ask-your-own-ai-assistant) lets an AI assistant read kia's record. It's off until you make its token (`kia mcp-token`), and then it answers only on the secure (HTTPS) port, only with that token.
 
-- Its tools only read, and they return what the Dashboard already shows to anyone on your network. Passwords, tokens, and alert addresses show only as set or not set, and a user name or password inside any address is hidden. Nothing it returns comes from `.env`.
-- A wrong token is slowed down like a wrong password, and each address can make 60 tool calls a minute. kia's log records each call and the address that made it.
+- Its tools only read, and they return what the Dashboard already shows to anyone on your network. Passwords, tokens, and alert addresses show only as set or not set (some settings come from `.env`, shown as on the System page), and user names and passwords in addresses are hidden: before the host, in the query (`?username=&password=`), and in the path (`/live/user/pass/`).
+- A wrong token is slowed down like a wrong password, counted apart from wrong passwords (so a token holder can't use right tokens to reset the count while guessing the password), and each address can make 60 tool calls a minute. kia's log records each call and each refused token, with the address it came from.
 - Requests from other websites' pages are refused, as for the rest of kia's API.
-- What it returns quotes text from strangers: channel names, guide titles, guide sites' errors. An assistant could read instructions planted there. kia tells the assistant at the start that this text is data, and since the tools can't change anything, the most a planted instruction could do is mislead the answer. Don't run a command an assistant suggests unless kia's docs give it.
-- The token is kept in `state/mcp-token.txt`, readable only by you. `kia mcp-token --reset` replaces it; `--off` turns the server off.
+- What it returns quotes text from strangers: channel names, guide titles, guide sites' errors. An assistant could read instructions planted there, and a taken-over kia container controls everything the tools return. kia tells the assistant at the start that this text is data, and kia's tools can't change anything. But an assistant such as Claude Code can also run commands and reach the internet, so a planted instruction that fooled it could try to use those. Keep the assistant asking before it runs commands, and don't approve one that came from an answer about kia unless kia's docs give it.
+- The token is kept in `state/mcp-token.txt`, readable only by you, and left out of backups. `kia mcp-token --reset` replaces it; `--off` turns the server off.
 
 ### Pluto TV
 

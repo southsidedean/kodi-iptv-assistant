@@ -1135,9 +1135,13 @@ def cmd_mcp_token(args: argparse.Namespace) -> int:
     if args.reset or not value:
         value = mcp.make_token(cfg.state_dir)
         log("Made a new token" + (": the old one no longer works." if args.reset else "."))
-    host = (urlparse(cfg.public_url).hostname if cfg.public_url else None) or "<your address>"
+    # The name the secure Dashboard's certificate covers first, as secure_setup uses: another
+    # name (or a bare address) would fail even with the certificate trusted.
+    host = tls.names(cfg.public_url, cfg.tls_names)[0]
     address = f"https://{tls.in_url(host)}:{cfg.https_port}/api/mcp"
     print(f"kia's MCP server is on, at {address}")
+    if host in ("localhost", "127.0.0.1"):
+        print("That address works only on this computer. For others, set KIA_PUBLIC_URL (or KIA_TLS_NAMES) in .env, restart kia, and run this again.")
     print(f"Its token (kept in {path}): {value}")
     print("To use it from Claude Code:")
     print(f'  claude mcp add --transport http kia {address} --header "Authorization: Bearer {value}"')

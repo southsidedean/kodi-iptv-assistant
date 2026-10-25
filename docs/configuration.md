@@ -168,7 +168,7 @@ One command saves everything you've set up in one file: `.env`, `kia.toml`, your
 docker compose exec kia python3 -m kia backup
 ```
 
-The file goes in `work/backups/` in the kia folder, named with the date, such as `kia-backup-20261020-221500.tar.gz`. It holds your password and the certificate's private key, so keep copies somewhere private. Without Docker, run `PYTHONPATH=src python3 -m kia backup` in the kia folder.
+The file goes in `work/backups/` in the kia folder, named with the date, such as `kia-backup-20261020-221500.tar.gz`. It holds your password and the certificate's private key (not the [MCP server](ask-kia.md#2-ask-your-own-ai-assistant)'s token, which you make again after a restore), so keep copies somewhere private. Without Docker, run `PYTHONPATH=src python3 -m kia backup` in the kia folder.
 
 To restore, for example on a new computer after [installing kia](install.md): copy the file into the kia folder, then run
 

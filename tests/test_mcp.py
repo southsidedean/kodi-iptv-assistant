@@ -64,7 +64,8 @@ def test_https_and_the_token_only(kia):
     assert rpc(kia, ping, token="wrong")[0] == 429  # the second wrong one in a row starts a wait, as for passwords
     assert rpc(kia, ping, client="192.0.2.6") == (200, {"jsonrpc": "2.0", "id": 1, "result": {}})  # someone else isn't
     assert rpc(kia, ping, method="GET", client="192.0.2.6")[0] == 405  # no event stream
-    # Another website's page can't use it (MCP: check Origin, against DNS rebinding).
+    # Another website's page can't use it (MCP asks servers to check Origin). Against DNS
+    # rebinding itself, HTTPS and the token are what protect it.
     assert rpc(kia, ping, headers={"Origin": "https://evil.example"}, client="192.0.2.6")[0] == 403
 
 
@@ -110,19 +111,21 @@ def test_every_tool_only_reads_and_answers(kia):
     assert call_tool(kia, "kia_find_channels", {"query": "cnn"})["structuredContent"]["channels"][0]["id"] == "CNN.us"
 
 
-def test_no_secret_reaches_an_answer(kia):
-    secrets = ["s3cret-pw", "plex-tok-123", "ntfy-topic-xyz"]
-    base = kia.state_dir.parent
-    (base / ".env").write_text("KIA_ADMIN_PASSWORD=s3cret-pw\nKIA_PLEX_TOKEN=plex-tok-123\nKIA_NTFY_URL=https://ntfy.sh/ntfy-topic-xyz\n")
+def test_no_secret_reaches_an_answer(kia, monkeypatch):
+    from kia.config import load
+
+    secrets = ["s3cret-pw", "plex-tok-123", "ntfy-topic-xyz", "up-pass-9"]
+    for name, value in (("KIA_ADMIN_PASSWORD", "s3cret-pw"), ("KIA_PLEX_TOKEN", "plex-tok-123"),
+                        ("KIA_NTFY_URL", "https://ntfy.sh/ntfy-topic-xyz"),
+                        ("KIA_UPSTREAM_URL", "https://kia:up-pass-9@example.com:8780")):  # fmt: skip
+        monkeypatch.setenv(name, value)
+    cli.write_settings(load(kia.config_file), "04:00", 4.0)  # the real settings.json, from the real settings
     (kia.output_dir / "report.json").write_text(json.dumps({"streams": [{"source": "us", "name": "CNN", "tvg_id": "CNN.us", "url": "x",
         "status": "dead", "selected": False, "error": "403 from https://me:s3cret-pw@example.com/live.m3u8"}]}))  # fmt: skip
-    (kia.state_dir / "settings.json").write_text(json.dumps({"sections": [{"title": "Upstream", "rows": [
-        {"name": "Upstream", "value": "https://kia:plex-tok-123@example.com", "change": ".env: KIA_UPSTREAM_URL"},
-        {"name": "ntfy address", "value": "set", "change": ".env: KIA_NTFY_URL"}]}]}))  # fmt: skip
     answers = "".join(json.dumps(call_tool(kia, n, {"query": "CNN"} if n in ("kia_channel", "kia_find_channels") else {}), ensure_ascii=False)
                       for n in mcp.RUN)  # fmt: skip
     assert not [s for s in secrets if s in answers]
-    assert "•••@example.com" in answers
+    assert "•••@example.com" in answers and "Guide from another kia server" in answers
 
 
 def test_tool_calls_are_limited_per_address(kia, monkeypatch):
@@ -183,3 +186,74 @@ def test_the_log_holds_only_kias_own_tool_names(kia, capsys):
     rpc(kia, {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "https://me:s3cret@example.com"}})
     logged = [line for line in capsys.readouterr().out.splitlines() if line.startswith("MCP:")]
     assert logged == ["MCP: kia_stack for 192.0.2.5"]
+
+
+def test_the_password_and_the_token_are_slowed_down_apart(kia):
+    # A right token mustn't reset the count of wrong passwords, and old tokens mustn't hold up
+    # the right password (both shared one counter in the review's version).
+    ping = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
+    statuses = []
+    for _ in range(3):
+        try:
+            api._CLIENT.set("192.0.2.5")
+            api.check_password(kia, "wrong", True)
+        except api.ApiError as exc:
+            statuses.append(exc.status)
+        assert rpc(kia, ping)[0] == 200
+    assert statuses == [401, 401, 429]
+    for _ in range(3):
+        rpc(kia, ping, token="stale", client="192.0.2.8")
+    api._CLIENT.set("192.0.2.8")
+    api.check_password(kia, "secret", True)  # no error: wrong tokens don't count against it
+
+
+def test_a_damaged_file_or_a_failing_tool_still_answers(kia, monkeypatch):
+    (kia.output_dir / "report.json").write_text("[1, 2, 3]")  # damaged into a list
+    (kia.output_dir / "stack.json").write_text('{"services": "nope"}')
+    for name in mcp.RUN:
+        result = call_tool(kia, name, {"query": "CNN"} if name in ("kia_channel", "kia_find_channels") else {})
+        assert not result.get("isError"), (name, result)
+    monkeypatch.setitem(mcp.RUN, "kia_stack", lambda *a: 1 / 0)
+    assert call_tool(kia, "kia_stack") == {"content": [{"type": "text", "text": "kia_stack failed; kia's log has the details."}],
+                                           "isError": True}  # fmt: skip
+
+
+def test_broken_settings_dont_stop_a_client_connecting(kia):
+    kia.config_file.write_text("[check\n")  # not valid TOML
+    status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}})
+    assert status == 200 and body["result"]["serverInfo"]["name"] == "kia"
+    assert "kia's settings couldn't be read" in call_tool(kia, "kia_overview")["content"][0]["text"]
+
+
+def test_ids_messages_and_the_bearer_word(kia, capsys):
+    assert rpc(kia, {"jsonrpc": "2.0", "id": None, "method": "ping"})[0] == 400
+    assert rpc(kia, {"jsonrpc": "2.0", "id": {"a": 1}, "method": "ping"})[0] == 400
+    assert rpc(kia, {"jsonrpc": "2.0", "id": True, "method": "ping"})[0] == 400
+    assert rpc(kia, {"jsonrpc": "2.0"})[0] == 400  # neither a request, a notification, nor a response
+    assert rpc(kia, {"jsonrpc": "2.0", "id": 5, "result": {}}) == (202, None)  # a response
+    assert rpc(kia, {"jsonrpc": "2.0", "id": "a", "method": "ping"})[1]["id"] == "a"
+    h = {"Host": "tv.lan:8743", "Authorization": f"bearer {TOKEN}"}
+    assert api.handle(kia, "POST", "/api/mcp", h, b'{"jsonrpc":"2.0","id":1,"method":"ping"}', True, "192.0.2.9")[0] == 200
+    rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "ping"}, token="nope", client="192.0.2.10")
+    assert "MCP: refused a token from 192.0.2.10 (401)" in capsys.readouterr().out
+
+
+def test_the_address_it_prints_is_one_the_certificate_covers(kia, capsys, monkeypatch):
+    config = str(kia.config_file)
+    monkeypatch.setenv("KIA_PUBLIC_URL", "http://192.168.1.20:8780")
+    monkeypatch.setenv("KIA_TLS_NAMES", "my-server.lan")
+    cli.main(["mcp-token", "-c", config])
+    out = capsys.readouterr().out
+    assert "https://my-server.lan:8743/api/mcp" in out and "192.168.1.20" not in out
+    monkeypatch.delenv("KIA_PUBLIC_URL")
+    monkeypatch.delenv("KIA_TLS_NAMES")
+    cli.main(["mcp-token", "-c", config])
+    out = capsys.readouterr().out
+    assert "https://localhost:8743/api/mcp" in out and "works only on this computer" in out and "<" not in out
+
+
+def test_backups_leave_the_token_out(kia, tmp_path):
+    from kia import backup
+
+    names = backup.make(kia.state_dir.parent, tmp_path / "b.tar.gz")
+    assert "state/mcp-token.txt" not in names and any(n.startswith("state/") for n in [*names, "state/x"])
