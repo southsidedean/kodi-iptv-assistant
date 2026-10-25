@@ -239,3 +239,19 @@ def test_stop_right_after_start_still_stops(cfg, monkeypatch):
             break
         pause(0.05)
     assert not api.CHECK["running"] and api.CHECK["error"] == "Stopped. Nothing changed."
+
+
+def test_the_page_hears_why_the_password_didnt_unlock_it(cfg, monkeypatch):
+    monkeypatch.setattr(api, "_WRONG", {})
+
+    def get(password):
+        headers = {"Host": "tv.lan:8743", "X-Kia-Password": password}
+        return api.handle(cfg, "GET", "/api/sources", headers, b"", True, "192.0.2.7")[1]
+
+    assert get("nope")["locked"] == "Wrong password." and not get("nope")["unlocked"]
+    waiting = get("secret")  # right, but after two wrong ones in a row
+    assert not waiting["unlocked"] and waiting["locked"].startswith("Too many wrong passwords")
+    monkeypatch.setattr(api, "_WRONG", {})
+    right = get("secret")
+    assert right["unlocked"] and "locked" not in right
+    assert "locked" not in call(cfg, "GET", "/api/sources", password=None)[1]  # nothing given, nothing to say

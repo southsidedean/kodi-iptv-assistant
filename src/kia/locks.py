@@ -77,14 +77,15 @@ class FilesLock:
     """A reentrant lock for writing kia's state, shared with other processes once
     configure() has told it where state/ is (until then, it holds within this process)."""
 
-    def __init__(self) -> None:
+    def __init__(self, name: str = "files.lock") -> None:
+        self.name = name
         self._thread_lock = threading.RLock()
         self._depth = 0
         self._fd: int | None = None
         self.path: Path | None = None
 
     def configure(self, state_dir: Path) -> None:
-        self.path = Path(state_dir) / "files.lock"
+        self.path = Path(state_dir) / self.name
 
     def __enter__(self) -> FilesLock:
         self._thread_lock.acquire()

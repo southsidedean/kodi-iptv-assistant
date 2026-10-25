@@ -6,6 +6,8 @@
 # makes the nightly check longer; the stream counts (October 2026) show how much.
 #
 # You can put a short name after a URL, e.g. "...us.m3u  usa". It's used in the reports.
+# kia leaves out streams on your own network that come from a playlist from the internet
+# (SECURITY.md says why); the word "lan" after the name lets a playlist have them.
 
 # --- Countries (iptv-org) ---------------------------------------------- streams ---
 https://iptv-org.github.io/iptv/countries/us.m3u               # USA            1,483

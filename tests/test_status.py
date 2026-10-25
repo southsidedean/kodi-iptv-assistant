@@ -299,3 +299,23 @@ def test_settings_show_the_stack(tmp_path: Path, monkeypatch):
     assert parts() == "not set (COMPOSE_PROFILES: plex, monitoring)"
     monkeypatch.setenv("KIA_STACK", "plex,observability")
     assert parts() == "plex, observability"
+
+
+def test_page_updates_take_turns_across_processes(tmp_path: Path):
+    import fcntl
+    import os
+    import threading
+    import time
+
+    cfg = cli.load(make_instance(tmp_path))
+    cfg.state_dir.mkdir(exist_ok=True)
+    fd = os.open(cfg.state_dir / "status.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX)  # as a kia command run by hand would hold it
+    done = threading.Event()
+    worker = threading.Thread(target=lambda: (status.update(cfg.output_dir, cfg.state_dir, cfg.public_url), done.set()))
+    worker.start()
+    time.sleep(0.3)
+    assert not done.is_set()  # waits its turn
+    os.close(fd)
+    worker.join(10)
+    assert done.is_set()

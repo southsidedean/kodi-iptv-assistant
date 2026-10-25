@@ -153,7 +153,10 @@ SCRIPT = r"""
     }
     where.textContent = "";
     if (c.error) { where.textContent = c.error; return; }
-    var r = c.result || {};
+    // kia keeps a check's progress in memory, so after a restart it has neither a result
+    // nor an error to give.
+    if (!c.result) { where.className = "src-result error"; where.textContent = "kia restarted, so the check stopped. Nothing changed."; return; }
+    var r = c.result;
     where.textContent = n(r.total) + " streams: " + n(r.ok) + " working, " + n(r.flaky) + " flaky, " + n(r.dead) + " dead." +
       (r.sample && r.sample.length ? " Working: " + r.sample.join(", ") + (r.ok > r.sample.length ? ", …" : "") : "") +
       " Your playlists don't change until the next refresh.";
@@ -205,7 +208,7 @@ SCRIPT = r"""
   function section(name) {
     if (sections[name]) return sections[name];
     var cnt = el("span", { class: "n" });
-    var d = el("details", {}, [el("summary", {}, [name, cnt])]);
+    var d = el("details", {}, [el("summary", {}, [name, " ", cnt])]);  // the space: read aloud as "Canada, 3 of 5 on"
     sections[name] = { el: d, count: cnt, list: [] };
     return sections[name];
   }
@@ -251,7 +254,7 @@ SCRIPT = r"""
       button.disabled = true;
       load(input.value).then(function (ok) {
         button.disabled = false;
-        if (!ok) { say(result, "Wrong password.", true); input.select(); }
+        if (!ok) { say(result, locked || "Wrong password.", true); input.select(); }
       }, function () { button.disabled = false; say(result, DOWN, true); });
     });
     return form;
@@ -290,13 +293,24 @@ SCRIPT = r"""
   }
 
   // Resolves true once the sources show in full (the password was right, or isn't needed).
+  var locked = "";  // why the last password didn't unlock the page, in kia's words
   function load(password) {
     var headers = password ? { "X-Kia-Password": password } : {};
-    return fetch("api/sources", { headers: headers }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    // 404: this server has no kia API (the page was copied elsewhere). Any other failure
+    // is kia not answering for now, usually a restart.
+    return fetch("api/sources", { headers: headers }).then(function (r) {
+      return r.ok ? r.json() : r.status === 404 ? null : { down: true };
+    }, function () { return { down: true }; }).then(function (d) {
+      if (d && d.down) {
+        card.hidden = false;
+        if (!data) body.textContent = "kia didn't answer just now (it may be restarting). Reload the page in a minute.";
+        return false;
+      }
       if (!d || !d.playlists) {
         if (location.protocol === "file:") { card.hidden = false; body.textContent = "Open this page through kia's address to see and change the channel sources."; }
         return false;
       }
+      locked = d.locked || "";
       if (password && !d.unlocked && data) return false;  // a wrong password: keep the page as it is
       if (d.unlocked) setPassword(password);
       else if (password) setPassword("");

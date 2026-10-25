@@ -477,3 +477,49 @@ def test_a_grab_that_cant_start_fails_only_its_own_site(tmp_path: Path, monkeypa
     results = {r.site: r.returncode for r in grab.grab_all(cfg, None, said.append)}
     assert results == {"a.com": 1, "b.com": 0}
     assert any("a.com: couldn't start" in m for m in said)
+
+
+def test_a_playlist_from_the_internet_cant_send_tests_onto_your_network(tmp_path: Path, monkeypatch):
+    tested = []
+
+    async def fake_probe(url, **kw):
+        tested.append(url)
+        return ProbeResult(ok=True, height=720)
+
+    monkeypatch.setattr(cli, "probe", fake_probe)
+    cfg = load(make_cfg(tmp_path))
+    cfg.host_delay_ms = 0
+    theirs = [m3u.Entry(n, u) for n, u in [("Router", "http://192.0.2.1/admin"), ("Here", "http://localhost:9090/x"),
+                                           ("Docker", "http://[::1]:3000/"), ("TV", "http://8.8.8.8/live.m3u8")]]  # fmt: skip
+    mine = m3u.Entry("Tuner", "http://192.168.1.20:5004/auto/v1", yours=True)
+    results = asyncio.run(cli.probe_all([*theirs, mine], cfg, verbose=False))
+    assert sorted(tested) == ["http://192.168.1.20:5004/auto/v1", "http://8.8.8.8/live.m3u8"]
+    assert results["http://192.0.2.1/admin"].error == cli.LAN_REFUSED
+    assert "lan" in cli.LAN_REFUSED and not results["http://localhost:9090/x"].ok
+
+    # The same stream in one of your playlists and one from the internet: yours decides.
+    tested.clear()
+    asyncio.run(cli.probe_all([m3u.Entry("A", "http://192.168.1.20/a"), m3u.Entry("A", "http://192.168.1.20/a", yours=True)],
+                              cfg, verbose=False))  # fmt: skip
+    assert tested == ["http://192.168.1.20/a"]
+
+
+def test_which_playlists_are_yours(tmp_path: Path):
+    from kia import lan
+    from kia.config import parse_sources
+
+    a, b, c, d, e = parse_sources(f"{tmp_path / 'mine.m3u'}\nhttp://192.0.2.5:34400/m3u/threadfin.m3u tf\n"
+                                  "https://8.8.8.8/us.m3u us\nhttps://8.8.8.8/eu.m3u eu lan radio\n"
+                                  "radio-browser: country=US\n")  # fmt: skip
+    assert [s.is_yours for s in (a, b, c, d, e)] == [True, True, False, True, False]
+    assert (d.name, d.radio, d.allow_lan) == ("eu", True, True)
+    assert lan.is_local("localhost") and lan.is_local("[fd00::5]") and lan.is_local("100.101.102.103")  # Tailscale's
+    assert not lan.is_local("8.8.8.8") and not lan.is_local("") and not lan.is_local("no-such-host.invalid")
+
+
+def test_the_check_marks_entries_from_your_own_playlists(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    (tmp_path / "list.m3u").write_text('#EXTM3U\n#EXTINF:-1 tvg-id="A.us",A\nhttp://192.168.1.20/a\n')
+    cfg = load(make_cfg(tmp_path))
+    (e,) = cli.load_entries(cfg, None)
+    assert e.yours

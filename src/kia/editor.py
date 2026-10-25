@@ -22,10 +22,10 @@ STYLE = """
 .editor input:focus-visible, .editor textarea:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
 .editor .hint { color: var(--muted); font-size: var(--step--1); margin: 0; }
 .check-filter { margin-top: var(--space-1); max-width: 18rem; }
-.checks label { min-height: 40px; }
 .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .1rem var(--space-2);
   max-height: 14rem; overflow-y: auto; margin-top: var(--space-1); }
 .checks label, .choice { display: flex; gap: .45rem; align-items: center; min-height: 36px; }
+.checks label { min-height: 40px; }  /* after the rule above, which would undo it */
 .checks input, .choice input { width: 1.1rem; height: 1.1rem; flex: none; }
 .checks .n { color: var(--muted); font-size: var(--step--1); font-variant-numeric: tabular-nums; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: var(--space-1) 0 0; padding: 0; list-style: none; }
@@ -74,7 +74,14 @@ SCRIPT = r"""
 
   try {
     var note = sessionStorage.getItem("kia-saved");
-    if (note) { sessionStorage.removeItem("kia-saved"); card.insertBefore(el("p", { class: "preview", role: "status", text: note }), card.firstChild.nextSibling); }
+    if (note) {
+      sessionStorage.removeItem("kia-saved");
+      // The status line goes on the page empty and gets its text a moment later: screen
+      // readers read a change in one, not one that arrives with its text.
+      var told = el("p", { class: "preview", role: "status" });
+      card.insertBefore(told, card.firstChild.nextSibling);
+      setTimeout(function () { told.textContent = note; }, 100);
+    }
   } catch (e) {}
 
   api("GET", "profiles").then(function (d) {
@@ -245,10 +252,13 @@ SCRIPT = r"""
     var later = debounce(function () {
       var mine = counting;
       var s = settings();
-      api("POST", "preview", s, pass.value || getPassword()).then(function (r) {
+      // Only a password kia has already taken: the one being typed below is checked once, on
+      // Save. Sent with each count, a wrong one would add up to many wrong guesses, and kia
+      // would make everyone wait.
+      api("POST", "preview", s, getPassword()).then(function (r) {
         if (mine !== counting) return;
         if (r._status === 401 && (s.names || s.exclude_names)) { preview.className = "preview warn";
-          preview.textContent = "Enter the password below to count channels by name."; return; }
+          preview.textContent = "Channels chosen by name are counted once kia has your password: Save once, then come back."; return; }
         if (r._status !== 200) { preview.className = "preview warn"; preview.textContent = r.error || "Can't count channels."; return; }
         var empty = pickRadio.checked && !s.groups && !s.sources && !s.names;
         preview.className = "preview" + (empty || !(r.tv + r.radio) ? " warn" : "");
@@ -325,7 +335,9 @@ EDITING_SCRIPT = r"""
     return e;
   }
   function say(text) { note.className = "muted"; note.textContent = text; }
-  fetch("api/profiles").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+  // 404: this server has no kia API. Anything else is kia not answering for now (a restart).
+  fetch("api/profiles").then(function (r) { return r.ok ? r.json() : r.status === 404 ? null : { down: true }; }).then(function (d) {
+    if (d && d.down) { say("kia didn't answer just now (it may be restarting). Reload the page in a minute."); return; }
     if (!d) { say(location.protocol === "file:" ? "Open this page through kia's address to make changes." : "Editing isn't available from this server."); return; }
     var where = { env: "The password is set by KIA_ADMIN_PASSWORD in kia's .env file. Change it there and restart kia.",
       generated: "kia made the password. It's in state/admin-password.txt in the kia folder until you change it here.",
@@ -346,7 +358,7 @@ EDITING_SCRIPT = r"""
     var current = el("input", { type: "password", id: "pw-current", autocomplete: "current-password", class: "pw" });
     var fresh = el("input", { type: "password", id: "pw-new", autocomplete: "new-password", minlength: "8", class: "pw" });
     var again = el("input", { type: "password", id: "pw-again", autocomplete: "new-password", class: "pw" });
-    var msg = el("p", { role: "status", hidden: true });
+    var msg = el("p", { role: "status" });  // on the page from the start, so screen readers read what appears in it
     var button = el("button", { type: "submit", class: "primary", text: "Change password" });
     var form = el("form", { class: "editor" }, [
       el("label", { class: "field", for: "pw-current" }, [el("strong", { text: "Current password" })]), current,
@@ -356,7 +368,7 @@ EDITING_SCRIPT = r"""
       msg, el("div", { class: "actions" }, [button])]);
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
-      function show(text, bad) { msg.hidden = false; msg.className = bad ? "error" : "preview"; msg.textContent = text; }
+      function show(text, bad) { msg.className = bad ? "error" : "preview"; msg.textContent = text; }
       if (fresh.value !== again.value) { again.focus(); return show("The new passwords don't match.", true); }
       button.disabled = true;
       fetch("api/password", { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": current.value },
@@ -364,7 +376,7 @@ EDITING_SCRIPT = r"""
         .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); })
         .then(function (res) {
           button.disabled = false;
-          if (res[0] === 401) { current.focus(); return show("That's not the current password. Forgot it? See above.", true); }
+          if (res[0] === 401) { current.focus(); return show(current.value ? "That's not the current password. Forgot it? See above." : res[1].error, true); }
           if (res[0] !== 200) return show(res[1].error || "Something went wrong.", true);
           try { sessionStorage.removeItem("kia-password"); } catch (e) {}
           current.value = fresh.value = again.value = "";
@@ -373,7 +385,8 @@ EDITING_SCRIPT = r"""
         }, function () { button.disabled = false; show("kia didn't answer. Is it running?", true); });
     });
     card.appendChild(form);
-  }).catch(function () { say("Editing isn't available from this server."); });
+  }).catch(function () { say(location.protocol === "file:" ? "Open this page through kia's address to make changes."
+    : "kia didn't answer just now (it may be restarting). Reload the page in a minute."); });
 })();
 </script>
 """

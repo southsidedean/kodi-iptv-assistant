@@ -225,6 +225,7 @@ def grafana_url() -> str | None:
         host = urlsplit(os.environ.get("KIA_PUBLIC_URL", "")).hostname
         if "monitoring" not in profiles or not host:
             return None
+        host = f"[{host}]" if ":" in host else host  # an IPv6 address
         url = f"https://{host}:{os.environ.get('KIA_GRAFANA_PORT') or 8788}"  # Grafana in the stack serves HTTPS only
     return url if url.startswith(("http://", "https://")) else None
 

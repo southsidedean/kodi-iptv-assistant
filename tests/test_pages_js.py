@@ -46,3 +46,21 @@ def test_hidden_means_hidden_and_copy_works_without_https():
 
     assert "[hidden] { display: none !important; }" in htmlpage.STYLE
     assert 'execCommand("copy")' in status.COPY_SCRIPT and "isSecureContext" in status.COPY_SCRIPT
+
+
+def test_the_scripts_handle_what_the_second_review_found():
+    from kia import editor, sourceeditor
+
+    src = "".join(v for v in vars(sourceeditor).values() if isinstance(v, str) and "<script>" in v)
+    ed = "".join(v for v in vars(editor).values() if isinstance(v, str) and "<script>" in v)
+    # Counting by name sends only a password kia has taken, never each keystroke's.
+    assert 'api("POST", "preview", s, getPassword())' in ed and "pass.value || getPassword()" not in ed
+    # kia restarting (502 from nginx) isn't "editing isn't available".
+    assert ed.count("it may be restarting") == 2 and "it may be restarting" in src
+    # A check whose result kia lost in a restart says so, not "0 streams".
+    assert "kia restarted, so the check stopped" in src
+    # The reason a password didn't unlock the Sources page comes from kia.
+    assert 'locked || "Wrong password."' in src
+    assert '[name, " ", cnt]' in src  # "Canada 3 of 5 on", not "Canada3 of 5 on"
+    assert 'el("p", { role: "status", hidden: true })' not in ed  # status lines are there from the start
+    assert 'current.value ? "That\'s not the current password.' in ed

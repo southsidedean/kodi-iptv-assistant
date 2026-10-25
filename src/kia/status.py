@@ -20,6 +20,7 @@ from kia.history import readable
 from kia.channels import FAVORITES
 from kia.m3u import parse
 from kia.files import temp_name
+from kia.locks import FilesLock
 
 # Files in output/ the page links to, with what each one is for.
 FILES = [
@@ -57,11 +58,15 @@ def _write(path: Path, text: str) -> None:
 def update(output_dir: Path, state_dir: Path, public_url: str | None = None, **run: object) -> dict:
     """Merge `run` fields (result, started, finished, minutes, exit_code, next_run; None
     clears one) into the saved run state, then rewrite status.json and the Dashboard's pages."""
-    with _UPDATE_LOCK:  # the daemon and the page's API both update it
+    # The daemon, the Dashboard's API, and a kia command run by hand all update it. Held
+    # across processes: each writes the pages from what it read, and removes the pages of
+    # playlists it didn't see, so a second process could remove a playlist's page just made.
+    _UPDATE_LOCK.configure(state_dir)
+    with _UPDATE_LOCK:
         return _update(output_dir, state_dir, public_url, run)
 
 
-_UPDATE_LOCK = __import__("threading").RLock()
+_UPDATE_LOCK = FilesLock("status.lock")
 
 
 def _update(output_dir: Path, state_dir: Path, public_url: str | None, run: dict) -> dict:

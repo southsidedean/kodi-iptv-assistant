@@ -18,6 +18,12 @@ Fixes go into the latest release. Update with the steps in the [README](README.m
 
 iptv-org's guide downloader runs in Node.js's sandbox (`node --permission`): it can read only its own folder and the channel list it's given, write only the guide it makes and a temporary folder, and can't start other programs. It also sees none of kia's settings, so it can't read your passwords or tokens. kia compiles iptv-org's scripts for the sandbox with its own copy of esbuild, a fixed version, never one that iptv-org's dependencies bring along, since compiling runs outside the sandbox. Before each update of iptv-org's code, kia rewrites that checkout's git settings from scratch, so nothing written there earlier (a "filter" that runs a command, say) runs when git updates it. Without Docker, this needs Node.js 22 or newer; kia's log says when the sandbox can't be used.
 
+### Playlists from the internet
+
+kia tests every stream in the playlists it reads, so a playlist from the internet could have it send requests to the devices around it: your router's settings page, a printer, or the other containers of kia's stack, which Docker lets kia reach by name. So a stream in such a playlist is tested only when its address is out on the internet; one on your network, on this computer, or in Docker's networks is left out, and the report says why. Playlists of your own can name anything: a file on this computer, or one downloaded from an address on your network (a tuner, Threadfin, tvheadend). The word `lan` on a playlist's line in the sources file allows it for one from elsewhere.
+
+It's a guard for the ordinary case, and someone determined can get past it. kia looks each name up before the test and ffprobe looks it up again, so a DNS server that answers differently the second time gets through, and so does a stream that redirects to an address on your network.
+
 ### The containers
 
 kia's two containers (kia, and the web server) run with a read-only system. kia has no extra privileges, and can write only to its `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/` folders. It sees the rest of the kia folder read-only, `.env` included (it needs it for backups), and with Plex in the stack, Plex's settings, where it reads Plex's sign-in. Jellyfin's and Grafana's data are hidden from it. The programs that open streams from the internet (ffprobe, ffmpeg) get none of kia's passwords or tokens.
