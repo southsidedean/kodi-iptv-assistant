@@ -2,6 +2,11 @@
 
 ## 0.6.2 (unreleased)
 
+### Asking kia why
+
+- `kia doctor plex` explains why Plex shows no channels, or too few. It checks each Threadfin (does it answer, which kia playlist it reads, whether that playlist exists and fits Plex's 480 channels per tuner), what kia found the last time it added its tuners to Plex, and, with Plex in kia's stack, whether Plex has the codecs Live TV needs. **Ask kia what's wrong** on the Dashboard now includes Plex's problems, scripts can ask `GET /api/doctor/plex`, and AI assistants get a `kia_plex` tool ([Plex](docs/plex.md#if-somethings-wrong)).
+- `kia plex-tuners` now saves what it found (`state/plex-tuners.json`), so these answers work without asking Plex again.
+
 ## 0.6.1 (2026-10-25)
 
 ### Upgrading from 0.6.0
