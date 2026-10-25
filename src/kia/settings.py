@@ -31,7 +31,8 @@ def _set(value: object) -> str:
     return "set" if value else "not set"
 
 
-def _password(cfg: Config) -> str:
+def _password_source(cfg: Config) -> str:
+    """Where the Dashboard's password comes from, in words (never the password itself)."""
     source = auth.from_env(cfg.state_dir).source
     return {
         "off": "editing is off",
@@ -70,7 +71,7 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Secure page port", str(cfg.https_port), ENV + "KIA_HTTPS_PORT"),
             ("Certificate names", _list(cfg.tls_names) if cfg.tls_names else "the host in KIA_PUBLIC_URL",
              ENV + "KIA_TLS_NAMES"),
-            ("Password for changes", _password(cfg), ENV + "KIA_ADMIN_PASSWORD"),
+            ("Password for changes", _password_source(cfg), ENV + "KIA_ADMIN_PASSWORD"),
         ]),
         ("Playlists", [
             ("Sources", f"{len(cfg.sources)}: {_list([s.name for s in cfg.sources])}",
