@@ -1,6 +1,6 @@
 # Using kia from scripts and other apps
 
-Everything the Dashboard shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-dashboard), favorites and channel numbers, and the password, and tests or removes channels: reading works on either port, and changes work only on the secure port.
+Everything the Dashboard shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-dashboard), favorites and channel numbers, the password, and [the stack](stack.md), adds Live TV to Plex, and tests or removes channels: reading works on either port, and changes work only on the secure port.
 
 The examples use `192.168.1.20` for the kia machine; use yours.
 
@@ -44,14 +44,14 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `POST /api/channel/remove` | Takes a channel out of every playlist until its stream works three nights in a row: send `{"key": "..."}` | password, HTTPS |
 | `POST /api/channel/restore` | Puts a removed channel back now: send `{"key": "..."}` | password, HTTPS |
 | `POST /api/renumber` | Numbers every channel 1, 2, 3 down the list once, keeping chosen numbers ([renumbering](configuration.md#gaps-in-the-numbers-and-renumbering)). Returns the `tv` and `radio` counts. | password, HTTPS |
-| `GET /api/sources` | The playlists kia can check: each one's `url`, `name`, `label`, `section`, whether it's `radio`, whether it's `on`, where it comes from (`origin`: `file` or `added`), and its `streams` from the last check. Also the last "check now" (`check`). A user name, password, or query in an address shows only with the password, over HTTPS; otherwise it's hidden (`•••`). | |
+| `GET /api/sources` | The playlists kia can check, in `playlists`: each one's `url`, `name`, `label`, `section`, whether it's `radio`, whether it's `on`, where it comes from (`origin`: `file` or `added`), whether it was `changed` on the Dashboard, and its `streams` from the last check. Also `file` (the sources file in use), `editable`, `secure`, and the last "check now" (`check`). A user name, password, or query in an address shows only with the password in `X-Kia-Password`, over HTTPS; otherwise it's hidden (`•••`). `unlocked` says which you got, and `locked` says why a password that came with the request didn't unlock them (wrong, or too many wrong ones). | |
 | `PUT /api/sources` | Turns a playlist on or off: send `{"url": "...", "on": true}`. The last playlist in use can't be turned off. | password, HTTPS |
 | `POST /api/sources` | Adds a playlist: send `{"url": "https://...", "name": "extras", "radio": false}` (`name` and `radio` are optional) | password, HTTPS |
 | `DELETE /api/sources?url=...` | Removes a playlist added through the API or the Dashboard | password, HTTPS |
 | `POST /api/sources/check` | Tests every stream in one playlist now: send `{"url": "..."}`. One check runs at a time, and none during a refresh. | password, HTTPS |
 | `GET /api/sources/check` | The check's progress: `running`, then `result` (`total`, `ok`, `flaky`, `dead`, and a `sample` of working channel names) or `error` | |
 | `DELETE /api/sources/check` | Stops the check that's running. Its `error` then says it was stopped. | password, HTTPS |
-| `GET /api/stack` | The Stack page: `editable` (whether changes are on) and `secure` (whether this came over HTTPS), `docker` (whether kia runs with Docker), `chosen` (`KIA_STACK`'s parts), `profiles`, the `parts` and `presets` to choose from, `service` (whether the kia-stack service is running), its `containers` (`service`, `state`, `health`, `status`), `waiting` (the id of a request it hasn't answered yet), and `result`, its last answer (`id`, `action`, `state`, `exit`, `finished`, and `output`, what `scripts/stack.sh` said), and `links`, the ports for Plex and Jellyfin and Grafana's address | |
+| `GET /api/stack` | The Stack page: `editable` (whether changes are on) and `secure` (whether this came over HTTPS), `docker` (whether kia runs with Docker), `chosen` (`KIA_STACK`'s parts), `profiles`, the `parts` to choose from and the `presets`, each with its `name`, `title`, `what` (a line about it), `needs` (the memory it needs), `asks` (what it will ask you for), its `parts`, and its `order` on the page, `service` (whether the kia-stack service is running), its `containers` (`service`, `state`, `health`, `status`), `waiting` (the id of a request it hasn't answered yet), and `result`, its last answer (`id`, `action`, `state`, `exit`, `finished`, and `output`, what `scripts/stack.sh` said), and `links`, the ports for Plex and Jellyfin and Grafana's address | |
 | `POST /api/stack/check` | Asks the [kia-stack service](stack.md#changing-the-stack-from-the-dashboard) to check a choice: send `{"parts": ["plex", "observability"]}`. Returns its `id`; the answer appears in `GET /api/stack` a few seconds later. One request at a time. | password, HTTPS |
 | `POST /api/stack/apply` | The same, but applies the choice: sets `KIA_STACK`, then starts and stops what changed. It doesn't ask first, so check for viewers yourself. For Plex's first start, add `"claim": "claim-..."` from plex.tv/claim. | password, HTTPS |
 | `GET /api/plex/tuners` | Adding Live TV to Plex (below): `running`, then `ok` and `output`, what `kia plex-tuners` said | |
@@ -101,6 +101,32 @@ The certificate covers the names in `KIA_TLS_NAMES` (or `KIA_PUBLIC_URL`), so us
 ### From a web page
 
 The API answers only pages kia serves itself. A browser asks a site for permission before sending it an `X-Kia-Password` header from another site's page, and kia never gives that permission. kia also refuses any request whose `Origin` is a different address. To use the API from a page of your own, put the page in kia's `output` folder, or call the API from a script or home automation tool instead.
+
+## Commands
+
+The same jobs, and a few more, are `kia` commands. With Docker, run them in the kia folder as `docker compose exec kia python3 -m kia <command>`; without Docker, as `PYTHONPATH=src python3 -m kia <command>`. `--help` after any of them lists its options.
+
+| Command | What it does |
+|---|---|
+| `run` | A full refresh, once: `check`, then `map`, `grab`, and `guide` (or `sync` with an upstream server) |
+| `check` | Tests every stream and writes the playlists. `--source <name>` checks one playlist, `--limit <n>` the first few streams, for a test that doesn't change what players use |
+| `map` | Matches the channels to guide sites ([how it works](how-it-works.md#2-match-channels-to-guide-sources-kia-map)) |
+| `grab` | Downloads the guide data. `--site <name>` downloads one site |
+| `guide` | Builds the guide from what was downloaded |
+| `refresh-guide` | The quick refresh between nights: the quick guide sources only, then the guide |
+| `sync` | Takes the guide from another kia server (`KIA_UPSTREAM_URL`) |
+| `probe <address>` | Tests one stream address and prints what ffprobe found: the same test as the nightly check, for a stream that isn't in a playlist yet |
+| `settings` | The settings kia is running with, and where each is changed |
+| `password` | Where the Dashboard's password is. `--reset` makes a new one |
+| `tls` | The secure Dashboard's certificate. `--self-signed` makes a new one of kia's own |
+| `renumber` | Numbers every channel 1, 2, 3 down the list, once, keeping chosen numbers |
+| `backup`, `restore <file>` | [Backing up and moving](configuration.md#backing-up-and-moving-to-another-computer) |
+| `test-alert` | Sends a test [alert](alerts.md) through every way that's set up |
+| `plex-tuners` | Adds kia's Threadfins to Plex as Live TV, or brings them up to date ([Plex](plex.md#let-kia-add-them)). `--remove` takes them out again |
+| `check-dashboards` | Which Grafana panels have data on this computer; `scripts/stack.sh` shows the same ([choosing the parts](stack.md)) |
+| `daemon` | What kia's container runs: a refresh every night at `KIA_RUN_AT`, the quick refreshes in between, and with `--serve`, the web server |
+| `serve` | Only the web server, without refreshes (for installs without Docker) |
+| `threadfin-setup` | Writes each Threadfin's first settings. Its own container runs it ([Plex](plex.md#3-check-threadfin)) |
 
 ## Stability
 
