@@ -110,7 +110,7 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 |---|---|
 | `run` | A full refresh, once: `check`, then `map`, `grab`, and `guide` (or `sync` with an upstream server) |
 | `check` | Tests every stream and writes the playlists. `--source <name>` checks one playlist, `--limit <n>` the first few streams, for a test that doesn't change what players use |
-| `map` | Matches the channels to guide sites ([how it works](how-it-works.md#2-match-channels-to-guide-sources-kia-map)) |
+| `map` | Matches the channels to guide sites ([how the guide gets built](guide-under-the-hood.md)) |
 | `grab` | Downloads the guide data. `--site <name>` downloads one site |
 | `guide` | Builds the guide from what was downloaded |
 | `refresh-guide` | The quick refresh between nights: the quick guide sources only, then the guide |
@@ -126,7 +126,7 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 | `check-dashboards` | Which Grafana panels have data on this computer; `scripts/stack.sh` shows the same ([choosing the parts](stack.md)) |
 | `daemon` | What kia's container runs: a refresh every night at `KIA_RUN_AT`, the quick refreshes in between, and with `--serve`, the web server |
 | `serve` | Only the web server, without refreshes (for installs without Docker) |
-| `threadfin-setup` | Writes each Threadfin's first settings. Its own container runs it ([Plex](plex.md#3-check-threadfin)) |
+| `threadfin-setup` | Writes each Threadfin's first settings. Its own container runs it ([under the hood](plex-under-the-hood.md#threadfins-first-start)) |
 
 ## Stability
 
