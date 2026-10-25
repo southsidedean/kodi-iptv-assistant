@@ -90,6 +90,16 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # somafm: channels=groovesalad,dronezone,secretagent name=somafm-chill
 # kexp:                                                            # KEXP, with its show schedule
 #
+# More listener-supported stations, found by name in radio-browser (each one tested
+# October 2026, all playing). top= is how many of the station's streams to take.
+# radio-browser: station=paradise top=3 min_bitrate=128 name=radio-paradise  # Radio Paradise: Main, Rock, Mellow mixes
+# radio-browser: station=wfmu top=3 name=wfmu                      # WFMU, New Jersey's freeform station
+# radio-browser: station=kcrw top=2 name=kcrw                      # KCRW, Santa Monica: live and Eclectic 24
+# radio-browser: station=kutx top=1 name=kutx                      # KUTX, Austin's music station
+# radio-browser: station=nightride top=6 name=nightride            # Nightride FM's synthwave streams
+# radio-browser: station=nts country=GB top=2 name=nts             # NTS Radio 1 and 2, London
+# radio-browser: station=fip country=FR top=8 name=fip             # FIP and its themed streams, Paris
+#
 # Bigger genre lists, gathered from many station directories (github.com/junguler).
 # Worldwide, names only (no logos). About half the stations worked in a test; kia keeps
 # only those. The word "radio" at the end marks every entry as a radio station.
@@ -107,6 +117,14 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # (Tested October 2026: streams working, and channels not already in the USA list.)
 # https://www.apsattv.com/xumo.m3u       xumo         # Xumo, 389: 275 working, 187 new
 # https://www.apsattv.com/localnow.m3u   localnow     # Local Now, 447: 335 working, 267 new
+# The free channels on TCL and MetaX TVs, the same way: no guide, and tested October 2026
+# against the lists above. TCL+ has many of TCL's; the count is what
+# it adds to them. MetaX's categories start with a code, such as "BD | Lifestyle".
+# https://www.apsattv.com/tcl.m3u        tcl          # TCL, 593: 233 working, 184 new
+# https://www.apsattv.com/metax.m3u      metax        # MetaX, 232: 165 working, 148 new
+# https://www.apsattv.com/tclplus.m3u    tclplus      # TCL+, 494: 206 working, 62 more
+# LG Channels (uslg.m3u), Whale TV+ (whaletvplus_us.m3u), and Vizio (vizio.m3u) add 20
+# to 30 new working channels each after those, and Tablo and Orka about 15.
 
 # --- Other collections ------------------------------------------------------------
 # https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8   free-tv  # Free-TV, worldwide, 2,023, own guides (~300 MB a night)

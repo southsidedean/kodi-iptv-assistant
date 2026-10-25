@@ -28,6 +28,10 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - `apply` starts the profiles it chose even when `COMPOSE_PROFILES` is also set in your shell, which Docker Compose would have used instead.
 - Ports in use are found with `ss` when `nc` isn't installed, and `check` says when neither is.
 
+### Channel sources
+
+- More to choose from in `sources.txt` and on the Sources page, all off until you turn them on. TV: the free channels on TCL and MetaX TVs, and TCL+, which add about 390 working channels kia didn't offer (tested October 2026; no guide covers them). Radio: Radio Paradise, WFMU, KCRW, KUTX, Nightride FM, NTS, and FIP, through radio-browser.
+
 ### The Dashboard
 
 - Saving a change on the Dashboard waited while the nightly check looked up Pluto TV channels in other services' lists, a request each, which could take minutes. kia looks them up first now, so the Dashboard waits only for kia to write its files.
