@@ -468,7 +468,7 @@ def _plex_tuners(record: dict | None, url: str, now: datetime) -> list[Finding]:
                         ["state/plex-tuners.json"], "docs/plex-under-the-hood.md#when-something-doesnt-line-up")]  # fmt: skip
     tuners = list_of(record.get("tuners"), dict)
     count = sum(t.get("channels") or 0 for t in tuners if isinstance(t.get("channels"), int))
-    found = [Finding(OK, "Plex has kia's tuners", f"On {when}, kia added {len(tuners)} tuner(s) with {count} channels to "
+    found = [Finding(OK, "Plex has kia's tuners", f"On {when}, kia added {len(tuners)} tuner{'' if len(tuners) == 1 else 's'} with {count} channels to "
                      f"DVR {_quote(record.get('dvr'))} and asked Plex to load the guide.", ["state/plex-tuners.json"])]  # fmt: skip
     seen = _when(record.get("when"))
     if seen and now - seen > STALE_TUNERS:
