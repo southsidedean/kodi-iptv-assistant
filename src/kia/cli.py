@@ -1121,6 +1121,34 @@ def cmd_renumber(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mcp_token(args: argparse.Namespace) -> int:
+    """Turn on kia's MCP server by making its token, show it, replace it, or turn it off (kia.mcp)."""
+    from kia import mcp
+
+    cfg = load_config(args)
+    path = cfg.state_dir / mcp.TOKEN_FILE
+    if args.off:
+        path.unlink(missing_ok=True)
+        log("kia's MCP server is off: its token is gone, so no assistant can use it.")
+        return 0
+    value = mcp.token(cfg.state_dir)
+    if args.reset or not value:
+        value = mcp.make_token(cfg.state_dir)
+        log("Made a new token" + (": the old one no longer works." if args.reset else "."))
+    # The name the secure Dashboard's certificate covers first, as secure_setup uses: another
+    # name (or a bare address) would fail even with the certificate trusted.
+    host = tls.names(cfg.public_url, cfg.tls_names)[0]
+    address = f"https://{tls.in_url(host)}:{cfg.https_port}/api/mcp"
+    print(f"kia's MCP server is on, at {address}")
+    if host in ("localhost", "127.0.0.1"):
+        print("That address works only on this computer. For others, set KIA_PUBLIC_URL (or KIA_TLS_NAMES) in .env, restart kia, and run this again.")
+    print(f"Its token (kept in {path}): {value}")
+    print("To use it from Claude Code:")
+    print(f'  claude mcp add --transport http kia {address} --header "Authorization: Bearer {value}"')
+    print("Other computers need to trust kia's certificate first: see docs/ask-kia.md.")
+    return 0
+
+
 def cmd_password(args: argparse.Namespace) -> int:
     cfg = load_config(args)
     a = auth.from_env(cfg.state_dir)
@@ -1493,6 +1521,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("what", nargs="*", help="nothing for an overview, or: channel <name or ID>")
     p.add_argument("--json", action="store_true", help="the answer as JSON, for scripts")
     p.set_defaults(func=cmd_doctor)
+    p = sub.add_parser("mcp-token", help="turn on kia's MCP server for AI assistants, and show its token (docs/ask-kia.md)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("--reset", action="store_true", help="make a new token; the old one stops working")
+    p.add_argument("--off", action="store_true", help="turn the MCP server off (deletes the token)")
+    p.set_defaults(func=cmd_mcp_token)
     p = sub.add_parser("settings", help="show the settings kia is running with, and where each is changed")
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_settings)

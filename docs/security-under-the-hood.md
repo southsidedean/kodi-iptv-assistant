@@ -86,6 +86,8 @@ The Dashboard is how you change things, so it's how someone else would try to:
 - Wrong passwords slow down: a second each, then a wait that doubles from the second one in a row, up to a minute, for the address that sent them. The web server passes on that address itself, so a browser can't claim someone else's.
 - Only a short list of things can be changed: profiles, playlists, favorites and numbers, the password, and the stack. Nothing else in `.env` or `kia.toml`.
 
+The [MCP server](ask-kia.md#2-ask-your-own-ai-assistant), when you turn it on, gives an AI assistant the same view as the Dashboard: read-only, over HTTPS, with its own token. What it quotes from playlists and guide sites can carry planted instructions, so its tools can't change anything, whatever the assistant is told. The assistant itself may be able to do more (Claude Code can run commands), so its own permission questions are the other half of the protection ([security](../SECURITY.md#the-mcp-server)).
+
 ## What's left to you
 
 - Who can connect: `KIA_BIND` chooses every device on your network, or this computer only. Keep kia off the internet; to reach it from outside, use a VPN such as Tailscale ([away from home](players.md#away-from-home)).

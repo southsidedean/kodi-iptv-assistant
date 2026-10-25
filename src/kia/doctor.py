@@ -37,10 +37,30 @@ MAX_MATCHES = 5
 # The last few error lines of a guide site's log are enough to see why it failed.
 LOG_LINES = 3
 DOCS = "docs/troubleshooting.md"
-# A user name and password inside an address ("https://me:secret@host/..."), as an
-# ffprobe error or a guide site's log can quote one.
-_LOGIN_RE = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s@]+@")
+# Logins in addresses, as an ffprobe error or a guide site's log can quote them:
+# - before the host, "https://me:secret@host/" (up to the last @ before the path, so a
+#   password with an @ in it is hidden whole), also "//me:secret@host" and "me:secret@host:80";
+# - in the query, "get.php?username=me&password=secret", the usual IPTV panel form;
+# - in the path, "/live/me/secret/123.ts", the same panels' stream addresses;
+# - any of these percent-encoded inside another address ("%3A%2F%2Fme%3Asecret%40host").
+_LOGIN_RES = (
+    (re.compile(r"(?i)((?:[a-z][a-z0-9+.-]*:)?//)[^/\s?#]*@"), r"\1•••@"),
+    (re.compile(r"(?i)([?&;](?:user(?:name)?|login|pass(?:word)?|pwd|token|key|auth)=)[^&\s#]*"), r"\1•••"),
+    (re.compile(r"(?i)(/(?:live|movie|series|timeshift)/)[^/\s?#]+/[^/\s?#]+/"), r"\1•••/•••/"),
+    (re.compile(r"(?i)(%3A%2F%2F)[^/\s?#]*?%40"), r"\1•••%40"),
+    # Without a scheme, "me:secret@host:8080/...": a name, a colon, no space, then @ and a
+    # host (an email address has no colon before its @, so it's left alone).
+    (re.compile(r"(?<![\w.%+:/-])[\w.%+-]+:[^\s@/]+@(?=[\w.-]+(?::\d+)?(?:[/?#\s]|$))"), "•••@"),
+)
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def hide_logins(text: str) -> str:
+    """text with the user names and passwords in its addresses hidden ("https://•••@host/...";
+    see _LOGIN_RES for the forms)."""
+    for pattern, replacement in _LOGIN_RES:
+        text = pattern.sub(replacement, text)
+    return text
 
 
 def _quote(text: object, limit: int = 200) -> str:
@@ -48,7 +68,7 @@ def _quote(text: object, limit: int = 200) -> str:
     one line, cut to limit, and with any login in an address hidden, as the Dashboard
     hides them in playlist addresses."""
     text = _CONTROL_RE.sub(" ", " ".join(str(text).split()))
-    return _LOGIN_RE.sub(r"\1•••@", text)[:limit]
+    return hide_logins(text)[:limit]
 
 
 @dataclass
@@ -77,12 +97,19 @@ class Report:
         return {"subject": self.subject, "worst": self.worst, "findings": [f.to_dict() for f in self.findings]}
 
 
-def _json(path: Path) -> dict | list | None:
-    """A JSON file kia wrote, or None if it isn't there or can't be read."""
+def _json(path: Path) -> dict | None:
+    """A JSON object kia wrote, or None if it isn't there, can't be read, or is damaged into
+    something else (a list, say): every file doctor reads holds an object."""
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    return data if isinstance(data, dict) else None
+
+
+def list_of(value: object, kind: type) -> list:
+    """value if it's a list, keeping only the items of kind; [] for anything else."""
+    return [v for v in value if isinstance(v, kind)] if isinstance(value, list) else []
 
 
 def _when(iso: str | None) -> datetime | None:
@@ -108,7 +135,7 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
         return report
     report.findings += _refresh(status, now)
     report.findings += [Finding(NOTE, f"Alert: {a.get('title', '?')}", f"From the last refresh ({readable(a.get('time'))}).",
-                                ["state/alerts.log"], f"{DOCS}#alerts") for a in status.get("alerts") or []]  # fmt: skip
+                                ["state/alerts.log"], f"{DOCS}#alerts") for a in list_of(status.get("alerts"), dict)]  # fmt: skip
     report.findings += _sources(status)
     report.findings += _coverage(status)
     report.findings += _stack(_json(out / "stack.json"))
@@ -151,7 +178,7 @@ def _refresh(status: dict, now: datetime) -> list[Finding]:
 
 def _sources(status: dict) -> list[Finding]:
     found = []
-    for s in status.get("sources") or []:
+    for s in list_of(status.get("sources"), dict):
         ok, flaky, dead = (s.get(k) or 0 for k in ("ok", "flaky", "dead"))
         if ok + flaky == 0 and dead:
             found.append(Finding(PROBLEM, f"None of the streams in {s.get('name')} work",
@@ -161,7 +188,7 @@ def _sources(status: dict) -> list[Finding]:
 
 
 def _coverage(status: dict) -> list[Finding]:
-    c = status.get("coverage") or {}
+    c = status.get("coverage") if isinstance(status.get("coverage"), dict) else {}
     total = sum(c.get(k) or 0 for k in ("full", "partial", "none"))
     if total and (c.get("none") or 0) / total > 0.5:
         return [Finding(NOTE, "Most TV channels have no guide",
@@ -176,7 +203,7 @@ def _stack(stack: object) -> list[Finding]:
     return [Finding(PROBLEM, f"{s.get('title') or s.get('service')} isn't answering",
                     f"kia knocked on its port at {readable(stack.get('checked'))} and got no answer. It may be starting, or it stopped.",
                     ["output/stack.json"], "In the kia folder: docker compose ps, then docker compose logs " + str(s.get("service")))
-            for s in stack.get("services") or [] if s.get("ok") is False]  # fmt: skip
+            for s in list_of(stack.get("services"), dict) if s.get("ok") is False]  # fmt: skip
 
 
 # One channel
@@ -187,7 +214,7 @@ def channel(cfg: Config, query: str) -> list[Report]:
     out = cfg.output_dir
     playlist = out / "curated.m3u"
     kept = m3u.parse(playlist.read_text(encoding="utf-8")) if playlist.exists() else []
-    streams = (_json(out / "report.json") or {}).get("streams") or []
+    streams = list_of((_json(out / "report.json") or {}).get("streams"), dict)
     removed = channels.load(cfg.state_dir)["removed"]
     q = query.strip().lower()
     if not q:
@@ -228,8 +255,8 @@ def _stream_rows(e: m3u.Entry, streams: list[dict]) -> list[dict]:
     return [s for s in streams if (e.tvg_id and s.get("tvg_id") == e.tvg_id) or (not e.tvg_id and s.get("name") == e.name)]
 
 
-def _history_line(rec: dict) -> str:
-    if not rec:
+def _history_line(rec: object) -> str:
+    if not isinstance(rec, dict) or not rec:
         return ""
     line = f" It has worked {rec.get('successes', 0)} of {rec.get('checks', 0)} checks since {readable(rec.get('first_seen'))}"
     if rec.get("consecutive_failures"):
@@ -261,7 +288,8 @@ def _dropped(name: str, rows: list[dict], cfg: Config) -> Report:
     history = _histories(cfg)
     report = Report(f"{rows[0].get('name')} ({rows[0].get('tvg_id') or 'no ID'})")
     errors = "; ".join(f"{s.get('source')}: {_quote(s.get('error') or s.get('status'))}" for s in rows)
-    best = max((history.get(s.get("url", ""), {}) for s in rows), key=lambda r: r.get("successes", 0), default={})
+    records = [r for s in rows if isinstance(r := history.get(s.get("url", "")), dict)]
+    best = max(records, key=lambda r: r.get("successes") if isinstance(r.get("successes"), int) else 0, default={})
     report.findings.append(Finding(PROBLEM, "It isn't in the playlists: its stream failed",
                                    f"The last check couldn't play it ({errors}).{_history_line(best)}",
                                    ["output/report.json", "state/history.json"], f"{DOCS}#a-channel-wont-play"))  # fmt: skip
@@ -289,7 +317,7 @@ def _guide(e: m3u.Entry, cfg: Config) -> list[Finding]:
     work = cfg.epg.work_dir
     if cfg.upstream_url:
         return _choice(e, _json(work / "guide-choices.json"), [], ["work/guide-choices.json"], cfg)
-    candidates = (_json(work / "mapping.json") or {}).get(e.tvg_id) or []
+    candidates = list_of((_json(work / "mapping.json") or {}).get(e.tvg_id), str)
     if not candidates:
         return [Finding(PROBLEM, "No guide source matched it",
                         "No guide site lists its ID, and no site channel has exactly its name in the same country, so it shows only its name.",
@@ -303,7 +331,7 @@ def _choice(e: m3u.Entry, choices: object, candidates: list[str], evidence: list
         return [Finding(NOTE, "It has guide sources; which one it uses isn't recorded yet",
                         f"Matched to: {', '.join(candidates) or 'the upstream server'}. The next guide build records which one it picks.",
                         evidence)]  # fmt: skip
-    c = choices.get(e.tvg_id) or {}
+    c = choices.get(e.tvg_id) if isinstance(choices.get(e.tvg_id), dict) else {}
     site = c.get("site")
     if site:
         hours = c.get("hours_24h") or 0
@@ -316,7 +344,8 @@ def _choice(e: m3u.Entry, choices: object, candidates: list[str], evidence: list
     found = [Finding(PROBLEM, "Its guide sources sent nothing for the next day",
                      f"Matched to {', '.join(candidates) or 'the upstream server'}, but none of them had listings for it, so it shows only its name.",
                      evidence, "docs/guide-under-the-hood.md#when-a-channels-guide-is-wrong-or-missing")]  # fmt: skip
-    streaks = (_json(cfg.state_dir / "alert-state.json") or {}).get("site_failures") or {}
+    streaks = (_json(cfg.state_dir / "alert-state.json") or {}).get("site_failures")
+    streaks = streaks if isinstance(streaks, dict) else {}
     for site in candidates:
         lines = _log_errors(cfg.epg.work_dir / "logs" / f"{site}.log")
         if streaks.get(site) or lines:

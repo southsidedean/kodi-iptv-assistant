@@ -70,6 +70,16 @@ From the Dashboard you can change [profiles](docs/profiles.md), which playlists 
 - Channel source addresses can hold a provider's user name and password; kia shows them in full only on the secure page and only after the password, and hides them everywhere else, **Check now**'s progress included.
 - kia's own certificate is self-signed, so a browser can't tell it apart from a fake one the first time; on a home network that's a small risk, and [your own certificate](docs/secure-page.md#using-your-own-certificate) removes it.
 
+### The MCP server
+
+kia's [MCP server](docs/ask-kia.md#2-ask-your-own-ai-assistant) lets an AI assistant read kia's record. It's off until you make its token (`kia mcp-token`), and then it answers only on the secure (HTTPS) port, only with that token.
+
+- Its tools only read, and they return what the Dashboard already shows to anyone on your network. Passwords, tokens, and alert addresses show only as set or not set (some settings come from `.env`, shown as on the System page), and user names and passwords in addresses are hidden: before the host, in the query (`?username=&password=`), and in the path (`/live/user/pass/`).
+- A wrong token is slowed down like a wrong password, counted apart from wrong passwords (so a token holder can't use right tokens to reset the count while guessing the password), and each address can make 60 tool calls a minute. kia's log records each call and each refused token, with the address it came from.
+- Requests from other websites' pages are refused, as for the rest of kia's API.
+- What it returns quotes text from strangers: channel names, guide titles, guide sites' errors. An assistant could read instructions planted there, and a taken-over kia container controls everything the tools return. kia tells the assistant at the start that this text is data, and kia's tools can't change anything. But an assistant such as Claude Code can also run commands and reach the internet, so a planted instruction that fooled it could try to use those. Keep the assistant asking before it runs commands, and don't approve one that came from an answer about kia unless kia's docs give it.
+- The token is kept in `state/mcp-token.txt`, readable only by you, and left out of backups. `kia mcp-token --reset` replaces it; `--off` turns the server off.
+
 ### Pluto TV
 
 The [Pluto TV relay](docs/how-it-works.md#pluto-tv) fetches only https addresses (redirects included), plays only the Pluto channels in kia's playlists, at most 20 at once, and downloads at most 16 MB for any one address, so a server that sends too much can't fill kia's memory.

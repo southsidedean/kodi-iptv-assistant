@@ -11,7 +11,7 @@ docker compose exec kia python3 -m kia doctor
 docker compose exec kia python3 -m kia doctor channel "CNN"
 ```
 
-Without Docker, run `PYTHONPATH=src python3 -m kia doctor` in the kia folder.
+Without Docker, run `PYTHONPATH=src python3 -m kia doctor` in the kia folder. An AI assistant can ask the same questions in your own words: see [asking kia for help](ask-kia.md).
 
 Not sure where to look? Start at the top:
 

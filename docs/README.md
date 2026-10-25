@@ -26,6 +26,7 @@ New here? Begin with [start here](start-here.md).
 - [Playlists for people and devices](profiles.md): smaller playlists for the kids, a room, or a phone.
 - [The secure Dashboard and your password](secure-page.md)
 - [Alerts](alerts.md): a message on your phone when something needs you.
+- [Asking kia for help](ask-kia.md): plain answers from the Dashboard, or your own AI assistant reading kia's record.
 - [Troubleshooting](troubleshooting.md)
 
 ## Going further

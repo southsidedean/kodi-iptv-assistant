@@ -280,6 +280,8 @@ PROTECTED = [
 PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
           ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"),
           ("GET", "/api/plex/tuners"), ("GET", "/api/doctor"), ("GET", "/api/doctor/channel")]  # fmt: skip
+# Routes with a credential of their own: the MCP server's token (tests/test_mcp.py checks it).
+TOKEN_ROUTES = [("POST", "/api/mcp")]
 
 
 @pytest.mark.parametrize(("method", "path", "body"), PROTECTED, ids=lambda x: x if isinstance(x, str) else "")
@@ -308,7 +310,8 @@ def test_every_route_is_in_one_of_the_lists():
     # Routes written another way (parts[0] == "sources" and method in (...), say): each part of
     # the API the code names is in one of the lists.
     named = set(re.findall(r'parts(?:\[0\]|\[:1\])? == \[?"([a-z-]+)"', source))
-    covered = {p.split("/")[2].split("?")[0] for _, p, _ in PROTECTED} | {p.split("/")[2] for _, p in PUBLIC}
+    covered = ({p.split("/")[2].split("?")[0] for _, p, _ in PROTECTED} | {p.split("/")[2] for _, p in PUBLIC}
+               | {p.split("/")[2] for _, p in TOKEN_ROUTES})  # fmt: skip
     assert named and named <= covered, named - covered
 
 

@@ -45,10 +45,13 @@ PASSWORD_LOCK = threading.Lock()
 # Stack requests, one at a time: two at once would both find none waiting. Its own lock,
 # so a request never waits on LOCK, which kia's other writes share.
 STACK_LOCK = threading.Lock()
-# Wrong passwords, by who sent them: (how many in a row, when the next try is let in). From
-# the second one, each doubles the wait, up to a minute, for that address only (behind
-# nginx, the address nginx itself passes on: deploy/kia-api.inc).
-_WRONG: dict[str, tuple[int, float]] = {}
+# Wrong guesses, by what was guessed and who sent them: (kind, address) -> (how many in a row,
+# when the next try is let in). From the second one, each doubles the wait, up to a minute,
+# for that address only (behind nginx, the address nginx itself passes on: deploy/kia-api.inc).
+# The Dashboard password and the MCP token are counted apart: a right token mustn't reset the
+# count of wrong passwords (it would let a token holder guess the password at full speed),
+# and an old token on a laptop mustn't hold up the right password.
+_WRONG: dict[tuple[str, str], tuple[int, float]] = {}
 _CLIENT: contextvars.ContextVar[str] = contextvars.ContextVar("client", default="")
 
 
@@ -626,15 +629,22 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
         raise ApiError(403, "Changes are accepted only on the secure (https://) Dashboard.")
     if not given:
         raise ApiError(401, "Enter kia's password first.")
-    client = _CLIENT.get()
+    _slowed("password", lambda: cfg.auth.check(given), "Wrong password.", "Too many wrong passwords.")
+
+
+def _slowed(kind: str, right: Callable[[], bool], wrong_text: str, too_many: str) -> None:
+    """Check a password or token, slowing down whoever keeps getting it wrong: a second
+    after each wrong one, then a wait that doubles from the second in a row, up to a minute,
+    per kind and address (_CLIENT). Raises ApiError when it's wrong or they must wait."""
+    client = (kind, _CLIENT.get())
     # One check at a time (each costs 16 MB), with the count of wrong ones read and updated
     # in the same turn: read before waiting, a burst of guesses sent at once would all pass
     # the "too many" check, and each would count as only the first.
     with PASSWORD_LOCK:
         wrong, until = _WRONG.get(client, (0, 0.0))
         if until > time.monotonic():
-            raise ApiError(429, f"Too many wrong passwords. Try again in {math.ceil(until - time.monotonic())} seconds.")
-        if cfg.auth.check(given):
+            raise ApiError(429, f"{too_many} Try again in {math.ceil(until - time.monotonic())} seconds.")
+        if right():
             _WRONG.pop(client, None)
             return
         if len(_WRONG) > 1000:  # many addresses: keep only those still waiting
@@ -643,7 +653,37 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
                 del _WRONG[k]
         _WRONG[client] = (wrong + 1, time.monotonic() + (min(2.0**wrong, 60.0) if wrong else 0))
     time.sleep(1)  # outside the lock: someone guessing doesn't hold up the right password
-    raise ApiError(401, "Wrong password.")
+    raise ApiError(401, wrong_text)
+
+
+def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool) -> tuple[int, dict | None]:
+    """kia's MCP server (kia.mcp) at /api/mcp: off until its token is made, then HTTPS and the
+    token only. Tools only read, but they describe your setup, so they're kept to whoever
+    holds the token; a wrong one is slowed down like a wrong password."""
+    import hmac
+
+    from kia import mcp
+    from kia.config import load
+
+    expected = mcp.token(cfg.state_dir)
+    if not expected:
+        raise ApiError(404, "kia's MCP server is off. Turn it on with: kia mcp-token")
+    if method != "POST":
+        raise ApiError(405, "kia's MCP server takes POST only: one JSON answer per request, no event stream.")
+    if not secure:
+        raise ApiError(403, "kia's MCP server answers only on the secure (https://) port.")
+    scheme, _, given = (headers.get("Authorization") or "").strip().partition(" ")
+    given = given.strip() if scheme.lower() == "bearer" else ""  # "Bearer" in any case (RFC 6750)
+    if not given:
+        raise ApiError(401, "Send kia's MCP token: Authorization: Bearer <token> (kia mcp-token shows it).")
+    try:
+        _slowed("mcp", lambda: hmac.compare_digest(given.encode(), expected.encode()), "Wrong MCP token.", "Too many wrong MCP tokens.")
+    except ApiError as exc:
+        print(f"MCP: refused a token from {_CLIENT.get() or 'a client'} ({exc.status})", flush=True)
+        raise
+    if not cfg.config_file:
+        raise ApiError(409, "kia's MCP server needs kia's settings file, which this server wasn't given.")
+    return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), _CLIENT.get())
 
 
 def change_password(cfg: ApiConfig, body: dict) -> dict:
@@ -660,9 +700,9 @@ def change_password(cfg: ApiConfig, body: dict) -> dict:
 
 
 def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure: bool = False,
-           client: str = "") -> tuple[int, dict]:  # fmt: skip
-    """Route one /api/ request. Returns (HTTP status, JSON body). secure: it came over HTTPS;
-    client: who sent it, for slowing down wrong passwords."""
+           client: str = "") -> tuple[int, dict | None]:  # fmt: skip
+    """Route one /api/ request. Returns (HTTP status, JSON body), the body None for none (MCP's
+    202). secure: it came over HTTPS; client: who sent it, for slowing down wrong passwords."""
     _CLIENT.set(client)
     url = urlparse(path)
     parts = [p for p in url.path.split("/") if p][1:]  # after "api"
@@ -671,6 +711,8 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
     try:
         if origin and urlparse(origin).netloc != host:
             raise ApiError(403, "Requests from other websites aren't allowed.")
+        if parts == ["mcp"]:  # JSON-RPC, with errors of its own: before the parsing below
+            return mcp_request(cfg, method, headers, body, secure)
         data = {}
         if body:
             try:

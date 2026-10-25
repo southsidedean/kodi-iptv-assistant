@@ -2,7 +2,8 @@
 
 A backup holds what you can't get back by running kia again: .env, kia.toml, your
 sources file, your own playlists (playlists/), profiles (profiles/), state/ (the
-password, channel numbers, favorites, playlist choices, stream history, alerts),
+password, channel numbers, favorites, playlist choices, stream history, alerts; not the
+MCP server's token),
 Threadfin's settings (threadfin/, threadfin-2/), and the secure page's certificate
 (tls/, including its private key, so keep backups private). output/, work/, and vendor/ are left out; the next refresh rebuilds them.
 
@@ -24,6 +25,9 @@ from kia import __version__
 
 FILES = (".env", "kia.toml", "sources.txt", "sources.local.txt")
 FOLDERS = ("playlists", "profiles", "state", "tls", "threadfin", "threadfin-2")
+# Left out: the MCP server's token (kia.mcp). A backup that turns up somewhere mustn't carry a
+# working key to kia; after a restore, kia mcp-token makes a new one.
+LEFT_OUT = ("state/mcp-token.txt",)
 MANIFEST = "kia-backup.json"
 
 
@@ -37,7 +41,8 @@ def _wanted(base: Path, sources_file: Path | None, extra: tuple[str, ...] = ()) 
     found = [base / n for n in sorted(names) if (base / n).is_file()]
     for folder in FOLDERS:
         if (base / folder).is_dir():
-            found += sorted(p for p in (base / folder).rglob("*") if p.is_file() and not p.name.endswith(".tmp"))
+            found += sorted(p for p in (base / folder).rglob("*") if p.is_file() and not p.name.endswith(".tmp")
+                            and p.relative_to(base).as_posix() not in LEFT_OUT)  # fmt: skip
     return found
 
 

@@ -127,10 +127,11 @@ class OutputHandler(SimpleHTTPRequestHandler):
         self._json(status, data)
         return True
 
-    def _json(self, status: int, data: dict) -> None:
-        payload = json.dumps(data).encode()
+    def _json(self, status: int, data: dict | None) -> None:
+        payload = b"" if data is None else json.dumps(data).encode()  # None: no body (MCP's 202)
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        if data is not None:
+            self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
