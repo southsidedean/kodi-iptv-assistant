@@ -499,7 +499,7 @@ def pluto(cfg: Config, now: datetime | None = None) -> Report:
                                        "kia's playlists have no Pluto TV channels, so its fix has nothing to do.",
                                        ["output/status.json"], "docs/pluto-under-the-hood.md#which-channels-go-through-kia"))  # fmt: skip
         return report
-    report.findings.append(Finding(OK, f"{len(names)} Pluto TV channel{'' if len(names) == 1 else 's'} go through kia's fix",
+    report.findings.append(Finding(OK, f"{len(names)} Pluto TV channel{' goes' if len(names) == 1 else 's go'} through kia's fix",
                                    "kia opens its own session with Pluto for each, so ads don't freeze or rewind them.", ["output/status.json"]))  # fmt: skip
     state = _json(cfg.output_dir / "pluto.json")
     updated = _when(state.get("updated")) if state else None

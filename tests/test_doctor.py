@@ -242,6 +242,8 @@ def test_the_command_text_json_and_exit_codes(kia, capsys):
     assert report["findings"][0]["evidence"] == ["output/curated.m3u", "output/report.json"]
     assert cli.main(["doctor", "-c", config, "hardware"]) == 0  # a note: without Prometheus there's nothing to ask
     assert "kia can't see the hardware without Prometheus" in capsys.readouterr().out
+    assert cli.main(["doctor", "-c", config, "pluto"]) == 0
+    assert "No Pluto TV channels go through kia" in capsys.readouterr().out
     assert cli.main(["doctor", "-c", config, "guide"]) == 0
     assert "kia hasn't built a guide yet" in capsys.readouterr().out
     assert cli.main(["doctor", "-c", config, "jellyfin"]) == 0
@@ -348,6 +350,89 @@ def test_guide_before_its_first_build_and_with_an_upstream(kia):
     guide_setup(kia)
     (kia / "kia.toml").write_text('[upstream]\nurl = "http://192.168.1.20:8780"\n')
     assert titles(doctor.guide(load(kia / "kia.toml"), NOW))[-1] == "2 channels got nothing from the upstream server"
+
+
+# Pluto TV
+
+PLUTO_ID = "5f0" * 8
+
+
+def pluto_report(base: Path) -> doctor.Report:
+    return doctor.pluto(load(base / "kia.toml"), NOW)
+
+
+def test_pluto_quiet_and_off(kia, monkeypatch):
+    assert titles(pluto_report(kia)) == ["No Pluto TV channels go through kia"]
+    status(kia, pluto_channels={PLUTO_ID: "Pluto Westerns"})
+    assert titles(pluto_report(kia)) == ["1 Pluto TV channel goes through kia's fix"]  # nothing playing now
+    monkeypatch.setenv("KIA_PLUTO_RELAY", "false")
+    assert titles(pluto_report(kia)) == ["kia's Pluto TV fix is off"]
+
+
+def test_pluto_playing_and_falling_back(kia):
+    status(kia, pluto_channels={PLUTO_ID: "Pluto Westerns", "a" * 24: "Pluto News"})
+    write(kia, "output/pluto.json", {"updated": iso(NOW), "channels": [
+        {"id": PLUTO_ID, "viewers": 2, "fallback_minutes": 6, "suspicious": True,
+         "problems": [{"time": iso(NOW), "text": "Pluto answered 403 for https://me:pw@service/x"}]},
+        {"id": "a" * 24, "viewers": 1, "fallback_minutes": 2}]})  # fmt: skip
+    write(kia, "state/alerts.log", f"{iso(NOW - 2 * HOUR)}\tpluto_fallback\tkia: Pluto\tx\n{iso(NOW - 9 * 24 * HOUR)}\tpluto_fallback\told\tx\n"
+                                   f"{iso(NOW)}\tguide_drop\tother\tx\nnot a line\n")  # fmt: skip
+    r = pluto_report(kia)
+    levels = {f.title: f.level for f in r.findings}
+    assert levels["2 playing now, for 3 devices"] == doctor.OK
+    assert levels["Pluto Westerns is playing without kia's fix"] == doctor.PROBLEM  # past the alert's 5 minutes
+    assert levels["Pluto News is playing without kia's fix"] == doctor.NOTE
+    problems = next(f for f in r.findings if f.title == "Pluto Westerns had problems")
+    assert problems.detail.startswith("Pluto flagged kia's session as suspicious.") and "pw" not in problems.detail
+    assert "Pluto TV fell back to its plain links 1 time in the last week" in levels  # the 9-day-old one isn't counted
+
+
+def test_pluto_json_gone_quiet(kia):
+    status(kia, pluto_channels={PLUTO_ID: "Pluto Westerns"})
+    write(kia, "output/pluto.json", {"updated": iso(NOW - HOUR), "channels": [{"id": PLUTO_ID, "fallback_minutes": 60}]})
+    t = titles(pluto_report(kia))
+    assert t[1].startswith("pluto.json was last written on") and len(t) == 2  # an old file's channels aren't believed
+
+
+# kia's setup
+
+
+def setup_report(base: Path) -> doctor.Report:
+    return doctor.setup(load(base / "kia.toml"), NOW)
+
+
+def test_setup_all_right(kia, monkeypatch):
+    monkeypatch.setenv("KIA_PUBLIC_URL", "http://192.168.1.20:8780")
+    monkeypatch.setenv("KIA_NTFY_URL", "https://ntfy.sh/example")
+    status(kia, secure={"tls": {"expires": iso(NOW + 400 * 24 * HOUR), "generated": True, "key_matches": True}})
+    r = setup_report(kia)
+    assert r.worst == doctor.OK and titles(r) == ["kia's setup looks right"]
+
+
+def test_setup_notes_and_problems(kia, monkeypatch):
+    from kia import doctor as d
+
+    write(kia, "state/admin-password.txt", "made-by-kia")
+    status(kia, secure={"tls": {"expires": iso(NOW + 10 * 24 * HOUR), "generated": False, "key_matches": False}},
+           sources=[{"name": "us", "ok": 0, "dead": 9}, {"name": "uk", "ok": 0, "dead": 4}])  # fmt: skip
+    monkeypatch.setattr(d.shutil, "disk_usage", lambda path: type("U", (), {"free": 200 * 1024**2})())
+    r = setup_report(kia)
+    levels = {f.title: f.level for f in r.findings}
+    assert levels["The secure Dashboard's certificate and key don't match"] == doctor.PROBLEM
+    assert any(t.startswith("Your certificate for the secure Dashboard expires on") for t in levels)
+    assert levels["The Dashboard still has the password kia made"] == doctor.NOTE
+    assert levels["kia has nowhere to send alerts"] == doctor.NOTE
+    assert levels["Only 200 MB free for kia's folders"] == doctor.PROBLEM
+    assert levels["kia's address is this computer only"] == doctor.NOTE
+    assert levels["Every playlist's streams failed their test"] == doctor.PROBLEM
+    # The overview carries the problems only.
+    t = titles(overview(kia))
+    assert "Only 200 MB free for kia's folders" in t and "kia has nowhere to send alerts" not in t
+    # Your own certificate, already expired; kia's own is never flagged (kia renews it).
+    status(kia, secure={"tls": {"expires": iso(NOW - HOUR), "generated": False}})
+    assert any(t.startswith("Your certificate for the secure Dashboard expired on") for t in titles(setup_report(kia)))
+    status(kia, secure={"tls": {"expires": iso(NOW - HOUR), "generated": True}})
+    assert not any("certificate" in t for t in titles(setup_report(kia)))
 
 
 # Plex
