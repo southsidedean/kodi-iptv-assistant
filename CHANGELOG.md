@@ -4,6 +4,7 @@
 
 ### Maintenance
 
+- The graphics card's exporter (`observability-gpu`) moves from `4.3.1-4.4.1-ubuntu22.04` to NVIDIA's newest, `4.6.1-4.8.4`. It was tested on an NVIDIA card with the Hardware dashboard, where all of its panels have data. A `KIA_DCGM_IMAGE` of your own in `.env` still wins.
 - A weekly check says when an image `compose.yaml` pins to a tested version (Threadfin, the graphics card's exporter) has a newer release of the same kind (`scripts/pinned-images.py`).
 
 ## 0.5.6 (2026-10-24)
