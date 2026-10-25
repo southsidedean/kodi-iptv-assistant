@@ -30,7 +30,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 
 ### Channel sources
 
-- More to choose from in `sources.txt` and on the Sources page, all off until you turn them on. TV: the free channels on TCL and MetaX TVs, and TCL+, which add about 390 working channels kia didn't offer (tested October 2026; no guide covers them). Radio: Radio Paradise, WFMU, KCRW, KUTX, Nightride FM, NTS, and FIP, through radio-browser.
+- More to choose from in `sources.txt` and on the Sources page, all off until you turn them on. TV: the free channels on TCL's TVs, TCL+, and MetaX, which add about 390 working channels kia didn't offer (tested October 2026; no guide covers them). Radio: Radio Paradise, WFMU, KCRW, KUTX, Nightride FM, NTS, and FIP, through radio-browser.
 
 ### The Dashboard
 
@@ -45,7 +45,8 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - Counting a playlist's channels by name sent the password box's contents to kia with each change, so a mistyped password added up to many wrong ones and a wait for everyone. Counts now use only a password kia has already taken.
 - A stream check that kia's restart cut off showed "0 streams: 0 working, 0 flaky, 0 dead". It now says kia restarted, so the check stopped and nothing changed.
 - While kia restarts, the System page said "Editing isn't available from this server", as if for good, and the Sources page stayed blank. Both now say kia didn't answer just now.
-- An empty Current password box on the System page said "That's not the current password." It now asks for it. Messages there, and the note after saving a playlist, are on the page before their text arrives, so screen readers read them, and the Sources page reads "Canada, 3 of 5 on" instead of "Canada3 of 5 on".
+- An empty Current password box on the System page said "That's not the current password." It now asks for the password.
+- Screen readers now read the System page's messages and the note after saving a playlist: each is on the page before its text arrives. The Sources page reads "Canada, 3 of 5 on", not "Canada3 of 5 on".
 - With an IPv6 address in `KIA_PUBLIC_URL`, kia made a new certificate at every start, and the links to the secure page and Grafana didn't work (`https://fd00::5:8743/`). They're `https://[fd00::5]:8743/` now, and the certificate stays.
 - A playlist made or renamed on the Dashboard while a kia command ran by hand could lose its page until the next update: each rewrote the pages from what it had read. They now take turns.
 - A setting kia can't read, such as `KIA_RUN_AT=4am` or `KIA_EPG_DAYS=abc`, stops kia with one line naming it, instead of a Python traceback. A browser turning down kia's own certificate, or http:// sent to the secure port, is one line in the log too.
@@ -58,7 +59,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 
 - With Plex in the stack and two Threadfins, `kia plex-tuners` never added the second Threadfin's guide to the DVR, so its channels got the first one's guide or none. In the stack both Threadfins use port 34400, and kia told guides apart by port. It now tells them apart by name there, and by port for Threadfins on another computer.
 - When a new Plex in the stack has no codecs yet, kia tries the warm-up once a day after refreshes, instead of after every guide refresh: one try can take 20 minutes while Plex scans its libraries. `kia plex-tuners` run by hand still tries every time.
-- `kia plex-tuners --remove` asked Plex to add each Threadfin as a tuner to find it, so it could add one Plex didn't have. It now finds them in the DVR's own list. The warm-up clip is made by an ffmpeg that gets none of kia's passwords or tokens, like the others.
+- `kia plex-tuners --remove` found kia's Threadfins by asking Plex to add each one as a tuner, which added any that Plex didn't have yet. It now looks in the DVR's own list of tuners. The ffmpeg that makes the warm-up clip gets none of kia's passwords or tokens, like every other one kia runs.
 - When Plex's warm-up failed and removing its library failed too, the second error hid the first, and the clip stayed in `plex/warmup`. The clip goes first now, and the reason for the failure is kept.
 
 ### The guide
@@ -96,7 +97,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - Without a terminal (`ssh host 'curl … | sh'`, cron), it stopped at its first question. It now takes the defaults, as with `--yes`.
 - It finds this computer's address from the connection to the internet (`en5` on a Mac with a USB network adapter, say), and says so when it can't. An address typed with `http://` or a port is cleaned up, and one with characters an address can't have, or a time zone that isn't one, stops it before `.env` is written. It used to leave an empty `.env` behind, which the next run kept.
 - An option without its value (`--dir` at the end) says so, instead of a shell error.
-- Piped from curl, the installer is main's copy while the kia it downloads is a release. It now hands over to that release's own installer, with the same options, so options and files always match.
+- Piped from curl, the installer is main's copy while the kia it downloads is a release. It now hands over to that release's own installer, with the same options, so the installer and the files come from the same version.
 - With a preset, the Plex and Jellyfin addresses came out wrong when `KIA_PUBLIC_URL` had `https://`, a slash at the end, or no address at all. They're read the way `stack.sh` reads them now, and left empty when there's nothing to use. An IPv6 address gets its brackets (`http://[fd00::5]:8780`).
 - The installer no longer opens ports in ufw. Docker lets connections to its ports past ufw by itself, so those rules opened nothing and could pass for protection. It says that `KIA_BIND` decides who can connect, and the docs say the same.
 - On a Mac with less than 6 GB of memory, it uses the lighter settings too, and the firewall step opens the ports in `.env` rather than the default ones.
@@ -160,7 +161,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - `kia_plex_up` and `kia_jellyfin_up` said 0 when kia couldn't write its own list of players in `state/`, though the server was fine. The sessions still count then, with no pseudonym.
 - If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
-- When Pluto gave a session of less than half an hour, the relay opened a new one at every clip change, more often than Pluto likes. It now renews in the session's last quarter. A channel watched for days no longer keeps a growing list of every player and clip it has seen.
+- When Pluto gave a session of less than half an hour, the relay opened a new one at every clip change. It now renews in the session's last quarter. A channel watched for days no longer keeps a growing list of every player and clip it has seen.
 - A `|` in a channel's group or id no longer breaks the table in `report.md`.
 - `scripts/nfs-media.sh` read a dot in a share's name as any character, so `movies.4k` also matched `movies-4k`'s lines.
 - `kia check-dashboards` (and `scripts/stack.sh status`) said Prometheus didn't answer when it turned down a single query. That panel now counts as empty and the rest are still checked.

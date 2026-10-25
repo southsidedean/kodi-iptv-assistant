@@ -238,11 +238,11 @@ chmod 600 .env  # also an .env from before kia did this
 mkdir -p output state work vendor profiles tls
 
 # Docker lets connections to the ports it publishes past ufw by itself, so ufw rules
-# neither open them nor close them: KIA_BIND does (127.0.0.1 for this computer only). Saying
-# so beats opening ports in ufw, which would look like protection it isn't.
+# neither open them nor close them: KIA_BIND does (127.0.0.1 for this computer only). The
+# installer says so instead of adding ufw rules, which would look like protection.
 if [ "$OS" = Linux ] && command -v ufw >/dev/null 2>&1 && ! grep -q '^KIA_BIND=127\.0\.0\.1' .env; then
     step "Firewall"
-    say "Docker's ports go around ufw, so devices on your network reach kia without opening any."
+    say "Docker's ports go around ufw, so devices on your network reach kia without any ufw rules."
     say "To keep kia and its stack to this computer, set KIA_BIND=127.0.0.1 in .env (docs/configuration.md)."
 fi
 

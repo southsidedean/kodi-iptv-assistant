@@ -252,8 +252,8 @@ def set_up(plex: Plex, tuners: list[Tuner], log=print) -> dict:
 def remove(plex: Plex, tuners: list[Tuner], log=print) -> bool:
     """Delete the DVR that holds kia's Threadfins, if it holds nothing else. Returns whether it did."""
     addresses = {t.address for t in tuners}
-    # Found by the address Plex lists for each of a DVR's tuners. Asking Plex for the device
-    # (as set_up does) would add any Threadfin it didn't have, the opposite of removing.
+    # Found by the address Plex lists for each of a DVR's tuners. Asking Plex for the device,
+    # as set_up does, would also register any Threadfin it didn't have yet.
     def ours(dv: dict) -> bool:
         return re.sub(r"^\w+://", "", str(dv.get("uri", ""))).rstrip("/") in addresses
 
