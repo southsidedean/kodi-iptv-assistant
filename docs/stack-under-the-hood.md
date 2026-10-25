@@ -55,6 +55,8 @@ It exits with 1 when there's a problem, and with 0 otherwise. Warnings never sto
    - `KIA_PLEX_URL` and `KIA_JELLYFIN_URL`, set to the containers' own addresses
    - `COMPOSE_PROFILES`, from the parts
 
+   When Plex or Jellyfin leaves the stack, it empties `KIA_PLEX_URL` or `KIA_JELLYFIN_URL` if it still holds the container's own address (`http://plex:32400`, `http://jellyfin:8096`), so kia stops asking a server that's gone. Choosing the part again sets it back. An address that points anywhere else stays, and so do the tokens.
+
    Each change rewrites `.env` through a temporary file made with `umask 077`, so it stays readable only by you.
 4. It starts what's chosen: `docker compose up -d`. Compose recreates any container whose settings changed. kia's container gets the profiles as `KIA_COMPOSE_PROFILES`, so a new choice restarts kia too.
 5. It stops what isn't chosen: every container of kia's stack, in any state, that the new profiles don't include is stopped and removed (`docker compose rm --stop --force`). Their data folders stay.

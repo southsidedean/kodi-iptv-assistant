@@ -86,6 +86,33 @@ def test_a_mac_gets_the_mac_rules(kia: Path):
     assert "monitoring-node" not in r.stdout  # a Mac's node-exporter comes from Homebrew
 
 
+def test_apply_empties_the_address_of_a_part_it_drops(kia: Path):
+    # Plex leaves, Jellyfin stays: Plex's address in the stack goes, and comes back with Plex.
+    def apply(*args):
+        for old in (kia / "state").glob("env.before-stack-*"):  # each apply's copy of .env is named by the second
+            old.unlink()
+        return stack(kia, "apply", *args, "--yes")
+
+    with (kia / ".env").open("a") as f:
+        f.write("KIA_JELLYFIN_TOKEN=key\n")
+    assert apply("--preset", "plex-box").returncode == 0
+    with_stack(kia, "jellyfin")
+    r = apply()
+    env = (kia / ".env").read_text()
+    assert r.returncode == 0 and "Emptied KIA_PLEX_URL" in r.stdout
+    assert "KIA_PLEX_URL=\n" in env and "KIA_JELLYFIN_URL=http://jellyfin:8096\n" in env
+    assert "KIA_JELLYFIN_TOKEN=key\n" in env  # Jellyfin's key stays for when it's back
+    with_stack(kia, "plex")
+    assert apply().returncode == 0
+    env = (kia / ".env").read_text()
+    assert "KIA_PLEX_URL=http://plex:32400\n" in env and "KIA_JELLYFIN_URL=\n" in env
+    # A Plex on another computer is yours: dropping the parts leaves its address alone.
+    with_stack(kia, "plex-tuner")
+    (kia / ".env").write_text((kia / ".env").read_text().replace("KIA_PLEX_URL=http://plex:32400", "KIA_PLEX_URL=http://192.168.1.20:32400"))
+    r = apply()
+    assert "KIA_PLEX_URL=http://192.168.1.20:32400\n" in (kia / ".env").read_text() and "Emptied" not in r.stdout
+
+
 def test_nvidia_is_offered_and_allowed(kia: Path):
     with_stack(kia, "observability")
     assert "this computer has an NVIDIA card" in stack(kia, "check", FAKE_NVIDIA="1").stdout

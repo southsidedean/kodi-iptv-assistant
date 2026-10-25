@@ -52,7 +52,7 @@ Then it asks Plex to load the guide again. Where kia finds Plex and Threadfin:
 
 | | Plex in kia's stack | Your own Plex |
 |---|---|---|
-| Plex's address | `http://plex:32400`, which `scripts/stack.sh apply` sets as `KIA_PLEX_URL` | `KIA_PLEX_URL` |
+| Plex's address | `http://plex:32400`, which `scripts/stack.sh apply` sets as `KIA_PLEX_URL` (and empties again if Plex leaves the stack) | `KIA_PLEX_URL` |
 | Plex's token | the one Plex saved when it was claimed, which kia reads from Plex's settings | `KIA_PLEX_TOKEN` |
 | Threadfin's address, as Plex sees it | `threadfin:34400` and `threadfin-2:34400` on Compose's network | the host in `KIA_PUBLIC_URL`, with `KIA_THREADFIN_PORT` and `KIA_THREADFIN_2_PORT` |
 
