@@ -393,8 +393,6 @@ def plex(cfg: Config, env: dict | None = None, now: datetime | None = None) -> R
     """Why Plex shows no channels (or too few): Threadfin, its playlist, what the last
     `kia plex-tuners` found in Plex (state/plex-tuners.json), and Plex's codecs. Offline, like
     the rest: plex-tuners is the step that talks to Plex, after each refresh."""
-    import os
-
     from kia import m3u, plex as plex_module
 
     env = os.environ if env is None else env
@@ -402,13 +400,25 @@ def plex(cfg: Config, env: dict | None = None, now: datetime | None = None) -> R
     base = cfg.config_file.parent if cfg.config_file else Path(".")
     report = Report("Plex")
     url = env.get("KIA_PLEX_URL", "")
-    folders = [(f, title) for f, title in THREADFINS if (base / f / "conf" / "settings.json").exists()]
+    answering = _answering(cfg)
+    # kia's last check of the stack says what runs. A Threadfin folder or a KIA_PLEX_URL left from
+    # an earlier stack (after a switch to Jellyfin, say) isn't a Plex that kia feeds. Before kia's
+    # first check, or without Docker, the folders and the setting are all there is to go on.
+    stack = _json(cfg.output_dir / "stack.json") or {}
+    known = isinstance(stack.get("services"), list)
+    folders = [(f, title) for f, title in THREADFINS
+               if (base / f / "conf" / "settings.json").exists() and (not known or f in answering)]  # fmt: skip
+    plex_gone = bool(url) and plex_module.in_stack(url) and known and "plex" not in answering
+    if plex_gone and not folders:
+        report.findings.append(Finding(NOTE, "KIA_PLEX_URL names Plex in kia's stack, which isn't in it now",
+                                       "If you don't use Plex any more, remove KIA_PLEX_URL from .env. Otherwise add plex to KIA_STACK.",
+                                       [".env", "output/stack.json"], "docs/stack.md"))  # fmt: skip
+        return report
     if not url and not folders:
         report.findings.append(Finding(NOTE, "Plex isn't set up with kia",
                                        "There's no Threadfin and no KIA_PLEX_URL, so kia isn't feeding a Plex.",
                                        [".env", "threadfin/"], "docs/plex.md"))  # fmt: skip
         return report
-    answering = _answering(cfg)
     for folder, title in folders:
         report.findings += _threadfin(base, folder, title, answering.get(folder), cfg, m3u)
     if not folders:
@@ -416,7 +426,7 @@ def plex(cfg: Config, env: dict | None = None, now: datetime | None = None) -> R
                                        "Plex reaches kia's channels through Threadfin, a tuner kia sets up, and none is set up here.",
                                        ["threadfin/"], "docs/plex.md#2-start-threadfin-with-kia"))  # fmt: skip
     report.findings += _plex_tuners(_json(cfg.state_dir / "plex-tuners.json"), url, now)
-    if url and plex_module.in_stack(url) and not plex_module.has_codecs(base):
+    if url and plex_module.in_stack(url) and not plex_gone and not plex_module.has_codecs(base):
         report.findings.append(Finding(PROBLEM, "Plex hasn't downloaded its codecs yet",
                                        "Without them every Live TV channel fails with \"Could not tune channel\". kia plays a few seconds "
                                        "of video to make Plex fetch them, once a day; playing any video in Plex does it at once.",

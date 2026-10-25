@@ -332,7 +332,7 @@ def test_plex_problems(kia, monkeypatch):
     from kia import plex as plex_module
 
     plex_setup(kia, channels=481)
-    write(kia, "output/stack.json", {"services": [{"service": "threadfin", "ok": False}]})
+    write(kia, "output/stack.json", {"services": [{"service": "threadfin", "ok": False}, {"service": "plex", "ok": True}]})
     write(kia, "state/plex-tuners.json", {"when": iso(NOW - 72 * HOUR), "ok": False,
                                           "error": "Plex answered 401 to GET /livetv/dvrs (check the token)"})  # fmt: skip
     monkeypatch.setattr(plex_module, "has_codecs", lambda base: False)
@@ -343,6 +343,23 @@ def test_plex_problems(kia, monkeypatch):
     with monkeypatch.context() as m:
         m.setenv("KIA_PLEX_URL", "http://plex:32400")
         assert "kia couldn't add the tuners to Plex" in titles(overview(kia))
+
+
+def test_plex_left_over_from_an_earlier_stack(kia, monkeypatch):
+    # After a switch from Plex to Jellyfin, the Threadfin folder and KIA_PLEX_URL stay behind; kia's
+    # check of the stack says neither runs, so there's nothing wrong with Plex to report.
+    from kia import plex as plex_module
+
+    plex_setup(kia, playlist="gone")
+    (kia / "output/gone.m3u").unlink()
+    monkeypatch.setattr(plex_module, "has_codecs", lambda base: False)
+    write(kia, "output/stack.json", {"services": [{"service": "jellyfin", "ok": True}]})
+    r = plex_report(kia, {"KIA_PLEX_URL": "http://plex:32400"})
+    assert r.worst == doctor.NOTE and titles(r) == ["KIA_PLEX_URL names Plex in kia's stack, which isn't in it now"]
+    assert titles(plex_report(kia, {})) == ["Plex isn't set up with kia"]
+    # Before kia's first check of the stack, the folder is all there is to go on.
+    (kia / "output/stack.json").unlink()
+    assert "Threadfin reads gone.m3u, which doesn't exist" in titles(plex_report(kia, {}))
 
 
 def test_plex_missing_playlist_url_and_settings(kia):
