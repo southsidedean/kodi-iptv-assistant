@@ -78,3 +78,30 @@ def test_installer_keeps_env_private():
     text = (ROOT / "scripts" / "install.sh").read_text()
     made = text.index(".env.example >.env")
     assert "umask 077" in text[made - 600:made] and "\nchmod 600 .env" in text[made:]
+
+
+def test_quotes_around_a_value_in_env_dont_reach_launchd(tmp_path: Path):
+    """Docker and systemd take KEY='a $b' as a $b; launchd's file gets the value the same way."""
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(SCRIPTS[1], tmp_path / "scripts" / "install-service.sh")
+    shutil.copytree(ROOT / "deploy", tmp_path / "deploy")
+    (tmp_path / ".env").write_text("KIA_ALERT_COMMAND='echo \"$KIA_ALERT_TITLE\"'\nKIA_RUN_AT=\"05:30\"\nKIA_EPG_DAYS=3\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "uname").write_text("#!/bin/sh\necho Darwin\n")
+    (bin_dir / "uname").chmod(0o755)
+    out = subprocess.run(["sh", str(tmp_path / "scripts" / "install-service.sh"), "--dry-run"], capture_output=True,
+                         text=True, check=True, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)}).stdout  # fmt: skip
+    root = ET.fromstring(out[out.index("<plist"):])
+    top = list(root.find("dict"))
+    found = next(top[i + 1] for i, e in enumerate(top) if e.tag == "key" and e.text == "EnvironmentVariables")
+    env = {k.text: v.text for k, v in zip(list(found)[::2], list(found)[1::2], strict=True)}
+    assert env["KIA_ALERT_COMMAND"] == 'echo "$KIA_ALERT_TITLE"' and env["KIA_RUN_AT"] == "05:30" and env["KIA_EPG_DAYS"] == "3"
+
+
+def test_nfs_media_reads_a_dot_in_a_name_as_a_dot():
+    text = (ROOT / "scripts" / "nfs-media.sh").read_text()
+    literal = next(line for line in text.splitlines() if line.startswith("literal()"))
+    script = literal + '\nprintf "movies-4k x\\nmovies.4k y\\n" | grep "^$(literal movies.4k)[[:space:]]"'
+    out = subprocess.run(["sh", "-c", script], capture_output=True, text=True, check=True).stdout
+    assert out == "movies.4k y\n"

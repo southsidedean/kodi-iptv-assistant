@@ -92,11 +92,18 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - Without a terminal (`ssh host 'curl … | sh'`, cron), it stopped at its first question. It now takes the defaults, as with `--yes`.
 - It finds this computer's address from the connection to the internet (`en5` on a Mac with a USB network adapter, say), and says so when it can't. An address typed with `http://` or a port is cleaned up, and one with characters an address can't have, or a time zone that isn't one, stops it before `.env` is written. It used to leave an empty `.env` behind, which the next run kept.
 - An option without its value (`--dir` at the end) says so, instead of a shell error.
+- Piped from curl, the installer is main's copy while the kia it downloads is a release. It now hands over to that release's own installer, with the same options, so options and files always match.
+- With a preset, the Plex and Jellyfin addresses came out wrong when `KIA_PUBLIC_URL` had `https://`, a slash at the end, or no address at all. They're read the way `stack.sh` reads them now, and left empty when there's nothing to use. An IPv6 address gets its brackets (`http://[fd00::5]:8780`).
+- The installer no longer opens ports in ufw. Docker lets connections to its ports past ufw by itself, so those rules opened nothing and could pass for protection. It says that `KIA_BIND` decides who can connect, and the docs say the same.
 - On a Mac with less than 6 GB of memory, it uses the lighter settings too, and the firewall step opens the ports in `.env` rather than the default ones.
 
 ### Updating
 
 - `scripts/update.sh` asks before restarting while someone watches through Jellyfin, not only Plex and Pluto TV.
+- A copy that follows main (`update.sh --main`) stays on main when you run `update.sh` again. It used to move back to the last release without saying so; name a release to go back to one.
+- When kia runs but its numbers don't answer, `update.sh` and `stack.sh apply` ask before restarting, instead of taking it as nobody watching. When kia isn't running, they go ahead.
+- `KIA_IMAGE` pinned by digest (`...@sha256:...`), or on a registry with a port (`my-server.lan:5000/kia`), is left as you set it. `update.sh` used to rewrite either into a name that doesn't exist.
+- `scripts/pin-versions.sh` pinned nothing for the base image when Docker hadn't kept it, which is usual. It now pins today's newest by digest, and says so.
 - When an update stopped after moving the files and before restarting (Docker not running, a failed build), the next run forgot that the web server's or Prometheus's settings had changed. It now keeps what the containers last started with, in git's own folder (`kia-deployed-rev`).
 - With a published image of one version (`KIA_IMAGE=…:0.5.4`), `update.sh` moved the files to the new release but pulled the old image again. It now sets `KIA_IMAGE` to the new release's version.
 
@@ -115,6 +122,9 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - `kia restore` keeps a sources file of your own in its safety copy, so a restore can be undone, and writes restored files privately from the start.
 - The installer and `scripts/install-service.sh` print the Dashboard password only when kia has just made it; after that, they say where it is. `install-service.sh --dry-run` hides passwords and tokens.
 - The arm64 image (Raspberry Pi) is scanned before it's published too, not only the amd64 one.
+- The image published is built on the same base image the scans saw, pinned by its digest for the whole run. Before, the final build fetched the base again, and a new one could arrive in between.
+- `threadfin-setup` gets the same view of the kia folder as kia, without Jellyfin's and Grafana's data. Comments in `compose.yaml` and the docs no longer say kia can't read `.env`'s passwords (it can, for backups) or that the web server sees only `output/`.
+- A `$` in a `.env` value is read by Docker as another setting: `KIA_ALERT_COMMAND` lost `$KIA_ALERT_MESSAGE`, and a password with a `$` was cut short. `.env.example` and the alerts docs say to put such a value in single quotes, and kia without Docker on a Mac now takes the quotes off, as Docker and systemd do.
 - [SECURITY.md](SECURITY.md) now covers the web server's privileges, Threadfin's and Grafana's passwords, and Jellyfin's setup screens, which are open to anyone on your network until you finish them (the [Jellyfin cookbook](docs/cookbooks/jellyfin-box.md) says so too).
 
 ### Docs
@@ -148,6 +158,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
 - When Pluto gave a session of less than half an hour, the relay opened a new one at every clip change, more often than Pluto likes. It now renews in the session's last quarter. A channel watched for days no longer keeps a growing list of every player and clip it has seen.
 - A `|` in a channel's group or id no longer breaks the table in `report.md`.
+- `scripts/nfs-media.sh` read a dot in a share's name as any character, so `movies.4k` also matched `movies-4k`'s lines.
 - On the secure Sources page, the password box was unstyled and tiny, with its label and hint run together.
 - Writing each playlist's guide left guide.xml open until Python tidied up, and error pages from Plex, Jellyfin, another kia, and channel sources were never closed. Both are closed when kia is done with them.
 

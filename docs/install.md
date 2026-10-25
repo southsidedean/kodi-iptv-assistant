@@ -18,7 +18,7 @@ If you plan to run kia on a different computer from the one you watch on, do ste
 
 ## The quick way
 
-Once Docker and Git are installed (steps 1 and 2 below), one command does steps 3 to 6: it downloads kia's newest release to a `kodi-iptv-assistant` folder in your home folder, finds this computer's address and time zone, makes `.env`, opens the firewall ports if it can, and starts kia. Open a terminal and run:
+Once Docker and Git are installed (steps 1 and 2 below), one command does steps 3 to 6: it downloads kia's newest release to a `kodi-iptv-assistant` folder in your home folder, finds this computer's address and time zone, makes `.env`, and starts kia. Open a terminal and run:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
@@ -149,8 +149,8 @@ kia also made a password for changing things on the Dashboard, such as [playlist
 
 If other devices can't connect (more in [troubleshooting](troubleshooting.md#other-devices-cant-connect)):
 
-- Linux with a firewall (ufw, Ubuntu's usual one): `sudo ufw allow 8780/tcp` and `sudo ufw allow 8743/tcp` (the secure Dashboard).
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d` again.
+- A firewall on the router or another device can still stand in the way. ufw on the kia computer doesn't: Docker lets connections to its ports past ufw by itself, so ufw neither opens nor closes them.
 
 From now on kia refreshes everything once a day at `KIA_RUN_AT` (4:00 by default). Pick a time when nobody is watching, because a run keeps the computer busy for up to an hour. Between runs, kia refreshes the guide every 4 hours (`KIA_GUIDE_REFRESH_HOURS`). Kodi picks up each update within two hours, with the setting in the next step. Docker restarts kia after a reboot, as long as Docker itself starts with the computer (on macOS, turn on Docker Desktop's *Start Docker Desktop when you sign in to your computer* setting).
 

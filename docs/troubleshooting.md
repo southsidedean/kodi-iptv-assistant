@@ -128,7 +128,7 @@ A DHCP reservation in your router keeps the address from changing again.
 ### Other devices can't connect
 
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d`.
-- Linux with a firewall (ufw): `sudo ufw allow 8780/tcp` and, for the secure Dashboard, `sudo ufw allow 8743/tcp`.
+- A firewall: with Docker, ufw on the kia computer neither opens nor closes kia's ports (Docker lets connections past it by itself), so look at the router's or the device's. Without Docker, ufw does apply: `sudo ufw allow 8780/tcp` and, for the secure Dashboard, `sudo ufw allow 8743/tcp`.
 - Check that kia is running: `docker compose ps` should list `kia` and `web` as running and `(healthy)`. If one isn't running, run `docker compose up -d`. If one says `(unhealthy)`, it's running but not answering: `docker compose logs --tail 50 kia` (or `web`) usually says why, and `docker compose restart kia` often fixes it.
 - If the computer's address changed (after a restart, for example), update `KIA_PUBLIC_URL` and the playlist URL in Kodi. A DHCP reservation in your router keeps the address fixed.
 

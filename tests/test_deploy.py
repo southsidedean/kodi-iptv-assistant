@@ -316,3 +316,33 @@ def test_a_broken_guide_upstream_keeps_the_last_good_copy(server, monkeypatch):
         upstream.download_guide(base, cache)
     assert cli.main(["sync", "-c", str(cfg_path)]) == 0  # falls back to the cached copy
     assert cache.read_bytes() == good
+
+
+def test_a_base_image_docker_didnt_keep_is_pinned_to_todays(tmp_path: Path):
+    import hashlib
+    import shutil
+
+    root = Path(__file__).resolve().parent.parent
+    proj = tmp_path / "kia"
+    (proj / "scripts").mkdir(parents=True)
+    shutil.copy(root / "scripts" / "pin-versions.sh", proj / "scripts")
+    (proj / ".env").write_text("KIA_BASE_IMAGE=\nKIA_NGINX_IMAGE=\nKIA_EPG_GIT_REF=\n")
+    manifest = '{"schemaVersion": 2}\n'  # ends in a newline, which must count
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "docker").write_text(  # no image kept here; the registry answers the manifest
+        "#!/bin/sh\n"
+        f'case "$*" in "buildx imagetools inspect --raw"*) printf \'{manifest[:-1]}\\n\' ;; *) exit 1 ;; esac\n')
+    (bin_dir / "docker").chmod(0o755)
+    run = lambda: subprocess.run(["sh", "scripts/pin-versions.sh"], cwd=proj, env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
+                                 capture_output=True, text=True)  # fmt: skip
+    r = run()
+    assert r.returncode == 0, r.stderr
+    want = hashlib.sha256(manifest.encode()).hexdigest()
+    assert f"KIA_BASE_IMAGE=cgr.dev/chainguard/wolfi-base@sha256:{want}\n" in (proj / ".env").read_text()
+    assert "today's newest" in r.stdout
+
+    (proj / ".env").write_text("KIA_BASE_IMAGE=\nKIA_NGINX_IMAGE=\nKIA_EPG_GIT_REF=\n")
+    (bin_dir / "docker").write_text("#!/bin/sh\nexit 1\n")  # the registry can't be reached either
+    r = run()
+    assert "isn't pinned" in r.stderr and "KIA_BASE_IMAGE=\n" in (proj / ".env").read_text()

@@ -39,7 +39,9 @@ def copy(tmp_path: Path) -> Path:
     bin_dir.mkdir()
     (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$*" >> {tmp_path / "docker.log"}\n')
     (bin_dir / "docker").chmod(0o755)
-    (kia / ".env").write_text("KIA_PORT=1\n")  # nothing answers there: nobody's watching
+    (kia / ".env").write_text("KIA_PORT=1\n")
+    (bin_dir / "curl").write_text('#!/bin/sh\necho "kia_pluto_channels_playing 0"\n')  # kia's numbers: nobody watching
+    (bin_dir / "curl").chmod(0o755)
     return kia
 
 
@@ -171,3 +173,34 @@ def test_a_link_left_in_state_is_removed_not_followed(copy: Path):
     (copy / "state" / "deployed-rev").symlink_to(target)
     assert update(copy).returncode == 0
     assert target.read_text() == "keep me\n" and not (copy / "state" / "deployed-rev").is_symlink()
+
+
+def test_a_copy_that_follows_main_stays_on_main(copy: Path):
+    assert update(copy, "--main", "--no-restart").returncode == 0
+    r = update(copy, "--no-restart")  # no version named
+    assert r.returncode == 0 and "follows main" in r.stdout
+    assert git(copy, "rev-parse", "--abbrev-ref", "HEAD") == "main"
+    assert update(copy, "v0.2.0", "--no-restart").returncode == 0  # a release, when you name one
+    assert git(copy, "describe", "--tags") == "v0.2.0"
+
+
+def test_kia_running_without_an_answer_isnt_taken_as_nobody_watching(copy: Path):
+    (copy.parent / "bin" / "curl").write_text("#!/bin/sh\nexit 7\n")
+    log = copy.parent / "docker.log"
+    (copy.parent / "bin" / "docker").write_text(
+        f'#!/bin/sh\necho "$*" >> {log}\ncase "$*" in *"ps --services --status running"*) echo kia ;; esac\n')
+    r = update(copy)
+    assert "can't tell who's watching" in r.stdout and "Not restarted" in r.stdout
+    assert "compose up -d" not in log.read_text()
+    # kia not running at all: nobody can be watching through it.
+    (copy.parent / "bin" / "docker").write_text(f'#!/bin/sh\necho "$*" >> {log}\n')
+    r = update(copy)
+    assert r.returncode == 0 and "compose up -d" in log.read_text()
+
+
+@pytest.mark.parametrize("image", ["ghcr.io/example/kia@sha256:" + "a" * 64, "my-server.lan:5000/kia"])
+def test_an_image_by_digest_or_on_a_registry_port_is_left_alone(copy: Path, image: str):
+    (copy / ".env").write_text(f"KIA_PORT=1\nKIA_IMAGE={image}\n")
+    r = update(copy)
+    assert r.returncode == 0, r.stderr
+    assert f"KIA_IMAGE={image}\n" in (copy / ".env").read_text()

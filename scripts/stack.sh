@@ -405,11 +405,17 @@ fi
 # --- apply ---------------------------------------------------------------------------
 # Nobody watching? Restarting kia cuts off Pluto TV through it, and Plex's Live TV.
 port=$(get KIA_PORT)
-watching=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null | awk '
-    /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
-    /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
-    /^kia_refresh_running 1/ { r = 1 }
-    END { if (n > 0) print n " playing"; else if (r) print "a refresh is running" }' || true)
+if numbers=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null); then
+    watching=$(printf '%s\n' "$numbers" | awk '
+        /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
+        /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
+        /^kia_refresh_running 1/ { r = 1 }
+        END { if (n > 0) print n " playing"; else if (r) print "a refresh is running" }')
+elif ! running kia; then
+    watching=""  # kia isn't running, so nobody is watching through it
+else
+    watching="no answer from kia's numbers, so it can't tell who's watching"  # not the same as nobody
+fi
 if [ -n "$watching" ] && [ "$ask" = yes ]; then
     printf 'kia says: %s. Change the stack now anyway? [y/N] ' "$watching"
     { read -r answer </dev/tty; } 2>/dev/null || answer=n

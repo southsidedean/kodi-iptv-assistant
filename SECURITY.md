@@ -41,6 +41,8 @@ The optional services are looser where they have to be:
 - The disks' health exporter (`observability-disks`) runs privileged, as root, because reading SMART data takes the disks themselves: full access to the computer, with a read-only system and no published port.
 - The graphics card's exporter (`observability-gpu`) gets the card and nothing else: no capabilities, a read-only system.
 
+Who can reach these ports is up to `KIA_BIND` in `.env`: `0.0.0.0` for every device on your network, `127.0.0.1` for this computer only. On Linux, ufw doesn't change it either way, since Docker lets connections to the ports it publishes past ufw by itself. Prometheus answers on this computer only, whatever `KIA_BIND` says.
+
 Turn on only what you use. [Configuration](docs/configuration.md#versions) explains why, and how to pin versions you've checked instead of following the latest.
 
 ### The kia-stack service
