@@ -175,3 +175,11 @@ def test_over_https_a_notification_gets_202_and_no_body(kia, tmp_path):
             assert r.headers["Content-Type"] == "application/json" and len(json.load(r)["result"]["tools"]) == len(mcp.TOOLS)
     finally:
         server.shutdown()
+
+
+def test_the_log_holds_only_kias_own_tool_names(kia, capsys):
+    # The tool name a client sends is matched against kia's list; only kia's own copy is logged.
+    call_tool(kia, "kia_stack")
+    rpc(kia, {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "https://me:s3cret@example.com"}})
+    logged = [line for line in capsys.readouterr().out.splitlines() if line.startswith("MCP:")]
+    assert logged == ["MCP: kia_stack for 192.0.2.5"]

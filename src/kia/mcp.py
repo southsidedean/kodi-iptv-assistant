@@ -231,10 +231,13 @@ def handle(conf: Config, api_cfg, headers, body: bytes, log=print, who: str = ""
                  for n, t, d, s in TOOLS]  # fmt: skip
         return 200, {"jsonrpc": "2.0", "id": id_, "result": {"tools": tools}}
     if method == "tools/call":
-        name, args = params.get("name"), params.get("arguments") or {}
-        schema = next((s for n, _, _, s in TOOLS if n == name), None)
-        if schema is None:
-            return 200, _error(id_, -32602, f"Unknown tool: {str(name)[:60]}")
+        asked, args = params.get("name"), params.get("arguments") or {}
+        tool = next((t for t in TOOLS if t[0] == asked), None)
+        if tool is None:
+            return 200, _error(id_, -32602, f"Unknown tool: {str(asked)[:60]}")
+        # From here on, kia's own name for the tool, never the client's text: what goes in
+        # kia's log is only ever one of the names in TOOLS.
+        name, schema = tool[0], tool[3]
         if problem := _args_ok(schema, args):
             return 200, {"jsonrpc": "2.0", "id": id_, "result": {"content": [{"type": "text", "text": f"Can't run {name}: {problem}."}], "isError": True}}
         if not _allowed(who):
