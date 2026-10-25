@@ -402,6 +402,7 @@
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "No numbers from the Pluto TV relay: it's off (KIA_PLUTO_RELAY=false), or kia isn't answering",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -414,8 +415,7 @@
         "value": -1000000000.0
        }
       ]
-     },
-     "noValue": "No numbers from kia yet (its first refresh may still be running)"
+     }
     },
     "overrides": []
    },
@@ -972,7 +972,7 @@
        "mode": "off"
       }
      },
-     "noValue": "No numbers from kia yet (its first refresh may still be running)"
+     "noValue": "No numbers from the Pluto TV relay: it's off (KIA_PLUTO_RELAY=false), or kia isn't answering"
     },
     "overrides": []
    },
@@ -1063,7 +1063,7 @@
        "mode": "off"
       }
      },
-     "noValue": "No numbers from kia yet (its first refresh may still be running)"
+     "noValue": "No numbers from the Pluto TV relay: it's off (KIA_PLUTO_RELAY=false), or kia isn't answering"
     },
     "overrides": []
    },

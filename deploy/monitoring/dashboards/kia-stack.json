@@ -1,7 +1,7 @@
 {
  "uid": "kia-stack",
  "title": "TV stack",
- "description": "Each container (kia, web, Threadfin, Plex) and the computer they run on.",
+ "description": "Each container (kia, web, Threadfin, Plex, Jellyfin, Prometheus, Grafana) and the computer they run on.",
  "tags": [
   "kia"
  ],

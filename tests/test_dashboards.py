@@ -20,3 +20,17 @@ def test_every_panel_says_why_it_is_empty(path: Path):
         assert "—" not in note and "–" not in note
         for target in p.get("targets", []):
             assert "no_value" not in target["expr"] and note not in target["expr"], p["title"]  # a note, not a query
+
+
+def test_tiles_show_their_note_when_the_source_isnt_set_up():
+    """`or vector(0)` gives 0 whether or not anything's there, so the note never shows."""
+    for path in BOARDS:
+        for panel in json.loads(path.read_text())["panels"]:
+            for target in panel.get("targets", []):
+                assert "vector(0)" not in target.get("expr", ""), (path.name, panel["title"])
+
+
+def test_running_on_battery_works_on_linux_too():
+    hardware = json.loads(next(p for p in BOARDS if p.stem == "kia-hardware").read_text())
+    expr = next(p for p in hardware["panels"] if p["title"] == "Running on")["targets"][0]["expr"]
+    assert 'node_power_supply_info{type="Mains"}' in expr and "1 - max(node_power_supply_online" in expr

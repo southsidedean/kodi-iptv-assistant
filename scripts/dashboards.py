@@ -169,6 +169,8 @@ class Board:
 OK_FAILED = [{"type": "value", "options": {
     "0": {"text": "Failed", "color": "red"}, "1": {"text": "OK", "color": "green"}, "2": {"text": "Refreshing", "color": "blue"}}}]  # fmt: skip
 GREEN = [{"color": "green", "value": None}]
+# The relay's numbers come only while it's on; kia's other numbers say whether kia answers.
+PLUTO_OFF = "No numbers from the Pluto TV relay: it's off (KIA_PLUTO_RELAY=false), or kia isn't answering"
 
 
 def kia() -> Board:
@@ -186,7 +188,7 @@ def kia() -> Board:
     b.stat("TV channels", "TV channels in the full playlist.", 'kia_channels{kind="tv"}')
     b.stat("With guide", "Channels with guide data.", "kia_channels_with_guide / on(instance) sum by (instance) (kia_channels)",
            "percentunit", decimals=0)  # fmt: skip
-    b.stat("Pluto channels", "Pluto TV channels kia is playing now.", "kia_pluto_channels_playing")
+    b.stat("Pluto channels", "Pluto TV channels kia is playing now.", "kia_pluto_channels_playing", no_value=PLUTO_OFF)
     b.row("Channels and guide")
     b.graph("Channels", "Channels in the full playlist, and how many have guide data.",
             [('kia_channels{kind="tv"}', "TV"), ('kia_channels{kind="radio"}', "Radio"), ("kia_channels_with_guide", "With guide")])  # fmt: skip
@@ -200,10 +202,11 @@ def kia() -> Board:
     b.row("Pluto TV relay")
     b.graph("Viewers per channel", "Players watching each Pluto TV channel through kia (Threadfin counts as one).",
             [("kia_pluto_viewers", "{{name}}")], stack=True, no_value="No Pluto TV channels watched in this time")  # fmt: skip
-    b.graph("Video passed on", "Pluto TV video kia sends to players.", [("rate(kia_pluto_bytes_total[5m]) * 8", "bits per second")], "bps")
+    b.graph("Video passed on", "Pluto TV video kia sends to players.", [("rate(kia_pluto_bytes_total[5m]) * 8", "bits per second")], "bps",
+            no_value=PLUTO_OFF)  # fmt: skip
     b.graph("Problems per hour", "Pieces kia couldn't pass on, times Pluto went back in a stream, and falls back to the shared stream.",
             [("increase(kia_pluto_errors_total[1h])", "Errors"), ("increase(kia_pluto_rewinds_total[1h])", "Rewinds"),
-             ("increase(kia_pluto_fallbacks_total[1h])", "Fallbacks")], w=24)  # fmt: skip
+             ("increase(kia_pluto_fallbacks_total[1h])", "Fallbacks")], w=24, no_value=PLUTO_OFF)  # fmt: skip
     b.row("kia itself")
     b.graph("Processor", "Share of one processor core: kia itself, and the programs it runs (ffprobe while checking, ffmpeg for Pluto, the guide grabber).",
             [("rate(kia_process_cpu_seconds_total[5m])", "kia"), ("rate(kia_children_cpu_seconds_total[5m])", "Programs kia runs")],
@@ -213,7 +216,7 @@ def kia() -> Board:
 
 
 def stack() -> Board:
-    b = Board("kia-stack", "TV stack", "Each container (kia, web, Threadfin, Plex) and the computer they run on.", NO_NODE)
+    b = Board("kia-stack", "TV stack", "Each container (kia, web, Threadfin, Plex, Jellyfin, Prometheus, Grafana) and the computer they run on.", NO_NODE)
     b.variables.append({"name": "project", "label": "Compose project", "type": "query", "datasource": DS,
                         "query": {"query": "label_values(container_last_seen, container_label_com_docker_compose_project)", "refId": "P"},
                         "refresh": 2, "current": {"text": "kodi-iptv-assistant", "value": "kodi-iptv-assistant"}})  # fmt: skip
@@ -258,11 +261,14 @@ def media(name: str, title: str, url: str) -> Board:
     b.stat(title, f"Whether {title} answered kia.", f"kia_{name}_up",
            mappings=[{"type": "value", "options": {"0": {"text": "Not answering", "color": "red"}, "1": {"text": "OK", "color": "green"}}}],
            thresholds=[{"color": "red", "value": None}, {"color": "green", "value": 1}])  # fmt: skip
-    b.stat("Watching Live TV", f"{title} players on Live TV now.", f'sum({sessions}{{kind="live"}}) or vector(0)', w=5)
-    b.stat("Watching anything", f"{title} players playing anything now.", f'sum({sessions}{{kind!="none"}}) or vector(0)', w=5)
+    # "or none": 0 while the server answers kia, and no value (so the panel's note) when kia
+    # isn't set up to ask it. "or vector(0)" would show 0 either way.
+    none = f"(kia_{name}_up * 0)"
+    b.stat("Watching Live TV", f"{title} players on Live TV now.", f'sum({sessions}{{kind="live"}}) or {none}', w=5)
+    b.stat("Watching anything", f"{title} players playing anything now.", f'sum({sessions}{{kind!="none"}}) or {none}', w=5)
     b.stat("Converting video", f"Players {title} is converting video for (transcoding), which takes the most processor time.",
-           f'sum({sessions}{{video="transcode"}}) or vector(0)', w=5)  # fmt: skip
-    b.stat("Away from home", "Players outside your home network.", f'sum({sessions}{{location="wan"}}) or vector(0)', w=5)
+           f'sum({sessions}{{video="transcode"}}) or {none}', w=5)  # fmt: skip
+    b.stat("Away from home", "Players outside your home network.", f'sum({sessions}{{location="wan"}}) or {none}', w=5)
     b.table("Playing now", f"Every {title} player now, what it's playing, and how. Players are shown by a pseudonym; "
             "kia's System page (the secure one) shows which is which.", f"kia_{name}_session_info",
             ["player", "product", "kind", "video", "location", "state"], no_value="Nothing playing")  # fmt: skip
@@ -311,10 +317,12 @@ def hardware() -> Board:
            "max(DCGM_FI_DEV_ENC_UTIL)", "percent", no_value=GPU_OFF_TILE)  # fmt: skip
     b.stat("Decoder", "The card's video decoder.", "max(DCGM_FI_DEV_DEC_UTIL)", "percent", no_value=GPU_OFF_TILE)
     servers = '__name__=~"kia_(plex|jellyfin)_sessions"'
+    # 0 while kia asks Plex or Jellyfin, else no value and the note (see media()).
+    asked, no_server = '(max({__name__=~"kia_(plex|jellyfin)_up"}) * 0)', "kia isn't set up to ask Plex or Jellyfin"
     b.stat("Converting on the card", "Plex and Jellyfin sessions converting video on the graphics card (hardware transcoding).",
-           f'sum({{{servers}, hw="gpu"}}) or vector(0)')  # fmt: skip
+           f'sum({{{servers}, hw="gpu"}}) or {asked}', no_value=no_server)  # fmt: skip
     b.stat("Converting on the processor", "Plex and Jellyfin sessions converting video on the processor: slower and hotter.",
-           f'sum({{{servers}, hw="cpu"}}) or vector(0)')  # fmt: skip
+           f'sum({{{servers}, hw="cpu"}}) or {asked}', no_value=no_server)  # fmt: skip
     b.graph("Load, encoder, and decoder", "How busy the graphics card and its video encoder and decoder are.",
             [("DCGM_FI_DEV_GPU_UTIL", "Load (GPU {{gpu}})"), ("DCGM_FI_DEV_ENC_UTIL", "Encoder (GPU {{gpu}})"),
              ("DCGM_FI_DEV_DEC_UTIL", "Decoder (GPU {{gpu}})")], "percent", no_value=GPU_OFF)  # fmt: skip
@@ -348,16 +356,17 @@ def hardware() -> Board:
     b.graph("Disk temperatures", "Each disk's temperature.",
             [('smartctl_device_temperature{temperature_type="current"}', "{{device}}")], "celsius", w=24, no_value=DISKS_OFF)  # fmt: skip
     b.row("The computer (node-exporter)")
+    node = "(count(node_load1) * 0)"  # 0 with node-exporter there, else no value and the note
     b.stat("Failed disks in RAID", "Disks that software RAID (mdadm) marked failed.",
-           'sum(node_md_disks{state="failed"}) or vector(0)', thresholds=bad, w=6)  # fmt: skip
+           f'sum(node_md_disks{{state="failed"}}) or {node}', thresholds=bad, w=6)  # fmt: skip
     b.stat("RAID rebuilding", "Arrays rebuilding or checking now; slower meanwhile.",
-           'sum(node_md_state{state=~"recovering|resync"}) or vector(0)',
+           f'sum(node_md_state{{state=~"recovering|resync"}}) or {node}',
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6)  # fmt: skip
     b.stat("Memory errors today", "Errors the memory corrected or couldn't, in the last day (ECC memory only).",
            "(sum(increase(node_edac_correctable_errors_total[1d])) + sum(increase(node_edac_uncorrectable_errors_total[1d]))) "
-           "or vector(0)", thresholds=bad, w=6, decimals=0)  # fmt: skip
+           f"or {node}", thresholds=bad, w=6, decimals=0)  # fmt: skip
     b.stat("Processor slowed for heat", "Times the processor throttled itself in the last hour, usually for heat.",
-           "(sum(increase(node_cpu_core_throttles_total[1h])) + sum(increase(node_cpu_package_throttles_total[1h]))) or vector(0)",
+           f"(sum(increase(node_cpu_core_throttles_total[1h])) + sum(increase(node_cpu_package_throttles_total[1h]))) or {node}",
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6, decimals=0)  # fmt: skip
     b.graph("Temperatures", "The processor's and other sensors' temperatures.",
             [("node_hwmon_temp_celsius * on (chip, sensor) group_left (label) node_hwmon_sensor_label", "{{label}}"),
@@ -375,7 +384,9 @@ def hardware() -> Board:
             [(f"100 * node_filesystem_avail_bytes{{{REAL_FS}}} / node_filesystem_size_bytes{{{REAL_FS}}}", "{{mountpoint}}")], "percent")
     b.row("Power")
     b.stat("Running on", "Mains power or battery, for a UPS or laptop battery node-exporter can see.",
-           'max(node_power_supply_power_source_state{state="Battery Power"}) or (max(node_power_supply_online) * 0)',
+           # macOS says which source it's on; Linux says whether the mains supply is online.
+           'max(node_power_supply_power_source_state{state="Battery Power"}) or '
+           '(1 - max(node_power_supply_online * on(instance, power_supply) group_left node_power_supply_info{type="Mains"}))',
            mappings=[{"type": "value", "options": {"0": {"text": "Mains", "color": "green"}, "1": {"text": "Battery", "color": "orange"}}}],
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6, no_value=NO_UPS_TILE)  # fmt: skip
     b.stat("Battery charge", "How full the UPS's or laptop's battery is.",

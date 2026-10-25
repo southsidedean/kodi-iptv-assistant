@@ -142,7 +142,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(kia_plex_sessions{kind=\"live\"}) or vector(0)",
+     "expr": "sum(kia_plex_sessions{kind=\"live\"}) or (kia_plex_up * 0)",
      "legendFormat": ""
     }
    ],
@@ -201,7 +201,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(kia_plex_sessions{kind!=\"none\"}) or vector(0)",
+     "expr": "sum(kia_plex_sessions{kind!=\"none\"}) or (kia_plex_up * 0)",
      "legendFormat": ""
     }
    ],
@@ -260,7 +260,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(kia_plex_sessions{video=\"transcode\"}) or vector(0)",
+     "expr": "sum(kia_plex_sessions{video=\"transcode\"}) or (kia_plex_up * 0)",
      "legendFormat": ""
     }
    ],
@@ -319,7 +319,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(kia_plex_sessions{location=\"wan\"}) or vector(0)",
+     "expr": "sum(kia_plex_sessions{location=\"wan\"}) or (kia_plex_up * 0)",
      "legendFormat": ""
     }
    ],

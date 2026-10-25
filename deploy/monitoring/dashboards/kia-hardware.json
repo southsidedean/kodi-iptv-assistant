@@ -309,13 +309,14 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum({__name__=~\"kia_(plex|jellyfin)_sessions\", hw=\"gpu\"}) or vector(0)",
+     "expr": "sum({__name__=~\"kia_(plex|jellyfin)_sessions\", hw=\"gpu\"}) or (max({__name__=~\"kia_(plex|jellyfin)_up\"}) * 0)",
      "legendFormat": ""
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "kia isn't set up to ask Plex or Jellyfin",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -328,8 +329,7 @@
         "value": -1000000000.0
        }
       ]
-     },
-     "noValue": "No numbers from node-exporter on port 9100"
+     }
     },
     "overrides": []
    },
@@ -368,13 +368,14 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum({__name__=~\"kia_(plex|jellyfin)_sessions\", hw=\"cpu\"}) or vector(0)",
+     "expr": "sum({__name__=~\"kia_(plex|jellyfin)_sessions\", hw=\"cpu\"}) or (max({__name__=~\"kia_(plex|jellyfin)_up\"}) * 0)",
      "legendFormat": ""
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "short",
+     "noValue": "kia isn't set up to ask Plex or Jellyfin",
      "thresholds": {
       "mode": "absolute",
       "steps": [
@@ -387,8 +388,7 @@
         "value": -1000000000.0
        }
       ]
-     },
-     "noValue": "No numbers from node-exporter on port 9100"
+     }
     },
     "overrides": []
    },
@@ -1312,7 +1312,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(node_md_disks{state=\"failed\"}) or vector(0)",
+     "expr": "sum(node_md_disks{state=\"failed\"}) or (count(node_load1) * 0)",
      "legendFormat": ""
     }
    ],
@@ -1375,7 +1375,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(node_md_state{state=~\"recovering|resync\"}) or vector(0)",
+     "expr": "sum(node_md_state{state=~\"recovering|resync\"}) or (count(node_load1) * 0)",
      "legendFormat": ""
     }
    ],
@@ -1438,7 +1438,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "(sum(increase(node_edac_correctable_errors_total[1d])) + sum(increase(node_edac_uncorrectable_errors_total[1d]))) or vector(0)",
+     "expr": "(sum(increase(node_edac_correctable_errors_total[1d])) + sum(increase(node_edac_uncorrectable_errors_total[1d]))) or (count(node_load1) * 0)",
      "legendFormat": ""
     }
    ],
@@ -1502,7 +1502,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "(sum(increase(node_cpu_core_throttles_total[1h])) + sum(increase(node_cpu_package_throttles_total[1h]))) or vector(0)",
+     "expr": "(sum(increase(node_cpu_core_throttles_total[1h])) + sum(increase(node_cpu_package_throttles_total[1h]))) or (count(node_load1) * 0)",
      "legendFormat": ""
     }
    ],
@@ -1984,7 +1984,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max(node_power_supply_power_source_state{state=\"Battery Power\"}) or (max(node_power_supply_online) * 0)",
+     "expr": "max(node_power_supply_power_source_state{state=\"Battery Power\"}) or (1 - max(node_power_supply_online * on(instance, power_supply) group_left node_power_supply_info{type=\"Mains\"}))",
      "legendFormat": ""
     }
    ],
