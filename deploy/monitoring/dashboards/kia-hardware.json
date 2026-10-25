@@ -1898,7 +1898,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "100 * node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|vfat|nsfs\", mountpoint!~\"/System/Volumes/.+\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|vfat|nsfs\", mountpoint!~\"/System/Volumes/.+\"}",
+     "expr": "100 * node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|vfat|nsfs\", mountpoint!~\"/System/Volumes/.+|/Volumes/com.apple.TimeMachine.+\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|vfat|nsfs\", mountpoint!~\"/System/Volumes/.+|/Volumes/com.apple.TimeMachine.+\"}",
      "legendFormat": "{{mountpoint}}"
     }
    ],
