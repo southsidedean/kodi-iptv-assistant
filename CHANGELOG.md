@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.5.7 (unreleased)
+## 0.5.7 (2026-10-25)
+
+### Upgrading from 0.5.6
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing else to do.
 
 ### Choosing the stack
 
@@ -10,10 +14,17 @@
 
 - On Linux, the kia service gets systemd's limits: only the system calls an ordinary service makes, and the computer and your home folder read-only except kia's own folders and npm's cache. On Ubuntu 23.10 and newer, a service you run as yourself can't have the file limits (AppArmor won't allow it), and `scripts/install-service.sh` says so; the system call limits still apply. `scripts/update.sh --no-docker` puts the new service file in place. If you moved one of kia's folders in `kia.toml`, see [without Docker](docs/setups.md#without-docker).
 
+### Docs
+
+- Four pages under the hood, each with a diagram: [how the guide gets built](docs/guide-under-the-hood.md), [the Pluto TV relay](docs/pluto-under-the-hood.md), [Plex and Threadfin](docs/plex-under-the-hood.md), and [security](docs/security-under-the-hood.md).
+- [Using kia from scripts](docs/api.md) lists every `kia` command, and the fields `GET /api/sources` and `GET /api/stack` gained. [Configuration](docs/configuration.md) lists the last few `kia.toml` settings it was missing.
+- Two corrections: Threadfin reads kia's playlist every 6 hours, not nightly, and a Pluto TV channel can pause for up to 45 seconds when Pluto goes back, not half a minute.
+
 ### Maintenance
 
 - The graphics card's exporter (`observability-gpu`) moves from `4.3.1-4.4.1-ubuntu22.04` to NVIDIA's newest, `4.6.1-4.8.4`. It was tested on an NVIDIA card with the Hardware dashboard, where all of its panels have data. A `KIA_DCGM_IMAGE` of your own in `.env` still wins.
 - A weekly check says when an image `compose.yaml` pins to a tested version (Threadfin, the graphics card's exporter) has a newer release of the same kind (`scripts/pinned-images.py`).
+- For contributors: each test has a one-minute limit, so one that hangs fails by name, and the macOS tests are now required for every change.
 
 ## 0.5.6 (2026-10-24)
 

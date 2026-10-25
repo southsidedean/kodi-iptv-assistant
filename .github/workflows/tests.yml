@@ -44,7 +44,7 @@ jobs:
         run: python -m pytest -q --cov=kia --cov-report=term-missing:skip-covered
 
   # The scripts' Darwin branches under macOS's own sh and tools, which the stand-ins on Linux
-  # only imitate. Not a required check.
+  # only imitate.
   pytest-macos:
     name: pytest (macOS)
     runs-on: macos-latest
