@@ -190,7 +190,7 @@ SCRIPT = r"""
     card.say = function (text, bad) { status.className = "stack-status " + (bad ? "error" : "preview"); status.textContent = text || ""; };
     card.show = function (text) { output.hidden = !text; output.textContent = text || ""; };
     card.buttons = [check, apply];
-    card.part = part;
+    card.section = part;  // not card.part: every element has a built-in part
     changed();
     return part;
   }
@@ -264,7 +264,7 @@ SCRIPT = r"""
     if (action === "check" && /no playlist named plex/.test(res.output || "")) playlistHelp();
     if (action === "apply" && ok) {
       var added = data.chosen.filter(function (n) { return (card.before || []).indexOf(n) < 0; });
-      if (added.length) card.part.appendChild(nextSteps(added));
+      if (added.length) card.section.appendChild(nextSteps(added));
     }
     finish();
   }
@@ -274,7 +274,7 @@ SCRIPT = r"""
   // Playlists page, to pick categories.
   function playlistHelp() {
     var box = el("div", { class: "editor" });
-    card.part.appendChild(box);
+    card.section.appendChild(box);
     api("POST", "preview", { radio: false }).then(function (r) {
       var n = r.tv || 0;
       if (r._status !== 200 || !n) { box.appendChild(el("p", { text: "Make it on the Playlists page: choose Make a playlist, name it plex, and tick For Plex through Threadfin." })); return; }
