@@ -31,7 +31,7 @@ STYLE = """
   border: 1px solid var(--line); border-radius: var(--radius-small); }
 @media (pointer: coarse) { .presets button { min-height: 44px; } }
 .preset-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--space-2); margin: var(--space-2) 0; }
-.preset-card { display: grid; gap: .3rem; text-align: left; padding: var(--space-2) var(--space-3); border-radius: var(--radius-small);
+.preset-card { display: grid; gap: .3rem; align-content: start; text-align: left; padding: var(--space-2) var(--space-3); border-radius: var(--radius-small);
   background: var(--card); color: var(--fg); border: 1px solid var(--control); font: inherit; cursor: pointer; min-height: 44px; }
 .preset-card .what { color: var(--fg); font-size: var(--step--1); }
 .preset-card small { color: var(--muted); }
