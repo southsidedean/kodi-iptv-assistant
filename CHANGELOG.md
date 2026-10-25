@@ -6,6 +6,7 @@
 
 - `kia doctor` explains what's wrong, using what kia has already written down: a failed refresh, its alerts, playlists whose streams all fail, a guide that's mostly empty, parts of the stack that don't answer. `kia doctor channel <name>` covers one channel: whether its stream works and how it has done, or why it was left out. It also says where the channel's guide comes from, or why it has none, and quotes the guide site's log when the site is the cause. Each answer names the file it comes from and what to do. `--json` gives the same for scripts. It changes nothing and works offline ([troubleshooting](docs/troubleshooting.md)).
 - The same answers on the Dashboard: **Ask kia what's wrong** on the main page, and **Why?** next to each channel on a playlist's page. Both only read, so they don't need the password. Scripts can ask `GET /api/doctor` and `GET /api/doctor/channel?q=` ([API](docs/api.md)).
+- kia has an MCP server, so an AI assistant such as Claude Code can answer questions about your setup from kia's record. It's off until you make its token with `kia mcp-token`, then answers only over HTTPS with that token, at `/api/mcp` on the secure port. Its six tools only read: the overview, one channel, finding channels, the playlists, the stack, and the settings. Secrets show only as set or not set. [Asking kia for help](docs/ask-kia.md) has the setup, including trusting kia's certificate.
 
 ## 0.5.7 (2026-10-25)
 

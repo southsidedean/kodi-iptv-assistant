@@ -57,6 +57,7 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `GET /api/plex/tuners` | Adding Live TV to Plex (below): `running`, then `ok` and `output`, what `kia plex-tuners` said | |
 | `GET /api/doctor` | `kia doctor`'s overview, in `reports`: each with its `subject`, its `worst` level, and its `findings`, each with a `level` (`problem`, `note`, or `ok`), `title`, `detail`, `evidence` (the files that show it), and `fix`. A login in any address it quotes is hidden | |
 | `GET /api/doctor/channel?q=CNN` | The same for the channels matching an ID or part of a name (up to 5) | |
+| `POST /api/mcp` | kia's [MCP server](ask-kia.md#2-ask-your-own-ai-assistant), for AI assistants: JSON-RPC (MCP's Streamable HTTP transport, one JSON answer per request), read-only tools | its token (`Authorization: Bearer`), HTTPS |
 | `POST /api/plex/tuners` | Adds kia's channels to Plex as Live TV now (`kia plex-tuners`), which kia otherwise does after each guide refresh. Needs `KIA_PLEX_URL`. One at a time. | password, HTTPS |
 | `GET /api/players` | Which pseudonym in `/metrics` and the graphs (such as `player-3fa2c1`) is which Plex or Jellyfin player: each one's `pseudonym`, `name`, `product`, and the day it was last `seen`. | password, HTTPS |
 
@@ -125,6 +126,7 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 | `renumber` | Numbers every channel 1, 2, 3 down the list, once, keeping chosen numbers |
 | `backup`, `restore <file>` | [Backing up and moving](configuration.md#backing-up-and-moving-to-another-computer) |
 | `test-alert` | Sends a test [alert](alerts.md) through every way that's set up |
+| `mcp-token` | Turns on kia's [MCP server](ask-kia.md#2-ask-your-own-ai-assistant) and shows its token and the command for Claude Code. `--reset` replaces the token, `--off` turns it off |
 | `plex-tuners` | Adds kia's Threadfins to Plex as Live TV, or brings them up to date ([Plex](plex.md#let-kia-add-them)). `--remove` takes them out again |
 | `check-dashboards` | Which Grafana panels have data on this computer; `scripts/stack.sh` shows the same ([choosing the parts](stack.md)) |
 | `daemon` | What kia's container runs: a refresh every night at `KIA_RUN_AT`, the quick refreshes in between, and with `--serve`, the web server |

@@ -43,12 +43,17 @@ _LOGIN_RE = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s@]+@")
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
+def hide_logins(text: str) -> str:
+    """text with any user name and password in an address hidden: "https://•••@host/..."."""
+    return _LOGIN_RE.sub(r"\1•••@", text)
+
+
 def _quote(text: object, limit: int = 200) -> str:
     """Third-party text (a stream's error, a guide site's log line) made safe to show: on
     one line, cut to limit, and with any login in an address hidden, as the Dashboard
     hides them in playlist addresses."""
     text = _CONTROL_RE.sub(" ", " ".join(str(text).split()))
-    return _LOGIN_RE.sub(r"\1•••@", text)[:limit]
+    return hide_logins(text)[:limit]
 
 
 @dataclass
