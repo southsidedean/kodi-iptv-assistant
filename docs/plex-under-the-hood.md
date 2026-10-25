@@ -12,6 +12,7 @@ What happens between kia's playlist and Plex's Live TV: how Threadfin gets its s
 | Threadfin | container `threadfin`, port 34400 (`threadfin-2`, 34401) | Reads the playlist and guide, and shows them to Plex as an HDHomeRun tuner |
 | Threadfin's settings | `threadfin/conf/` (`threadfin-2/conf/`) | Its settings, its login, and its password, `admin-password.txt` |
 | `kia plex-tuners` | inside kia | Adds the Threadfins to Plex as one DVR, and keeps its channels up to date |
+| What it found | `state/plex-tuners.json` | The last run's result: the DVR, the tuners and their channels, or the error. `kia doctor plex` reads it, so its answers need no connection to Plex |
 | Plex | container `plex` with the `plex` part, or your own | Plex Media Server |
 
 Plex does live TV only through tuners, and takes at most 480 channels from each. So one Threadfin carries up to 480 channels, and a second carries the next 480.
@@ -80,6 +81,8 @@ kia stops as soon as the codec arrives. After a refresh it tries this at most on
 **Refresh Guide** on Plex's Live TV & DVR page loads the guide right away.
 
 ## When something doesn't line up
+
+`kia doctor plex` (or **Ask kia what's wrong** on the Dashboard) goes through these for you. To look yourself:
 
 | What you see | Where to look |
 |---|---|

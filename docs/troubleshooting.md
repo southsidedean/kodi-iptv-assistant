@@ -9,6 +9,7 @@ The commands on this page run in a terminal, in the kia folder, on the computer 
 ```sh
 docker compose exec kia python3 -m kia doctor
 docker compose exec kia python3 -m kia doctor channel "CNN"
+docker compose exec kia python3 -m kia doctor plex
 ```
 
 Without Docker, run `PYTHONPATH=src python3 -m kia doctor` in the kia folder. An AI assistant can ask the same questions in your own words: see [asking kia for help](ask-kia.md).
