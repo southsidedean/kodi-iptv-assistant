@@ -33,5 +33,9 @@ New here? Begin with [start here](start-here.md).
 - [Configuration](configuration.md): every setting.
 - [How it works](how-it-works.md): what happens each night, the reports, and the Dashboard.
 - [The stack under the hood](stack-under-the-hood.md): how `KIA_STACK`, `scripts/stack.sh`, the Stack page, and the kia-stack service fit together.
+- [How the guide gets built](guide-under-the-hood.md): how kia finds each channel's listings, downloads them, and picks the best.
+- [The Pluto TV relay under the hood](pluto-under-the-hood.md): how kia keeps Pluto channels playing through ad breaks.
+- [Plex and Threadfin under the hood](plex-under-the-hood.md): Threadfin's first settings, how kia adds the tuners to Plex, and the codec warm-up.
+- [Security under the hood](security-under-the-hood.md): what kia trusts, where untrusted input goes, and what each layer stops.
 - [Using kia from scripts and other apps](api.md)
 - [Metrics for Prometheus](metrics.md): kia's numbers, for graphs and alerts in Grafana.

@@ -1,0 +1,8 @@
+flowchart TB
+  kia["kia writes plex.m3u<br>and plex.guide.xml.gz"] --> web["kia's web server"]
+  setup["threadfin-setup<br>first settings and login"] -.-> tf
+  web -->|"every 6 hours"| tf["Threadfin<br>an HDHomeRun tuner to Plex"]
+  tuners["kia plex-tuners<br>after each refresh"] -->|"registers the tuner,<br>its DVR and guide,<br>every channel on"| plex["Plex Media Server"]
+  kia --> tuners
+  tf -->|"channels and guide"| plex
+  plex --> apps["Plex apps"]
