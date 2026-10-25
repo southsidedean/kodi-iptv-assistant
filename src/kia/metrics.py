@@ -150,7 +150,7 @@ def known_players(state_dir: Path) -> list[dict]:
     return sorted(({"pseudonym": k, **v} for k, v in known.items()), key=lambda p: (p.get("seen", ""), p["pseudonym"]), reverse=True)
 
 
-class PlexSessions:
+class MediaSessions:
     """A media server's sessions for /metrics (Plex's, or Jellyfin's), asked at most every 15
     seconds, with each player's pseudonym in place of its name. Plex and Jellyfin share one
     Players, so their pseudonyms go in one list."""
@@ -191,11 +191,8 @@ class PlexSessions:
             return self.value
 
 
-JellyfinSessions = PlexSessions  # the same, for a Jellyfin
-
-
-def _plex(out: _Out, plex: PlexSessions, name: str = "plex", title: str = "Plex") -> None:
-    sessions = plex.get()
+def _sessions(out: _Out, server: MediaSessions, name: str, title: str) -> None:
+    sessions = server.get()
     out.one(f"kia_{name}_up", "gauge", f"1 if {title} answered kia's last question.", int(sessions is not None))
     if sessions is None:
         return
@@ -219,7 +216,7 @@ def _plex(out: _Out, plex: PlexSessions, name: str = "plex", title: str = "Plex"
                 for labels, n in players.items()])  # fmt: skip
 
 
-def render(output_dir: Path, relay=None, plex: PlexSessions | None = None, jellyfin: PlexSessions | None = None,
+def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jellyfin: MediaSessions | None = None,
            stack=None) -> str:
     # Ask Plex and Jellyfin at the same time: one after the other, two that don't answer
     # would take 5 seconds each, and Prometheus gives up on /metrics after 10.
@@ -279,9 +276,9 @@ def render(output_dir: Path, relay=None, plex: PlexSessions | None = None, jelly
             out.one(f"kia_pluto_{key}_total", "counter", help_text, r[key])
 
     if plex is not None:
-        _plex(out, plex)
+        _sessions(out, plex, "plex", "Plex")
     if jellyfin is not None:
-        _plex(out, jellyfin, "jellyfin", "Jellyfin")
+        _sessions(out, jellyfin, "jellyfin", "Jellyfin")
     if stack is not None and stack.last:
         out.metric("kia_stack_service_up", "gauge", "1 if this part of the stack answered kia's last check (every minute).",
                    [({"service": x["service"]}, int(x["ok"])) for x in stack.last])  # fmt: skip

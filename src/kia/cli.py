@@ -1221,7 +1221,7 @@ def plex_sessions(config: str, players=None):
         if fresh := plex.own_token(base):
             server.headers["X-Plex-Token"] = fresh
 
-    return metrics.PlexSessions(server, state_dir=load(Path(config)).state_dir, players=players, renew=renew if own else None)
+    return metrics.MediaSessions(server, state_dir=load(Path(config)).state_dir, players=players, renew=renew if own else None)
 
 
 def jellyfin_sessions(config: str, players=None):
@@ -1231,7 +1231,7 @@ def jellyfin_sessions(config: str, players=None):
     url, token = os.environ.get("KIA_JELLYFIN_URL", ""), os.environ.get("KIA_JELLYFIN_TOKEN", "")
     if not url or not token:
         return None
-    return metrics.JellyfinSessions(jellyfin.Jellyfin(url, token), state_dir=load(Path(config)).state_dir, players=players)
+    return metrics.MediaSessions(jellyfin.Jellyfin(url, token), state_dir=load(Path(config)).state_dir, players=players)
 
 
 def keep_plex_in_step(config: str) -> None:
