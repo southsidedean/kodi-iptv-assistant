@@ -240,7 +240,7 @@ def test_the_command_text_json_and_exit_codes(kia, capsys):
     [report] = json.loads(capsys.readouterr().out)
     assert report["subject"] == "nothing here" and report["worst"] == "problem"
     assert report["findings"][0]["evidence"] == ["output/curated.m3u", "output/report.json"]
-    assert cli.main(["doctor", "-c", config, "plex"]) == 2
+    assert cli.main(["doctor", "-c", config, "nonsense"]) == 2
 
 
 def test_a_login_in_quoted_text_is_hidden(kia):
@@ -291,3 +291,78 @@ def test_damaged_files_of_the_wrong_shape(kia):
     status(kia, alerts="x", sources=[1, "y"], coverage=[1])
     write(kia, "output/stack.json", {"services": "nope"})
     assert overview(kia).findings and channel(kia, "cnn")[0].findings
+
+
+# Plex
+
+
+def plex_setup(base: Path, playlist: str = "plex", channels: int = 3) -> None:
+    write(base, "threadfin/conf/settings.json", {"files": {"m3u": {"M1": {"file.source": f"http://web/{playlist}.m3u"}}}})
+    lines = "".join(f'#EXTINF:-1 tvg-id="C{i}.us",Channel {i}\nhttps://a/{i}\n' for i in range(channels))
+    write(base, f"output/{playlist}.m3u", "#EXTM3U\n" + lines)
+
+
+def plex_report(base: Path, env: dict) -> doctor.Report:
+    return doctor.plex(load(base / "kia.toml"), env=env, now=NOW)
+
+
+def test_plex_not_set_up(kia):
+    r = plex_report(kia, {})
+    assert r.worst == doctor.NOTE and titles(r) == ["Plex isn't set up with kia"]
+
+
+def test_plex_all_good(kia, monkeypatch):
+    from kia import plex as plex_module
+
+    plex_setup(kia)
+    write(kia, "output/stack.json", {"services": [{"service": "threadfin", "ok": True}]})
+    write(kia, "state/plex-tuners.json", {"when": iso(NOW - HOUR), "ok": True, "dvr": "7",
+                                          "tuners": [{"title": "plex", "address": "threadfin:34400", "channels": 3}]})  # fmt: skip
+    monkeypatch.setattr(plex_module, "has_codecs", lambda base: True)
+    r = plex_report(kia, {"KIA_PLEX_URL": "http://plex:32400"})
+    assert r.worst == doctor.OK and titles(r) == ["Threadfin reads plex.m3u: 3 TV channels", "Plex has kia's tuners"]
+    assert "DVR 7" in r.findings[1].detail
+
+
+def test_plex_problems(kia, monkeypatch):
+    from kia import plex as plex_module
+
+    plex_setup(kia, channels=481)
+    write(kia, "output/stack.json", {"services": [{"service": "threadfin", "ok": False}]})
+    write(kia, "state/plex-tuners.json", {"when": iso(NOW - 72 * HOUR), "ok": False,
+                                          "error": "Plex answered 401 to GET /livetv/dvrs (check the token)"})  # fmt: skip
+    monkeypatch.setattr(plex_module, "has_codecs", lambda base: False)
+    t = titles(plex_report(kia, {"KIA_PLEX_URL": "http://plex:32400"}))
+    assert "Threadfin isn't answering" in t and "plex.m3u has 481 TV channels, more than Plex takes from one tuner (480)" in t
+    assert "kia couldn't add the tuners to Plex" in t and "Plex hasn't downloaded its codecs yet" in t
+    # And the overview carries Plex's problems (not its notes).
+    with monkeypatch.context() as m:
+        m.setenv("KIA_PLEX_URL", "http://plex:32400")
+        assert "kia couldn't add the tuners to Plex" in titles(overview(kia))
+
+
+def test_plex_missing_playlist_url_and_settings(kia):
+    write(kia, "threadfin/conf/settings.json", {"files": {"m3u": {"M1": {"file.source": "http://web/plex-1.m3u"}}}})
+    t = titles(plex_report(kia, {}))
+    assert "Threadfin reads plex-1.m3u, which doesn't exist" in t and "kia doesn't keep Plex's channel list up to date" in t
+    write(kia, "state/plex-tuners.json", {"when": iso(NOW), "ok": False, "missing": ["KIA_PLEX_TOKEN (see docs/plex.md)"]})
+    assert "kia can't reach Plex: settings are missing" in titles(plex_report(kia, {"KIA_PLEX_URL": "http://192.168.1.20:32400"}))
+
+
+def test_every_docs_link_in_doctors_answers_exists():
+    # doctor's "what to do" links point at doc sections; a renamed heading would break them silently.
+    import re
+
+    from tests.test_docs import github_anchor
+
+    def anchors(page: Path) -> set[str]:
+        return {github_anchor(h) for h in re.findall(r"^#+ (.+)$", page.read_text(), re.M)}
+
+    root = Path(__file__).resolve().parent.parent
+    source = (root / "src" / "kia" / "doctor.py").read_text()
+    links = set(re.findall(r"(docs/[\w/.-]+\.md)(?:#([\w-]+))?", source))
+    assert len(links) > 10
+    for page, anchor in links:
+        assert (root / page).exists(), page
+        if anchor:
+            assert anchor in anchors(root / page), f"{page}#{anchor}"

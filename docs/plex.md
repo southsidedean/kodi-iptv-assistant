@@ -165,6 +165,8 @@ To update Threadfin, set `KIA_THREADFIN_IMAGE` in `.env` to the version you want
 
 ## If something's wrong
 
+Ask kia first: **Ask kia what's wrong** on the Dashboard includes Plex's problems, and `kia doctor plex` (`docker compose exec kia python3 -m kia doctor plex`) checks Threadfin, its playlist, Plex's 480-channel limit, what kia found when it last added the tuners to Plex, and Plex's codecs, with what to do about each.
+
 **Plex says "There was a problem adding the device".** Check the address and port, and open `http://<your address>:34400/discover.json` in a browser on another device. If it doesn't open, check that `docker compose ps` shows Threadfin as healthy and that no firewall blocks the port.
 
 **`docker compose ps` shows Threadfin restarting, and its log says "permission denied".** Its folders were made by Docker for another user. In kia's folder, give them back to yourself and start it again:

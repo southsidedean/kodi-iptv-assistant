@@ -445,3 +445,33 @@ def test_the_warm_up_clip_is_made_with_a_bare_environment(tmp_path: Path, monkey
     with pytest.raises(plex.PlexError):
         plex._warm_up_with_clip(None, tmp_path, lambda m: None, "ffmpeg", 1, 1, 0.01)
     assert "KIA_PLEX_TOKEN" not in seen["env"]
+
+
+def test_plex_tuners_saves_what_it_found(tmp_path: Path, monkeypatch):
+    # For kia doctor's Plex answers, which work offline: the run that talks to Plex saves its result.
+    from kia import cli
+
+    (tmp_path / "sources.txt").write_text("https://example.org/a.m3u\n")
+    (tmp_path / "kia.toml").write_text("")
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    monkeypatch.setattr(plex, "own_token", lambda base: "token")
+    monkeypatch.setattr(plex, "has_codecs", lambda base: True)
+    monkeypatch.setattr(plex, "find_tuners", lambda *a, **kw: [plex.Tuner("threadfin:34400", "plex", ["1", "2", "3"])])
+    monkeypatch.setattr(plex, "set_up", lambda server, t, log: log("plex: 3 channels") or {"key": 7})
+    saved = tmp_path / "state" / "plex-tuners.json"
+    assert cli.main(["plex-tuners", "-c", str(tmp_path / "kia.toml")]) == 0
+    record = json.loads(saved.read_text())
+    assert record["ok"] and record["dvr"] == "7" and record["tuners"] == [{"title": "plex", "address": "threadfin:34400", "channels": 3}]
+    assert "plex: 3 channels" in record["said"] and record["plex_in_stack"]
+
+    def refuse(*a):
+        raise plex.PlexError("Plex answered 401 to GET /livetv/dvrs (check the token)")
+
+    monkeypatch.setattr(plex, "set_up", refuse)
+    assert cli.main(["plex-tuners", "-c", str(tmp_path / "kia.toml")]) == 1
+    record = json.loads(saved.read_text())
+    assert not record["ok"] and "401" in record["error"]
+    monkeypatch.delenv("KIA_PLEX_URL")
+    assert cli.main(["plex-tuners", "-c", str(tmp_path / "kia.toml")]) == 1
+    assert json.loads(saved.read_text())["missing"]

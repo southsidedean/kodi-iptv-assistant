@@ -964,10 +964,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     topic, words = (args.what[0], args.what[1:]) if args.what else ("", [])
     if topic == "channel":
         reports = doctor.channel(cfg, " ".join(words))
+    elif topic == "plex":
+        reports = [doctor.plex(cfg)]
     elif not topic:
         reports = [doctor.overview(cfg)]
     else:
-        log(f"kia doctor doesn't know {topic!r}. Try: kia doctor, or kia doctor channel <name>")
+        log(f"kia doctor doesn't know {topic!r}. Try: kia doctor, kia doctor channel <name>, or kia doctor plex")
         return 2
     if args.json:
         print(json.dumps([r.to_dict() for r in reports], indent=1))
@@ -1393,14 +1395,41 @@ def cmd_check_dashboards(args: argparse.Namespace) -> int:
     return 0
 
 
+# What the last `kia plex-tuners` found, for kia doctor's Plex answers (kia.doctor), which work
+# offline: this is the one step that talks to Plex, after every refresh.
+PLEX_TUNERS_STATE = "plex-tuners.json"
+
+
 def cmd_plex_tuners(args: argparse.Namespace) -> int:
-    """Add kia's Threadfins to Plex as one DVR of their own (kia.plex)."""
+    """Add kia's Threadfins to Plex as one DVR of their own (kia.plex), and save what it found
+    in state/plex-tuners.json."""
     from kia import plex
 
     cfg = load_config(args)
+    said: list[str] = []
+    record: dict = {"when": now_iso(), "ok": False, "removing": bool(args.remove)}
+
+    def note(text: str) -> None:
+        log(text)
+        said.append(text)
+
+    try:
+        return _plex_tuners(args, cfg, plex, note, record)
+    finally:
+        # The last lines it printed, as the log has them (kia's own words, and Plex's errors, which
+        # doctor quotes through its safety filter).
+        record["said"] = said[-20:]
+        try:
+            write_atomic(cfg.state_dir / PLEX_TUNERS_STATE, json.dumps(record, indent=1))
+        except OSError as exc:
+            log(f"Couldn't save what plex-tuners found: {exc}")
+
+
+def _plex_tuners(args: argparse.Namespace, cfg: Config, plex, log, record: dict) -> int:
     url = args.plex or os.environ.get("KIA_PLEX_URL", "")
     base = Path(args.config).resolve().parent
     stack = bool(url) and plex.in_stack(url)
+    record.update(plex_url_set=bool(url), plex_in_stack=stack)
     # Plex in the stack has its own token, which kia can read; another Plex needs one in .env.
     token = args.token or os.environ.get("KIA_PLEX_TOKEN", "") or (plex.own_token(base) if stack else None) or ""
     host = None if stack else args.address or (urlparse(cfg.public_url).hostname if cfg.public_url else None)
@@ -1409,6 +1438,7 @@ def cmd_plex_tuners(args: argparse.Namespace) -> int:
                                "Plex's own token (Plex hasn't been claimed yet: see PLEX_CLAIM)", token),
                               ("KIA_PUBLIC_URL (this computer's address)", host or stack)) if not v]  # fmt: skip
     if missing:
+        record["missing"] = missing
         log("Set these in .env first, then restart kia: " + "; ".join(missing))
         return 1
     if host in ("localhost", "127.0.0.1"):
@@ -1416,6 +1446,7 @@ def cmd_plex_tuners(args: argparse.Namespace) -> int:
             "outside a container. Use --address with this computer's network address otherwise.")  # fmt: skip
     try:
         server, tuners = plex.Plex(url, token), plex.find_tuners(base, cfg.output_dir, host, log)
+        record["tuners"] = [{"title": t.title, "address": t.address, "channels": len(t.channels)} for t in tuners]
         if stack and not args.remove and not plex.has_codecs(base):
             # A warm-up can take 20 minutes while Plex scans its libraries. After a refresh
             # (every few hours) it's tried once a day; by hand, every time.
@@ -1429,10 +1460,13 @@ def cmd_plex_tuners(args: argparse.Namespace) -> int:
         if args.remove:
             plex.remove(server, tuners, log)
         else:
-            plex.set_up(server, tuners, log)
+            dvr = plex.set_up(server, tuners, log)
+            record["dvr"] = str(dvr.get("key")) if isinstance(dvr, dict) else None
     except plex.PlexError as exc:
+        record["error"] = str(exc)
         log(str(exc))
         return 1
+    record["ok"] = True
     return 0
 
 
@@ -1552,7 +1586,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("doctor", help="explain what's wrong, from what kia has written down: kia doctor, or kia doctor channel <name>")
     p.add_argument("-c", "--config", default="kia.toml")
-    p.add_argument("what", nargs="*", help="nothing for an overview, or: channel <name or ID>")
+    p.add_argument("what", nargs="*", help="nothing for an overview, or: channel <name or ID>, or plex")
     p.add_argument("--json", action="store_true", help="the answer as JSON, for scripts")
     p.set_defaults(func=cmd_doctor)
     p = sub.add_parser("mcp", help="kia's MCP server over standard input and output, for an AI assistant on this computer (docs/mcp.md)")
