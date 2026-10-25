@@ -1,6 +1,6 @@
 # Using kia from scripts and other apps
 
-Everything the Dashboard shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-dashboard), favorites and channel numbers, the password, and [the stack](stack.md), adds Live TV to Plex, and tests or removes channels: reading works on either port, and changes work only on the secure port.
+Everything the Dashboard shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-dashboard), favorites and channel numbers, the password, and [the stack](stack.md), adds Live TV to Plex, tests or removes channels, and gives `kia doctor`'s answers. Reading works on either port, and changes work only on the secure port. kia's [MCP server](ask-kia.md#2-ask-your-own-ai-assistant), for AI assistants, is under `/api/` too, on the secure port only.
 
 The examples use `192.168.1.20` for the kia machine; use yours.
 

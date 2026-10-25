@@ -40,6 +40,7 @@ From then on kia updates the channels every night and the guide every few hours,
 | Add channels from other countries, or radio | [Choosing channel sources](configuration.md#choosing-channel-sources-on-the-dashboard), or the comments in `sources.txt` |
 | Get a message when something breaks | [Alerts](alerts.md) |
 | Watch away from home | [Away from home](players.md#away-from-home) |
+| Find out why something isn't working | [Asking kia for help](ask-kia.md): **Ask kia what's wrong** on the Dashboard, or your own AI assistant |
 | Fix something that isn't working | [Troubleshooting](troubleshooting.md) |
 | Understand what kia does each night | [How it works](how-it-works.md) |
 | Learn more about Kodi itself | The [Kodi Wiki](https://kodi.wiki/view/Main_Page) |
