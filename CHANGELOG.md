@@ -94,6 +94,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 
 ### Docs
 
+- More pictures where people get stuck: what the installer prints at the end, the Dashboard after the first refresh, Chrome's certificate warning for the secure page, and the Sources page. A flowchart at the top of [troubleshooting](docs/troubleshooting.md) points to the right section, and [the stack under the hood](docs/stack-under-the-hood.md) has a diagram of a request from click to answer.
 - [Your stack from the Dashboard](docs/stack-dashboard.md) walks through choosing Plex, Jellyfin, or the graphs on the Stack page the first time, from installing the kia-stack service to finishing each part.
 - [The stack under the hood](docs/stack-under-the-hood.md) shows how it works: parts and Compose profiles, what check and apply do step by step, and how the Stack page and the kia-stack service pass requests and answers.
 - [Choosing the parts](docs/stack.md#without-kia_stack) has a table for moving from `COMPOSE_PROFILES` to `KIA_STACK`. The observability cookbook's example no longer suggests `plex` to someone whose `plex` profile meant Threadfin only, which would have started a second Plex.

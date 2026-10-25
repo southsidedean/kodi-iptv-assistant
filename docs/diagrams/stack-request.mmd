@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant page as Stack page
+  participant kia as kia
+  participant svc as kia-stack service
+  participant docker as stack.sh and Docker
+  page->>kia: Check or Apply, with the password (HTTPS)
+  kia->>kia: checks the parts and claim code
+  kia->>svc: state/stack-request (id, action, parts)
+  Note over svc: looks every 3 seconds
+  svc->>svc: renames it into stack-service/, checks it again
+  svc->>kia: result: running
+  svc->>docker: scripts/stack.sh check or apply
+  docker-->>svc: what the script printed
+  svc->>kia: containers.tsv, then result: finished
+  page->>kia: asks every few seconds
+  kia-->>page: the answer for this id

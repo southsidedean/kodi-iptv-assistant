@@ -18,6 +18,8 @@ Changes are accepted only on the secure (`https://`) page, so the password never
 
 The first time you open the secure page, your browser says the connection isn't private or the certificate isn't trusted. That's because kia made the certificate itself (it's "self-signed"), instead of getting it from a company your browser knows. The connection is still encrypted.
 
+![Chrome's warning for kia's secure page: "Your connection is not private", NET::ERR_CERT_AUTHORITY_INVALID, with Advanced opened to show "This server could not prove that it is 192.168.1.20" and the link "Proceed to 192.168.1.20 (unsafe)"](../images/secure-page-warning.png)
+
 To continue, choose **Advanced**, then **Proceed** (Chrome and Edge), **Accept the Risk and Continue** (Firefox), or **Show Details** and **visit this website** (Safari). Most browsers remember this for a while. To get rid of the warning for good, use [your own certificate](#using-your-own-certificate).
 
 ## The password
