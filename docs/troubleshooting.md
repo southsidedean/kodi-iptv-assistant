@@ -10,6 +10,7 @@ The commands on this page run in a terminal, in the kia folder, on the computer 
 docker compose exec kia python3 -m kia doctor
 docker compose exec kia python3 -m kia doctor channel "CNN"
 docker compose exec kia python3 -m kia doctor plex
+docker compose exec kia python3 -m kia doctor jellyfin
 docker compose exec kia python3 -m kia doctor hardware
 ```
 

@@ -5,13 +5,15 @@ stream's history, the guide match, each guide site's log, the stack's tiles. The
 to most questions ("why does this channel show only its name?", "why did last night's
 refresh fail?") are in those files; doctor reads them and says what they mean, with the
 file each answer comes from and what to do about it. It changes nothing, and gives the
-same answer every time for the same files, so it can be tested. Only the hardware topic
-uses the network: it asks the stack's own Prometheus, which keeps the computer's numbers.
+same answer every time for the same files, so it can be tested. Two topics use the network,
+and only to ask kia's own stack: hardware asks the stack's Prometheus, which keeps the
+computer's numbers, and jellyfin asks Jellyfin, with kia's API key, what it has set up.
 
     kia doctor                  how kia is doing, and anything that needs you
     kia doctor channel <name>   one channel: its stream, and its guide
     kia doctor plex             why Plex shows no channels, or too few
     kia doctor hardware         the computer: disks, RAID, memory, heat, power
+    kia doctor jellyfin         why Jellyfin shows no channels, or no guide
     kia doctor ... --json       the same, for scripts (and, later, kia's MCP server)
 
 Everything it reads was written by kia, but parts of it come from strangers (channel
@@ -22,6 +24,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -159,6 +162,8 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
     report.findings += [f for f in plex(cfg).findings if f.level == PROBLEM]
     if _answering(cfg).get("prometheus"):
         report.findings += [f for f in hardware(cfg).findings if f.level == PROBLEM]
+    if os.environ.get("KIA_JELLYFIN_URL") and os.environ.get("KIA_JELLYFIN_TOKEN"):
+        report.findings += [f for f in jellyfin(cfg, now=now).findings if f.level == PROBLEM]
     if not report.findings or all(f.level == OK for f in report.findings):
         report.findings.append(Finding(OK, "Nothing needs you", "No alerts, no playlist whose streams all fail, and everything in the stack answers."))
     return report
@@ -521,8 +526,6 @@ def hardware(cfg: Config, env: dict | None = None, ask=None) -> Report:
     """The computer, from the numbers Prometheus keeps for the Hardware dashboard: free space,
     RAID, memory errors, the processor slowing for heat, power, and with their exporters each
     disk's health (SMART) and the graphics card. ask(expr) answers a query (tests pass their own)."""
-    import os
-
     env = os.environ if env is None else env
     url = env.get("KIA_PROMETHEUS_URL") or PROMETHEUS
     ask = ask or (lambda expr: _prometheus(url, expr))
@@ -649,6 +652,154 @@ def _disks(series) -> list[Finding]:
         found.append(Finding(NOTE, f"Disk {_name(labels)} has used {used:.0f}% of the writes it's made for",
                              "SSDs wear out as they're written to. Plan to replace it.", smart))  # fmt: skip
     return found
+
+
+# Jellyfin
+
+
+STALE_GUIDE = timedelta(days=2)  # Jellyfin's Refresh Guide task runs every day, so older means it stopped
+_JELLYFIN_TIME_RE = re.compile(r"(\.\d{6})\d+")  # Jellyfin's times have 7 decimals; Python 3.11 reads up to 6
+
+
+def jellyfin(cfg: Config, env: dict | None = None, now: datetime | None = None, client=None) -> Report:
+    """Why Jellyfin shows no channels, or no guide: its Live TV settings (the M3U tuner and the
+    XMLTV guide, and whether they're kia's), its channels, and its last guide refresh. Asks
+    Jellyfin with kia's API key (KIA_JELLYFIN_URL, KIA_JELLYFIN_TOKEN): Jellyfin's settings are
+    hidden from kia's container, and no step of kia's writes them down. client stands in for
+    kia.jellyfin.Jellyfin in tests."""
+    from kia import jellyfin as jellyfin_module
+
+    env = os.environ if env is None else env
+    now = now or datetime.now(timezone.utc)
+    url, token = env.get("KIA_JELLYFIN_URL", ""), env.get("KIA_JELLYFIN_TOKEN", "")
+    answering = _answering(cfg)
+    report = Report("Jellyfin")
+    if not url and "jellyfin" not in answering:
+        report.findings.append(Finding(NOTE, "Jellyfin isn't set up with kia",
+                                       "There's no Jellyfin in kia's stack and no KIA_JELLYFIN_URL, so kia doesn't know of one.",
+                                       [".env", "output/stack.json"], "docs/jellyfin.md"))  # fmt: skip
+        return report
+    if answering.get("jellyfin") is False:
+        report.findings.append(Finding(PROBLEM, "Jellyfin isn't answering", "kia knocked on its port and got no answer.",
+                                       ["output/stack.json"], "In the kia folder: docker compose ps, then docker compose logs jellyfin"))  # fmt: skip
+    if not url:
+        report.findings.append(Finding(NOTE, "kia doesn't know Jellyfin's address",
+                                       "KIA_JELLYFIN_URL isn't set. scripts/stack.sh apply sets it for Jellyfin in kia's stack.",
+                                       [".env"], "docs/cookbooks/jellyfin-box.md#2-turn-on-jellyfin"))  # fmt: skip
+        return report
+    if not token:
+        report.findings.append(Finding(NOTE, "kia can't check Jellyfin's Live TV without an API key",
+                                       "In Jellyfin, go to Dashboard, then API Keys, and make one named kia. Put it in .env as "
+                                       "KIA_JELLYFIN_TOKEN, then run docker compose up -d.",
+                                       [".env"], "docs/cookbooks/jellyfin-box.md#6-see-whats-playing-optional"))  # fmt: skip
+        return report
+    client = client or jellyfin_module.Jellyfin(url, token, timeout=3)
+    try:
+        live_tv = client.call("/System/Configuration/livetv")
+    except jellyfin_module.JellyfinError as exc:
+        report.findings.append(Finding(PROBLEM, "kia can't ask Jellyfin", f"{_quote(exc)}.", [".env"],
+                                       "Check KIA_JELLYFIN_URL and KIA_JELLYFIN_TOKEN in .env, then run docker compose up -d."))  # fmt: skip
+        return report
+
+    def ask(path: str) -> object:
+        """Jellyfin's answer, or None: after the first question worked, a failure counts as no data."""
+        try:
+            return client.call(path)
+        except jellyfin_module.JellyfinError:
+            return None
+
+    live_tv = live_tv if isinstance(live_tv, dict) else {}
+    tuners = [t for t in list_of(live_tv.get("TunerHosts"), dict) if str(t.get("Type")).lower() == "m3u"]
+    guides = [g for g in list_of(live_tv.get("ListingProviders"), dict) if str(g.get("Type")).lower() == "xmltv"]
+    evidence = ["Jellyfin (Live TV settings)"]
+    if not tuners:
+        report.findings.append(Finding(PROBLEM, "Jellyfin has no M3U tuner", "So it has no channels from kia. Add kia's playlist as an M3U Tuner.",
+                                       evidence, "docs/jellyfin.md#jellyfin"))  # fmt: skip
+        return report
+    playlists = []
+    for tuner in tuners:
+        report.findings += _jellyfin_tuner(_file_name(tuner.get("Url")), cfg, evidence, playlists)
+    report.findings += _jellyfin_guides([_file_name(g.get("Path")) for g in guides], playlists, cfg, evidence)
+    channels = ask("/LiveTv/Channels?limit=0")
+    count = channels.get("TotalRecordCount") if isinstance(channels, dict) else None
+    if count == 0:
+        report.findings.append(Finding(PROBLEM, "Jellyfin has no channels yet",
+                                       "It has a tuner but hasn't loaded its channels. Choose Refresh Guide Data on its Live TV page.",
+                                       ["Jellyfin (Live TV)"], "docs/jellyfin.md#if-somethings-wrong"))  # fmt: skip
+    elif isinstance(count, int):
+        report.findings.append(Finding(OK, f"Jellyfin shows {count} channels", "", ["Jellyfin (Live TV)"]))
+    tasks = [t for t in list_of(ask("/ScheduledTasks?isHidden=false"), dict) if t.get("Key") == "RefreshGuide"]
+    if tasks:
+        report.findings += _jellyfin_refresh(tasks[0].get("LastExecutionResult"), now)
+    return report
+
+
+def _file_name(address: object) -> str:
+    """The file at the end of an address or path ("http://web/tv.m3u" -> "tv.m3u"), as text."""
+    path = urllib.parse.urlparse(str(address or "")).path or str(address or "")
+    return _quote(path.rstrip("/").rsplit("/", 1)[-1], 80)
+
+
+def _guide_for(playlist: str) -> str:
+    """The guide kia makes for a playlist: tv.m3u's is tv.guide.xml.gz; curated.m3u's, guide.xml.gz."""
+    name = playlist.removesuffix(".m3u")
+    return "guide.xml.gz" if name == "curated" else f"{name}.guide.xml.gz"
+
+
+def _jellyfin_tuner(name: str, cfg: Config, evidence: list[str], playlists: list[str]) -> list[Finding]:
+    path = cfg.output_dir / name
+    if not name.endswith(".m3u") or not path.is_file():
+        return [Finding(NOTE, f"Jellyfin reads {name or 'a playlist'}, which isn't one of kia's",
+                        "If it's meant to be kia's, check the address: http://web/tv.m3u for Jellyfin in kia's stack, "
+                        "otherwise http://<kia's address>:8780/tv.m3u.", evidence, "docs/jellyfin.md#jellyfin")]  # fmt: skip
+    playlists.append(name)
+    entries = m3u.parse(path.read_text(encoding="utf-8", errors="replace"))
+    radio = sum(1 for e in entries if e.is_radio)
+    found = [Finding(OK, f"Jellyfin reads {name}: {len(entries) - radio} TV channels", "", evidence + [f"output/{name}"])]
+    if radio:
+        found.append(Finding(NOTE, f"{name} has {radio} radio station{'' if radio == 1 else 's'} too",
+                             "Jellyfin lists them as TV channels, numbered apart from TV, so you see two channel 1s. "
+                             "Use tv.m3u, or a playlist with radio left out.",
+                             [f"output/{name}"], "docs/jellyfin.md#before-you-start-the-tv-only-playlist"))  # fmt: skip
+    return found
+
+
+def _jellyfin_guides(names: list[str], playlists: list[str], cfg: Config, evidence: list[str]) -> list[Finding]:
+    if not names:
+        return [Finding(PROBLEM, "Jellyfin has no XMLTV guide", "Its channels show only their names. Add kia's guide as an XMLTV provider.",
+                        evidence, "docs/jellyfin.md#jellyfin")]  # fmt: skip
+    found = []
+    for name in names:
+        if not (cfg.output_dir / name).is_file():
+            found.append(Finding(NOTE, f"Jellyfin's guide is {name or 'a file'}, which isn't one of kia's",
+                                 "If it's meant to be kia's, check the address: the guide that goes with tv.m3u is tv.guide.xml.gz.",
+                                 evidence, "docs/jellyfin.md#jellyfin"))  # fmt: skip
+    # guide.xml.gz has every channel, so it fits any playlist; otherwise each needs its own.
+    for playlist in playlists:
+        if _guide_for(playlist) not in names and "guide.xml.gz" not in names:
+            found.append(Finding(PROBLEM, f"Jellyfin's guide doesn't go with {playlist}",
+                                 f"Its channels' shows are in {_guide_for(playlist)}, which Jellyfin doesn't read, so they show only their names.",
+                                 evidence, "docs/jellyfin.md#jellyfin"))  # fmt: skip
+    return found
+
+
+def _jellyfin_refresh(last: object, now: datetime) -> list[Finding]:
+    """Jellyfin's Refresh Guide task, the last time it ran."""
+    last = last if isinstance(last, dict) else {}
+    end = _when(_JELLYFIN_TIME_RE.sub(r"\1", str(last.get("EndTimeUtc") or "")).replace("Z", "+00:00"))
+    evidence = ["Jellyfin (Scheduled Tasks)"]
+    if not end:
+        return [Finding(NOTE, "Jellyfin hasn't refreshed its guide yet", "Choose Refresh Guide Data on its Live TV page.",
+                        evidence, "docs/jellyfin.md#jellyfin")]  # fmt: skip
+    when = readable(end.isoformat())
+    if last.get("Status") == "Failed":
+        return [Finding(PROBLEM, "Jellyfin's last guide refresh failed", f"On {when} it said: {_quote(last.get('ErrorMessage') or 'nothing')}.",
+                        evidence, "docs/jellyfin.md#if-somethings-wrong")]  # fmt: skip
+    if now - end > STALE_GUIDE:
+        return [Finding(NOTE, "Jellyfin last refreshed its guide over two days ago",
+                        "It does every day by itself, so its Refresh Guide task may be off (Dashboard, then Scheduled Tasks).",
+                        evidence, "docs/jellyfin.md#jellyfin")]  # fmt: skip
+    return [Finding(OK, "Jellyfin refreshed its guide", f"On {when}.", evidence)]
 
 
 # Showing it

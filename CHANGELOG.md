@@ -2,6 +2,10 @@
 
 ## 0.6.4 (unreleased)
 
+### Asking kia why
+
+- `kia doctor jellyfin` explains why Jellyfin shows no channels, or no guide. With kia's API key for Jellyfin (`KIA_JELLYFIN_TOKEN`), it asks Jellyfin which playlist and guide its Live TV reads and checks them: whether they're kia's, whether the playlist has radio stations (which Jellyfin numbers apart from TV), and whether the guide goes with it. It also checks how many channels Jellyfin shows and how its last guide refresh went. **Ask kia what's wrong** on the Dashboard includes its problems, scripts can ask `GET /api/doctor/jellyfin`, and AI assistants get a `kia_jellyfin` tool ([Jellyfin](docs/jellyfin.md#if-somethings-wrong)).
+
 ## 0.6.3 (2026-10-25)
 
 ### Upgrading from 0.6.2

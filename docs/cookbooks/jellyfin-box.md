@@ -92,6 +92,8 @@ kia's [metrics](../metrics.md) then include `kia_jellyfin_sessions`: live TV and
 
 ## If something's wrong
 
+**Ask kia first.** With the API key from step 6 in `.env`, `docker compose exec kia python3 -m kia doctor jellyfin` checks the addresses from step 4, Jellyfin's channels, and its last guide refresh, and says what to do about each.
+
 **Jellyfin has no channels, or no guide.** Check the addresses in step 4, then choose **Refresh Guide Data** on the Live TV page. `docker compose exec jellyfin curl -sI http://web/tv.m3u` should answer `200 OK`.
 
 **A channel's name is missing its first word, a number** ("Hour Free Movies" for *24 Hour Free Movies*). Jellyfin takes a number at the start of a channel name as its channel number. The channel, its number, and its guide are right; only the name is shorter.
