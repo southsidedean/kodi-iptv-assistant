@@ -30,6 +30,17 @@ STYLE = """
 #stack-page code.command { display: block; overflow-wrap: anywhere; padding: .5rem .7rem; background: var(--bg);
   border: 1px solid var(--line); border-radius: var(--radius-small); }
 @media (pointer: coarse) { .presets button { min-height: 44px; } }
+.preset-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--space-2); margin: var(--space-2) 0; }
+.preset-card { display: grid; gap: .3rem; text-align: left; padding: var(--space-2) var(--space-3); border-radius: var(--radius-small);
+  background: var(--card); color: var(--fg); border: 1px solid var(--control); font: inherit; cursor: pointer; min-height: 44px; }
+.preset-card .what { color: var(--fg); font-size: var(--step--1); }
+.preset-card small { color: var(--muted); }
+.preset-card[aria-pressed="true"] { border: 2px solid var(--info); background: var(--info-bg); }
+.own-parts { margin: var(--space-2) 0; }
+.own-parts summary { cursor: pointer; font-weight: 600; min-height: 44px; display: list-item; }
+.next-steps { border-top: 1px solid var(--line); margin-top: var(--space-3); padding-top: var(--space-3); }
+.next-steps li { margin-bottom: var(--space-2); }
+.next-steps .warn { background: var(--warn-bg); border-radius: var(--radius-small); padding: .5rem .7rem; }
 """
 
 SCRIPT = r"""
@@ -107,13 +118,21 @@ SCRIPT = r"""
     part.appendChild(el("div", { class: "editor" }, [el("label", { class: "field", for: "stack-pass" }, [el("strong", { text: "Password" }),
       el("span", { class: "hint", text: "Needed to check or apply. This tab remembers it until you close it." })]), pass]));
 
-    var presets = el("div", { class: "presets", role: "group", "aria-label": "Presets" });
+    // The presets (stacks/*.env) as cards: choosing one ticks its parts. Or the parts one by
+    // one, below, for a combination no card has.
+    part.appendChild(el("p", { class: "muted", text: "Choose one of these, or choose the parts yourself below." }));
+    var cards = el("div", { class: "preset-cards", role: "group", "aria-label": "Presets" });
+    var cardButtons = [];
     data.presets.forEach(function (p) {
-      presets.appendChild(el("button", { type: "button", text: p.name, title: p.what, "aria-label": "Preset " + p.name + ": " + p.what,
-        on: { click: function () { data.parts.forEach(function (x) { boxes[x.name].checked = p.parts.indexOf(x.name) >= 0; }); changed(); } } }));
+      var b = el("button", { type: "button", class: "preset-card", "aria-pressed": "false",
+        on: { click: function () { data.parts.forEach(function (x) { boxes[x.name].checked = p.parts.indexOf(x.name) >= 0; }); changed(); } } },
+        [el("strong", { text: p.title }), el("span", { class: "what", text: p.what.replace(/\s*\(docs\/[^)]*\)\.?$/, ".") }),
+         el("small", { text: p.needs })]);
+      b.parts = p.parts.slice().sort();
+      cardButtons.push(b);
+      cards.appendChild(b);
     });
-    part.appendChild(el("p", { class: "muted", text: "Start from a preset, or tick the parts yourself." }));
-    part.appendChild(presets);
+    part.appendChild(cards);
 
     var list = el("div", { class: "parts" });
     boxes = {};
@@ -122,7 +141,20 @@ SCRIPT = r"""
       boxes[p.name] = box;
       list.appendChild(el("label", { for: "part-" + p.name }, [box, el("span", {}, [el("strong", { text: p.name }), el("small", { text: p.what })])]));
     });
-    part.appendChild(list);
+    var own = el("details", { class: "own-parts" }, [el("summary", { text: "Choose the parts yourself" }), list]);
+    part.appendChild(own);
+
+    // Plex's first start links it to your Plex account with a claim code, which only you can
+    // get, and which works for 4 minutes: asked for here, right before Apply.
+    var plexRuns = data.containers.some(function (c) { return c.service === "plex"; });
+    var claim = el("input", { type: "text", id: "stack-claim", autocomplete: "off", spellcheck: "false", placeholder: "claim-…" });
+    var claimBox = el("div", { class: "editor", hidden: true }, [el("label", { class: "field", for: "stack-claim" }, [
+      el("strong", { text: "Plex claim code (for Plex's first start)" }),
+      el("span", { class: "hint" }, ["It links the new Plex to your Plex account. Sign in at ",
+        el("a", { href: "https://plex.tv/claim", target: "_blank", rel: "noopener", text: "plex.tv/claim" }),
+        ", copy the code here, and choose Apply within 4 minutes. Check first: the code doesn't last long."])]), claim]);
+    part.appendChild(claimBox);
+    card.claim = function () { return claimBox.hidden ? "" : claim.value.trim(); };
 
     var command = el("code", { class: "command" });
     part.appendChild(el("p", { class: "muted", text: data.service ? "The same from the kia folder:" :
@@ -143,6 +175,14 @@ SCRIPT = r"""
     function changed() {
       var parts = picked();
       command.textContent = "scripts/stack.sh apply --stack " + (parts.join(",") || '""');
+      var key = parts.slice().sort().join(","), matched = false;
+      cardButtons.forEach(function (b) {
+        var on = b.parts.join(",") === key && !matched;
+        if (on) matched = true;
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      if (!matched) own.open = true;  // a combination of its own: show the parts
+      claimBox.hidden = !(boxes.plex && boxes.plex.checked) || plexRuns;
       // Apply only what Check just looked at and found fine.
       apply.disabled = !data.service || !checked || !same(checked.parts, parts) || checked.code !== "0";
     }
@@ -150,6 +190,7 @@ SCRIPT = r"""
     card.say = function (text, bad) { status.className = "stack-status " + (bad ? "error" : "preview"); status.textContent = text || ""; };
     card.show = function (text) { output.hidden = !text; output.textContent = text || ""; };
     card.buttons = [check, apply];
+    card.part = part;
     changed();
     return part;
   }
@@ -160,7 +201,10 @@ SCRIPT = r"""
     card.buttons.forEach(function (b) { b.disabled = true; });
     card.say(action === "check" ? "Asking the kia-stack service to check…" : "Asking the kia-stack service to apply…");
     card.show("");
-    api("POST", "stack/" + action, { parts: parts }).then(function (r) {
+    var body = { parts: parts };
+    if (action === "apply" && card.claim()) body.claim = card.claim();
+    card.before = data.chosen.slice();  // to tell, after an apply, which parts are new
+    api("POST", "stack/" + action, body).then(function (r) {
       if (r._status !== 200) {
         card.say(r.error || "Something went wrong.", true);
         if (r._status === 401) { setPassword(""); pass.focus(); }
@@ -217,7 +261,99 @@ SCRIPT = r"""
     else card.say(ok ? "Done. What runs now is above." : "The change didn't finish: see below.", !ok);
     // Apply needs a new Check after this: of this choice, if this was one that passed.
     checked = action === "check" ? { parts: parts, code: res.exit, output: res.output } : null;
+    if (action === "check" && /no playlist named plex/.test(res.output || "")) playlistHelp();
+    if (action === "apply" && ok) {
+      var added = data.chosen.filter(function (n) { return (card.before || []).indexOf(n) < 0; });
+      if (added.length) card.part.appendChild(nextSteps(added));
+    }
     finish();
+  }
+
+  // Threadfin needs kia's "plex" playlist before Plex can have channels. When the check says
+  // it's missing, offer to make it: all TV channels, if they fit in Plex's 480, or else the
+  // Playlists page, to pick categories.
+  function playlistHelp() {
+    var box = el("div", { class: "editor" });
+    card.part.appendChild(box);
+    api("POST", "preview", { radio: false }).then(function (r) {
+      var n = r.tv || 0;
+      if (r._status !== 200 || !n) { box.appendChild(el("p", { text: "Make it on the Playlists page: choose Make a playlist, name it plex, and tick For Plex through Threadfin." })); return; }
+      if (n > 480) {
+        box.appendChild(el("p", {}, ["kia has " + n.toLocaleString() + " TV channels, and Plex takes at most 480 from one tuner. On ",
+          el("a", { href: "playlists.html", text: "Playlists" }), ", choose Make a playlist, name it plex, tick the categories you watch until it's 480 or fewer, and tick For Plex through Threadfin. Then Check again."]));
+        return;
+      }
+      var make = el("button", { type: "button", class: "primary", text: "Make the plex playlist: all " + n.toLocaleString() + " TV channels" });
+      var said = el("p", { role: "status" });
+      make.addEventListener("click", function () {
+        make.disabled = true;
+        api("PUT", "profiles/plex", { title: "Plex", radio: false, threadfin: true }).then(function (r2) {
+          if (r2._status !== 200) { make.disabled = false; said.className = "error"; said.textContent = r2.error || "Something went wrong."; return; }
+          said.className = "preview";
+          said.textContent = "Made. Choose Check again.";
+        }, function () { make.disabled = false; said.className = "error"; said.textContent = DOWN; });
+      });
+      box.appendChild(el("p", { text: "Threadfin, Plex's tuner, reads kia's playlist named plex, which doesn't exist yet." }));
+      box.appendChild(el("div", { class: "actions" }, [make]));
+      box.appendChild(said);
+    }, function () { box.appendChild(el("p", { class: "error", text: DOWN })); });
+  }
+
+  // After an apply: what each new part needs from you, once, to be ready.
+  function nextSteps(added) {
+    var host = location.hostname.indexOf(":") >= 0 ? "[" + location.hostname + "]" : location.hostname;
+    var links = data.links || {};
+    var items = el("ol");
+    var docs = "https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/";
+    function step(kids) { items.appendChild(el("li", {}, kids)); }
+    if (added.indexOf("jellyfin") >= 0) {
+      var jf = "http://" + host + ":" + (links.jellyfin || 8096);
+      step([el("p", { class: "warn" }, [el("strong", { text: "Jellyfin: finish its setup now. " }),
+        "Until you do, anyone on your network who opens its page can make themselves its administrator. Open ",
+        el("a", { href: jf, target: "_blank", rel: "noopener", text: jf }), ", then add kia's channels as live TV (",
+        el("a", { href: docs + "cookbooks/jellyfin-box.md#3-set-up-jellyfin", target: "_blank", rel: "noopener", text: "how" }), ")."])]);
+    }
+    if (added.indexOf("plex") >= 0 || added.indexOf("plex-tuner") >= 0) {
+      var out = el("pre", { hidden: true }), said = el("p", { role: "status" });
+      var go = el("button", { type: "button", class: "primary", text: "Add Live TV to Plex now" });
+      go.addEventListener("click", function () { go.disabled = true; addLiveTv(go, said, out); });
+      var parts = [el("p", { text: "Plex: kia adds its channels to Plex as Live TV by itself within 4 hours, or now with this button. The first time can take a few minutes." }),
+        el("div", { class: "actions" }, [go]), said, out];
+      if (added.indexOf("plex") >= 0) {
+        var px = "http://" + host + ":" + (links.plex || 32400) + "/web";
+        parts.push(el("p", {}, ["Then open ", el("a", { href: px, target: "_blank", rel: "noopener", text: "Plex" }), ": Live TV has your channels."]));
+      } else {
+        parts.push(el("p", { class: "muted" }, ["kia needs KIA_PLEX_URL and KIA_PLEX_TOKEN in .env to reach your Plex; or add the tuner in Plex's settings (",
+          el("a", { href: docs + "plex.md#4-add-threadfin-to-plex", target: "_blank", rel: "noopener", text: "how" }), ")."]));
+      }
+      step(parts);
+    }
+    if (added.indexOf("observability") >= 0) {
+      var g = links.grafana;
+      step([el("p", {}, ["Graphs: open ", g ? el("a", { href: g, target: "_blank", rel: "noopener", text: "Grafana" }) : "Grafana (port 8788, https)",
+        " and sign in as admin. The password is the one you set in KIA_GRAFANA_PASSWORD, or in monitoring/grafana/admin-password.txt in the kia folder. The Dashboard's Observability button opens it too."])]);
+    }
+    return el("section", { class: "next-steps" }, [el("h3", { text: "What's next" }), items]);
+  }
+
+  // kia plex-tuners, in kia, followed until it's done.
+  function addLiveTv(button, said, out) {
+    said.className = "muted"; said.textContent = "Adding kia's channels to Plex…";
+    api("POST", "plex/tuners").then(function (r) {
+      if (r._status !== 200) { button.disabled = false; said.className = "error"; said.textContent = r.error || "Something went wrong."; return; }
+      (function poll() {
+        setTimeout(function () {
+          fetch("api/plex/tuners", { cache: "no-cache" }).then(function (x) { return x.ok ? x.json() : null; }).then(function (d) {
+            var t = d && d.plex;
+            if (!t || t.running) return poll();
+            out.hidden = !t.output; out.textContent = t.output || "";
+            said.className = t.ok ? "preview" : "error";
+            said.textContent = t.ok ? "Done. Plex loads the guide now; the channels show under Live TV in a few minutes." : "That didn't finish: see below.";
+            button.disabled = !!t.ok;
+          }, poll);
+        }, 3000);
+      })();
+    }, function () { button.disabled = false; said.className = "error"; said.textContent = DOWN; });
   }
   function finish() { card.buttons[0].disabled = !data.service; card.changed(); }
 

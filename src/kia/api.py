@@ -518,6 +518,45 @@ def _end(proc) -> None:
             return
 
 
+# Adding kia's channels to Plex as Live TV now (kia plex-tuners), from the Stack page once
+# Plex runs. kia does the same by itself after each guide refresh, within 4 hours; this is
+# for not waiting, without a terminal. One at a time; it can take a few minutes the first
+# time, while Plex downloads its codecs.
+PLEX_TUNERS: dict = {"running": False}
+_TUNERS_LOCK = threading.Lock()
+
+
+def plex_tuners_state() -> dict:
+    return dict(PLEX_TUNERS)
+
+
+def start_plex_tuners(cfg: ApiConfig) -> dict:
+    if not os.environ.get("KIA_PLEX_URL"):
+        raise ApiError(409, "kia doesn't know where Plex is yet (KIA_PLEX_URL). Apply a choice with Plex first.")
+    with _TUNERS_LOCK:
+        if PLEX_TUNERS.get("running"):
+            raise ApiError(409, "kia is already adding its channels to Plex. Wait for it to finish.")
+        PLEX_TUNERS.clear()
+        PLEX_TUNERS.update({"running": True, "started": time.time()})
+    threading.Thread(target=_run_plex_tuners, args=(cfg,), daemon=True, name="kia-plex-tuners").start()
+    return {"plex": plex_tuners_state()}
+
+
+def _run_plex_tuners(cfg: ApiConfig) -> None:
+    cmd = [sys.executable, "-m", "kia", "plex-tuners", "-c", str(cfg.config_file)]
+    try:
+        done = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, check=False)
+        lines = (done.stdout + done.stderr).strip().splitlines()
+        PLEX_TUNERS["output"] = "\n".join(lines[-30:])[-4000:]
+        PLEX_TUNERS["ok"] = done.returncode == 0
+    except subprocess.TimeoutExpired:
+        PLEX_TUNERS.update({"ok": False, "output": "It took more than 30 minutes and was stopped."})
+    except Exception as exc:  # report, never crash the server
+        PLEX_TUNERS.update({"ok": False, "output": f"It couldn't run: {exc}"})
+    PLEX_TUNERS["running"] = False
+    PLEX_TUNERS["finished"] = time.time()
+
+
 def stop_check() -> dict:
     with LOCK:
         proc = CHECK_PROC.get("proc")
@@ -550,8 +589,9 @@ def ask_stack(cfg: ApiConfig, action: str, data: dict) -> dict:
         raise ApiError(400, "Send the parts as {\"parts\": [...]}.")
     try:
         parts = stack.parts_from(data.get("parts"))
+        claim = stack.claim_from(data.get("claim"))
         with STACK_LOCK:
-            rid = stack.ask(cfg.state_dir, _project_dir(cfg) / stack.SERVICE_DIR, action, parts)
+            rid = stack.ask(cfg.state_dir, _project_dir(cfg) / stack.SERVICE_DIR, action, parts, claim)
     except stack.StackError as exc:
         raise ApiError(409 if "still working" in str(exc) else 400, str(exc)) from None
     return {"id": rid, **get_stack(cfg, True)}
@@ -668,6 +708,11 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["stack", "apply"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, ask_stack(cfg, "apply", data)
+        if parts == ["plex", "tuners"] and method == "GET":
+            return 200, {"plex": plex_tuners_state()}
+        if parts == ["plex", "tuners"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, start_plex_tuners(cfg)
         if parts == ["password"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, change_password(cfg, data)

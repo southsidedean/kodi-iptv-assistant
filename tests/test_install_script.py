@@ -115,3 +115,22 @@ def test_stops_before_anything_when_docker_isnt_running_or_an_option_has_no_valu
     assert r.returncode == 1 and "--dir needs a value" in r.stderr
     r = install(kia, "--yes", "--preset", "nope")
     assert r.returncode == 1 and "there's no preset nope" in r.stderr and not (kia / ".env").exists()
+
+
+def test_the_kia_stack_service_is_offered_and_installed_by_default(kia: Path):
+    # It's how the Dashboard's Stack page changes what runs, so the installer asks, and with
+    # nobody to answer (as here), says yes. A stand-in records the call: the real one would
+    # set up a service on this computer.
+    called = kia.parent / "install-service.log"
+    stub(kia / "scripts", "install-service.sh", f'echo "$*" >> {called}\n')
+    r = install(kia)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "kia-stack service lets you choose" in r.stdout
+    assert called.read_text().split() == ["--stack"]
+
+
+def test_no_stack_service_skips_it(kia: Path):
+    called = kia.parent / "install-service.log"
+    stub(kia / "scripts", "install-service.sh", f'echo "$*" >> {called}\n')
+    r = install(kia, "--no-stack-service")
+    assert r.returncode == 0 and not called.exists() and "kia-stack service lets you choose" not in r.stdout

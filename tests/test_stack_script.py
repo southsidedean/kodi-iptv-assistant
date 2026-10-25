@@ -392,3 +392,50 @@ def test_a_kia_folder_a_service_file_cant_hold_is_refused(tmp_path: Path, name: 
     r = subprocess.run(["sh", str(folder / "scripts" / "install-service.sh"), "--stack", "--dry-run"],
                        capture_output=True, text=True, check=False)  # fmt: skip
     assert r.returncode == 1 and "can't hold" in r.stderr and "<plist" not in r.stdout
+
+
+def test_apply_fills_in_the_advertise_addresses_from_kias_address(kia: Path):
+    with_stack(kia, "plex")
+    r = stack(kia, "check", "--stack", "plex,jellyfin")
+    assert "apply sets it from KIA_PUBLIC_URL" in r.stdout and "warning: KIA_JELLYFIN_ADVERTISE" not in r.stdout
+    assert stack(kia, "apply", "--stack", "plex,jellyfin", "--yes").returncode == 0
+    env = (kia / ".env").read_text()
+    assert "KIA_PLEX_ADVERTISE=http://192.168.1.20:32400/\n" in env  # the fixture's own stays
+    assert "KIA_JELLYFIN_ADVERTISE=http://192.168.1.20:8096\n" in env
+
+
+@pytest.mark.parametrize(("url", "expected"), [
+    ("http://my-server.lan:8780/", "http://my-server.lan:8096"),
+    ("https://[fd00::20]:8780", "http://[fd00::20]:8096"),
+    ("http://localhost:8780", ""),  # other devices can't use that
+    ("http://bad$(id).lan:8780", ""),
+])  # fmt: skip
+def test_the_address_taken_from_kias_is_checked(kia: Path, url: str, expected: str):
+    env = (kia / ".env").read_text().replace("KIA_PUBLIC_URL=http://192.168.1.20:8780", f"KIA_PUBLIC_URL={url}")
+    (kia / ".env").write_text(env + "KIA_STACK=jellyfin\n")
+    assert stack(kia, "apply", "--yes").returncode == 0
+    assert f"KIA_JELLYFIN_ADVERTISE={expected}\n" in (kia / ".env").read_text()
+
+
+def test_a_claim_code_goes_into_env_with_apply(kia: Path):
+    with_stack(kia, "jellyfin")
+    r = stack(kia, "apply", "--stack", "plex", "--claim", "claim-Ab_1-z", "--yes")
+    assert r.returncode == 0 and "claim-Ab_1-z" not in r.stdout + r.stderr  # never printed
+    assert "PLEX_CLAIM=claim-Ab_1-z\n" in (kia / ".env").read_text()
+    for bad in ("claim-a\\nb", "claim-$(id)", "nope", "claim-"):
+        assert stack(kia, "apply", "--claim", bad, "--yes").returncode == 2, bad
+    assert stack(kia, "check", "--claim", "claim-abc").returncode == 2
+
+
+def test_the_service_passes_a_claim_code_on_and_refuses_a_bad_one(kia: Path):
+    with_stack(kia, "jellyfin")
+    request(kia, id="req-10", action="apply", stack="plex", claim="claim-good_1")
+    stack(kia, "watch", "--once")
+    assert answer(kia)[0]["state"] == "finished" and "PLEX_CLAIM=claim-good_1\n" in (kia / ".env").read_text()
+    request(kia, id="req-11", action="apply", stack="plex", claim="claim-$(id)")
+    stack(kia, "watch", "--once")
+    head, said = answer(kia)
+    assert head["state"] == "refused" and "claim code" in said
+    request(kia, id="req-12", action="check", stack="plex", claim="claim-abc")
+    stack(kia, "watch", "--once")
+    assert answer(kia)[0]["state"] == "refused"

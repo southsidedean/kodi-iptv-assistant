@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import socket
 import sys
@@ -196,18 +197,35 @@ def parts_from(value) -> list[str]:
 
 
 def presets(project_dir: Path) -> list[dict]:
-    """The presets in stacks/: each one's name, what it's for (its first line), and parts."""
+    """The presets in stacks/, for the Stack page's cards: each one's name, title, what it's
+    for (its first line), what it needs (the "# title:" and "# needs:" lines), and parts."""
     out = []
     for path in sorted((project_dir / "stacks").glob("*.env")):
         try:
             lines = path.read_text().splitlines()
         except OSError:
             continue
+        comments = {k.strip(): v.strip() for k, _, v in (line[2:].partition(":") for line in lines if line.startswith("# "))}
         what = lines[0].lstrip("# ").strip() if lines and lines[0].startswith("#") else ""
         stack = next((line.split("=", 1)[1] for line in lines if line.startswith("KIA_STACK=")), "")
         names = [p for p in stack.replace(" ", ",").split(",") if p]
-        out.append({"name": path.stem, "what": what, "parts": names})
+        out.append({"name": path.stem, "title": comments.get("title") or path.stem, "what": what, "needs": comments.get("needs", ""),
+                    "parts": names})  # fmt: skip
     return out
+
+
+# A Plex claim code from plex.tv/claim: "claim-", then letters, digits, dashes, underscores.
+# scripts/stack.sh checks it the same way before it writes it into .env.
+_CLAIM = re.compile(r"claim-[A-Za-z0-9_-]{1,74}")
+
+
+def claim_from(value) -> str:
+    """A claim code from the Dashboard, or "" for none. Anything else is refused."""
+    if value in (None, ""):
+        return ""
+    if not isinstance(value, str) or not _CLAIM.fullmatch(value.strip()):
+        raise StackError("That isn't a claim code from plex.tv/claim (it starts with claim-).")
+    return value.strip()
 
 
 def _age(path: Path) -> float | None:
@@ -296,19 +314,35 @@ def page_state(state_dir: Path, project_dir: Path) -> dict:
         "containers": containers(service_dir),
         "waiting": waiting(state_dir, service_dir),
         "result": result(service_dir),
+        "links": links(),
     }
 
 
-def ask(state_dir: Path, service_dir: Path, action: str, parts: list[str]) -> str:
+def links() -> dict:
+    """Where a browser opens Plex, Jellyfin, and Grafana, for the page's next steps: ports on
+    the address the browser used, and Grafana's address (the Observability button's)."""
+    from kia.htmlpage import grafana_url
+
+    def port(name: str, default: int) -> int:
+        value = os.environ.get(name, "")
+        return int(value) if value.isdigit() else default
+
+    return {"plex": port("KIA_PLEX_PORT", 32400), "jellyfin": port("KIA_JELLYFIN_PORT", 8096), "grafana": grafana_url()}
+
+
+def ask(state_dir: Path, service_dir: Path, action: str, parts: list[str], claim: str = "") -> str:
     """Leave a request for the kia-stack service. Returns its id, which the service's answer
-    carries, so the page knows the answer is to this request."""
+    carries, so the page knows the answer is to this request. claim: a Plex claim code, for
+    an apply that starts Plex for the first time."""
     if action not in ("check", "apply"):
         raise StackError("The action is check or apply.")
+    if claim and action != "apply":
+        raise StackError("A claim code goes with Apply.")
     if waiting(state_dir, service_dir) is not None:
         raise StackError("The service is still working on the last request. Wait for its answer first.")
     rid = secrets.token_hex(8)
     path = state_dir / REQUEST
     tmp = temp_name(path)
-    tmp.write_text(f"id={rid}\naction={action}\nstack={','.join(parts)}\n")
+    tmp.write_text(f"id={rid}\naction={action}\nstack={','.join(parts)}\n" + (f"claim={claim}\n" if claim else ""))
     tmp.replace(path)  # whole, at once: the service never reads half a request
     return rid

@@ -8,13 +8,14 @@
 #   scripts/stack.sh apply --preset P   first set KIA_STACK from stacks/P.env
 #   scripts/stack.sh check --stack S    check S as if it were KIA_STACK; change nothing
 #   scripts/stack.sh apply --stack S    first set KIA_STACK to S
+#   scripts/stack.sh apply --claim C    also set PLEX_CLAIM to C (from plex.tv/claim), for Plex's first start
 #   scripts/stack.sh list               the parts you can choose, and the presets
 #   scripts/stack.sh watch              run for the Dashboard's Stack page (the kia-stack service)
 #   --yes                               don't ask, even if someone is watching
 set -eu
 
 cd "$(dirname "$0")/.."
-cmd=status preset="" try="" try_set=no ask=yes once=no
+cmd=status preset="" try="" try_set=no ask=yes once=no claim=""
 while [ $# -gt 0 ]; do
     case "$1" in
         status | check | apply | list | watch) cmd=$1 ;;
@@ -22,11 +23,21 @@ while [ $# -gt 0 ]; do
         --stack) [ $# -gt 1 ] || { echo "stack: --stack needs the parts, such as plex,observability" >&2; exit 2; }; try=$2; try_set=yes; shift ;;
         --once) once=yes ;;  # watch: one round, then stop (for tests)
         --yes | -y) ask=no ;;
-        -h | --help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --claim) [ $# -gt 1 ] || { echo "stack: --claim needs the code from plex.tv/claim" >&2; exit 2; }; claim=$2; shift ;;
+        -h | --help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "stack: unknown option $1 (see --help)" >&2; exit 2 ;;
     esac
     shift
 done
+
+# A Plex claim code is "claim-" and letters, digits, dashes, and underscores. Nothing else
+# gets near .env: set_env hands the value to awk, and the Dashboard can send it.
+if [ -n "$claim" ]; then
+    case "$claim" in claim-*) ;; *) echo "stack: a claim code starts with claim- (plex.tv/claim)" >&2; exit 2 ;; esac
+    case "${claim#claim-}" in "" | *[!A-Za-z0-9_-]*) echo "stack: that isn't a claim code from plex.tv/claim" >&2; exit 2 ;; esac
+    [ ${#claim} -le 80 ] || { echo "stack: that claim code is too long" >&2; exit 2; }
+    [ "$cmd" = apply ] || { echo "stack: --claim goes with apply" >&2; exit 2; }
+fi
 
 OS=$(uname -s)
 # Each part you can choose: its name, the Compose profiles it turns on, and what it is.
@@ -47,6 +58,17 @@ set_env() {  # set_env NAME VALUE: replace the line, or add it
     fi
 }
 has() { case ",$features," in *",$1,"*) return 0 ;; esac; return 1; }
+# The host in KIA_PUBLIC_URL (an address or name, or [an IPv6 address]), or nothing when
+# there's none or it holds anything an address can't: apply writes it into .env.
+public_host() {
+    h=$(get KIA_PUBLIC_URL | sed -e 's#^[A-Za-z]*://##' -e 's#/.*$##')
+    case "$h" in
+        \[*\]*) h=${h%%]*}]; case "$h" in *[!0-9A-Fa-f:\[\]]*) h="" ;; esac ;;
+        *) h=${h%%:*}; case "$h" in *[!A-Za-z0-9.-]*) h="" ;; esac ;;
+    esac
+    case "$h" in "" | localhost | 127.* | "[::1]") return 0 ;; esac
+    echo "$h"
+}
 listening() {  # something answers on this port here
     if command -v nc >/dev/null 2>&1; then nc -z -w 2 127.0.0.1 "$1" >/dev/null 2>&1
     elif command -v ss >/dev/null 2>&1; then ss -Hltn "sport = :$1" 2>/dev/null | grep -q .
@@ -145,6 +167,7 @@ if [ "$cmd" = watch ]; then
         fi
         head -c 4096 "$req" >"$own/request.txt"
         id=$(field id "$own/request.txt") action=$(field action "$own/request.txt") parts=$(field stack "$own/request.txt")
+        claim=$(field claim "$own/request.txt")
         # Without a proper id there's no one to answer: kia always sends one.
         case "$id" in "" | *[!A-Za-z0-9-]*) echo "stack: ignored a request without a proper id"; rm -f "$req"; return 0 ;; esac
         if [ ${#id} -gt 64 ]; then echo "stack: ignored a request with a long id"; rm -f "$req"; return 0; fi
@@ -152,6 +175,10 @@ if [ "$cmd" = watch ]; then
         case "$action" in check | apply) ;; *) why="it asked for something other than check or apply"; action=unknown ;; esac
         case "$parts" in *[!a-z0-9,-]*) why="the parts can only be names such as plex,observability" ;; esac
         if [ ${#parts} -gt 200 ]; then why="the list of parts is too long"; fi
+        # A Plex claim code, for an apply only: checked again by the script it's passed to.
+        case "$claim" in "") ;; claim-*) case "${claim#claim-}" in "" | *[!A-Za-z0-9_-]*) why="the claim code isn't one from plex.tv/claim" ;; esac ;; *) why="the claim code isn't one from plex.tv/claim" ;; esac
+        if [ ${#claim} -gt 80 ]; then why="the claim code is too long"; fi
+        if [ -n "$claim" ] && [ "$action" != apply ]; then why="a claim code goes with apply"; fi
         # The Dashboard stops waiting after 5 minutes, so a request older than that (left
         # while this service was stopped, say) is one nobody is watching for any more.
         if [ -n "$(find "$req" -mmin +5 2>/dev/null)" ]; then why="it was more than 5 minutes old"; fi
@@ -165,6 +192,7 @@ if [ "$cmd" = watch ]; then
         echo "stack: $action KIA_STACK=$parts (request $id)"
         answer "$id" "$action" running ""  # so the Dashboard can say it's under way
         if [ "$action" = apply ]; then set -- apply --stack "$parts" --yes; else set -- check --stack "$parts"; fi
+        if [ -n "$claim" ]; then set -- "$@" --claim "$claim"; fi
         code=0
         sh scripts/stack.sh "$@" >"$own/watch.out" 2>&1 </dev/null || code=$?
         # The container list first: the page reads both as soon as the answer appears, and
@@ -281,8 +309,14 @@ else
 fi
 
 if has plex; then
-    [ -n "$(get KIA_PLEX_ADVERTISE)" ] || warn "KIA_PLEX_ADVERTISE is empty: Plex apps on your network may not find Plex (docs/cookbooks/plex-box.md)"
-    if ! running plex && [ -z "$(get PLEX_CLAIM)" ]; then
+    if [ -z "$(get KIA_PLEX_ADVERTISE)" ]; then
+        if [ -n "$(public_host)" ]; then
+            note "KIA_PLEX_ADVERTISE is empty: apply sets it from KIA_PUBLIC_URL's address"
+        else
+            warn "KIA_PLEX_ADVERTISE is empty: Plex apps on your network may not find Plex (docs/cookbooks/plex-box.md)"
+        fi
+    fi
+    if ! running plex && [ -z "$(get PLEX_CLAIM)" ] && [ -z "$claim" ]; then
         warn "if this is Plex's first start, set PLEX_CLAIM from plex.tv/claim first, or Plex won't be on your account"
     fi
 fi
@@ -304,7 +338,11 @@ if has plex-tuner && [ -z "$(get KIA_PLEX_URL)" ]; then
     warn "KIA_PLEX_URL is empty, so kia can't add its tuners to Plex for you (docs/plex.md)"
 fi
 if has jellyfin && [ -z "$(get KIA_JELLYFIN_ADVERTISE)" ]; then
-    warn "KIA_JELLYFIN_ADVERTISE is empty: Jellyfin apps on your network may not find Jellyfin"
+    if [ -n "$(public_host)" ]; then
+        note "KIA_JELLYFIN_ADVERTISE is empty: apply sets it from KIA_PUBLIC_URL's address"
+    else
+        warn "KIA_JELLYFIN_ADVERTISE is empty: Jellyfin apps on your network may not find Jellyfin"
+    fi
 fi
 if has plex || has jellyfin; then
     media=$(get KIA_MEDIA_DIR); media=${media:-./media}
@@ -396,6 +434,13 @@ if ! (umask 077 && set -C && cat .env >"$backup") 2>/dev/null; then
     exit 1
 fi
 if [ "$try_set" = yes ]; then set_env KIA_STACK "$features"; fi
+if [ -n "$claim" ]; then set_env PLEX_CLAIM "$claim"; fi  # read by Plex on its first start only
+# The addresses Plex and Jellyfin apps use to reach them, from KIA_PUBLIC_URL, if not set.
+host=$(public_host)
+if [ -n "$host" ]; then
+    if has plex && [ -z "$(get KIA_PLEX_ADVERTISE)" ]; then set_env KIA_PLEX_ADVERTISE "http://$host:$(get KIA_PLEX_PORT | grep . || echo 32400)/"; fi
+    if has jellyfin && [ -z "$(get KIA_JELLYFIN_ADVERTISE)" ]; then set_env KIA_JELLYFIN_ADVERTISE "http://$host:$(get KIA_JELLYFIN_PORT | grep . || echo 8096)"; fi
+fi
 set_env COMPOSE_PROFILES "$(echo "$profiles" | tr ' ' ',')"
 if has plex && [ -z "$(get KIA_PLEX_URL)" ]; then set_env KIA_PLEX_URL http://plex:32400; fi
 if has jellyfin && [ -z "$(get KIA_JELLYFIN_URL)" ]; then set_env KIA_JELLYFIN_URL http://jellyfin:8096; fi
