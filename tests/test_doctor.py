@@ -535,6 +535,16 @@ def test_jellyfin_not_set_up_or_missing_settings(kia):
         "kia can't check Jellyfin's Live TV without an API key"
 
 
+def test_jellyfin_left_over_from_an_earlier_stack(kia):
+    # KIA_JELLYFIN_URL stays behind when Jellyfin leaves the stack: nothing to ask, and no problem.
+    write(kia, "output/stack.json", {"services": [{"service": "plex", "ok": True}]})
+    r = jellyfin_report(kia, FakeJellyfin(RuntimeError("asked Jellyfin")))  # raised if it asks
+    assert r.worst == doctor.NOTE and titles(r) == ["KIA_JELLYFIN_URL names Jellyfin in kia's stack, which isn't in it now"]
+    # A Jellyfin elsewhere (not "jellyfin" on Docker's network) is still asked.
+    other = {**JF_ENV, "KIA_JELLYFIN_URL": "http://192.168.1.20:8096"}
+    assert titles(jellyfin_report(kia, FakeJellyfin({"TunerHosts": []}), env=other)) == ["Jellyfin has no M3U tuner"]
+
+
 def test_jellyfin_all_good(kia):
     jellyfin_setup(kia)
     r = jellyfin_report(kia)

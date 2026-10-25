@@ -689,6 +689,15 @@ def jellyfin(cfg: Config, env: dict | None = None, now: datetime | None = None, 
                                        "There's no Jellyfin in kia's stack and no KIA_JELLYFIN_URL, so kia doesn't know of one.",
                                        [".env", "output/stack.json"], "docs/jellyfin.md"))  # fmt: skip
         return report
+    # As for Plex: a KIA_JELLYFIN_URL left from an earlier stack (http://jellyfin:8096 with no
+    # Jellyfin in kia's last check of it) isn't a Jellyfin to ask.
+    stack = _json(cfg.output_dir / "stack.json") or {}
+    if (urllib.parse.urlparse(url).hostname == "jellyfin" and isinstance(stack.get("services"), list)
+            and "jellyfin" not in answering):  # fmt: skip
+        report.findings.append(Finding(NOTE, "KIA_JELLYFIN_URL names Jellyfin in kia's stack, which isn't in it now",
+                                       "If you don't use Jellyfin any more, remove KIA_JELLYFIN_URL from .env. Otherwise add jellyfin to KIA_STACK.",
+                                       [".env", "output/stack.json"], "docs/stack.md"))  # fmt: skip
+        return report
     if answering.get("jellyfin") is False:
         report.findings.append(Finding(PROBLEM, "Jellyfin isn't answering", "kia knocked on its port and got no answer.",
                                        ["output/stack.json"], "In the kia folder: docker compose ps, then docker compose logs jellyfin"))  # fmt: skip
