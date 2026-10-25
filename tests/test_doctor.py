@@ -389,6 +389,18 @@ def test_hardware_prometheus_or_node_exporter_down(kia):
     assert titles(r) == ["Prometheus can't reach node-exporter"]
 
 
+def test_hardware_picks_the_same_disks_as_grafana():
+    # A disk doctor calls nearly full should be the one the Hardware dashboard's Free space panel
+    # shows, and Time Machine's snapshots of a Mac's main disk aren't disks of their own.
+    import importlib.util
+
+    root = Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location("dashboards", root / "scripts" / "dashboards.py")
+    dashboards = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dashboards)
+    assert doctor._DISKS == dashboards.REAL_FS and "/Volumes/com.apple.TimeMachine" in doctor._DISKS
+
+
 @pytest.mark.parametrize("body", [b"not json", b"[]", b'{"data": {"result": [{"value": []}]}}', b'{"data": null}'])
 def test_prometheus_answer_in_the_wrong_shape(monkeypatch, body):
     # Whatever answers at Prometheus's address, an answer kia can't read counts as no answer (OSError).

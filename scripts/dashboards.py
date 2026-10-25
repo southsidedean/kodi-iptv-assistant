@@ -299,9 +299,10 @@ def jellyfin() -> Board:
     return b
 
 
-# Real filesystems: not memory, container layers, or (on a Mac) the system's own APFS volumes,
-# which share the space "/" shows anyway.
-REAL_FS = 'fstype!~"tmpfs|overlay|squashfs|ramfs|vfat|nsfs", mountpoint!~"/System/Volumes/.+"'
+# Real filesystems: not memory, container layers, or (on a Mac) the system's own APFS volumes
+# and Time Machine's snapshots of "/", which share the space "/" shows anyway. kia doctor
+# hardware uses the same filter (kia.doctor._DISKS).
+REAL_FS = 'fstype!~"tmpfs|overlay|squashfs|ramfs|vfat|nsfs", mountpoint!~"/System/Volumes/.+|/Volumes/com.apple.TimeMachine.+"'
 
 
 def hardware() -> Board:

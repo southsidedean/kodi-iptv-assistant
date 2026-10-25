@@ -492,9 +492,10 @@ LOW_SPACE = 10  # percent free: under this a disk is nearly full
 HOT_DISK = 60  # °C: most disks are made to run up to about this
 HOT_GPU = 85  # °C: NVIDIA cards start slowing themselves down around here
 WORN_SSD = 90  # percent of the writes an SSD is rated for
-# The computer's own disks, as the Hardware dashboard picks them: without memory and container
-# filesystems, and without macOS's system volumes, which share the main disk's space.
-_DISKS = 'fstype!~"tmpfs|overlay|squashfs|ramfs|vfat|nsfs", mountpoint!~"/System/Volumes/.+"'
+# The computer's own disks, as the Hardware dashboard picks them (scripts/dashboards.py's REAL_FS):
+# without memory and container filesystems, and without macOS's system volumes and Time Machine's
+# snapshots of the main disk, which share its space and would report it again.
+_DISKS = 'fstype!~"tmpfs|overlay|squashfs|ramfs|vfat|nsfs", mountpoint!~"/System/Volumes/.+|/Volumes/com.apple.TimeMachine.+"'
 _RAW = 'attribute_value_type="raw"'
 
 
