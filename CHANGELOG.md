@@ -106,6 +106,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - [Metrics](docs/metrics.md) says `/metrics` shows what's playing on Plex and Jellyfin, by pseudonym, to anyone on your network.
 - Smaller corrections: a removed channel comes back after three good nights; Start here checks the Dashboard before setting up devices; Kodi's playlist address works once the first refresh is done; `observability` includes cAdvisor; the image versions you can pin include Jellyfin's and the disk exporter's; the Plex box cookbook works on macOS too.
 - The Kodi screenshots no longer carry the display's color profile, and the TV stack screenshot shows the current dashboards.
+- The Plex screenshots show only Plex's own Tuner Setup and Live TV pages, the playlist page and the Grafana kia dashboard show the current menus and buttons, and no screenshot carries camera or display data any more.
 
 ### Smaller fixes
 
