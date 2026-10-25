@@ -148,6 +148,7 @@ def test_mcp_token_command(kia, capsys):
     out = capsys.readouterr().out
     made = mcp.token(kia.state_dir)
     assert made and f"Bearer {made}" in out and "claude mcp add --transport http kia https://" in out
+    assert "(kept in state/mcp-token.txt in the kia folder)" in out
     assert (kia.state_dir / mcp.TOKEN_FILE).stat().st_mode & 0o777 == 0o600
     assert cli.main(["mcp-token", "-c", config]) == 0 and mcp.token(kia.state_dir) == made  # shown again, not replaced
     capsys.readouterr()

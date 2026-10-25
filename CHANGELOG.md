@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.6.0 (unreleased)
+## 0.6.0 (2026-10-25)
+
+### Upgrading from 0.5.7
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). The MCP server stays off until you run `kia mcp-token`. Until the first guide build after the update (within a few hours), **Why?** says a channel's guide sources are known but not which one it uses.
 
 ### Asking kia why
 

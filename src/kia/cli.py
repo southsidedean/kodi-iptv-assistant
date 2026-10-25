@@ -1142,7 +1142,12 @@ def cmd_mcp_token(args: argparse.Namespace) -> int:
     print(f"kia's MCP server is on, at {address}")
     if host in ("localhost", "127.0.0.1"):
         print("That address works only on this computer. For others, set KIA_PUBLIC_URL (or KIA_TLS_NAMES) in .env, restart kia, and run this again.")
-    print(f"Its token (kept in {path}): {value}")
+    # Where it is in the kia folder: inside Docker, the full path would be the container's (/data/...).
+    try:
+        where = f"{path.resolve().relative_to(Path(args.config).resolve().parent)} in the kia folder"
+    except ValueError:  # a state folder outside the kia folder
+        where = str(path)
+    print(f"Its token (kept in {where}): {value}")
     print("To use it from Claude Code:")
     print(f'  claude mcp add --transport http kia {address} --header "Authorization: Bearer {value}"')
     print("Other computers need to trust kia's certificate first: see docs/ask-kia.md.")
