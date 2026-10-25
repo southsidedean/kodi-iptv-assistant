@@ -1,0 +1,6 @@
+flowchart TB
+  you["You, on the secure<br>Dashboard's Stack page,<br>with the password"] --> kia["kia, in its container<br>no access to Docker"]
+  kia -->|"a request in state/:<br>check or apply,<br>part names only"| svc["kia-stack service<br>on the computer, as you<br>checks the request again"]
+  svc --> sh["scripts/stack.sh<br>check or apply"]
+  sh --> docker["Docker starts and<br>stops the parts"]
+  svc -->|"the answer, and<br>each container's state"| kia

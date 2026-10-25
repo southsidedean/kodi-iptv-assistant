@@ -293,7 +293,7 @@ fi
 # does only what scripts/stack.sh apply would (SECURITY.md, "The kia-stack service").
 if [ "$STACK_SERVICE" = ask ]; then
     say "The kia-stack service lets you choose Plex, Jellyfin, and the graphs on kia's Dashboard later,"
-    say "instead of in a terminal. It runs on this computer as you (docs/stack.md)."
+    say "instead of in a terminal. It runs on this computer as you (docs/stack-dashboard.md)."
     case "$(ask "Install it? (y/n)" y)" in [nN]*) STACK_SERVICE=no ;; *) STACK_SERVICE=yes ;; esac
 fi
 if [ "$STACK_SERVICE" = yes ]; then

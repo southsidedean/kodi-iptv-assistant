@@ -35,6 +35,7 @@ From then on kia updates the channels every night and the guide every few hours,
 
 | You want to | Read |
 |---|---|
+| Run Plex, Jellyfin, or graphs next to kia | [Your stack from the Dashboard](stack-dashboard.md) |
 | Make a playlist for the kids or a room | [Playlists for people and devices](profiles.md) |
 | Add channels from other countries, or radio | [Choosing channel sources](configuration.md#choosing-channel-sources-on-the-dashboard), or the comments in `sources.txt` |
 | Get a message when something breaks | [Alerts](alerts.md) |

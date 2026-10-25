@@ -2,9 +2,11 @@
 
 ## 0.5.6 (unreleased)
 
-### The Dashboard's stack tiles
+### Upgrading from 0.5.5
 
-- With Docker, the Dashboard starts with **Your stack**: a tile for each program running next to kia (Threadfin, Plex, Jellyfin, Prometheus, Grafana, and the exporters), green when it answers and red when it doesn't. kia checks each one every minute, and a tile with a page of its own (Plex, Jellyfin, Threadfin, Grafana) opens it. The same is in `stack.json` and in `/metrics` as `kia_stack_service_up` ([how it works](docs/how-it-works.md#the-dashboard)).
+Update with `scripts/update.sh`. To choose what runs from the Dashboard's new Stack page, install the kia-stack service once, in the kia folder: `scripts/install-service.sh --stack` ([your stack from the Dashboard](docs/stack-dashboard.md)). On Linux, also run `sudo loginctl enable-linger "$(id -un)"` once, so it keeps running after you log out.
+
+If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes: `COMPOSE_PROFILES` still decides. To use the Stack page, move to `KIA_STACK` first, using [the table](docs/stack.md#without-kia_stack). The profile `plex` (Threadfin only) is the part `plex-tuner`, not `plex`.
 
 ### Changing the stack from the Dashboard
 
@@ -16,27 +18,15 @@
 - A new service, **kia-stack**, lets the Dashboard's Stack page change what runs next to kia. The kia container can't reach Docker, on purpose, so the service runs `scripts/stack.sh watch` on the computer as you, carrying out the check or apply the page asks for. Install it with `scripts/install-service.sh --stack`, or `--stack-service` when you run the installer ([how it works](docs/stack.md#changing-the-stack-from-the-dashboard)). It takes only `check` or `apply` with part names it knows, and refuses anything else. It's built for a kia container that has been taken over: it never writes, reads, or follows anything in `state/` (where kia leaves the request), keeps its own files in `stack-service/`, which kia can only read, and removes anything that isn't a plain request unread ([security](SECURITY.md#the-kia-stack-service)). `scripts/update.sh` restarts it when its script changed.
 - `scripts/stack.sh check --stack plex,observability` checks a choice without changing `.env`, and `apply --stack` sets `KIA_STACK` first.
 
+### The Dashboard's stack tiles
+
+- With Docker, the Dashboard starts with **Your stack**: a tile for each program running next to kia (Threadfin, Plex, Jellyfin, Prometheus, Grafana, and the exporters), green when it answers and red when it doesn't. kia checks each one every minute, and a tile with a page of its own (Plex, Jellyfin, Threadfin, Grafana) opens it. The same is in `stack.json` and in `/metrics` as `kia_stack_service_up` ([how it works](docs/how-it-works.md#the-dashboard)).
+
 ### Choosing the parts of the stack
 
 - An empty `KIA_STACK=` line, which every `.env` made from `.env.example` has, counted as a choice of nothing. So with Threadfin started the way [Plex](docs/plex.md) said before, with `COMPOSE_PROFILES=plex`, `scripts/stack.sh` said nothing else ran, and `apply` stopped Threadfin (after asking, or at once with `--yes`). Now, while `KIA_STACK` is empty and `COMPOSE_PROFILES` isn't, `COMPOSE_PROFILES` decides, and `check` and `apply` change nothing. The Plex guide now uses `KIA_STACK=plex-tuner` and `scripts/stack.sh apply`.
 - `apply` starts the profiles it chose even when `COMPOSE_PROFILES` is also set in your shell, which Docker Compose would have used instead.
 - Ports in use are found with `ss` when `nc` isn't installed, and `check` says when neither is.
-
-### Security
-
-- `scripts/update.sh` kept what the containers last started with in `state/deployed-rev`, which the kia container can write, and passed it to git as it was. A kia container that had been taken over could have written an option there that emptied any file of yours on the next update. It's kept in git's own folder now, and used only if it's a commit; an old copy in `state/` is taken over once, if it is one, and removed.
-- `scripts/stack.sh apply --preset` wrote the preset's `KIA_STACK` to `.env` before checking it, so a refused or cancelled apply still changed it, with no copy of `.env` kept. `.env` changes now only once the check has passed and the questions are answered, and the copy of `.env` is made as a new file, never written through something already at that name.
-- The Pluto TV relay downloads at most 16 MB for any one address, so a server that sends far more (a broken one, or a hostile one reached through Pluto's redirects) can't fill kia's memory. A request for a piece of a channel that isn't playing no longer holds one of the 20 places until it times out.
-- Before updating its copy of iptv-org/epg, kia rewrites that copy's git settings from scratch. With `runner = "docker"`, iptv-org's code could otherwise have left a setting there that git runs as a command on the next update. kia also compiles iptv-org's scripts only with its own fixed esbuild now, never one from iptv-org's dependencies, since compiling runs outside Node's sandbox.
-- Grafana's login cookie is marked Secure and SameSite. Browsers send a cookie to every port of a computer, so before this, opening kia's plain-http Dashboard after signing in to Grafana sent Grafana's session across your network unencrypted.
-- Wrong passwords on the secure Dashboard slow down only the address that sends them: from the second one in a row, the wait doubles each time, up to a minute. Before, one person guessing held up everyone, the right password included, a second per guess. nginx passes on that address itself, so a browser can't name another one, and wrong passwords sent all at once take their turn and count one by one. An API address made to reach kia through another of nginx's locations is refused. An empty password box says "Enter kia's password first." instead of "Wrong password."
-- A password with accents or emoji locked you out of changes, because browsers can't send those characters, and every page said kia didn't answer. kia now refuses such a password when you set it, and says at start when `KIA_ADMIN_PASSWORD` has one or is shorter than 8 characters.
-- The other programs' data in the kia folder (Jellyfin's users, Grafana's database and password) is hidden from kia, and ffprobe and ffmpeg, which open streams from the internet, run with none of kia's passwords or tokens.
-- kia's pages say not to load anything from other sites (Content-Security-Policy), not to guess file types, and not to send where you came from. Channel names and shows from other people's playlists were already escaped; this is a second line.
-- `kia restore` keeps a sources file of your own in its safety copy, so a restore can be undone, and writes restored files privately from the start.
-- The installer and `scripts/install-service.sh` print the Dashboard password only when kia has just made it; after that, they say where it is. `install-service.sh --dry-run` hides passwords and tokens.
-- The arm64 image (Raspberry Pi) is scanned before it's published too, not only the amd64 one.
-- [SECURITY.md](SECURITY.md) now covers the web server's privileges, Threadfin's and Grafana's passwords, and Jellyfin's setup screens, which are open to anyone on your network until you finish them (the [Jellyfin cookbook](docs/cookbooks/jellyfin-box.md) says so too).
 
 ### The Dashboard
 
@@ -44,7 +34,7 @@
 - The "Channel names containing" boxes are patterns, so `+1` or `A&E?` didn't do what they say. The page says so now, and a pattern kia can't use is explained in plain words, with how to match the text as written.
 - With `channel_numbers = false` in `kia.toml`, the Dashboard still offered to change numbers and Renumber everything, which did nothing. Those are hidden then, and the API says why. Letters typed in a number box no longer clear the channel's number.
 - The Test button tests a channel the way the nightly check does, with `[check]`'s `require_video`, `user_agent`, and `ffprobe`.
-- A running Check now kept its progress and Stop button when the page was drawn again (after adding a source, say), for an address with a login in it.
+- For a playlist whose address has a login in it, a running Check now lost its progress and its Stop button when the page was drawn again (after adding a source, say). It keeps them now.
 - The Last refresh tile on the kia dashboard showed nothing during a refresh, instead of Refreshing.
 - After a change on the Dashboard, the System page showed the settings kia started with, even after `kia.toml` had changed.
 - A setting kia can't read, such as `KIA_RUN_AT=4am` or `KIA_EPG_DAYS=abc`, stops kia with one line naming it, instead of a Python traceback. A browser turning down kia's own certificate, or http:// sent to the secure port, is one line in the log too.
@@ -66,30 +56,10 @@
 - The DNS check asks the next public resolver when one fails (SERVFAIL), instead of saying the site has no address, and asks a resolver given as an IPv6 address over IPv6.
 - A bad `min_bitrate` on a `radio-browser:` line is reported when kia reads `sources.txt`.
 
-### Smaller fixes
-
-- `kia_plex_up` and `kia_jellyfin_up` said 0 when kia couldn't write its own list of players in `state/`, though the server was fine. The sessions still count then, with no pseudonym.
-- If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
-- The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
-- A `|` in a channel's group or id no longer breaks the table in `report.md`.
-- On the secure Sources page, the password box was unstyled and tiny, with its label and hint run together.
-- Writing each playlist's guide left guide.xml open until Python tidied up, and error pages from Plex, Jellyfin, another kia, and channel sources were never closed. Both are closed when kia is done with them.
-
-
 ### Observability
 
 - A Jellyfin dashboard in Grafana, like Plex's: whether Jellyfin answers, what's playing now on each player (by pseudonym), live TV against your own media, copied or converted video, players away from home, and what Jellyfin in the stack sends. It needs `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN`, the same settings as Jellyfin's numbers in `/metrics` ([graphs for your TV stack](docs/cookbooks/observability.md#5-jellyfin-optional)). `.env.example` already promised it.
 - The Hardware dashboard's *Converting on the card* and *Converting on the processor* tiles count Jellyfin's sessions as well as Plex's.
-
-### Docs
-
-- The README's manual install moves the copy to kia's newest release and asks for `PUID` and `PGID`, as [installing kia](docs/install.md) does.
-- "Channel sources" for the playlists kia reads, and "playlists" for the ones it makes, on the first pages a new user reads.
-- A Raspberry Pi, or any computer with less than 6 GB of memory, changes the three lighter settings already in `.env`. Adding them near the top did nothing, because the empty lines further down win.
-- Changes to `profiles.toml` show up at the next guide refresh, within 4 hours, or now with `kia refresh-guide`; the docs said to run the hour-long stream check.
-- [Metrics](docs/metrics.md) says `/metrics` shows what's playing on Plex and Jellyfin, by pseudonym, to anyone on your network.
-- Smaller corrections: a removed channel comes back after three good nights; Start here checks the Dashboard before setting up devices; Kodi's playlist address works once the first refresh is done; `observability` includes cAdvisor; the image versions you can pin include Jellyfin's and the disk exporter's; the Plex box cookbook works on macOS too.
-- The Kodi screenshots no longer carry the display's color profile, and the TV stack screenshot shows the current dashboards.
 
 ### Installing
 
@@ -103,8 +73,48 @@
 ### Updating
 
 - `scripts/update.sh` asks before restarting while someone watches through Jellyfin, not only Plex and Pluto TV.
-- When an update stopped after moving the files and before restarting (Docker not running, a failed build), the next run forgot that the web server's or Prometheus's settings had changed. It now keeps what the containers last started with in `state/deployed-rev`.
+- When an update stopped after moving the files and before restarting (Docker not running, a failed build), the next run forgot that the web server's or Prometheus's settings had changed. It now keeps what the containers last started with, in git's own folder (`kia-deployed-rev`).
 - With a published image of one version (`KIA_IMAGE=…:0.5.4`), `update.sh` moved the files to the new release but pulled the old image again. It now sets `KIA_IMAGE` to the new release's version.
+
+### Security
+
+- `scripts/update.sh` kept what the containers last started with in `state/deployed-rev`, which the kia container can write, and passed it to git as it was. A kia container that had been taken over could have written an option there that emptied any file of yours on the next update. It's kept in git's own folder now, and used only if it's a commit; an old copy in `state/` is taken over once, if it is one, and removed.
+- `scripts/stack.sh apply --preset` wrote the preset's `KIA_STACK` to `.env` before checking it, so a refused or cancelled apply still changed it, with no copy of `.env` kept. `.env` changes now only once the check has passed and the questions are answered, and the copy of `.env` is made as a new file, never written through something already at that name.
+- The Pluto TV relay downloads at most 16 MB for any one address, so a server that sends far more (a broken one, or a hostile one reached through Pluto's redirects) can't fill kia's memory. A request for a piece of a channel that isn't playing no longer holds one of the 20 places until it times out.
+- Before updating its copy of iptv-org/epg, kia rewrites that copy's git settings from scratch. With `runner = "docker"`, iptv-org's code could otherwise have left a setting there that git runs as a command on the next update. kia also compiles iptv-org's scripts only with its own fixed esbuild now, never one from iptv-org's dependencies, since compiling runs outside Node's sandbox.
+- Grafana's login cookie is marked Secure and SameSite. Browsers send a cookie to every port of a computer, so before this, opening kia's plain-http Dashboard after signing in to Grafana sent Grafana's session across your network unencrypted.
+- Wrong passwords on the secure Dashboard slow down only the address that sends them: from the second one in a row, the wait doubles each time, up to a minute. Before, one person guessing held up everyone, the right password included, a second per guess. nginx passes on that address itself, so a browser can't name another one, and wrong passwords sent all at once take their turn and count one by one. An API address made to reach kia through another of nginx's locations is refused. An empty password box says "Enter kia's password first." instead of "Wrong password."
+- A password with accents or emoji locked you out of changes, because browsers can't send those characters, and every page said kia didn't answer. kia now refuses such a password when you set it, and says at start when `KIA_ADMIN_PASSWORD` has one or is shorter than 8 characters.
+- The other programs' data in the kia folder (Jellyfin's users, Grafana's database and password) is hidden from kia, and ffprobe and ffmpeg, which open streams from the internet, run with none of kia's passwords or tokens.
+- kia's pages say not to load anything from other sites (Content-Security-Policy), not to guess file types, and not to send where you came from. Channel names and shows from other people's playlists were already escaped; this is a second line.
+- `kia restore` keeps a sources file of your own in its safety copy, so a restore can be undone, and writes restored files privately from the start.
+- The installer and `scripts/install-service.sh` print the Dashboard password only when kia has just made it; after that, they say where it is. `install-service.sh --dry-run` hides passwords and tokens.
+- The arm64 image (Raspberry Pi) is scanned before it's published too, not only the amd64 one.
+- [SECURITY.md](SECURITY.md) now covers the web server's privileges, Threadfin's and Grafana's passwords, and Jellyfin's setup screens, which are open to anyone on your network until you finish them (the [Jellyfin cookbook](docs/cookbooks/jellyfin-box.md) says so too).
+
+### Docs
+
+- [Your stack from the Dashboard](docs/stack-dashboard.md) walks through choosing Plex, Jellyfin, or the graphs on the Stack page the first time, from installing the kia-stack service to finishing each part.
+- [The stack under the hood](docs/stack-under-the-hood.md) shows how it works: parts and Compose profiles, what check and apply do step by step, and how the Stack page and the kia-stack service pass requests and answers.
+- [Choosing the parts](docs/stack.md#without-kia_stack) has a table for moving from `COMPOSE_PROFILES` to `KIA_STACK`. The observability cookbook's example no longer suggests `plex` to someone whose `plex` profile meant Threadfin only, which would have started a second Plex.
+- The API docs give the right answers to a missing or wrong password (`401`, then `429` while kia makes an address wait). The certificate steps run from cron or a certbot hook give the files to kia's user, not root. Removing kia removes the kia-stack service too.
+- New diagrams for the kia-stack service and the Jellyfin box, and the Pluto TV diagram says kia fetches each piece when a player asks for it.
+- The README's manual install moves the copy to kia's newest release and asks for `PUID` and `PGID`, as [installing kia](docs/install.md) does.
+- "Channel sources" for the playlists kia reads, and "playlists" for the ones it makes, on the first pages a new user reads.
+- A Raspberry Pi, or any computer with less than 6 GB of memory, changes the three lighter settings already in `.env`. Adding them near the top did nothing, because the empty lines further down win.
+- Changes to `profiles.toml` show up at the next guide refresh, within 4 hours, or now with `kia refresh-guide`; the docs said to run the hour-long stream check.
+- [Metrics](docs/metrics.md) says `/metrics` shows what's playing on Plex and Jellyfin, by pseudonym, to anyone on your network.
+- Smaller corrections: a removed channel comes back after three good nights; Start here checks the Dashboard before setting up devices; Kodi's playlist address works once the first refresh is done; `observability` includes cAdvisor; the image versions you can pin include Jellyfin's and the disk exporter's; the Plex box cookbook works on macOS too.
+- The Kodi screenshots no longer carry the display's color profile, and the TV stack screenshot shows the current dashboards.
+
+### Smaller fixes
+
+- `kia_plex_up` and `kia_jellyfin_up` said 0 when kia couldn't write its own list of players in `state/`, though the server was fine. The sessions still count then, with no pseudonym.
+- If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
+- The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
+- A `|` in a channel's group or id no longer breaks the table in `report.md`.
+- On the secure Sources page, the password box was unstyled and tiny, with its label and hint run together.
+- Writing each playlist's guide left guide.xml open until Python tidied up, and error pages from Plex, Jellyfin, another kia, and channel sources were never closed. Both are closed when kia is done with them.
 
 ## 0.5.5 (2026-10-24)
 
@@ -543,7 +553,7 @@ Update as usual (`git pull`, then `docker compose up -d --build`). Both containe
 ### Program guide
 
 - `accept_name_matches` in `kia.toml` turns on "possible matches" from the mapping report that you've checked.
-- Reports show times in your time zone, such as "Mon Oct 19, 15:55 CDT".
+- Reports show times in your time zone, such as "Mon Oct 19, 15:55 EDT".
 
 ### Versions
 

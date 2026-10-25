@@ -5,7 +5,7 @@ kia's Dashboard is on two ports:
 | Address | What it's for |
 |---|---|
 | `http://<your address>:8780/` | Playlists and guides for Kodi and other players, and the Dashboard to look at |
-| `https://<your address>:8743/` | The same Dashboard, where you add and change playlists, choose the playlists kia checks, and change the password |
+| `https://<your address>:8743/` | The same Dashboard, where you make changes: add and change playlists, choose the playlists kia checks, star, number, test, or remove channels, choose what runs next to kia on the Stack page, and change the password |
 
 Changes are accepted only on the secure (`https://`) page, so the password never crosses your network in the clear. Playlists and guides stay on plain HTTP because Kodi and most players refuse a certificate they don't trust, and kia's own certificate is one of those.
 
@@ -55,7 +55,7 @@ Set `KIA_EDITING=false` in `.env` and restart kia. The Dashboard then only shows
 
 kia's certificate covers the address in `KIA_PUBLIC_URL`. If you reach kia by another name, such as one from your own DNS, list the names and addresses in `.env`:
 
-```sh
+```ini
 KIA_TLS_NAMES=kia.home.lan,192.168.1.20
 ```
 
@@ -87,12 +87,14 @@ If you use [Tailscale](https://tailscale.com) to reach kia away from home, it ca
 
    ```sh
    sudo tailscale cert --cert-file tls/fullchain.pem --key-file tls/privkey.pem my-server.tail1234.ts.net
-   sudo chown "$(id -u):$(id -g)" tls/*.pem && chmod 644 tls/fullchain.pem && chmod 640 tls/privkey.pem
+   sudo chown 1000:1000 tls/*.pem && chmod 644 tls/fullchain.pem && chmod 640 tls/privkey.pem
    ```
+
+   `1000:1000` is `PUID:PGID` from `.env`: use yours (`id -u` and `id -g` show them). Write the numbers rather than `$(id -u)`, so the line still works from cron or a certbot hook, which run as root.
 
 3. Add the name to `.env` so the Dashboard links to it, then restart kia:
 
-   ```sh
+   ```ini
    KIA_TLS_NAMES=my-server.tail1234.ts.net
    ```
 
@@ -106,11 +108,11 @@ With [certbot](https://certbot.eff.org) and its plugin for your DNS provider (Cl
 
 ```sh
 sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/cloudflare.ini -d kia.example.com
-sudo install -m 644 -o "$(id -u)" -g "$(id -g)" /etc/letsencrypt/live/kia.example.com/fullchain.pem tls/
-sudo install -m 640 -o "$(id -u)" -g "$(id -g)" /etc/letsencrypt/live/kia.example.com/privkey.pem tls/
+sudo install -m 644 -o 1000 -g 1000 /etc/letsencrypt/live/kia.example.com/fullchain.pem tls/
+sudo install -m 640 -o 1000 -g 1000 /etc/letsencrypt/live/kia.example.com/privkey.pem tls/
 ```
 
-Then set `KIA_TLS_NAMES=kia.example.com` in `.env` and restart kia. The name also has to lead to the kia machine on your network: add it to your router's or home DNS server's local records. certbot renews by itself; to copy the renewed files each time, give it a deploy hook that runs the two `install` lines above (`--deploy-hook`).
+As above, `1000` is your `PUID` and `PGID` from `.env`. Then set `KIA_TLS_NAMES=kia.example.com` in `.env` and restart kia. The name also has to lead to the kia machine on your network: add it to your router's or home DNS server's local records. certbot renews by itself; to copy the renewed files each time, give it a deploy hook that runs the two `install` lines above (`--deploy-hook`).
 
 ## Without Docker
 

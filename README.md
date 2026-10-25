@@ -47,9 +47,10 @@ It asks for this computer's address and time zone, and what this kia is for, whi
 | `plex-box` | A home TV box: Plex and Threadfin run next to kia ([cookbook](docs/cookbooks/plex-box.md)) |
 | `plex-elsewhere` | Threadfin, for a Plex you already run on another computer ([Plex](docs/plex.md)) |
 | `jellyfin-box` | A home TV box with Jellyfin ([cookbook](docs/cookbooks/jellyfin-box.md)) |
+| `plex-box-graphs`, `jellyfin-box-graphs` | The same TV boxes, with Prometheus and Grafana for graphs |
 | `everything` | Plex and Jellyfin side by side, with Prometheus and Grafana |
 
-At the end it prints the Dashboard's address and the password for changes. kia's first refresh then takes up to an hour.
+It also offers the kia-stack service, so you can change what runs later on the Dashboard. At the end it prints the Dashboard's address and the password for changes. kia's first refresh then takes up to an hour.
 
 <details>
 <summary>Or install by hand</summary>
@@ -101,7 +102,9 @@ Each [cookbook](docs/cookbooks/README.md) takes one goal from start to finish:
 
 ## Choosing what runs
 
-One line in `.env` says which programs run next to kia, such as `KIA_STACK=plex,observability`. Then `scripts/stack.sh` checks the choice for this computer and starts it:
+The Dashboard's **Stack** page shows a card for each common setup, such as *Plex TV box* or *Jellyfin TV box with graphs*, and lets you pick parts one by one. **Check** tests the choice for this computer, and **Apply** starts it. It asks for Plex's claim code, offers to make Plex's playlist, and says what each new part needs next. [Your stack from the Dashboard](docs/stack-dashboard.md) walks through it the first time.
+
+Underneath, one line in `.env` says which programs run next to kia, such as `KIA_STACK=plex,observability`, and `scripts/stack.sh` checks the choice and starts it. You can use it in a terminal too:
 
 ```sh
 scripts/stack.sh check     # names it doesn't know, parts that don't go together, ports in use, memory
@@ -109,7 +112,7 @@ scripts/stack.sh apply     # start what's chosen and stop the rest, asking first
 scripts/stack.sh           # what runs now, and which graphs have data
 ```
 
-The parts are `plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, and `observability-disks`. [Choosing the parts](docs/stack.md) explains each one.
+The parts are `plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, and `observability-disks`. [Choosing the parts](docs/stack.md) explains each one, and [the stack under the hood](docs/stack-under-the-hood.md) shows how it all works.
 
 ## Players
 
@@ -144,7 +147,8 @@ Each night kia tests every stream with `ffprobe`, matches the working channels t
 
 kia is meant for your home network, and each part of it gets only what it needs:
 
-- The containers run with a read-only system and no extra privileges. kia can't reach Docker, and writes only its own folders.
+- kia's own containers run with a read-only system and no extra privileges. kia can't reach Docker, and writes only its own folders. Some optional programs need more, such as the disk health exporter, which reads the disks directly.
+- The kia-stack service, which lets the Dashboard change what runs, takes only a check or an apply of parts it knows, and treats each request as coming from a stranger.
 - iptv-org's guide downloader, outside code that changes daily, runs in Node.js's sandbox and sees none of kia's passwords or tokens.
 - Changes on the Dashboard need a password and are accepted only over HTTPS.
 - The published images are scanned before they go out, and come with a signed record of how they were built.
