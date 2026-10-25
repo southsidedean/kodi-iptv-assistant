@@ -80,7 +80,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. `grafana-data` is a Docker volume ([on a Mac](#on-a-mac)). |
 | `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Observability** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |
 | `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE`, `KIA_SMARTCTL_IMAGE` | the latest | The monitoring images' versions. |
-| `KIA_DCGM_IMAGE` | `nvidia/dcgm-exporter:4.3.1-4.4.1-ubuntu22.04` | The graphics card exporter's version (`monitoring-gpu`); NVIDIA has no `latest` tag. |
+| `KIA_DCGM_IMAGE` | `nvidia/dcgm-exporter:4.6.1-4.8.4` | The graphics card exporter's version (`monitoring-gpu`), pinned to one tested with kia's Hardware dashboard. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.

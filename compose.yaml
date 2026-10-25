@@ -498,7 +498,7 @@ services:
   # NVIDIA cards only, with NVIDIA's Container Toolkit installed; COMPOSE_PROFILES=...,monitoring-gpu.
   dcgm-exporter:
     profiles: ["monitoring-gpu"]
-    image: ${KIA_DCGM_IMAGE:-nvidia/dcgm-exporter:4.3.1-4.4.1-ubuntu22.04}
+    image: ${KIA_DCGM_IMAGE:-nvidia/dcgm-exporter:4.6.1-4.8.4}
     restart: unless-stopped
     logging: *logging
     gpus: all
