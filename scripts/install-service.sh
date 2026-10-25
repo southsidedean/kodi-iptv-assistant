@@ -162,7 +162,10 @@ if ! [ -f .env ]; then
     (umask 077 && sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://${address:-localhost}:8780|" -e "s|^TZ=.*|TZ=${zone:-Etc/UTC}|" .env.example >.env)
     say "Made .env with address http://${address:-localhost}:8780 and time zone ${zone:-Etc/UTC}. Edit it to change them, then run this again."
 fi
+# The folders kia writes, and npm's cache: on Linux the service may write only these
+# (deploy/kia.service), so they have to be there before it starts.
 mkdir -p output state work/logs vendor profiles tls "$(dirname "$target")"
+[ "$OS" = Darwin ] || mkdir -p "$HOME/.npm"
 # The password is shown once, when kia has just made it; after that, where it is.
 [ -s state/admin-password.txt ] && had_password=yes || had_password=no
 
@@ -193,6 +196,12 @@ else
         say "  sudo loginctl enable-linger $(id -un)"
     fi
     say "Log: journalctl --user -u kia -f"
+    # Ubuntu 23.10 and newer keep a user service from making a user namespace, which the
+    # service's file limits need, and systemd then skips them without a word.
+    if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+        say "Note: on this system (Ubuntu's AppArmor), the service can't limit which files kia may change,"
+        say "      so kia can write anywhere you can. Its other limits still apply (docs/setups.md#without-docker)."
+    fi
 fi
 
 url=$(sed -n 's/^KIA_PUBLIC_URL=//p' .env)

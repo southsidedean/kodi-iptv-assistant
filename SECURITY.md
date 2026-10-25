@@ -28,6 +28,8 @@ It's a guard for the ordinary case, and someone determined can get past it. kia 
 
 kia's two containers (kia, and the web server) run with a read-only system. kia has no extra privileges, and can write only to its `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/` folders. It sees the rest of the kia folder read-only, `.env` included (it needs it for backups), and with Plex in the stack, Plex's settings, where it reads Plex's sign-in. Jellyfin's and Grafana's data are hidden from it. The programs that open streams from the internet (ffprobe, ffmpeg) get none of kia's passwords or tokens.
 
+Without Docker, on Linux, the kia service (`deploy/kia.service`) gets systemd's limits instead: no extra privileges, only the system calls an ordinary service makes, and the computer and your home folder read-only except the folders kia writes (the ones above, without `plex/warmup/`) and npm's cache. On macOS, kia runs as you, with no limits beyond that. The file limits need the kernel to let a user service make a user namespace, which Ubuntu 23.10 and newer don't allow (AppArmor). There systemd skips them without a word, so kia can write anywhere you can; `scripts/install-service.sh` says so when it installs. For the full lockdown on Ubuntu, run kia with Docker.
+
 The web server (nginx) starts as root to open its ports, keeping only the capabilities that takes, then works as its own user. It reads `output/`, the certificate and key in `tls/`, and its own settings, and sends headers that keep kia's pages from loading anything from other sites or being shown inside one.
 
 The optional services are looser where they have to be:
