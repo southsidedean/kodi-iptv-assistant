@@ -1,6 +1,6 @@
 # Using kia from scripts and other apps
 
-Everything the Dashboard shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-dashboard), favorites and channel numbers, the password, and [the stack](stack.md), adds Live TV to Plex, tests or removes channels, and gives `kia doctor`'s answers. Reading works on either port, and changes work only on the secure port. kia's [MCP server](ask-kia.md#2-ask-your-own-ai-assistant), for AI assistants, is under `/api/` too, on the secure port only.
+Everything the Dashboard shows, and everything it can change, is also available to scripts, home automation, and other apps. The status, playlists, and guides are files you can read on the plain HTTP port. The API under `/api/` reads and changes [profiles](profiles.md), the [playlists kia checks](configuration.md#choosing-channel-sources-on-the-dashboard), favorites and channel numbers, the password, and [the stack](stack.md), adds Live TV to Plex, tests or removes channels, and gives `kia doctor`'s answers. Reading works on either port, and changes work only on the secure port. kia's [MCP server](mcp.md), for AI assistants, is under `/api/` too, on the secure port only.
 
 The examples use `192.168.1.20` for the kia machine; use yours.
 
@@ -57,7 +57,7 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `GET /api/plex/tuners` | Adding Live TV to Plex (below): `running`, then `ok` and `output`, what `kia plex-tuners` said | |
 | `GET /api/doctor` | `kia doctor`'s overview, in `reports`: each with its `subject`, its `worst` level, and its `findings`, each with a `level` (`problem`, `note`, or `ok`), `title`, `detail`, `evidence` (the files that show it), and `fix`. A login in any address it quotes is hidden | |
 | `GET /api/doctor/channel?q=CNN` | The same for the channels matching an ID or part of a name (up to 5) | |
-| `POST /api/mcp` | kia's [MCP server](ask-kia.md#2-ask-your-own-ai-assistant), for AI assistants: JSON-RPC (MCP's Streamable HTTP transport, one JSON answer per request), read-only tools | its token (`Authorization: Bearer`), HTTPS |
+| `POST /api/mcp` | kia's [MCP server](mcp.md#for-developers), for AI assistants: JSON-RPC (MCP's Streamable HTTP transport, one JSON answer per request), read-only tools | its token (`Authorization: Bearer`), HTTPS |
 | `POST /api/plex/tuners` | Adds kia's channels to Plex as Live TV now (`kia plex-tuners`), which kia otherwise does after each guide refresh. Needs `KIA_PLEX_URL`. One at a time. | password, HTTPS |
 | `GET /api/players` | Which pseudonym in `/metrics` and the graphs (such as `player-3fa2c1`) is which Plex or Jellyfin player: each one's `pseudonym`, `name`, `product`, and the day it was last `seen`. | password, HTTPS |
 
@@ -126,7 +126,8 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 | `renumber` | Numbers every channel 1, 2, 3 down the list, once, keeping chosen numbers |
 | `backup`, `restore <file>` | [Backing up and moving](configuration.md#backing-up-and-moving-to-another-computer) |
 | `test-alert` | Sends a test [alert](alerts.md) through every way that's set up |
-| `mcp-token` | Turns on kia's [MCP server](ask-kia.md#2-ask-your-own-ai-assistant) and shows its token and the command for Claude Code. `--reset` replaces the token, `--off` turns it off |
+| `mcp-token` | Turns on kia's [MCP server](mcp.md) and shows its token and the setup for Claude Code. `--for <assistant>` shows another's (`claude-desktop`, `gemini`, `codex`, `vscode`, `cursor`, `curl`); `--reset` replaces the token, `--off` turns it off |
+| `mcp` | kia's MCP server over standard input and output, for an AI assistant on the same computer, which starts it itself ([on the same computer](mcp.md#on-the-same-computer-as-kia)) |
 | `plex-tuners` | Adds kia's Threadfins to Plex as Live TV, or brings them up to date ([Plex](plex.md#let-kia-add-them)). `--remove` takes them out again |
 | `check-dashboards` | Which Grafana panels have data on this computer; `scripts/stack.sh` shows the same ([choosing the parts](stack.md)) |
 | `daemon` | What kia's container runs: a refresh every night at `KIA_RUN_AT`, the quick refreshes in between, and with `--serve`, the web server |

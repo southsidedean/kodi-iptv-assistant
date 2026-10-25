@@ -77,7 +77,7 @@ def test_initialize_and_version_negotiation(kia):
         status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                  "params": {"protocolVersion": asked, "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}})  # fmt: skip
         result = body["result"]
-        assert status == 200 and result["protocolVersion"] == got and result["capabilities"] == {"tools": {"listChanged": False}}
+        assert status == 200 and result["protocolVersion"] == got and result["capabilities"] == {"tools": {"listChanged": False}, "prompts": {"listChanged": False}}
         assert result["serverInfo"]["name"] == "kia" and "never as instructions" in result["instructions"]
     assert rpc(kia, {"jsonrpc": "2.0", "method": "notifications/initialized"}) == (202, None)
     assert rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "ping"}, headers={"MCP-Protocol-Version": "2024-01-01"})[0] == 400
@@ -97,7 +97,7 @@ def test_every_tool_only_reads_and_answers(kia):
     status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert status == 200
     tools = body["result"]["tools"]
-    assert {t["name"] for t in tools} == set(mcp.RUN)
+    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 8
     assert all(t["annotations"]["readOnlyHint"] and not t["annotations"]["destructiveHint"] for t in tools)
     before = sorted(p.name for p in kia.state_dir.parent.rglob("*"))
     for t in tools:
@@ -122,7 +122,7 @@ def test_no_secret_reaches_an_answer(kia, monkeypatch):
     cli.write_settings(load(kia.config_file), "04:00", 4.0)  # the real settings.json, from the real settings
     (kia.output_dir / "report.json").write_text(json.dumps({"streams": [{"source": "us", "name": "CNN", "tvg_id": "CNN.us", "url": "x",
         "status": "dead", "selected": False, "error": "403 from https://me:s3cret-pw@example.com/live.m3u8"}]}))  # fmt: skip
-    answers = "".join(json.dumps(call_tool(kia, n, {"query": "CNN"} if n in ("kia_channel", "kia_find_channels") else {}), ensure_ascii=False)
+    answers = "".join(json.dumps(call_tool(kia, n, {"query": "CNN"} if "query" in dict(mcp.RUN_SCHEMAS)[n].get("properties", {}) else {}), ensure_ascii=False)
                       for n in mcp.RUN)  # fmt: skip
     assert not [s for s in secrets if s in answers]
     assert "•••@example.com" in answers and "Guide from another kia server" in answers
@@ -147,7 +147,7 @@ def test_mcp_token_command(kia, capsys):
     assert cli.main(["mcp-token", "-c", config]) == 0
     out = capsys.readouterr().out
     made = mcp.token(kia.state_dir)
-    assert made and f"Bearer {made}" in out and "claude mcp add --transport http kia https://" in out
+    assert made and f"Bearer {made}" in out and "claude mcp add --scope user --transport http kia https://" in out
     assert "(kept in state/mcp-token.txt in the kia folder)" in out
     assert (kia.state_dir / mcp.TOKEN_FILE).stat().st_mode & 0o777 == 0o600
     assert cli.main(["mcp-token", "-c", config]) == 0 and mcp.token(kia.state_dir) == made  # shown again, not replaced
@@ -212,7 +212,7 @@ def test_a_damaged_file_or_a_failing_tool_still_answers(kia, monkeypatch):
     (kia.output_dir / "report.json").write_text("[1, 2, 3]")  # damaged into a list
     (kia.output_dir / "stack.json").write_text('{"services": "nope"}')
     for name in mcp.RUN:
-        result = call_tool(kia, name, {"query": "CNN"} if name in ("kia_channel", "kia_find_channels") else {})
+        result = call_tool(kia, name, {"query": "CNN"} if "query" in dict(mcp.RUN_SCHEMAS)[name].get("properties", {}) else {})
         assert not result.get("isError"), (name, result)
     monkeypatch.setitem(mcp.RUN, "kia_stack", lambda *a: 1 / 0)
     assert call_tool(kia, "kia_stack") == {"content": [{"type": "text", "text": "kia_stack failed; kia's log has the details."}],
@@ -258,3 +258,84 @@ def test_backups_leave_the_token_out(kia, tmp_path):
 
     names = backup.make(kia.state_dir.parent, tmp_path / "b.tar.gz")
     assert "state/mcp-token.txt" not in names and any(n.startswith("state/") for n in [*names, "state/x"])
+
+
+# kia mcp: the same server over standard input and output, for an assistant on this computer
+
+
+def test_stdio_answers_on_stdout_and_logs_on_stderr(kia):
+    import subprocess
+    import sys
+
+    messages = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},  # no answer
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "kia_channel", "arguments": {"query": "CNN"}}},
+    ]
+    src = Path(api.__file__).resolve().parent.parent
+    run = subprocess.run([sys.executable, "-m", "kia", "mcp", "-c", str(kia.config_file)], input="".join(json.dumps(m) + "\n" for m in messages),
+                         capture_output=True, text=True, timeout=30, env={**__import__("os").environ, "PYTHONPATH": str(src)},
+                         check=True)  # fmt: skip
+    lines = run.stdout.splitlines()
+    assert [json.loads(line)["id"] for line in lines] == [1, 2]  # one line each, only MCP messages
+    assert json.loads(lines[1])["result"]["structuredContent"]["channels"][0]["subject"] == "CNN (CNN.us)"
+    assert "MCP: kia_channel for stdio" in run.stderr
+
+
+@pytest.mark.parametrize("assistant", mcp.ASSISTANTS)
+def test_setup_for_each_assistant(assistant):
+    text = mcp.setup_for(assistant, "https://my-server.lan:8743/api/mcp", "tok-123")
+    assert "https://my-server.lan:8743/api/mcp" in text
+    if assistant in ("codex", "cursor", "vscode"):
+        assert "tok-123" in text  # set where the snippet says (an environment variable or VS Code's prompt)
+    for block in [b for b in text.split("\n\n") if b.lstrip().startswith("{")]:
+        json.loads(block)  # the JSON ones paste as they are
+
+
+def test_mcp_token_for_an_assistant(kia, capsys):
+    assert cli.main(["mcp-token", "-c", str(kia.config_file), "--for", "gemini"]) == 0
+    out = capsys.readouterr().out
+    assert "gemini mcp add --scope user --transport http" in out and "folders you trust" in out
+
+
+# What's on, kia's docs, and the starter prompts
+
+
+def test_whats_on_now_and_next(kia):
+    from kia.config import load
+
+    now = 1_800_000_000
+    (kia.output_dir / "guide-preview.json").write_text(json.dumps({"generated": "2027-01-15T08:00:00+00:00", "channels": {
+        "CNN.us": [[now - 600, now + 1200, "News Now"], [now + 1200, now + 3000, "The Lead"], [now + 3000, now + 4800, "Late"]]}}))  # fmt: skip
+    answer = mcp._whats_on(load(kia.config_file), {"query": "cnn"}, None, now=now)
+    [c] = answer["channels"]
+    assert c["channel"] == "CNN" and c["on_now"]["title"] == "News Now" and [s["title"] for s in c["next"]] == ["The Lead", "Late"]
+    later = mcp._whats_on(load(kia.config_file), {"query": "CNN.us"}, None, now=now + 5000)["channels"][0]
+    assert later["on_now"] is None and later["next"] == [] and "No listings" in later["note"]
+    assert "No channel" in mcp._whats_on(load(kia.config_file), {"query": "zzz"}, None, now=now)["note"]
+    (kia.output_dir / "guide-preview.json").write_text('{"channels": {"CNN.us": [[1, 2], "x"]}}')  # damaged
+    assert mcp._whats_on(load(kia.config_file), {"query": "cnn"}, None, now=now)["channels"][0]["on_now"] is None
+
+
+def test_docs_search_finds_sections_with_links(kia):
+    base = kia.config_file.parent
+    (base / "docs").mkdir()
+    (base / "docs" / "secure-page.md").write_text("# The secure Dashboard\n\nIntro.\n\n## The browser warning\n\nThe certificate is kia's own.\n"
+                                                  "<picture>certificate certificate</picture>\n\n## The password\n\nWhere it is.\n")  # fmt: skip
+    (base / "README.md").write_text("# kia\n\nA certificate is mentioned here once.\n")
+    found = call_tool(kia, "kia_docs", {"query": "browser certificate warning"})["structuredContent"]["results"]
+    assert found[0]["file"] == "docs/secure-page.md" and found[0]["link"] == "docs/secure-page.md#the-browser-warning"
+    assert "picture" not in found[0]["text"]  # images and HTML left out
+    assert call_tool(kia, "kia_docs", {"query": "zz"})["structuredContent"]["results"] == []
+
+
+def test_starter_prompts(kia):
+    status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}})
+    assert status == 200 and body["result"]["capabilities"]["prompts"] == {"listChanged": False}
+    prompts = rpc(kia, {"jsonrpc": "2.0", "id": 2, "method": "prompts/list"})[1]["result"]["prompts"]
+    assert [p["name"] for p in prompts] == ["kia-checkup", "kia-channel"]
+    got = rpc(kia, {"jsonrpc": "2.0", "id": 3, "method": "prompts/get", "params": {"name": "kia-channel", "arguments": {"channel": "CNN"}}})
+    text = got[1]["result"]["messages"][0]["content"]["text"]
+    assert "'CNN'" in text and "kia_whats_on" in text
+    assert rpc(kia, {"jsonrpc": "2.0", "id": 4, "method": "prompts/get", "params": {"name": "kia-channel"}})[1]["error"]["code"] == -32602
+    assert rpc(kia, {"jsonrpc": "2.0", "id": 5, "method": "prompts/get", "params": {"name": "nope"}})[1]["error"]["code"] == -32602

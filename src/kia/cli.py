@@ -1121,6 +1121,33 @@ def cmd_renumber(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mcp(args: argparse.Namespace) -> int:
+    """kia's MCP server over standard input and output (MCP's stdio transport, kia.mcp): for an
+    assistant on this computer, which starts it as a program. No certificate or token: whoever
+    can start kia here can read its files anyway. Standard output carries only MCP messages,
+    one per line, so kia's own lines go to standard error."""
+    from kia import mcp
+
+    path = Path(args.config)
+
+    def note(text: str) -> None:
+        print(text, file=sys.stderr, flush=True)
+
+    try:
+        api_cfg = api_config(load(path))
+    except (OSError, ValueError) as exc:  # the tools say so when they're used; connecting still works
+        note(f"kia's settings couldn't be read: {exc}")
+        api_cfg = None
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        _status, answer = mcp.handle(lambda: load(path), api_cfg, {}, line.encode(), note, "stdio")
+        if answer is not None:
+            sys.stdout.write(json.dumps(answer, ensure_ascii=False) + "\n")  # one line: no line breaks inside
+            sys.stdout.flush()
+    return 0
+
+
 def cmd_mcp_token(args: argparse.Namespace) -> int:
     """Turn on kia's MCP server by making its token, show it, replace it, or turn it off (kia.mcp)."""
     from kia import mcp
@@ -1148,9 +1175,11 @@ def cmd_mcp_token(args: argparse.Namespace) -> int:
     except ValueError:  # a state folder outside the kia folder
         where = str(path)
     print(f"Its token (kept in {where}): {value}")
-    print("To use it from Claude Code:")
-    print(f'  claude mcp add --transport http kia {address} --header "Authorization: Bearer {value}"')
-    print("Other computers need to trust kia's certificate first: see docs/ask-kia.md.")
+    print()
+    print(mcp.setup_for(args.for_, address, value), end="")
+    print()
+    print("Other computers need a copy of kia's certificate, tls/fullchain.pem, saved as ~/kia-cert.pem:")
+    print(f"see docs/mcp.md. For another assistant: kia mcp-token --for {{{','.join(mcp.ASSISTANTS)}}}")
     return 0
 
 
@@ -1526,10 +1555,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("what", nargs="*", help="nothing for an overview, or: channel <name or ID>")
     p.add_argument("--json", action="store_true", help="the answer as JSON, for scripts")
     p.set_defaults(func=cmd_doctor)
+    p = sub.add_parser("mcp", help="kia's MCP server over standard input and output, for an AI assistant on this computer (docs/mcp.md)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.set_defaults(func=cmd_mcp)
     p = sub.add_parser("mcp-token", help="turn on kia's MCP server for AI assistants, and show its token (docs/ask-kia.md)")
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--reset", action="store_true", help="make a new token; the old one stops working")
     p.add_argument("--off", action="store_true", help="turn the MCP server off (deletes the token)")
+    p.add_argument("--for", dest="for_", default="claude-code", choices=("claude-code", "claude-desktop", "gemini", "codex", "vscode", "cursor", "curl"),
+                   help="which assistant to show the setup for (default: claude-code)")
     p.set_defaults(func=cmd_mcp_token)
     p = sub.add_parser("settings", help="show the settings kia is running with, and where each is changed")
     p.add_argument("-c", "--config", default="kia.toml")
