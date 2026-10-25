@@ -28,19 +28,21 @@ Plex and Jellyfin can run side by side. With `KIA_STACK=` (empty), kia runs with
 
 ## Presets
 
-A preset sets `KIA_STACK` for you, for one of the common setups; the installer offers them too:
+A preset sets `KIA_STACK` for you, for one of the common setups. The installer offers them, and the Dashboard's Stack page shows each one as a card:
 
 ```sh
 scripts/stack.sh apply --preset plex-box
 ```
 
-| Preset | `KIA_STACK` |
-|---|---|
-| `kodi` | (empty): kia and its web server |
-| `plex-box` | `plex` |
-| `plex-elsewhere` | `plex-tuner` |
-| `jellyfin-box` | `jellyfin` |
-| `everything` | `plex,jellyfin,observability` |
+| Preset | Card | `KIA_STACK` | Needs |
+|---|---|---|---|
+| `kodi` | Kodi and other players | (empty): kia and its web server | Nothing more than kia itself |
+| `plex-box` | Plex TV box | `plex` | About 2 GB more memory, and a free Plex account |
+| `plex-box-graphs` | Plex TV box with graphs | `plex,observability` | About 2.5 GB more memory, and a free Plex account |
+| `plex-elsewhere` | Threadfin for your Plex | `plex-tuner` | A Plex you already run |
+| `jellyfin-box` | Jellyfin TV box | `jellyfin` | About 2 GB more memory |
+| `jellyfin-box-graphs` | Jellyfin TV box with graphs | `jellyfin,observability` | About 2.5 GB more memory |
+| `everything` | Everything | `plex,jellyfin,observability` | About 5 GB more memory (8 GB or more in all), and a free Plex account |
 
 They're in `stacks/` in the kia folder. Add your own parts to `KIA_STACK` afterwards, such as `observability-gpu` on a computer with an NVIDIA card.
 
@@ -73,7 +75,15 @@ The Dashboard's **Stack** page can check and apply a new choice for you. kia can
 scripts/install-service.sh --stack
 ```
 
-(Or add `--stack-service` when you run the installer.) On Linux it's a systemd user service (`systemctl --user status kia-stack`), which runs only while you're logged in unless you let it keep running: `sudo loginctl enable-linger "$(id -un)"`, once. On a Mac, it's a launchd agent (log: `work/logs/kia-stack.log`). `scripts/install-service.sh --stack --uninstall` removes it. Without it, the Stack page shows the command to run instead. On the page, **Apply** comes on only after a **Check** of the same choice found no problems, and it asks first if someone is watching or if parts that run now would stop, since the service itself applies without asking.
+(Or add `--stack-service` when you run the installer.) On Linux it's a systemd user service (`systemctl --user status kia-stack`), which runs only while you're logged in unless you let it keep running: `sudo loginctl enable-linger "$(id -un)"`, once. On a Mac, it's a launchd agent (log: `work/logs/kia-stack.log`). `scripts/install-service.sh --stack --uninstall` removes it. Without it, the Stack page shows the command to run instead.
+
+On the page, choose a preset's card, or the parts yourself, then **Check**, then **Apply**:
+
+- **Apply** comes on only after a **Check** of the same choice found no problems. It asks first if someone is watching or if parts that run now would stop, since the service itself applies without asking.
+- Plex's first start needs a claim code, which links it to your Plex account. With Plex ticked and not running yet, the page asks for one: get it at [plex.tv/claim](https://plex.tv/claim) right before Apply, since it works for 4 minutes.
+- Plex's playlist: if the check says there's no playlist named `plex` yet, the page offers to make it, with all the TV channels when they fit in Plex's 480, or sends you to Playlists to pick fewer.
+- After **Apply**, the page says what each new part still needs: finishing Jellyfin's setup (do it right away), adding Live TV to Plex (a button does it now; otherwise kia does it within 4 hours), and where Grafana is.
+- The addresses Plex and Jellyfin apps use (`KIA_PLEX_ADVERTISE`, `KIA_JELLYFIN_ADVERTISE`) are filled in from `KIA_PUBLIC_URL` when they're empty, and `scripts/stack.sh apply --claim CODE` sets the claim code from the terminal.
 
 How it works: when you choose **Check** or **Apply** on the secure Dashboard, after the password, kia leaves the request in `state/stack-request`. Within a few seconds the service moves it into its own folder, `stack-service/` in the kia folder, runs `scripts/stack.sh check --stack ...` or `apply --stack ... --yes`, and leaves what the script said in `stack-service/result` for the page to show. Every 30 seconds it also writes what each container is doing to `stack-service/containers.tsv`. kia can read that folder but not write to it. A request has to be `check` or `apply` with part names only, and less than 5 minutes old; anything else is refused without running. [Security](../SECURITY.md#the-kia-stack-service) explains what the service guards against.
 

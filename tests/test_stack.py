@@ -148,6 +148,7 @@ def test_asking_writes_one_request_at_a_time(tmp_path: Path):
     rid = stack.ask(state, service, "check", ["plex", "observability"])
     assert (state / "stack-request").read_text() == f"id={rid}\naction=check\nstack=plex,observability\n"
     assert stack.waiting(state, service) == rid
+    assert (state / "stack-request").stat().st_mode & 0o777 == 0o600  # it can hold a claim code
     try:
         stack.ask(state, service, "apply", ["plex"])
         raise AssertionError("a second request while the first waits")
@@ -256,3 +257,58 @@ def test_the_api_refuses_a_body_that_isnt_an_object(tmp_path: Path, monkeypatch)
     for body in (b"[]", b"null", b'"plex"'):
         status, data = api.handle(cfg, "POST", "/api/stack/check", {"X-Kia-Password": "secret"}, body, True)
         assert status == 400 and "parts" in data["error"], body
+
+
+def test_a_claim_code_is_checked_and_goes_with_apply_only(tmp_path: Path):
+    assert stack.claim_from(None) == "" and stack.claim_from("") == ""
+    assert stack.claim_from(" claim-AbC_12-x ") == "claim-AbC_12-x"
+    for bad in ("claim-", "claim-a\nb", "claim-$(id)", "token-abc", "claim-a b", 7, ["claim-a"], "claim-" + "a" * 80):
+        try:
+            stack.claim_from(bad)
+        except stack.StackError:
+            continue
+        raise AssertionError(bad)
+    _, state, service = project(tmp_path)
+    try:
+        stack.ask(state, service, "check", ["plex"], "claim-abc")
+        raise AssertionError("a claim code with a check")
+    except stack.StackError:
+        pass
+    stack.ask(state, service, "apply", ["plex"], "claim-abc")
+    assert (state / "stack-request").read_text().endswith("stack=plex\nclaim=claim-abc\n")
+
+
+def test_presets_have_a_title_and_what_they_need():
+    assert stack.presets(ROOT)[0]["name"] == "kodi"  # simplest first, by "# order:"
+    assert len({p["order"] for p in stack.presets(ROOT)}) == len(stack.presets(ROOT))
+    for p in stack.presets(ROOT):
+        assert p["title"] and p["title"] != p["name"] and p["needs"] and p["what"], p["name"]
+        stack.parts_from(p["parts"])  # every part is one kia knows
+
+
+def test_adding_live_tv_to_plex_from_the_page(tmp_path: Path, monkeypatch):
+    import subprocess
+
+    from kia import api
+
+    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "PLEX_TUNERS", {"running": False})
+    cfg = api_cfg(tmp_path)
+    post = lambda: api.handle(cfg, "POST", "/api/plex/tuners", {"X-Kia-Password": "secret"}, b"", True)
+    status, data = post()
+    assert status == 409 and "KIA_PLEX_URL" in data["error"]
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    ran = []
+
+    def fake_run(cmd, **kw):
+        ran.append(cmd[-3:])
+        return subprocess.CompletedProcess(cmd, 0, stdout="Made a new DVR in Plex\n", stderr="")
+
+    monkeypatch.setattr(api.subprocess, "run", fake_run)
+    monkeypatch.setattr(api.threading, "Thread", lambda target, args, **kw: type("T", (), {"start": lambda self: target(*args)})())
+    status, data = post()
+    assert status == 200 and ran == [["plex-tuners", "-c", str(cfg.config_file)]]
+    state = api.handle(cfg, "GET", "/api/plex/tuners", {}, b"", False)[1]["plex"]
+    assert state["ok"] is True and state["running"] is False and "Made a new DVR" in state["output"]
+    monkeypatch.setitem(api.PLEX_TUNERS, "running", True)
+    assert post()[0] == 409  # one at a time

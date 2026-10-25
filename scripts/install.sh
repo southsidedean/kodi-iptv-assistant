@@ -14,11 +14,13 @@
 #   --tz ZONE       time zone, e.g. America/New_York
 #   --port N        port for playlists and the Dashboard (default 8780)
 #   --https-port N  port for the secure Dashboard (default 8743)
-#   --preset NAME   what this kia is for: kodi, plex-box, plex-elsewhere, jellyfin-box, or
-#                   everything (stacks/, docs/stack.md); without it, it asks (default kodi)
+#   --preset NAME   what this kia is for: kodi, plex-box, plex-box-graphs, plex-elsewhere,
+#                   jellyfin-box, jellyfin-box-graphs, or everything (stacks/, docs/stack.md);
+#                   without it, it asks (default kodi)
 #   --main          follow what's merged since the last release, instead of the release
-#   --stack-service also install the kia-stack service, so the Dashboard's Stack page can
-#                   change what runs next to kia (docs/stack.md)
+#   --stack-service install the kia-stack service, so the Dashboard's Stack page can change
+#                   what runs next to kia (docs/stack.md); without it, it asks (default yes)
+#   --no-stack-service  don't install it
 #   --yes           don't ask; accept what it finds
 set -eu
 
@@ -31,7 +33,7 @@ HTTPS_PORT=8743
 YES=0
 MAIN=no
 PRESET=""
-STACK_SERVICE=no
+STACK_SERVICE=ask
 
 say() { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
@@ -48,8 +50,9 @@ while [ $# -gt 0 ]; do
         --preset) value "$@"; PRESET=$2; shift 2 ;;
         --main) MAIN=yes; shift ;;
         --stack-service) STACK_SERVICE=yes; shift ;;
+        --no-stack-service) STACK_SERVICE=no; shift ;;
         --yes|-y) YES=1; shift ;;
-        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --preset NAME, --main, --stack-service, --yes. See the top of scripts/install.sh."; exit 0 ;;
+        -h|--help) say "Options: --dir PATH, --address IP, --tz ZONE, --port N, --https-port N, --preset NAME, --main, --stack-service, --no-stack-service, --yes. See the top of scripts/install.sh."; exit 0 ;;
         *) die "unknown option $1 (try --help)" ;;
     esac
 done
@@ -182,7 +185,7 @@ else
     fi
     if [ -z "$PRESET" ]; then
         say "What is this kia for? (docs/stack.md)"
-        for f in stacks/*.env; do say "  $(basename "$f" .env): $(sed -n '1s/^# *//p' "$f")"; done
+        for f in stacks/*.env; do say "  $(basename "$f" .env): $(sed -n 's/^# title: *//p' "$f"). $(sed -n 's/^# needs: *//p' "$f")"; done
         PRESET=$(ask "Choose one" kodi)
         [ -f "stacks/$PRESET.env" ] || die "there's no preset $PRESET; run this again and choose one of the names above"
     fi
@@ -284,6 +287,14 @@ if [ "$plex_next" = yes ]; then
             say "  2. Run:  cd $DIR && scripts/stack.sh apply   (docs/plex.md, step 2)" ;;
     esac
     say ""
+fi
+# The kia-stack service lets the Dashboard's Stack page change what runs (Plex, Jellyfin, the
+# graphs), so nobody needs a terminal for that later. It runs on this computer as you, and
+# does only what scripts/stack.sh apply would (SECURITY.md, "The kia-stack service").
+if [ "$STACK_SERVICE" = ask ]; then
+    say "The kia-stack service lets you choose Plex, Jellyfin, and the graphs on kia's Dashboard later,"
+    say "instead of in a terminal. It runs on this computer as you (docs/stack.md)."
+    case "$(ask "Install it? (y/n)" y)" in [nN]*) STACK_SERVICE=no ;; *) STACK_SERVICE=yes ;; esac
 fi
 if [ "$STACK_SERVICE" = yes ]; then
     step "The kia-stack service, for the Dashboard's Stack page"
