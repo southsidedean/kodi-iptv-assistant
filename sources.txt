@@ -117,9 +117,9 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # (Tested October 2026: streams working, and channels not already in the USA list.)
 # https://www.apsattv.com/xumo.m3u       xumo         # Xumo, 389: 275 working, 187 new
 # https://www.apsattv.com/localnow.m3u   localnow     # Local Now, 447: 335 working, 267 new
-# The free channels on TCL and MetaX TVs, the same way: no guide, and tested October 2026
-# against the lists above. TCL+ has many of TCL's; the count is what
-# it adds to them. MetaX's categories start with a code, such as "BD | Lifestyle".
+# The free channels on TCL's TVs and on MetaX, the same way: no guide, and tested October
+# 2026 against the lists above. TCL+ has many of TCL's channels; its count is what it adds
+# to them. MetaX's categories start with a code, such as "BD | Lifestyle".
 # https://www.apsattv.com/tcl.m3u        tcl          # TCL, 593: 233 working, 184 new
 # https://www.apsattv.com/metax.m3u      metax        # MetaX, 232: 165 working, 148 new
 # https://www.apsattv.com/tclplus.m3u    tclplus      # TCL+, 494: 206 working, 62 more

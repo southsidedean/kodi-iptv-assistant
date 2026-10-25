@@ -189,8 +189,9 @@ accept_name_matches = []
 playlist_guides = true
 
 # Read some guides directly instead of through iptv-org's downloader: i.mjh.nz's files
-# (Pluto TV, Plex, Samsung TV Plus, Roku), KINK's schedule on kink.nl, and KEXP's on kexp.org. For i.mjh.nz
-# that takes seconds and little memory, instead of about 25 minutes and over 2 GB.
+# (Pluto TV, Plex, Samsung TV Plus, Roku), KINK's schedule on kink.nl, and KEXP's on
+# kexp.org. For i.mjh.nz that takes seconds and little memory, instead of about 25 minutes
+# and over 2 GB.
 native_grabbers = true
 
 # Where kia keeps its copy of iptv-org/epg and its working files.

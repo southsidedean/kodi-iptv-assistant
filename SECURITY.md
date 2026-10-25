@@ -20,7 +20,7 @@ iptv-org's guide downloader runs in Node.js's sandbox (`node --permission`): it 
 
 ### Playlists from the internet
 
-kia tests every stream in the playlists it reads, so a playlist from the internet could have it send requests to the devices around it: your router's settings page, a printer, or the other containers of kia's stack, which Docker lets kia reach by name. So a stream in such a playlist is tested only when its address is out on the internet; one on your network, on this computer, or in Docker's networks is left out, and the report says why. Playlists of your own can name anything: a file on this computer, or one downloaded from an address on your network (a tuner, Threadfin, tvheadend). The word `lan` on a playlist's line in the sources file allows it for one from elsewhere.
+kia tests every stream in the playlists it reads, so a playlist from the internet could have it send requests to the devices around it: your router's settings page, a printer, or the other containers of kia's stack, which Docker lets kia reach by name. To stop that, kia tests a stream from such a playlist only when its address is out on the internet. One on your network, on this computer, or in Docker's networks is left out, and the report says why. Playlists of your own can name anything: a file on this computer, or one downloaded from an address on your network (a tuner, Threadfin, tvheadend). The word `lan` on a playlist's line in the sources file allows it for one from elsewhere.
 
 It's a guard for the ordinary case, and someone determined can get past it. kia looks each name up before the test and ffprobe looks it up again, so a DNS server that answers differently the second time gets through, and so does a stream that redirects to an address on your network.
 

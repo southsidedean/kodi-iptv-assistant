@@ -62,7 +62,8 @@ fi
 before_rev=$(commit_or_empty "$deployed")
 before_rev=${before_rev:-$(git rev-parse HEAD)}
 # A copy that follows main (set up with --main) keeps following it. The newest release is
-# older than main, so moving there would quietly undo what main has; name a release for that.
+# older than main, so moving there would undo what main has, without a word; name a
+# release for that.
 if [ -z "$target" ] && [ "$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)" = main ]; then
     echo "This copy follows main, so it stays on main (to go back to a release, name it: scripts/update.sh vX.Y.Z)."
     target=main
