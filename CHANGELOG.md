@@ -2,6 +2,10 @@
 
 ## 0.6.5 (unreleased)
 
+### Asking kia why
+
+- `kia doctor guide` explains the whole guide in one answer. It says when the guide was last rebuilt and how many TV channels have a full, partial, or no guide. It names the sites the guide comes from, and the sites on a streak of failed downloads, with their logs' last errors. It counts the channels that matched a guide site that sent nothing, and the channels that matched no site at all. **Ask kia what's wrong** on the Dashboard includes its problems (a guide that hasn't been rebuilt for over a day, a site that keeps failing), scripts can ask `GET /api/doctor/guide`, and AI assistants get a `kia_guide` tool ([the guide under the hood](docs/guide-under-the-hood.md#when-a-channels-guide-is-wrong-or-missing)).
+
 ## 0.6.4 (2026-10-25)
 
 ### Upgrading from 0.6.3
