@@ -278,6 +278,8 @@ def test_a_claim_code_is_checked_and_goes_with_apply_only(tmp_path: Path):
 
 
 def test_presets_have_a_title_and_what_they_need():
+    assert stack.presets(ROOT)[0]["name"] == "kodi"  # simplest first, by "# order:"
+    assert len({p["order"] for p in stack.presets(ROOT)}) == len(stack.presets(ROOT))
     for p in stack.presets(ROOT):
         assert p["title"] and p["title"] != p["name"] and p["needs"] and p["what"], p["name"]
         stack.parts_from(p["parts"])  # every part is one kia knows

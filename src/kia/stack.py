@@ -198,7 +198,8 @@ def parts_from(value) -> list[str]:
 
 def presets(project_dir: Path) -> list[dict]:
     """The presets in stacks/, for the Stack page's cards: each one's name, title, what it's
-    for (its first line), what it needs (the "# title:" and "# needs:" lines), and parts."""
+    for (its first line), what it needs (the "# title:" and "# needs:" lines), and parts, in
+    the order their "# order:" lines give."""
     out = []
     for path in sorted((project_dir / "stacks").glob("*.env")):
         try:
@@ -209,9 +210,11 @@ def presets(project_dir: Path) -> list[dict]:
         what = lines[0].lstrip("# ").strip() if lines and lines[0].startswith("#") else ""
         stack = next((line.split("=", 1)[1] for line in lines if line.startswith("KIA_STACK=")), "")
         names = [p for p in stack.replace(" ", ",").split(",") if p]
+        order = comments.get("order", "")
         out.append({"name": path.stem, "title": comments.get("title") or path.stem, "what": what, "needs": comments.get("needs", ""),
-                    "parts": names})  # fmt: skip
-    return out
+                    "parts": names, "order": int(order) if order.isdigit() else 99})  # fmt: skip
+    # Simplest first: each preset's "# order:" line, then its name.
+    return sorted(out, key=lambda p: (p["order"], p["name"]))
 
 
 # A Plex claim code from plex.tv/claim: "claim-", then letters, digits, dashes, underscores.

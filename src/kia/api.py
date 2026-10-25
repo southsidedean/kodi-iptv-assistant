@@ -519,9 +519,9 @@ def _end(proc) -> None:
 
 
 # Adding kia's channels to Plex as Live TV now (kia plex-tuners), from the Stack page once
-# Plex runs. kia does the same by itself after each guide refresh, within 4 hours; this is
-# for not waiting, without a terminal. One at a time; it can take a few minutes the first
-# time, while Plex downloads its codecs.
+# Plex runs. kia does the same by itself after each guide refresh, within 4 hours; this
+# skips the wait, and the terminal. One at a time; the first run can take a few minutes,
+# while Plex downloads its codecs.
 PLEX_TUNERS: dict = {"running": False}
 _TUNERS_LOCK = threading.Lock()
 
