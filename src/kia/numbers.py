@@ -75,7 +75,10 @@ class ChannelNumbers:
                     n = self._recycled(kind, taken, when)
                     if n is None:
                         n = self.next.get(kind, 1)
-                        while n in taken:
+                        # A forgotten channel's number above the counter (a pinned or chosen
+                        # one) is retired too: never reused, unless recycling picks it.
+                        retired = self.retired.get(kind, {})
+                        while n in taken or str(n) in retired:
                             n += 1
                         self.next[kind] = n + 1
                     else:

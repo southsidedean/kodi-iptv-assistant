@@ -297,3 +297,22 @@ def test_the_git_address_cant_add_settings(tmp_path: Path):
     (repo / ".git").mkdir(parents=True)
     with pytest.raises(OSError, match="line breaks or quotes"):
         grab._reset_git_config(repo, 'https://example.com/x.git\n[core]\n\tfsmonitor = touch /tmp/x')
+
+
+def test_a_broken_guide_upstream_keeps_the_last_good_copy(server, monkeypatch):
+    www, base = server
+    monkeypatch.delenv("KIA_UPSTREAM_URL", raising=False)
+    cfg_path = make_instance(www.parent / "laptop", base, fallback="cached")
+    cache = www.parent / "laptop" / "work" / "upstream" / "guide.xml.gz"
+    cache.parent.mkdir(parents=True)
+    good = central_guide(datetime.now(timezone.utc))
+    cache.write_bytes(good)
+    (www / "guide.xml.gz").write_bytes(gzip.compress(b'<?xml version="1.0"?><tv><programme start="x"'))  # cut off
+    with pytest.raises(upstream.UpstreamError):
+        upstream.download_guide(base, cache)
+    assert cache.read_bytes() == good
+    (www / "guide.xml.gz").write_bytes(gzip.compress(b"<html><body>Not here</body></html>"))
+    with pytest.raises(upstream.UpstreamError, match="not an XMLTV guide"):
+        upstream.download_guide(base, cache)
+    assert cli.main(["sync", "-c", str(cfg_path)]) == 0  # falls back to the cached copy
+    assert cache.read_bytes() == good

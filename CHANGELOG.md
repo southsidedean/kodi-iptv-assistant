@@ -54,10 +54,17 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - A refresh just after midnight UTC (evening in the Americas) left out the show on air on i.mjh.nz channels (Pluto TV, Plex, Samsung TV Plus, Roku) and in guides named by playlists, until the next one began. Shows still on at the start of the day count now.
 - `site_time_limit` now applies to those two kinds of guide too, as the docs said, not only to iptv-org's sites.
 - When one of i.mjh.nz's files fails tonight (Plex's, say), its channels keep the programmes still to come from last night's guide, instead of having none until tomorrow. A guide cut off half-way adds nothing.
+- The same now goes for guides named by playlists: when one of a playlist's guides fails and others work, the channels that got nothing keep what's still to come from last time, and the quick refreshes keep trying the one that failed. Before, those channels had no guide until a nightly refresh found it working again.
+- An i.mjh.nz file cut off mid-download, or with damaged compression, failed every i.mjh.nz channel instead of only that file's.
+- A guide taken from another kia server (`KIA_UPSTREAM_URL`) is read in full before it replaces the last copy, so a broken one no longer turns this computer's guide into channel names only.
+- Reading a big guide left an empty element behind for each programme, about 24 MB for 300,000 of them. Now kia keeps nothing it has already read.
+- A first download of iptv-org/epg that failed (no internet at the first start) left an empty copy that `kia map` and `kia grab` then took as done, without `--update`. kia now finishes the download the next time.
+- A missing `docker` or `npx` for one guide site stopped the whole download. Only that site fails now.
 - Guide times written with no space before the offset (`20261024120000-0500`) were read as UTC.
 - A channel name's `(1080i)` comes off in the guide's channel name too, as `(720p)` always did.
 - The DNS check asks the next public resolver when one fails (SERVFAIL), instead of saying the site has no address, and asks a resolver given as an IPv6 address over IPv6.
 - A bad `min_bitrate` on a `radio-browser:` line is reported when kia reads `sources.txt`.
+- A radio-browser or SomaFM answer in an unexpected shape (an error message, a number where a name belongs) failed the whole stream check. Stations kia can't read are skipped now, and a list kia can't read is reported as that source failing. Half an emoji in a station name (an unpaired surrogate) no longer fails the check either.
 
 ### Observability
 
@@ -118,6 +125,9 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - `kia backup` works when `kia.toml` is broken, as it says it does, and `kia restore` works when `kia.toml` is missing, which is when you need it. A restore leaves a linked certificate (`tls/cert.pem` linked to Let's Encrypt's, say) as it is, so renewals keep reaching kia.
 - A damaged `state/history.json` stopped every stream check. kia now keeps it as `history.json.bad` and starts a new one.
 - The second, slower try for streams that timed out tests no more at once than `KIA_CHECK_CONCURRENCY`.
+- A pinned or chosen channel number above the automatic ones could go to a new channel after its own channel had been gone for a while. Numbers aren't reused unless you turn on recycling.
+- An attribute with a namespace in a guide site's channel list (`xml:lang`) made kia write a channel file iptv-org's grabber couldn't read.
+- `kia.toml` lists KEXP with the guides kia reads itself, and the profiles example lists `exclude_channels` and `threadfin`, and says when changes show up.
 - `kia_plex_up` and `kia_jellyfin_up` said 0 when kia couldn't write its own list of players in `state/`, though the server was fine. The sessions still count then, with no pseudonym.
 - If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).

@@ -95,11 +95,14 @@ def download(
     log: Callable[[str], None],
     now: datetime | None = None,
     deadline: float | None = None,
+    previous: Path | None = None,
 ) -> dict[str, int]:
     """Write the programmes for info["channels"] from info["urls"] to output.
 
-    Returns the number of programmes each address gave. Raises RuntimeError if no guide
-    could be read at all. Past deadline (time.monotonic()), the rest count as failed.
+    Returns the number of programmes each address that worked gave. Raises RuntimeError if
+    no guide could be read at all. Past deadline (time.monotonic()), the rest count as
+    failed. When some fail, channels that got nothing keep the programmes still to come
+    from previous (the last good guide), as with i.mjh.nz's files.
     """
     now = now or datetime.now(timezone.utc)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -109,6 +112,7 @@ def download(
     log(f"{len(ours)} channels from {len(info['urls'])} guide(s), {days} days")
     counts: dict[str, int] = {}
     failures = 0
+    covered: set[str] = set()
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
@@ -122,14 +126,25 @@ def download(
                     raise TimeoutError("not started: past the time limit (site_time_limit)")
                 resp, stream = _open_guide(url)
                 with resp, stream:
-                    n = filter_xmltv(stream, wanted, start, end, got.append, suffix_fallback=False, deadline=deadline)
+                    found: set[str] = set()
+                    n = filter_xmltv(stream, wanted, start, end, got.append, suffix_fallback=False, deadline=deadline,
+                                     seen=found)  # fmt: skip
                 out.writelines(got)
+                covered |= found
                 counts[url] = n
                 log(f"  {url}: {n} programmes in {time.monotonic() - t0:.1f}s")
             except (OSError, EOFError, ValueError, zlib.error, http.client.HTTPException, ET.ParseError) as exc:
                 # One bad guide (gone, not XML, cut off) shouldn't stop the others.
                 failures += 1
                 log(f"  {url}: ERR: {type(exc).__name__}: {exc}")
+        missing = {tid: [tid] for tid in ours if tid not in covered}
+        if failures and missing and previous and previous.exists():
+            try:
+                with open(previous, "rb") as old:
+                    n = filter_xmltv(old, missing, now, end, out.write, suffix_fallback=False)
+                log(f"  kept {n} programmes from last time for {len(missing)} channels that got none")
+            except (OSError, ET.ParseError) as exc:
+                log(f"  couldn't read last time's guide: {exc}")
         out.write("</tv>\n")
     if failures == len(info["urls"]):
         raise RuntimeError("no guide could be downloaded")

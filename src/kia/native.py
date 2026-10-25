@@ -9,11 +9,13 @@ it gives the same programmes in seconds with almost no memory.
 from __future__ import annotations
 
 import gzip
+import http.client
 import json
 import re
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
+import zlib
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
@@ -40,24 +42,30 @@ def filter_xmltv(
     write: Callable[[str], None],
     suffix_fallback: bool = True,
     deadline: float | None = None,
+    seen: set[str] | None = None,
 ) -> int:
     """Copy programmes for wanted source channel ids that are on in [start, end): one that
     started before start and is still on counts, so a refresh just after midnight UTC keeps
     the show on air.
 
     wanted maps a source channel id to the tvg-ids it should appear under. Returns the
-    number of programmes written. Past deadline (time.monotonic()), raises TimeoutError.
+    number of programmes written, and adds the tvg-ids that got any to seen. Past deadline
+    (time.monotonic()), raises TimeoutError.
     """
     # Plex ids are "<provider prefix>-<channel id>" and the prefix changes over time, while
     # the channel id doesn't; fall back to matching on the part after the last "-".
     by_suffix = {sid.rpartition("-")[2]: tvg_ids for sid, tvg_ids in wanted.items() if "-" in sid and suffix_fallback}
     written = 0
-    for _, el in ET.iterparse(stream, events=("end",)):
+    events = ET.iterparse(stream, events=("start", "end"))
+    _, root = next(events)
+    for event, el in events:
+        if event != "end":
+            continue
         if deadline is not None and time.monotonic() > deadline:
             raise TimeoutError("stopped at the time limit (site_time_limit)")
         if el.tag != "programme":
             if el.tag == "channel":
-                el.clear()
+                root.clear()
             continue
         source = el.get("channel", "")
         targets = wanted.get(source) or ("-" in source and by_suffix.get(source.rpartition("-")[2]))
@@ -76,7 +84,11 @@ def filter_xmltv(
                     el.set("channel", tvg_id)
                     write("  " + ET.tostring(el, encoding="unicode") + "\n")
                     written += 1
-        el.clear()
+                if seen is not None:
+                    seen.update(targets)
+        # Each programme is done with: clearing the root lets it go. Clearing only the
+        # programme leaves an empty element behind for each, some 24 MB for a big guide.
+        root.clear()
     return written
 
 
@@ -127,7 +139,8 @@ def grab_imjh(
                     n = filter_xmltv(stream, wanted, start, end, got.append, deadline=deadline)
                 out.writelines(got)
                 log(f"  {path}: {len(wanted)} channels, {n} programmes in {time.monotonic() - t0:.1f}s")
-            except (OSError, ET.ParseError, EOFError) as exc:
+            except (OSError, ET.ParseError, EOFError, zlib.error, http.client.HTTPException) as exc:
+                # Cut off (IncompleteRead) or damaged gzip: this file fails, the others still count.
                 failed.append(path)
                 log(f"  {path}: ERR: {exc}")
         if failed and previous and previous.exists():

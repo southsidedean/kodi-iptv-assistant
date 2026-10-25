@@ -78,17 +78,28 @@ def genre(tags: str) -> str:
     return first[0].upper() + first[1:] if first else "Radio"
 
 
-def to_entries(stations: list[dict], source: str, min_bitrate: int = 0) -> list[Entry]:
+def _text(value: object) -> str:
+    """A field from a radio service's JSON as text. It's third-party data: a number, a list,
+    or null where text belongs is read as no text, instead of failing the check."""
+    return value if isinstance(value, str) else ""
+
+
+def to_entries(stations: object, source: str, min_bitrate: int = 0) -> list[Entry]:
+    if not isinstance(stations, list):
+        raise RadioError("radio-browser didn't send a list of stations")
     entries = []
     for st in stations:
-        name = " ".join((st.get("name") or "").split())
-        url = st.get("url_resolved") or st.get("url")
-        if not name or not url or (min_bitrate and (st.get("bitrate") or 0) < min_bitrate):
+        if not isinstance(st, dict):
             continue
-        attrs = {"tvg-id": f"radio.{st.get('stationuuid', '')}"}
-        if str(st.get("favicon") or "").startswith(("http://", "https://")):
+        name = " ".join(_text(st.get("name")).split())
+        url = _text(st.get("url_resolved")) or _text(st.get("url"))
+        bitrate = st.get("bitrate") if isinstance(st.get("bitrate"), int) else 0
+        if not name or not url or (min_bitrate and bitrate < min_bitrate):
+            continue
+        attrs = {"tvg-id": f"radio.{_text(st.get('stationuuid'))}"}
+        if _text(st.get("favicon")).startswith(("http://", "https://")):
             attrs["tvg-logo"] = st["favicon"]
-        attrs["group-title"] = genre(st.get("tags", ""))
+        attrs["group-title"] = genre(_text(st.get("tags")))
         attrs["radio"] = "true"
         entries.append(Entry(name=name, url=url, attrs=attrs, source=source))
     return entries
@@ -134,9 +145,13 @@ def pls_stream(text: str) -> str | None:
 def somafm(params: dict[str, str], source: str, get=_get) -> list[Entry]:
     """SomaFM's channels, or only those in channels= (SomaFM's ids, such as groovesalad)."""
     try:
-        channels = json.loads(get(SOMAFM_CHANNELS)).get("channels", [])
+        data = json.loads(get(SOMAFM_CHANNELS))
     except (OSError, ValueError) as exc:
         raise RadioError(f"SomaFM's channel list didn't load ({exc})") from None
+    channels = data.get("channels") if isinstance(data, dict) else None
+    if not isinstance(channels, list):
+        raise RadioError("SomaFM's channel list isn't what kia expects (no list of channels)")
+    channels = [c for c in channels if isinstance(c, dict)]
     wanted = {c.strip().lower() for c in params.get("channels", "").split(",") if c.strip()}
     unknown = sorted(wanted - {str(c.get("id", "")).lower() for c in channels})
     if unknown:
@@ -147,16 +162,17 @@ def somafm(params: dict[str, str], source: str, get=_get) -> list[Entry]:
         if not cid or (wanted and cid not in wanted):
             continue
         # Its best playlist: AAC at its highest quality, else MP3.
-        lists = ch.get("playlists") or []
+        raw = ch.get("playlists")
+        lists = [p for p in raw if isinstance(p, dict)] if isinstance(raw, list) else []
         best = next((p for fmt in ("aac", "mp3") for p in lists if p.get("format") == fmt and p.get("quality") == "highest"), None)
         try:
-            url = pls_stream(get(best["url"]).decode("utf-8", errors="replace")) if best else None
+            url = pls_stream(get(best["url"]).decode("utf-8", errors="replace")) if best and _text(best.get("url")) else None
         except OSError:
             url = None
         if not url:
             continue  # this channel's playlist didn't answer; the rest still count
-        attrs = {"tvg-id": f"radio.somafm.{cid}", "group-title": genre((ch.get("genre") or "").replace("|", ",")), "radio": "true"}
-        logo = ch.get("xlimage") or ch.get("largeimage") or ch.get("image") or ""
+        attrs = {"tvg-id": f"radio.somafm.{cid}", "group-title": genre(_text(ch.get("genre")).replace("|", ",")), "radio": "true"}
+        logo = _text(ch.get("xlimage")) or _text(ch.get("largeimage")) or _text(ch.get("image"))
         if logo.startswith("https://"):
             attrs["tvg-logo"] = logo
         entries.append(Entry(name=f"SomaFM {' '.join(str(ch.get('title') or cid).split())}", url=url, attrs=attrs, source=source))

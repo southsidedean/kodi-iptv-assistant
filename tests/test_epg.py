@@ -265,3 +265,14 @@ def test_guide_times_with_and_without_an_offset():
     assert xmltv.parse_time("20261024120000 -0500") == noon_central
     assert xmltv.parse_time("20261024120000-0500") == noon_central  # no space before it
     assert xmltv.parse_time("20261024170000") == noon_central  # none: UTC
+
+
+def test_namespaced_attributes_in_a_sites_channel_list_are_left_out(tmp_path: Path):
+    site = tmp_path / "sites" / "odd.tv"
+    site.mkdir(parents=True)
+    (site / "odd.tv.channels.xml").write_text(
+        '<channels xmlns:x="urn:x"><channel site="odd.tv" site_id="1" xml:lang="en" x:extra="1" logo="l.png"'
+        ' xmltv_id="A.us">A</channel></channels>'
+    )
+    (sc,) = epgmap.load_site_channels(tmp_path)
+    assert sc.attrs == {"logo": "l.png"}

@@ -141,3 +141,49 @@ def test_the_time_limit_stops_a_slow_guide(tmp_path: Path):
     with pytest.raises(RuntimeError):  # its only file ran out of time: kia keeps the previous guide
         native.grab_imjh(chans, tmp_path / "o.xml", 1, lambda m: None, base_url=site_files(tmp_path), now=NOW,
                          deadline=time.monotonic() - 1)  # fmt: skip
+
+
+def test_a_file_cut_off_mid_download_fails_only_itself(tmp_path: Path, monkeypatch):
+    import http.client
+
+    chans = channels_file(tmp_path, [("PlutoTV/us#aaa", "Alpha.us@SD", "Alpha"), ("Plex/us#ccc", "Gamma.us@SD", "Gamma")])
+    base = site_files(tmp_path)
+    real = native.fetch
+
+    def fetch(url, timeout=120):
+        if "Plex" in url:
+            raise http.client.IncompleteRead(b"partial")
+        return real(url, timeout)
+
+    monkeypatch.setattr(native, "fetch", fetch)
+    out, logs = tmp_path / "out.xml", []
+    native.grab_imjh(chans, out, 2, logs.append, base_url=base, now=NOW)
+    titles = {p.findtext("title") for p in ET.parse(out).getroot().findall("programme")}
+    assert "Alpha news" in titles and "Gamma show" not in titles
+    assert any("Plex/us: ERR" in m for m in logs)
+
+
+def test_filtering_a_big_guide_keeps_nothing_it_has_read(tmp_path: Path):
+    import tracemalloc
+
+    def guide(n: int) -> io.BytesIO:
+        body = "".join(f'<programme start="20261016010000 +0000" stop="20261016020000 +0000" channel="x{i}">'
+                       f"<title>Show {i}</title></programme>" for i in range(n))  # fmt: skip
+        return io.BytesIO(f"<tv>{body}</tv>".encode())
+
+    def peak(n: int) -> int:
+        stream = guide(n)
+        tracemalloc.start()
+        native.filter_xmltv(stream, {"x0": ["X"]}, NOW.replace(hour=0), NOW.replace(hour=23), lambda s: None)
+        top = tracemalloc.get_traced_memory()[1]
+        tracemalloc.stop()
+        return top
+
+    assert peak(40000) < peak(4000) * 3  # ten times the programmes, about the same memory
+
+
+def test_filter_reports_the_channels_it_wrote():
+    seen: set[str] = set()
+    native.filter_xmltv(io.BytesIO(PLUTO.encode()), {"aaa": ["Alpha.us"], "zzz": ["Zed"]}, NOW.replace(hour=0),
+                        NOW.replace(hour=23), lambda s: None, seen=seen)  # fmt: skip
+    assert seen == {"Alpha.us"}

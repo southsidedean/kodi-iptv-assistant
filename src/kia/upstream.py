@@ -8,6 +8,7 @@ import time
 import zlib
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from kia import __version__
@@ -27,21 +28,30 @@ def download_guide(base_url: str, dest: Path, timeout: float = 30) -> None:
         with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as f:
             while chunk := resp.read(1 << 16):
                 f.write(chunk)
-        # Read the whole file: a connection that drops part way leaves a truncated gzip,
-        # which only shows at the end.
+        # Read the whole guide as XML: a connection that drops part way leaves a truncated
+        # gzip, which only shows at the end, and a broken guide would replace the good copy,
+        # then fail when kia builds this computer's guide from it.
         with gzip.open(tmp, "rb") as g:
-            head = g.read(512).lstrip()
-            while g.read(1 << 20):
-                pass
-    except (urllib.error.URLError, OSError, EOFError, zlib.error, http.client.HTTPException) as exc:
+            root = _xmltv_root(g)
+    except (urllib.error.URLError, OSError, EOFError, zlib.error, http.client.HTTPException, ET.ParseError) as exc:
         tmp.unlink(missing_ok=True)
         if isinstance(exc, urllib.error.HTTPError):
             exc.close()
         raise UpstreamError(f"{url}: {getattr(exc, 'reason', exc)}") from exc
-    if not (head.startswith(b"<?xml") or head.startswith(b"<tv")):
+    if root != "tv":
         tmp.unlink(missing_ok=True)
         raise UpstreamError(f"{url}: not an XMLTV guide")
     tmp.replace(dest)
+
+
+def _xmltv_root(stream) -> str:
+    """Parse the whole guide, a little at a time; returns the outermost tag (tv for XMLTV)."""
+    events = ET.iterparse(stream, events=("start", "end"))
+    _, root = next(events)
+    for event, _el in events:
+        if event == "end":
+            root.clear()
+    return root.tag
 
 
 def age(path: Path) -> str:

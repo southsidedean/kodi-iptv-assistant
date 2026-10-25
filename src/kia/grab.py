@@ -180,6 +180,21 @@ def _reset_git_config(repo: Path, url: str) -> None:
     )
 
 
+def _never_fetched(repo: Path) -> bool:
+    """git init ran, but the first fetch didn't finish (no internet at the first start, say),
+    so there's nothing checked out. HEAD then names a branch that doesn't exist yet."""
+    git_dir = repo / ".git"
+    try:
+        head = (git_dir / "HEAD").read_text().strip()
+    except OSError:
+        return False
+    if not head.startswith("ref:"):
+        return False  # a commit: kia checks out FETCH_HEAD detached
+    ref = head.removeprefix("ref:").strip()
+    packed = git_dir / "packed-refs"
+    return not (git_dir / ref).exists() and not (packed.exists() and ref in packed.read_text())
+
+
 def ensure_repo(cfg: EpgConfig, update: bool, log: Callable[[str], None]) -> None:
     """Check out cfg.git_ref (branch, tag, or commit) of cfg.git_url into cfg.repo_dir.
 
@@ -188,7 +203,7 @@ def ensure_repo(cfg: EpgConfig, update: bool, log: Callable[[str], None]) -> Non
     existing checkout is used as it is.
     """
     repo = cfg.repo_dir
-    fresh = not (repo / ".git").exists()
+    fresh = not (repo / ".git").exists() or _never_fetched(repo)
     if not fresh and not update:
         return
     if fresh:
@@ -207,8 +222,11 @@ def _update_repo(cfg: EpgConfig, fresh: bool, log: Callable[[str], None]) -> Non
     if fresh:
         log(f"Fetching {cfg.git_url} ({cfg.git_ref}) into {repo}...")
         repo.mkdir(parents=True, exist_ok=True)
-        _git(repo, "init", "-q")
-        _git(repo, "remote", "add", "origin", cfg.git_url)
+        if (repo / ".git").exists():
+            _reset_git_config(repo, cfg.git_url)  # a first fetch that failed: try it again
+        else:
+            _git(repo, "init", "-q")
+            _git(repo, "remote", "add", "origin", cfg.git_url)
     else:
         log(f"Updating the epg checkout to {cfg.git_ref}...")
         _reset_git_config(repo, cfg.git_url)
@@ -341,14 +359,20 @@ def grab_all(cfg: EpgConfig, sites: list[str] | None, log: Callable[[str], None]
     elif needs_node and cfg.runner == "local":
         build_scripts(cfg, log)  # the checkout may be from before kia compiled them
     if needs_node and cfg.runner == "local" and not sandboxed(cfg, "grab", [], [], []):
-        log("iptv-org's grabber runs without Node's sandbox (Node.js 20 or newer and the compiled scripts are needed), so it can read kia's files")
+        log("iptv-org's grabber runs without Node's sandbox (Node.js 22 or newer and the compiled scripts are needed), so it can read kia's files")
 
     log(f"Grabbing {cfg.days} days from {len(channel_files)} sites, {cfg.parallel_sites} at a time...")
     results = []
     with ThreadPoolExecutor(cfg.parallel_sites) as pool:
-        futures = [pool.submit(grab_site, cfg, site, path) for site, path in sorted(channel_files.items())]
+        futures = {pool.submit(grab_site, cfg, site, path): site for site, path in sorted(channel_files.items())}
         for fut in as_completed(futures):
-            r = fut.result()
+            try:
+                r = fut.result()
+            except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as exc:
+                # Such as docker or npx missing: this site fails, and the others still run.
+                site, work = futures[fut], cfg.work_dir.resolve()
+                log(f"  {site}: couldn't start ({type(exc).__name__}: {exc})")
+                r = GrabResult(site, 1, 0.0, work / "logs" / f"{site}.log", work / "guides" / f"{site}.xml")
             status = "ok" if r.returncode == 0 and r.output.exists() else f"FAILED (see {r.log})"
             log(f"  {r.site}: {status} in {r.elapsed:.0f}s")
             results.append(r)
@@ -382,10 +406,13 @@ def grab_playlist_guides(
         with open(log_path, "w") as logf:
             try:
                 counts = playlistguide.download(info, staged, cfg.days, lambda m: print(m, file=logf, flush=True),
-                                                deadline=_deadline(cfg, start))  # fmt: skip
+                                                deadline=_deadline(cfg, start), previous=output)  # fmt: skip
                 staged.replace(output)  # only a good download replaces the previous guide
                 if not quick:
-                    useful[site] = [u for u, n in counts.items() if n]
+                    # An address that failed tonight but had our programmes before stays on
+                    # the list, so the quick refreshes keep trying it.
+                    before = set(useful.get(site, []))
+                    useful[site] = [u for u in info["urls"] if counts.get(u) or (u not in counts and u in before)]
                 returncode = 0
             except (RuntimeError, OSError) as exc:
                 print(f"ERR: {exc}", file=logf)

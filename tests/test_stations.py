@@ -142,3 +142,27 @@ def test_grab_kexp_writes_the_schedule(tmp_path: Path, monkeypatch):
 def test_the_kexp_station_gets_the_schedule():
     found = epgmap.radio_schedule_candidates({"radio.kexp": "KEXP", "radio.other": "KEXP Live Sessions"}, set())
     assert list(found) == ["radio.kexp"] and found["radio.kexp"][0].channel.site == "kexp.org"
+
+
+@pytest.mark.parametrize("data", [[], {"channels": "none"}, {"channels": [None, 3, {"id": 7, "playlists": "x"}]}])
+def test_somafm_sending_the_wrong_shape_is_a_radio_error(data):
+    with pytest.raises(radio.RadioError):
+        radio.somafm({}, "somafm", get=lambda url, timeout=30: json.dumps(data).encode())
+
+
+def test_radio_browser_sending_the_wrong_shape_is_skipped_or_a_radio_error():
+    with pytest.raises(radio.RadioError):
+        radio.to_entries({"error": "busy"}, "radio")
+    stations = [None, {"name": ["x"], "url": "http://a/1"}, {"name": "Good", "url": 5, "url_resolved": "http://a/2",
+                "bitrate": "high", "tags": None, "favicon": 3, "stationuuid": None}]  # fmt: skip
+    (e,) = radio.to_entries(stations, "radio")
+    assert (e.name, e.url, e.attrs["group-title"]) == ("Good", "http://a/2", "Radio")
+
+
+def test_half_a_surrogate_pair_in_a_station_name_is_dropped():
+    from kia import m3u
+
+    (e,) = radio.to_entries(json.loads('[{"name": "Jazz \\ud83d FM", "url": "http://a/1"}]'), "radio")
+    written = m3u.write([e])
+    written.encode("utf-8")  # used to raise UnicodeEncodeError and fail the whole check
+    assert "Jazz  FM" in written or "Jazz FM" in written
