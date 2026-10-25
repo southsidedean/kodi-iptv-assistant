@@ -28,6 +28,18 @@ class Source:
     params: dict[str, str] = field(default_factory=dict)
     # Everything in the playlist is radio (for lists that don't mark their stations).
     radio: bool = False
+    # Its streams may be on your own network, though the playlist comes from elsewhere (kia.lan).
+    allow_lan: bool = False
+
+    @property
+    def is_yours(self) -> bool:
+        """A playlist of your own, whose streams may be on your network (kia.lan): a file
+        on this computer, one downloaded from an address on your network, or one marked lan."""
+        from kia import lan
+
+        if self.is_stations:
+            return False
+        return self.allow_lan or self.is_local_file or lan.is_local(urlparse(self.url).hostname)
 
     @property
     def is_radio_browser(self) -> bool:
@@ -131,8 +143,9 @@ def source_name(url: str, taken: set[str]) -> str:
 
 
 def parse_sources(text: str) -> list[Source]:
-    """Parse a sources file: one playlist URL or path per line, optionally followed by a name
-    and the word `radio` (everything in that playlist is a radio station).
+    """Parse a sources file: one playlist URL or path per line, optionally followed by a name,
+    the word `radio` (everything in that playlist is a radio station), and the word `lan`
+    (its streams may be on your own network; see kia.lan).
 
     Blank lines and anything after a ``#`` that starts a line or follows whitespace are ignored.
     """
@@ -147,9 +160,10 @@ def parse_sources(text: str) -> list[Source]:
             source = _radio_source(line, taken)
         else:
             url, *rest = line.split()
-            flags = {w for w in rest if w.lower() == "radio"}
+            flags = {w for w in rest if w.lower() in ("radio", "lan")}
+            words = {w.lower() for w in flags}
             name = next((w for w in rest if w not in flags), "")
-            source = Source(name=name or source_name(url, taken), url=url, radio=bool(flags))
+            source = Source(name=name or source_name(url, taken), url=url, radio="radio" in words, allow_lan="lan" in words)
         if source.name in taken:
             raise ValueError(f"duplicate source name {source.name!r}")
         taken.add(source.name)

@@ -45,6 +45,8 @@ class Entry:
     pinned_by: str = "file"  # "file": your own playlist file; "page": the Dashboard
     # The guides the entry's playlist names in its header (x-tvg-url); see kia.playlistguide.
     guide_urls: tuple[str, ...] = ()
+    # From a playlist of your own, so its stream may be on your network (kia.lan).
+    yours: bool = False
 
     @property
     def tvg_id(self) -> str:

@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, channels, locks, pluto, settings, stack, tls
+from kia import alerts, auth, channels, lan, locks, pluto, settings, stack, tls
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
@@ -107,6 +107,7 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
     for src in cfg.sources:
         if only and src.name not in only:
             continue
+        yours = src.is_yours  # looked up once per playlist, not per channel
         try:
             if src.is_stations:
                 found = radio.load_stations(src.url, src.params, src.name)
@@ -131,6 +132,7 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
             if not is_excluded(e, cfg.exclude_groups, cfg.exclude_labels, cfg.exclude_name_patterns)
         ]
         for e in kept:
+            e.yours = yours
             if src.is_local_file:
                 e.pinned_number = channel_number(e.attrs.get("tvg-chno"))
             elif cfg.channel_numbers:
@@ -185,9 +187,19 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
                 await asyncio.sleep(wait)
             last_start[host] = loop.time()
 
+    # A stream kept from more than one playlist may be tested if any of them is yours.
+    yours = {e.url for e in entries if e.yours}
+    local_hosts: dict[str, bool] = {}
+
     async def test(e: m3u.Entry) -> ProbeResult:
         if not is_stream_url(e.url):
             return ProbeResult(ok=False, error=f"not a network stream (only {', '.join(STREAM_SCHEMES)} are checked)")
+        if e.url not in yours:
+            host = urlparse(e.url).hostname or ""
+            if host not in local_hosts:
+                local_hosts[host] = await asyncio.to_thread(lan.is_local, host)
+            if local_hosts[host]:
+                return ProbeResult(ok=False, error=LAN_REFUSED)
         await spaced(e)
         return await probe(
             e.url,
@@ -229,6 +241,10 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
         log(f"  {sum(results[e.url].ok for e in retry)} of {len(retry)} worked on the second try")
     return results
 
+
+# kia.lan: a playlist from the internet can't send kia's tests onto your network.
+LAN_REFUSED = ("on your own network, and the playlist comes from the internet, so kia doesn't test it "
+               "(add the word lan to the playlist's line in the sources file to allow it)")  # fmt: skip
 
 # Playlists are third-party content. Anything else (file:, pipe:, a bare path, or a line
 # starting with "-" that ffprobe would read as an option) is never handed to ffprobe.
@@ -885,7 +901,7 @@ def secure_setup(cfg: Config) -> dict | None:
     auth.from_env(cfg.state_dir).ensure(log)
     names = tls.names(cfg.public_url, cfg.tls_names)
     info = tls.ensure(cfg.tls_dir, names, log)
-    secure = {"url": f"https://{names[0]}:{cfg.https_port}/" if info else None, "tls": info}
+    secure = {"url": f"https://{tls.in_url(names[0])}:{cfg.https_port}/" if info else None, "tls": info}
     write_atomic(cfg.state_dir / "secure.json", json.dumps(secure, indent=1))
     return info
 
@@ -985,7 +1001,7 @@ def serve_secure(cfg: Config, bind: str, port: int | None):
         return None
     server = serve.serve_in_background(cfg.output_dir, bind, port, api_config(cfg), tls_dir=cfg.tls_dir,
                                        relay=pluto_relay(cfg))  # fmt: skip
-    log(f"Serving the secure Dashboard at https://{bind}:{port}/")
+    log(f"Serving the secure Dashboard at https://{tls.in_url(bind)}:{port}/")
     return server
 
 
@@ -1013,7 +1029,7 @@ def cmd_tls(args: argparse.Namespace) -> int:
     print(f"  Covers:    {', '.join(info['names']) or info['subject']}")
     print(f"  Expires:   {info['expires']}")
     print(f"  Key:       {'matches' if info['key_matches'] else 'MISSING OR DOES NOT MATCH ' + str(cfg.tls_dir / tls.KEY)}")
-    print(f"  Open:      https://{names[0]}:{cfg.https_port}/")
+    print(f"  Open:      https://{tls.in_url(names[0])}:{cfg.https_port}/")
     return 0 if info["key_matches"] else 1
 
 

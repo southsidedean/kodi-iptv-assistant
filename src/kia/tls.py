@@ -47,12 +47,27 @@ def host_of(url: str | None) -> str:
     return host.rsplit(":", 1)[0] if host.count(":") == 1 else host.strip("[]").split("]")[0]
 
 
+def normal(name: str) -> str:
+    """A name the way kia compares them: lowercase, and an IP address in its short form.
+    openssl writes an IPv6 address back in full and in capitals (FD00:0:0:0:0:0:0:5), so
+    without this, kia would make a new certificate for fd00::5 at every start."""
+    try:
+        return str(ipaddress.ip_address(name))
+    except ValueError:
+        return name.lower()
+
+
+def in_url(host: str) -> str:
+    """A host as it goes in an address: an IPv6 address in brackets (https://[fd00::5]:8743/)."""
+    return f"[{host}]" if ":" in host else host
+
+
 def names(public_url: str | None, chosen: list[str] | None = None) -> list[str]:
     """The names the certificate should cover: the ones you chose (KIA_TLS_NAMES) or the
     public address's host, plus this machine. The first is the one people should open."""
-    out = [n.strip() for n in chosen or [] if n.strip()]
+    out = [normal(n.strip()) for n in chosen or [] if n.strip()]
     if not out and (host := host_of(public_url)):
-        out.append(host)
+        out.append(normal(host))
     for extra in ("localhost", "127.0.0.1"):
         if extra not in out:
             out.append(extra)
@@ -118,7 +133,7 @@ def info(tls_dir: Path) -> dict | None:
     subject = re.search(r"^subject=\s*(.*)$", text, re.M)
     issuer = re.search(r"^issuer=\s*(.*)$", text, re.M)
     end = re.search(r"^notAfter=(.*)$", text, re.M)
-    sans = re.findall(r"(?:DNS|IP Address):([^,\s]+)", text)
+    sans = [normal(n) for n in re.findall(r"(?:DNS|IP Address):([^,\s]+)", text)]
     expires = datetime.strptime(end.group(1).strip(), "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc) if end else None
     try:
         mark = (tls_dir / MARK).read_text().strip()

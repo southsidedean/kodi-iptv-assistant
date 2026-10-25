@@ -325,9 +325,10 @@ def _counts(cfg: ApiConfig) -> dict[str, dict]:
     return {c["name"]: {k: c[k] for k in ("ok", "flaky", "dead")} for c in source_counts(cfg.output_dir / "report.json")}
 
 
-def get_sources(cfg: ApiConfig, secure: bool = False, unlocked: bool = False) -> dict:
+def get_sources(cfg: ApiConfig, secure: bool = False, unlocked: bool = False, locked: str | None = None) -> dict:
     """The channel sources. Addresses can carry a provider's user name and password, so
-    they're shown in full only with kia's password, on the secure page."""
+    they're shown in full only with kia's password, on the secure page. locked: why the
+    password given didn't unlock them (wrong, or too many wrong ones), for the page to say."""
     text, catalog = _sources_texts(cfg)
     rows = web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), _counts(cfg))
     unlocked = unlocked and secure
@@ -341,6 +342,7 @@ def get_sources(cfg: ApiConfig, secure: bool = False, unlocked: bool = False) ->
         "file": cfg.sources_file.name,
         "playlists": rows,
         "check": check_state(unlocked),
+        **({"locked": locked} if locked and not unlocked else {}),
     }
 
 
@@ -351,15 +353,16 @@ def check_state(unlocked: bool = False) -> dict:
     return state
 
 
-def password_ok(cfg: ApiConfig, given: str | None, secure: bool) -> bool:
-    """check_password without the error: for reading what only the password may show."""
+def password_error(cfg: ApiConfig, given: str | None, secure: bool) -> str | None:
+    """check_password's answer as text, None when the password is right: for reading what
+    only the password may show. Nothing to say when no password was given."""
     if not given:
-        return False
+        return ""
     try:
         check_password(cfg, given, secure)
-    except ApiError:
-        return False
-    return True
+    except ApiError as exc:
+        return str(exc)
+    return None
 
 
 def set_source(cfg: ApiConfig, body: dict) -> dict:
@@ -685,7 +688,8 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
 
             return 200, {"players": known_players(cfg.state_dir)}
         if parts == ["sources"] and method == "GET":
-            return 200, get_sources(cfg, secure, password_ok(cfg, headers.get("X-Kia-Password"), secure))
+            why = password_error(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, get_sources(cfg, secure, why is None, locked=why)
         if parts == ["sources", "check"] and method == "GET":
             return 200, {"check": check_state()}
         if parts and parts[0] == "sources" and method in ("PUT", "POST", "DELETE"):

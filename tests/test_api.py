@@ -156,6 +156,8 @@ def test_certificate(certs, tmp_path):
     assert info["generated"] and info["key_matches"] and info["names"] == ["tv.lan", "localhost", "127.0.0.1"]
     assert tls.names(None, ["kia.home.lan", "192.168.1.20"]) == ["kia.home.lan", "192.168.1.20", "localhost", "127.0.0.1"]
     assert tls.names("http://[fd00::5]:8780", []) [0] == "fd00::5"
+    assert tls.names(None, ["FD00:0:0:0:0:0:0:5", "TV.lan"])[:2] == ["fd00::5", "tv.lan"]
+    assert tls.in_url("fd00::5") == "[fd00::5]" and tls.in_url("tv.lan") == "tv.lan"
     logged = []
     before = (certs / tls.CERT).read_text()
     assert tls.ensure(certs, tls.names("http://tv.lan:8780", []), logged.append)["generated"] and not logged
@@ -354,3 +356,33 @@ def test_a_burst_of_wrong_passwords_is_slowed_down_like_one_at_a_time(cfg, monke
         statuses = list(pool.map(guess, range(20)))
     assert statuses.count(401) == 2 and statuses.count(429) == 18  # the first two, then the wait
     assert len(checked) == 2
+
+
+def test_an_ipv6_address_gets_one_certificate_and_a_working_link(tmp_path, monkeypatch):
+    if not shutil.which("openssl"):
+        pytest.skip("needs openssl")
+    from kia import cli
+
+    d, logged = tmp_path / "tls", []
+    hosts = tls.names("http://[fd00::5]:8780", [])
+    tls.ensure(d, hosts, logged.append)
+    assert "fd00::5" in tls.info(d)["names"]  # openssl wrote it as FD00:0:0:0:0:0:0:5
+    tls.ensure(d, hosts, logged.append)  # the next start: no new certificate
+    assert len(logged) == 1
+
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    (tmp_path / "kia.toml").write_text('[output]\npublic_url = "http://[fd00::5]:8780"\n')
+    monkeypatch.delenv("KIA_PUBLIC_URL", raising=False)
+    monkeypatch.delenv("KIA_TLS_NAMES", raising=False)
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    cli.secure_setup(cli.load(tmp_path / "kia.toml"))
+    assert json.loads((tmp_path / "state" / "secure.json").read_text())["url"] == "https://[fd00::5]:8743/"
+
+
+def test_grafanas_link_brackets_an_ipv6_address(monkeypatch):
+    from kia import htmlpage
+
+    monkeypatch.delenv("KIA_GRAFANA_URL", raising=False)
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "monitoring")
+    monkeypatch.setenv("KIA_PUBLIC_URL", "http://[fd00::5]:8780")
+    assert htmlpage.grafana_url() == "https://[fd00::5]:8788"

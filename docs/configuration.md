@@ -5,6 +5,7 @@ Four files, from most to least often changed:
 - `sources.txt`: which playlists and radio stations to check. The easiest way to choose them is on the Dashboard ([choosing playlists](#choosing-channel-sources-on-the-dashboard)). In the file:
   - Remove `#` to turn a line on. Add your own URLs or file paths, one per line.
   - Radio lines (`radio-browser: country=US top=100`) are explained in the file. For a playlist of radio stations that doesn't mark them as radio, add the word `radio` after its name (`https://example.com/jazz.m3u jazz radio`), and its stations appear under Radio.
+  - kia doesn't test streams on your own network that come from a playlist from the internet ([why](../SECURITY.md#playlists-from-the-internet)). Your own playlists, files on this computer or downloaded from an address on your network, aren't affected. For a playlist from elsewhere whose streams really are on your network, add the word `lan` after its name.
   - With Docker, a playlist file must be inside the kia folder (e.g. `playlists/mine.m3u`), because kia can't see the rest of your computer.
   - Better still, keep your choices in your own copy, set with `KIA_SOURCES_FILE` below, so updating kia never touches them.
 - `.env`: how kia runs on this machine (Docker only). Copied from `.env.example`; never committed.
