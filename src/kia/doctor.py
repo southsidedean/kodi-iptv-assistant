@@ -18,6 +18,7 @@ names, guide sites' errors), so it's shown as text and never run or followed.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -36,6 +37,18 @@ MAX_MATCHES = 5
 # The last few error lines of a guide site's log are enough to see why it failed.
 LOG_LINES = 3
 DOCS = "docs/troubleshooting.md"
+# A user name and password inside an address ("https://me:secret@host/..."), as an
+# ffprobe error or a guide site's log can quote one.
+_LOGIN_RE = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s@]+@")
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _quote(text: object, limit: int = 200) -> str:
+    """Third-party text (a stream's error, a guide site's log line) made safe to show: on
+    one line, cut to limit, and with any login in an address hidden, as the Dashboard
+    hides them in playlist addresses."""
+    text = _CONTROL_RE.sub(" ", " ".join(str(text).split()))
+    return _LOGIN_RE.sub(r"\1•••@", text)[:limit]
 
 
 @dataclass
@@ -230,7 +243,7 @@ def _kept(e: m3u.Entry, streams: list[dict], cfg: Config) -> Report:
     chosen = next((s for s in rows if s.get("selected")), rows[0] if rows else None)
     history = _histories(cfg).get(chosen["url"], {}) if chosen else {}
     if chosen and chosen.get("status") == "flaky":
-        report.findings.append(Finding(NOTE, "Its stream failed last night, but it's kept for now",
+        report.findings.append(Finding(NOTE, "Its stream failed in the last check, and is kept for now",
                                        f"It worked before, so it stays until it fails more nights in a row (grace_failures).{_history_line(history)}",
                                        ["output/report.json", "state/history.json"], f"{DOCS}#a-channel-wont-play"))  # fmt: skip
     elif chosen:
@@ -247,7 +260,7 @@ def _kept(e: m3u.Entry, streams: list[dict], cfg: Config) -> Report:
 def _dropped(name: str, rows: list[dict], cfg: Config) -> Report:
     history = _histories(cfg)
     report = Report(f"{rows[0].get('name')} ({rows[0].get('tvg_id') or 'no ID'})")
-    errors = "; ".join(f"{s.get('source')}: {s.get('error') or s.get('status')}" for s in rows)
+    errors = "; ".join(f"{s.get('source')}: {_quote(s.get('error') or s.get('status'))}" for s in rows)
     best = max((history.get(s.get("url", ""), {}) for s in rows), key=lambda r: r.get("successes", 0), default={})
     report.findings.append(Finding(PROBLEM, "It isn't in the playlists: its stream failed",
                                    f"The last check couldn't play it ({errors}).{_history_line(best)}",
@@ -287,7 +300,7 @@ def _guide(e: m3u.Entry, cfg: Config) -> list[Finding]:
 
 def _choice(e: m3u.Entry, choices: object, candidates: list[str], evidence: list[str], cfg: Config) -> list[Finding]:
     if not isinstance(choices, dict):
-        return [Finding(NOTE, "Its guide sources are known, but not which one is used yet",
+        return [Finding(NOTE, "It has guide sources; which one it uses isn't recorded yet",
                         f"Matched to: {', '.join(candidates) or 'the upstream server'}. The next guide build records which one it picks.",
                         evidence)]  # fmt: skip
     c = choices.get(e.tvg_id) or {}
@@ -308,7 +321,7 @@ def _choice(e: m3u.Entry, choices: object, candidates: list[str], evidence: list
         lines = _log_errors(cfg.epg.work_dir / "logs" / f"{site}.log")
         if streaks.get(site) or lines:
             failed = f"It has failed {streaks[site]} refreshes in a row. " if streaks.get(site) else ""
-            found.append(Finding(NOTE, f"{site} had trouble", failed + ("Its log says: " + " / ".join(lines) if lines else ""),
+            found.append(Finding(NOTE, f"{site} had errors", failed + ("Its log says: " + " / ".join(lines) if lines else ""),
                                  [f"work/logs/{site}.log", "state/alert-state.json"]))  # fmt: skip
     return found
 
@@ -319,7 +332,7 @@ def _log_errors(path: Path) -> list[str]:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return []
-    errors = [line.strip()[:200] for line in lines if "ERR" in line or "Error" in line or "error:" in line]
+    errors = [_quote(line) for line in lines if "ERR" in line or "Error" in line or "error:" in line]
     return errors[-LOG_LINES:]
 
 

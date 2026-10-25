@@ -4,7 +4,7 @@ Start with kia's [Dashboard](how-it-works.md#the-dashboard) at `http://<your add
 
 The commands on this page run in a terminal, in the kia folder, on the computer that runs kia.
 
-**Ask kia first.** `kia doctor` reads what kia wrote down about the last refresh and says what's wrong, which file shows it, and what to do. `kia doctor channel <name>` does the same for one channel: whether its stream works, and why its guide is full, partial, or only its name. It changes nothing and works offline. With Docker:
+**Ask kia first.** On the Dashboard, **Ask kia what's wrong** reads what kia wrote down about the last refresh and says what's wrong, which file shows it, and what to do. On a playlist's page, **Why?** next to a channel does the same for that channel: whether its stream works, and why its guide is full, partial, or only its name. Neither changes anything. In a terminal, `kia doctor` gives the same answers. With Docker:
 
 ```sh
 docker compose exec kia python3 -m kia doctor
@@ -36,7 +36,7 @@ Open `http://<your address>:8780/curated.m3u` in a browser on the same network a
 
 Give it a couple of minutes, then restart Kodi. If it's still empty, open the playlist URL in a browser. Its first line shows the guide address (`x-tvg-url`) that Kodi uses. That address comes from `KIA_PUBLIC_URL` in `.env`, so it must be one this Kodi device can reach. If it's wrong, fix `KIA_PUBLIC_URL`, run `docker compose up -d`, then [refresh now](configuration.md#when-changes-take-effect).
 
-Some channels have no guide data anywhere. They show their own name in the guide instead of programs. `guide-report.html`, linked from the Dashboard's **Guide** page, shows which channels have guide data and where it comes from.
+Some channels have no guide data anywhere. They show their own name in the guide instead of programs. **Why?** next to a channel on its playlist's page says whether it matched a guide source and which one it uses, or why it has none. `guide-report.html`, linked from the Dashboard's **Guide** page, shows the same for every channel.
 
 ### A channel shows another channel's programs
 

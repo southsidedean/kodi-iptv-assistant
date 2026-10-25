@@ -4,7 +4,8 @@
 
 ### Asking kia why
 
-- `kia doctor` says what's wrong and why, from what kia has already written down: whether the last refresh worked, its alerts, playlists whose streams all fail, a guide that's mostly empty, parts of the stack that don't answer. `kia doctor channel <name>` explains one channel: whether its stream works and how it has done, or why it was left out, and where its guide comes from, or why it has none, quoting the guide site's log when that's the reason. Each answer names the file that shows it and what to do, and `--json` gives the same for scripts. It changes nothing and works offline ([troubleshooting](docs/troubleshooting.md)).
+- `kia doctor` explains what's wrong, using what kia has already written down: a failed refresh, its alerts, playlists whose streams all fail, a guide that's mostly empty, parts of the stack that don't answer. `kia doctor channel <name>` covers one channel: whether its stream works and how it has done, or why it was left out. It also says where the channel's guide comes from, or why it has none, and quotes the guide site's log when the site is the cause. Each answer names the file it comes from and what to do. `--json` gives the same for scripts. It changes nothing and works offline ([troubleshooting](docs/troubleshooting.md)).
+- The same answers on the Dashboard: **Ask kia what's wrong** on the main page, and **Why?** next to each channel on a playlist's page. Both only read, so they don't need the password. Scripts can ask `GET /api/doctor` and `GET /api/doctor/channel?q=` ([API](docs/api.md)).
 
 ## 0.5.7 (2026-10-25)
 
