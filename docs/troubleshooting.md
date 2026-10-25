@@ -9,6 +9,7 @@ The commands on this page run in a terminal, in the kia folder, on the computer 
 ```sh
 docker compose exec kia python3 -m kia doctor
 docker compose exec kia python3 -m kia doctor channel "CNN"
+docker compose exec kia python3 -m kia doctor guide
 docker compose exec kia python3 -m kia doctor plex
 docker compose exec kia python3 -m kia doctor jellyfin
 docker compose exec kia python3 -m kia doctor hardware
@@ -39,7 +40,7 @@ Open `http://<your address>:8780/curated.m3u` in a browser on the same network a
 
 Give it a couple of minutes, then restart Kodi. If it's still empty, open the playlist URL in a browser. Its first line shows the guide address (`x-tvg-url`) that Kodi uses. That address comes from `KIA_PUBLIC_URL` in `.env`, so it must be one this Kodi device can reach. If it's wrong, fix `KIA_PUBLIC_URL`, run `docker compose up -d`, then [refresh now](configuration.md#when-changes-take-effect).
 
-Some channels have no guide data anywhere. They show their own name in the guide instead of programs. **Why?** next to a channel on its playlist's page says whether it matched a guide source and which one it uses, or why it has none. `guide-report.html`, linked from the Dashboard's **Guide** page, shows the same for every channel.
+Some channels have no guide data anywhere. They show their own name in the guide instead of programs. **Why?** next to a channel on its playlist's page says whether it matched a guide source and which one it uses, or why it has none. `guide-report.html`, linked from the Dashboard's **Guide** page, shows the same for every channel, and `kia doctor guide` sums it up: when the guide was rebuilt, which sites it comes from, which sites keep failing, and how many channels got nothing.
 
 ### A channel shows another channel's programs
 

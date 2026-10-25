@@ -104,7 +104,7 @@ claude mcp add --scope user --transport http kia https://192.168.1.20:8743/api/m
 NODE_EXTRA_CA_CERTS=~/kia-cert.pem claude
 ```
 
-To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with eleven tools.
+To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with twelve tools.
 
 Claude Code saves the token in its settings (`~/.claude.json`), and your shell keeps the command in its history: keep both private.
 
@@ -210,6 +210,7 @@ A client that only starts local programs can use the [mcp-remote](#claude-deskto
 |---|---|
 | `kia_overview` | How the last refresh went, when the next one is, the counts, and anything that needs you |
 | `kia_channel` | One channel (or up to 5 that match): whether its stream works and its record of past checks, or why it was left out; where its guide comes from, or why it has none |
+| `kia_guide` | The whole guide: when it was rebuilt, how many channels have a full, partial, or no guide, the sites it comes from, sites failing their downloads, and channels that got nothing |
 | `kia_plex` | Why Plex shows no channels, or too few: Threadfin and its playlist, Plex's 480-channel limit, the last time kia added its tuners to Plex, and Plex's codecs |
 | `kia_jellyfin` | Why Jellyfin shows no channels, or no guide: the playlist and guide its Live TV reads (and whether they're kia's and go together), its channels, and its last guide refresh |
 | `kia_hardware` | The computer, from the stack's Prometheus: disks nearly full or failing their health check, RAID, memory errors, the processor slowing for heat, running on a battery, and the graphics card's temperature |
@@ -251,7 +252,7 @@ That's the same as the Dashboard shows to anyone on your network, plus, from `ki
 - **Endpoint:** `POST https://<address>:<secure port>/api/mcp`, MCP's Streamable HTTP transport in its simplest form: one JSON answer per request (no event stream), `202` with no body for a notification or response, `405` for `GET`, no sessions, no JSON-RPC batches. With Docker, nginx terminates HTTPS and passes `/api/` to kia.
 - **Versions:** `2025-11-25` and `2025-06-18`. A request with another `MCP-Protocol-Version` gets `400`; `initialize` answers with the client's version if kia has it, else `2025-11-25`.
 - **Authentication:** `Authorization: Bearer <token>`, the token from `kia mcp-token` (in `state/mcp-token.txt`). Wrong tokens are slowed down per address, apart from wrong Dashboard passwords; each address can make 60 tool calls a minute. Requests whose `Origin` is another site are refused.
-- **Tools:** the eleven above, each with `readOnlyHint` set; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
+- **Tools:** the twelve above, each with `readOnlyHint` set; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
 - **Locally:** `kia mcp` speaks the same over standard input and output (MCP's stdio transport), one JSON message per line, with kia's own lines on standard error.
 - **By hand:**
 
