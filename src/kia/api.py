@@ -157,9 +157,9 @@ def search_channels(cfg: ApiConfig, query: str) -> dict:
 
 
 def ask_doctor(cfg: ApiConfig, query: str | None = None, topic: str | None = None) -> dict:
-    """kia doctor's answers (kia.doctor): the overview, or one channel's (query: its ID or part
-    of its name). A read, open like the Dashboard's: it shows what the pages already show,
-    with logins in addresses hidden."""
+    """kia doctor's answers (kia.doctor): the overview, one channel's (query: its ID or part
+    of its name), or a topic's ("plex", "hardware"). A read, open like the Dashboard's: it
+    shows what the pages and Grafana already show, with logins in addresses hidden."""
     from kia import doctor
     from kia.config import load
 
@@ -173,6 +173,8 @@ def ask_doctor(cfg: ApiConfig, query: str | None = None, topic: str | None = Non
         raise ApiError(500, f"kia's settings couldn't be read: {exc}") from None
     if topic == "plex":
         reports = [doctor.plex(conf)]
+    elif topic == "hardware":
+        reports = [doctor.hardware(conf)]
     else:
         reports = [doctor.overview(conf)] if query is None else doctor.channel(conf, query)
     return {"reports": [r.to_dict() for r in reports]}
@@ -734,6 +736,8 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             return 200, ask_doctor(cfg, parse_qs(url.query).get("q", [""])[0])
         if parts == ["doctor", "plex"] and method == "GET":
             return 200, ask_doctor(cfg, topic="plex")
+        if parts == ["doctor", "hardware"] and method == "GET":
+            return 200, ask_doctor(cfg, topic="hardware")
         if parts == ["channel-choices"] and method == "GET":
             return 200, get_choices(cfg)
         if parts == ["channel", "test"] and method == "POST":

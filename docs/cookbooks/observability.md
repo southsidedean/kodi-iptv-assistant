@@ -129,6 +129,8 @@ Prometheus picks new files up within a few minutes, without a restart.
 
 ## If something's wrong
 
+**Ask kia first.** `docker compose exec kia python3 -m kia doctor hardware` reads Prometheus's numbers and says what needs you: a disk that's nearly full or failing its health check, a failed RAID disk, memory errors, the processor slowing down for heat, or the computer running on its battery. **Ask kia what's wrong** on the Dashboard includes the same problems. It also says when Prometheus or node-exporter doesn't answer.
+
 **The computer's graphs are empty.** Nothing is answering on port 9100. On Linux, run `scripts/stack.sh apply` again, which adds kia's node-exporter when nothing else answers there (without `KIA_STACK`, add `monitoring-node` to `COMPOSE_PROFILES`); if a firewall runs on the computer, it has to let Docker's network reach port 9100. On a Mac, check that node-exporter runs (`brew services list`) and start it with `brew services start node_exporter`.
 
 **The browser says "Client sent an HTTP request to an HTTPS server".** The address starts with `http://`; use `https://`. Grafana answers only over HTTPS.

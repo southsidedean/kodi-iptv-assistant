@@ -240,6 +240,8 @@ def test_the_command_text_json_and_exit_codes(kia, capsys):
     [report] = json.loads(capsys.readouterr().out)
     assert report["subject"] == "nothing here" and report["worst"] == "problem"
     assert report["findings"][0]["evidence"] == ["output/curated.m3u", "output/report.json"]
+    assert cli.main(["doctor", "-c", config, "hardware"]) == 0  # a note: without Prometheus there's nothing to ask
+    assert "kia can't see the hardware without Prometheus" in capsys.readouterr().out
     assert cli.main(["doctor", "-c", config, "nonsense"]) == 2
 
 
@@ -347,6 +349,117 @@ def test_plex_missing_playlist_url_and_settings(kia):
     assert "Threadfin reads plex-1.m3u, which doesn't exist" in t and "kia doesn't keep Plex's channel list up to date" in t
     write(kia, "state/plex-tuners.json", {"when": iso(NOW), "ok": False, "missing": ["KIA_PLEX_TOKEN (see docs/plex.md)"]})
     assert "kia can't reach Plex: settings are missing" in titles(plex_report(kia, {"KIA_PLEX_URL": "http://192.168.1.20:32400"}))
+
+
+# Hardware
+
+HEALTHY = {'up{job="node"}': [({"job": "node"}, 1.0)], "count(smartctl_device)": [({}, 2.0)],
+           "node_filesystem_avail_bytes": [({"device": "/dev/sda1", "mountpoint": "/"}, 40.0)]}  # fmt: skip
+
+
+def hardware_report(base: Path, answers: dict, env: dict | None = None) -> doctor.Report:
+    """doctor.hardware with Prometheus's answers: each query gets the answer whose key it contains."""
+
+    def ask(expr: str):
+        if isinstance(answers, Exception):
+            raise answers
+        return next((v for k, v in answers.items() if k in expr), [])
+
+    write(base, "output/stack.json", {"services": [{"service": "prometheus", "ok": True}]})
+    return doctor.hardware(load(base / "kia.toml"), env=env or {}, ask=ask)
+
+
+def test_hardware_without_prometheus(kia):
+    r = doctor.hardware(load(kia / "kia.toml"), env={}, ask=lambda expr: pytest.fail("asked Prometheus"))
+    assert r.worst == doctor.NOTE and titles(r) == ["kia can't see the hardware without Prometheus"]
+
+
+def test_hardware_all_good(kia):
+    r = hardware_report(kia, HEALTHY)
+    assert titles(r) == ["The hardware looks fine"]
+    assert "the health of 2 disks (SMART)" in r.findings[0].detail and "graphics card" not in r.findings[0].detail
+    # Without the disks' exporter, it says what would add them.
+    assert "needs observability-disks" in hardware_report(kia, {**HEALTHY, "count(smartctl_device)": []}).findings[0].detail
+
+
+def test_hardware_prometheus_or_node_exporter_down(kia):
+    r = hardware_report(kia, OSError("Connection refused"))
+    assert r.worst == doctor.PROBLEM and titles(r) == ["Prometheus isn't answering"] and "Connection refused" in r.findings[0].detail
+    r = hardware_report(kia, {'up{job="node"}': [({"job": "node"}, 0.0)]})
+    assert titles(r) == ["Prometheus can't reach node-exporter"]
+
+
+@pytest.mark.parametrize("body", [b"not json", b"[]", b'{"data": {"result": [{"value": []}]}}', b'{"data": null}'])
+def test_prometheus_answer_in_the_wrong_shape(monkeypatch, body):
+    # Whatever answers at Prometheus's address, an answer kia can't read counts as no answer (OSError).
+    import io
+    import urllib.request
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda url, timeout: io.BytesIO(body))
+    with pytest.raises(OSError, match="didn't expect"):
+        doctor._prometheus("http://prometheus:9090", "up")
+
+
+def test_prometheus_answer(monkeypatch):
+    import io
+    import urllib.request
+
+    asked = []
+    body = b'{"data": {"result": [{"metric": {"device": "sda"}, "value": [1, "37"]}]}}'
+    monkeypatch.setattr(urllib.request, "urlopen", lambda url, timeout: asked.append(url) or io.BytesIO(body))
+    assert doctor._prometheus("http://prometheus:9090/", 'up{job="node"}') == [({"device": "sda"}, 37.0)]
+    assert asked == ["http://prometheus:9090/api/v1/query?query=up%7Bjob%3D%22node%22%7D"]
+
+
+def test_hardware_problems(kia):
+    answers = {**HEALTHY,
+               "node_filesystem_avail_bytes": [({"device": "/dev/sda1", "mountpoint": "/"}, 4.2),
+                                               ({"device": "/dev/sda1", "mountpoint": "/var/snap/firefox/common/host-hunspell"}, 4.2),
+                                               ({"device": "/dev/sdb1", "mountpoint": "/media/content"}, 55.0)],
+               'node_md_disks{state="failed"}': [({"device": "md0"}, 1.0)],
+               "node_md_state": [({"device": "md1"}, 1.0)],
+               "node_edac_uncorrectable": [({}, 2.0)],
+               "node_cpu_core_throttles": [({}, 12.0)],
+               "Battery Power": [({}, 1.0)], "current_capacity": [({}, 15.0)], "time_to_empty": [({}, 600.0)],
+               "smartctl_device_smart_status": [({"device": "sdc"}, 0.0)],
+               "Current_Pending_Sector": [({"device": "sdc"}, 8.0)],
+               "Reallocated_Sector_Ct": [({"device": "sdd"}, 1.0)],
+               "smartctl_device_temperature": [({"device": "sdd"}, 63.0)],
+               "percentage_used": [({"device": "nvme0"}, 97.0)],
+               "DCGM_FI_DEV_GPU_TEMP": [({}, 91.0)]}  # fmt: skip
+    r = hardware_report(kia, answers)
+    assert titles(r) == [
+        "/ is nearly full: 4% free",  # once, though the snap sees the same disk
+        "RAID array md0 has 1 failed disk", "RAID array md1 is rebuilding or checking itself",
+        "The memory had errors it couldn't correct in the last day",
+        "The processor slowed itself down 12 times in the last hour",
+        "The computer is running on its battery",
+        "Disk sdc fails its own health check (SMART)", "Disk sdc has 8 sectors it couldn't read",
+        "Disk sdd has replaced 1 worn sector", "Disk sdd is hot: 63°C", "Disk nvme0 has used 97% of the writes it's made for",
+        "The graphics card is hot: 91°C"]  # fmt: skip
+    battery = r.findings[5]
+    assert battery.level == doctor.PROBLEM and battery.detail.startswith("15% charged, about 10 minutes left.")
+    # A fuller battery is only a note; corrected memory errors are a note too.
+    r = hardware_report(kia, {**HEALTHY, "Battery Power": [({}, 1.0)], "current_capacity": [({}, 80.0)],
+                              "node_edac_correctable": [({}, 3.0)]})  # fmt: skip
+    assert [(f.level, f.title) for f in r.findings] == [(doctor.NOTE, "The memory corrected 3 errors in the last day"),
+                                                         (doctor.NOTE, "The computer is running on its battery")]  # fmt: skip
+
+
+def test_hardware_names_from_the_computer_are_text(kia):
+    # A mount point's or disk's name comes from the computer: one line, cut short, logins hidden.
+    r = hardware_report(kia, {**HEALTHY, "node_filesystem_avail_bytes": [({"device": "x", "mountpoint": "/mnt/a\nb" + "c" * 99}, 1.0)],
+                              "smartctl_device_smart_status": [({"device": "http://me:pw@nas/x"}, 0.0)],
+                              "smartctl_device_temperature": [({"device": "sda"}, float("nan"))]})  # fmt: skip
+    assert len(r.findings[0].title) < 100 and "\n" not in r.findings[0].title
+    assert "pw" not in r.findings[1].title and len(r.findings) == 2
+
+
+def test_overview_carries_hardware_problems_when_prometheus_answers(kia, monkeypatch):
+    monkeypatch.setattr(doctor, "_prometheus", lambda url, expr, timeout=3: (_ for _ in ()).throw(OSError("refused")))
+    assert "Prometheus isn't answering" not in titles(overview(kia))  # not in the stack: not asked
+    write(kia, "output/stack.json", {"services": [{"service": "prometheus", "ok": True}]})
+    assert "Prometheus isn't answering" in titles(overview(kia))
 
 
 def test_every_docs_link_in_doctors_answers_exists():

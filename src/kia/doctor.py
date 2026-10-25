@@ -4,12 +4,14 @@ Every refresh leaves a record: the Dashboard's status.json, the stream report, e
 stream's history, the guide match, each guide site's log, the stack's tiles. The answers
 to most questions ("why does this channel show only its name?", "why did last night's
 refresh fail?") are in those files; doctor reads them and says what they mean, with the
-file each answer comes from and what to do about it. It changes nothing, needs no network,
-and gives the same answer every time for the same files, so it can be tested.
+file each answer comes from and what to do about it. It changes nothing, and gives the
+same answer every time for the same files, so it can be tested. Only the hardware topic
+uses the network: it asks the stack's own Prometheus, which keeps the computer's numbers.
 
     kia doctor                  how kia is doing, and anything that needs you
     kia doctor channel <name>   one channel: its stream, and its guide
     kia doctor plex             why Plex shows no channels, or too few
+    kia doctor hardware         the computer: disks, RAID, memory, heat, power
     kia doctor ... --json       the same, for scripts (and, later, kia's MCP server)
 
 Everything it reads was written by kia, but parts of it come from strangers (channel
@@ -19,7 +21,10 @@ names, guide sites' errors), so it's shown as text and never run or followed.
 from __future__ import annotations
 
 import json
+import math
 import re
+import urllib.parse
+import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -149,8 +154,11 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
         report.findings.append(Finding(NOTE, "A Pluto TV channel is playing without kia's fix",
                                        "Pluto wouldn't open a session, so kia is passing on its plain link, which can freeze at ad breaks. kia tries again every 5 minutes.",
                                        ["output/pluto.json"], "docs/pluto-under-the-hood.md#when-pluto-wont-play-along"))  # fmt: skip
-    # Plex's problems too, when kia feeds a Plex (its notes and all-clear stay in `kia doctor plex`).
+    # Plex's problems too, when kia feeds a Plex (its notes and all-clear stay in `kia doctor plex`),
+    # and the hardware's, when Prometheus answered kia's last check of the stack.
     report.findings += [f for f in plex(cfg).findings if f.level == PROBLEM]
+    if _answering(cfg).get("prometheus"):
+        report.findings += [f for f in hardware(cfg).findings if f.level == PROBLEM]
     if not report.findings or all(f.level == OK for f in report.findings):
         report.findings.append(Finding(OK, "Nothing needs you", "No alerts, no playlist whose streams all fail, and everything in the stack answers."))
     return report
@@ -395,8 +403,7 @@ def plex(cfg: Config, env: dict | None = None, now: datetime | None = None) -> R
                                        "There's no Threadfin and no KIA_PLEX_URL, so kia isn't feeding a Plex.",
                                        [".env", "threadfin/"], "docs/plex.md"))  # fmt: skip
         return report
-    stack = _json(cfg.output_dir / "stack.json") or {}
-    answering = {x.get("service"): x.get("ok") for x in list_of(stack.get("services"), dict)}
+    answering = _answering(cfg)
     for folder, title in folders:
         report.findings += _threadfin(base, folder, title, answering.get(folder), cfg, m3u)
     if not folders:
@@ -474,6 +481,172 @@ def _plex_tuners(record: dict | None, url: str, now: datetime) -> list[Finding]:
     if seen and now - seen > STALE_TUNERS:
         found.append(Finding(NOTE, "kia last updated Plex over two days ago", "It does after every refresh, so kia may have stopped running.",
                              ["state/plex-tuners.json"], "Check that kia is running: docker compose ps, in the kia folder."))  # fmt: skip
+    return found
+
+
+# Hardware
+
+
+PROMETHEUS = "http://prometheus:9090"  # as kia's container reaches it; KIA_PROMETHEUS_URL changes it
+LOW_SPACE = 10  # percent free: under this a disk is nearly full
+HOT_DISK = 60  # °C: most disks are made to run up to about this
+HOT_GPU = 85  # °C: NVIDIA cards start slowing themselves down around here
+WORN_SSD = 90  # percent of the writes an SSD is rated for
+# The computer's own disks, as the Hardware dashboard picks them: without memory and container
+# filesystems, and without macOS's system volumes, which share the main disk's space.
+_DISKS = 'fstype!~"tmpfs|overlay|squashfs|ramfs|vfat|nsfs", mountpoint!~"/System/Volumes/.+"'
+_RAW = 'attribute_value_type="raw"'
+
+
+def _prometheus(url: str, expr: str, timeout: float = 3) -> list[tuple[dict, float]]:
+    """Prometheus's answer to one query: each series' labels and its value now. Raises OSError
+    when Prometheus can't be reached or answers something else."""
+    query = urllib.parse.urlencode({"query": expr})
+    try:  # url is kia's own (PROMETHEUS, or KIA_PROMETHEUS_URL from .env), never a stranger's
+        with urllib.request.urlopen(f"{url.rstrip('/')}/api/v1/query?{query}", timeout=timeout) as r:  # nosec B310
+            result = json.load(r)["data"]["result"]
+        return [(x.get("metric") or {}, float(x["value"][1])) for x in result]
+    except (ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
+        raise OSError(f"an answer kia didn't expect ({type(exc).__name__})") from None
+
+
+def _answering(cfg: Config) -> dict:
+    """Each service in kia's last check of the stack (output/stack.json): True if it answered."""
+    stack = _json(cfg.output_dir / "stack.json") or {}
+    return {x.get("service"): x.get("ok") for x in list_of(stack.get("services"), dict)}
+
+
+def hardware(cfg: Config, env: dict | None = None, ask=None) -> Report:
+    """The computer, from the numbers Prometheus keeps for the Hardware dashboard: free space,
+    RAID, memory errors, the processor slowing for heat, power, and with their exporters each
+    disk's health (SMART) and the graphics card. ask(expr) answers a query (tests pass their own)."""
+    import os
+
+    env = os.environ if env is None else env
+    url = env.get("KIA_PROMETHEUS_URL") or PROMETHEUS
+    ask = ask or (lambda expr: _prometheus(url, expr))
+    report = Report("Hardware")
+    if "prometheus" not in _answering(cfg) and not env.get("KIA_PROMETHEUS_URL"):
+        report.findings.append(Finding(NOTE, "kia can't see the hardware without Prometheus",
+                                       "Add the observability part to kia's stack: Prometheus keeps the computer's numbers, and kia reads them.",
+                                       ["output/stack.json"], "docs/cookbooks/observability.md#1-turn-it-on"))  # fmt: skip
+        return report
+    try:
+        node = ask('up{job="node"}')
+    except OSError as exc:
+        report.findings.append(Finding(PROBLEM, "Prometheus isn't answering", f"kia asked {_quote(url)} and got: {_quote(exc)}.",
+                                       ["Prometheus"], "In the kia folder: docker compose ps, then docker compose logs prometheus"))  # fmt: skip
+        return report
+
+    def series(expr: str) -> list[tuple[dict, float]]:
+        """Each series' labels and value. A query that fails here, after the first one worked,
+        counts as no data."""
+        try:
+            return [(m if isinstance(m, dict) else {}, v) for m, v in ask(expr) if math.isfinite(v)]
+        except OSError:
+            return []
+
+    def total(expr: str) -> float:
+        return sum(v for _, v in series(expr))
+
+    checked = []
+    if any(v == 1 for _, v in node):
+        checked.append("free space, RAID, memory errors, the processor's heat, and power")
+        report.findings += _computer(series, total)
+    else:
+        report.findings.append(Finding(PROBLEM, "Prometheus can't reach node-exporter",
+                                       "node-exporter measures the computer itself, so without it kia can't see its disks, memory, heat, or power.",
+                                       ["Prometheus"], "docs/cookbooks/observability.md#2-the-computers-own-numbers"))  # fmt: skip
+    disks = int(total("count(smartctl_device)"))
+    if disks:
+        checked.append(f"the health of {disks} disk{'' if disks == 1 else 's'} (SMART)")
+        report.findings += _disks(series)
+    gpu = series("max(DCGM_FI_DEV_GPU_TEMP)")
+    if gpu:
+        checked.append("the graphics card")
+        if gpu[0][1] >= HOT_GPU:
+            report.findings.append(Finding(NOTE, f"The graphics card is hot: {gpu[0][1]:.0f}°C",
+                                           "Around this point it slows itself down. Check its fans and the air around the computer.",
+                                           ["Prometheus (dcgm-exporter)"]))  # fmt: skip
+    if checked and not any(f.level != OK for f in report.findings):
+        more = "" if disks else " Each disk's health needs observability-disks, on Linux."
+        report.findings.append(Finding(OK, "The hardware looks fine", f"kia checked {'; '.join(checked)}.{more}", ["Prometheus"],
+                                       "docs/cookbooks/observability.md#6-the-hardware-dashboard-optional"))  # fmt: skip
+    return report
+
+
+def _name(labels: dict, key: str = "device") -> str:
+    """A disk's or an array's name from Prometheus's labels, shown as text (the computer names them)."""
+    return _quote(labels.get(key) or "?", 60)
+
+
+def _computer(series, total) -> list[Finding]:
+    """node-exporter's numbers: free space, RAID, memory errors, heat, and power."""
+    found, node = [], ["Prometheus (node-exporter)"]
+    free = {}  # by device, so a disk mounted in two places (a snap's view of /, say) is named once, by its shortest
+    for labels, percent in series(f"100 * node_filesystem_avail_bytes{{{_DISKS}}} / node_filesystem_size_bytes{{{_DISKS}}}"):
+        mount = _name(labels, "mountpoint")
+        if labels.get("device") not in free or len(mount) < len(free[labels.get("device")][0]):
+            free[labels.get("device")] = (mount, percent)
+    for mount, percent in sorted(free.values()):
+        if percent < LOW_SPACE:
+            found.append(Finding(PROBLEM, f"{mount} is nearly full: {percent:.0f}% free",
+                                 "When it fills up, kia and anything else there can't save files.", node,
+                                 "Delete what you don't need there, or move it to another disk."))  # fmt: skip
+    for labels, failed in series('node_md_disks{state="failed"} > 0'):
+        found.append(Finding(PROBLEM, f"RAID array {_name(labels)} has {failed:.0f} failed disk{'' if failed == 1 else 's'}",
+                             "The array still works, but one more failure can lose what's on it.", node,
+                             "Replace the failed disk. cat /proc/mdstat shows which one it is (marked (F))."))  # fmt: skip
+    for labels, _ in series('node_md_state{state=~"recovering|resync"} == 1'):
+        found.append(Finding(NOTE, f"RAID array {_name(labels)} is rebuilding or checking itself",
+                             "Its disks are slower until it finishes.", node))  # fmt: skip
+    bad = total("sum(increase(node_edac_uncorrectable_errors_total[1d]))")
+    fixed = total("sum(increase(node_edac_correctable_errors_total[1d]))")
+    if bad >= 1:
+        found.append(Finding(PROBLEM, "The memory had errors it couldn't correct in the last day",
+                             "That can crash programs or damage files.", node,
+                             "Test the memory (memtest86+), and replace a failing stick."))  # fmt: skip
+    elif fixed >= 1:
+        found.append(Finding(NOTE, f"The memory corrected {fixed:.0f} errors in the last day",
+                             "ECC memory fixes these by itself, but a number that keeps growing means a stick is wearing out.", node))  # fmt: skip
+    slowed = total("sum(increase(node_cpu_core_throttles_total[1h]))") + total("sum(increase(node_cpu_package_throttles_total[1h]))")
+    if slowed >= 1:
+        found.append(Finding(NOTE, f"The processor slowed itself down {slowed:.0f} times in the last hour",
+                             "Usually for heat. Check the fans, and that air can reach the computer.", node))  # fmt: skip
+    battery = series('max(node_power_supply_power_source_state{state="Battery Power"}) or '
+                     '(1 - max(node_power_supply_online * on(instance, power_supply) group_left node_power_supply_info{type="Mains"}))')
+    if battery and battery[0][1] == 1:
+        charge = series("min(node_power_supply_current_capacity / node_power_supply_max_capacity) * 100 or min(node_power_supply_capacity)")
+        left = series("min(node_power_supply_time_to_empty_seconds)")
+        detail = ", ".join(x for x in (f"{charge[0][1]:.0f}% charged" if charge else "",
+                                       f"about {left[0][1] / 60:.0f} minutes left" if left and left[0][1] > 0 else "") if x)
+        low = bool(charge) and charge[0][1] < 20
+        found.append(Finding(PROBLEM if low else NOTE, "The computer is running on its battery",
+                             (detail[0].upper() + detail[1:] + ". " if detail else "") + "The power is off, or it's unplugged.", node,
+                             "If the power is out, shut the computer down before the battery runs out." if low else ""))  # fmt: skip
+    return found
+
+
+def _disks(series) -> list[Finding]:
+    """smartctl-exporter's numbers: each disk's own health check and the counts that grow as it wears out."""
+    found, smart = [], ["Prometheus (smartctl-exporter)"]
+    for labels, _ in series("max by (device) (smartctl_device_smart_status) == 0"):
+        found.append(Finding(PROBLEM, f"Disk {_name(labels)} fails its own health check (SMART)", "The disk itself predicts it will fail soon.", smart,
+                             "Copy what's on it to another disk, and replace it."))  # fmt: skip
+    unreadable = f'sum by (device) (smartctl_device_attribute{{attribute_name=~"Current_Pending_Sector|Offline_Uncorrectable",{_RAW}}}) > 0'
+    for labels, n in series(unreadable):
+        found.append(Finding(PROBLEM, f"Disk {_name(labels)} has {n:.0f} sector{'' if n == 1 else 's'} it couldn't read",
+                             "Some of what's on it may already be damaged, and the disk is wearing out.", smart,
+                             "Copy what's on it to another disk, and plan to replace it."))  # fmt: skip
+    for labels, n in series(f'max by (device) (smartctl_device_attribute{{attribute_name="Reallocated_Sector_Ct",{_RAW}}}) > 0'):
+        found.append(Finding(NOTE, f"Disk {_name(labels)} has replaced {n:.0f} worn sector{'' if n == 1 else 's'}",
+                             "A few is normal for an older disk; a number that keeps growing means it's wearing out.", smart))  # fmt: skip
+    for labels, t in series(f'max by (device) (smartctl_device_temperature{{temperature_type="current"}}) >= {HOT_DISK}'):
+        found.append(Finding(NOTE, f"Disk {_name(labels)} is hot: {t:.0f}°C", f"Most disks are made to run up to about {HOT_DISK}°C. "
+                             "Check the fans, and the air around it.", smart))  # fmt: skip
+    for labels, used in series(f"max by (device) (smartctl_device_percentage_used) >= {WORN_SSD}"):
+        found.append(Finding(NOTE, f"Disk {_name(labels)} has used {used:.0f}% of the writes it's made for",
+                             "SSDs wear out as they're written to. Plan to replace it.", smart))  # fmt: skip
     return found
 
 

@@ -58,6 +58,7 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 | `GET /api/doctor` | `kia doctor`'s overview, in `reports`: each with its `subject`, its `worst` level, and its `findings`, each with a `level` (`problem`, `note`, or `ok`), `title`, `detail`, `evidence` (the files that show it), and `fix`. A login in any address it quotes is hidden | |
 | `GET /api/doctor/channel?q=CNN` | The same for the channels matching an ID or part of a name (up to 5) | |
 | `GET /api/doctor/plex` | The same for Plex: Threadfin, its playlist, the last time kia added its tuners to Plex, and Plex's codecs | |
+| `GET /api/doctor/hardware` | The same for the computer, from the stack's Prometheus: free space, RAID, memory errors, heat, power, and with their exporters each disk's health and the graphics card | |
 | `POST /api/mcp` | kia's [MCP server](mcp.md#for-developers), for AI assistants: JSON-RPC (MCP's Streamable HTTP transport, one JSON answer per request), read-only tools | its token (`Authorization: Bearer`), HTTPS |
 | `POST /api/plex/tuners` | Adds kia's channels to Plex as Live TV now (`kia plex-tuners`), which kia otherwise does after each guide refresh. Needs `KIA_PLEX_URL`. One at a time. | password, HTTPS |
 | `GET /api/players` | Which pseudonym in `/metrics` and the graphs (such as `player-3fa2c1`) is which Plex or Jellyfin player: each one's `pseudonym`, `name`, `product`, and the day it was last `seen`. | password, HTTPS |
@@ -120,7 +121,7 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 | `refresh-guide` | The quick refresh between nights: the quick guide sources only, then the guide |
 | `sync` | Takes the guide from another kia server (`KIA_UPSTREAM_URL`) |
 | `probe <address>` | Tests one stream address and prints what ffprobe found: the same test as the nightly check, for a stream that isn't in a playlist yet |
-| `doctor` | Explains what's wrong, using the files kia keeps, and says what to do. `doctor channel <name>` explains one channel's stream and guide; `doctor plex`, why Plex shows no channels or too few. `--json` gives the same for scripts |
+| `doctor` | Explains what's wrong, using the files kia keeps, and says what to do. `doctor channel <name>` explains one channel's stream and guide; `doctor plex`, why Plex shows no channels or too few; `doctor hardware`, the computer's disks, RAID, memory, heat, and power. `--json` gives the same for scripts |
 | `settings` | The settings kia is running with, and where each is changed |
 | `password` | Where the Dashboard's password is. `--reset` makes a new one |
 | `tls` | The secure Dashboard's certificate. `--self-signed` makes a new one of kia's own |
