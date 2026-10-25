@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.6.3 (unreleased)
+## 0.6.3 (2026-10-25)
+
+### Upgrading from 0.6.2
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). If your assistant uses kia's MCP server, it picks up the `kia_hardware` tool the next time it connects. `kia doctor hardware` needs the observability part; without it, it says so.
 
 ### Asking kia why
 
