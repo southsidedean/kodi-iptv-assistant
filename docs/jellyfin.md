@@ -28,6 +28,8 @@ Channels appear under **Live TV** in every Jellyfin app, with kia's channel numb
 
 ## If something's wrong
 
+**Ask kia first.** With `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN` in `.env` (the key comes from Jellyfin's **Dashboard → API Keys**), `docker compose exec kia python3 -m kia doctor jellyfin` asks Jellyfin what its Live TV reads. It says whether that's one of kia's playlists, whether it has radio stations in it, and whether the guide goes with it. It also checks how many channels Jellyfin shows and how its last guide refresh went, with what to do about each. **Ask kia what's wrong** on the Dashboard includes the same problems.
+
 If the channels appear but the guide is empty, open the guide address in a browser on the machine running Jellyfin (it should download a file), then choose **Refresh Guide Data** again.
 
 **A channel's name is missing its first word, a number** ("Hour Free Movies" for *24 Hour Free Movies*). Jellyfin takes a number at the start of a channel name as its channel number. The channel, its number, and its guide are right; only the name is shorter.

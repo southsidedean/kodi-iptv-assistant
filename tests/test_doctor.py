@@ -242,6 +242,8 @@ def test_the_command_text_json_and_exit_codes(kia, capsys):
     assert report["findings"][0]["evidence"] == ["output/curated.m3u", "output/report.json"]
     assert cli.main(["doctor", "-c", config, "hardware"]) == 0  # a note: without Prometheus there's nothing to ask
     assert "kia can't see the hardware without Prometheus" in capsys.readouterr().out
+    assert cli.main(["doctor", "-c", config, "jellyfin"]) == 0
+    assert "Jellyfin isn't set up with kia" in capsys.readouterr().out
     assert cli.main(["doctor", "-c", config, "nonsense"]) == 2
 
 
@@ -330,7 +332,7 @@ def test_plex_problems(kia, monkeypatch):
     from kia import plex as plex_module
 
     plex_setup(kia, channels=481)
-    write(kia, "output/stack.json", {"services": [{"service": "threadfin", "ok": False}]})
+    write(kia, "output/stack.json", {"services": [{"service": "threadfin", "ok": False}, {"service": "plex", "ok": True}]})
     write(kia, "state/plex-tuners.json", {"when": iso(NOW - 72 * HOUR), "ok": False,
                                           "error": "Plex answered 401 to GET /livetv/dvrs (check the token)"})  # fmt: skip
     monkeypatch.setattr(plex_module, "has_codecs", lambda base: False)
@@ -341,6 +343,23 @@ def test_plex_problems(kia, monkeypatch):
     with monkeypatch.context() as m:
         m.setenv("KIA_PLEX_URL", "http://plex:32400")
         assert "kia couldn't add the tuners to Plex" in titles(overview(kia))
+
+
+def test_plex_left_over_from_an_earlier_stack(kia, monkeypatch):
+    # After a switch from Plex to Jellyfin, the Threadfin folder and KIA_PLEX_URL stay behind; kia's
+    # check of the stack says neither runs, so there's nothing wrong with Plex to report.
+    from kia import plex as plex_module
+
+    plex_setup(kia, playlist="gone")
+    (kia / "output/gone.m3u").unlink()
+    monkeypatch.setattr(plex_module, "has_codecs", lambda base: False)
+    write(kia, "output/stack.json", {"services": [{"service": "jellyfin", "ok": True}]})
+    r = plex_report(kia, {"KIA_PLEX_URL": "http://plex:32400"})
+    assert r.worst == doctor.NOTE and titles(r) == ["KIA_PLEX_URL names Plex in kia's stack, which isn't in it now"]
+    assert titles(plex_report(kia, {})) == ["Plex isn't set up with kia"]
+    # Before kia's first check of the stack, the folder is all there is to go on.
+    (kia / "output/stack.json").unlink()
+    assert "Threadfin reads gone.m3u, which doesn't exist" in titles(plex_report(kia, {}))
 
 
 def test_plex_missing_playlist_url_and_settings(kia):
@@ -472,6 +491,117 @@ def test_overview_carries_hardware_problems_when_prometheus_answers(kia, monkeyp
     assert "Prometheus isn't answering" not in titles(overview(kia))  # not in the stack: not asked
     write(kia, "output/stack.json", {"services": [{"service": "prometheus", "ok": True}]})
     assert "Prometheus isn't answering" in titles(overview(kia))
+
+
+# Jellyfin
+
+JF_ENV = {"KIA_JELLYFIN_URL": "http://jellyfin:8096", "KIA_JELLYFIN_TOKEN": "key"}
+LIVE_TV = {"TunerHosts": [{"Type": "m3u", "Url": "http://web/tv.m3u"}],
+           "ListingProviders": [{"Type": "xmltv", "Path": "http://web/tv.guide.xml.gz"}]}  # fmt: skip
+REFRESHED = [{"Key": "RefreshGuide", "LastExecutionResult": {"Status": "Completed", "EndTimeUtc": "2026-10-25T01:23:47.8691185Z"}}]
+
+
+class FakeJellyfin:
+    """Jellyfin's answers by path; an exception in place of an answer is raised."""
+
+    def __init__(self, live_tv=LIVE_TV, channels=1509, tasks=REFRESHED):
+        self.answers = {"/System/Configuration/livetv": live_tv, "/LiveTv/Channels": {"TotalRecordCount": channels},
+                        "/ScheduledTasks": tasks}  # fmt: skip
+
+    def call(self, path: str):
+        answer = next(v for k, v in self.answers.items() if path.startswith(k))
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+def jellyfin_setup(base: Path, radio: int = 0) -> None:
+    lines = "".join(f'#EXTINF:-1 tvg-id="C{i}.us",Channel {i}\nhttps://a/{i}\n' for i in range(3))
+    lines += "".join(f'#EXTINF:-1 tvg-id="R{i}.us" radio="true",Radio {i}\nhttps://r/{i}\n' for i in range(radio))
+    write(base, "output/tv.m3u", "#EXTM3U\n" + lines)
+    write(base, "output/tv.guide.xml.gz", "")
+    write(base, "output/guide.xml.gz", "")
+
+
+def jellyfin_report(base: Path, client=None, env=JF_ENV) -> doctor.Report:
+    return doctor.jellyfin(load(base / "kia.toml"), env=env, now=NOW, client=client or FakeJellyfin())
+
+
+def test_jellyfin_not_set_up_or_missing_settings(kia):
+    assert titles(jellyfin_report(kia, env={})) == ["Jellyfin isn't set up with kia"]
+    write(kia, "output/stack.json", {"services": [{"service": "jellyfin", "ok": False}]})
+    assert titles(jellyfin_report(kia, env={})) == ["Jellyfin isn't answering", "kia doesn't know Jellyfin's address"]
+    assert titles(jellyfin_report(kia, env={"KIA_JELLYFIN_URL": "http://jellyfin:8096"}))[-1] == \
+        "kia can't check Jellyfin's Live TV without an API key"
+
+
+def test_jellyfin_left_over_from_an_earlier_stack(kia):
+    # KIA_JELLYFIN_URL stays behind when Jellyfin leaves the stack: nothing to ask, and no problem.
+    write(kia, "output/stack.json", {"services": [{"service": "plex", "ok": True}]})
+    r = jellyfin_report(kia, FakeJellyfin(RuntimeError("asked Jellyfin")))  # raised if it asks
+    assert r.worst == doctor.NOTE and titles(r) == ["KIA_JELLYFIN_URL names Jellyfin in kia's stack, which isn't in it now"]
+    # A Jellyfin elsewhere (not "jellyfin" on Docker's network) is still asked.
+    other = {**JF_ENV, "KIA_JELLYFIN_URL": "http://192.168.1.20:8096"}
+    assert titles(jellyfin_report(kia, FakeJellyfin({"TunerHosts": []}), env=other)) == ["Jellyfin has no M3U tuner"]
+
+
+def test_jellyfin_all_good(kia):
+    jellyfin_setup(kia)
+    r = jellyfin_report(kia)
+    assert r.worst == doctor.OK
+    assert titles(r) == ["Jellyfin reads tv.m3u: 3 TV channels", "Jellyfin shows 1509 channels", "Jellyfin refreshed its guide"]
+    # Jellyfin's seven decimals read (on Python 3.11 too), shown in this computer's time zone.
+    assert r.findings[-1].detail.startswith("On ") and " Oct 2" in r.findings[-1].detail
+
+
+def test_jellyfin_problems(kia):
+    from kia.jellyfin import JellyfinError
+
+    jellyfin_setup(kia, radio=2)
+    write(kia, "output/kids.m3u", "#EXTM3U\n")
+    # A playlist with radio in it, a guide for another playlist, no channels loaded, a failed refresh.
+    live_tv = {"TunerHosts": [{"Type": "m3u", "Url": "http://192.168.1.20:8780/tv.m3u"}, {"Type": "hdhomerun", "Url": "x"}],
+               "ListingProviders": [{"Type": "xmltv", "Path": "http://web/kids.guide.xml.gz"}]}  # fmt: skip
+    failed = [{"Key": "RefreshGuide", "LastExecutionResult": {"Status": "Failed", "EndTimeUtc": "2026-10-25T01:00:00Z",
+                                                              "ErrorMessage": "Couldn't download http://me:pw@web/x"}}]  # fmt: skip
+    r = jellyfin_report(kia, FakeJellyfin(live_tv, channels=0, tasks=failed))
+    assert titles(r) == ["Jellyfin reads tv.m3u: 3 TV channels", "tv.m3u has 2 radio stations too",
+                         "Jellyfin's guide is kids.guide.xml.gz, which isn't one of kia's", "Jellyfin's guide doesn't go with tv.m3u",
+                         "Jellyfin has no channels yet", "Jellyfin's last guide refresh failed"]  # fmt: skip
+    assert "pw" not in r.findings[-1].detail
+    # No tuner at all; no guide; a playlist that isn't kia's.
+    assert titles(jellyfin_report(kia, FakeJellyfin({"TunerHosts": []}))) == ["Jellyfin has no M3U tuner"]
+    t = titles(jellyfin_report(kia, FakeJellyfin({"TunerHosts": [{"Type": "m3u", "Url": "http://other/list.m3u"}]})))
+    assert t[:2] == ["Jellyfin reads list.m3u, which isn't one of kia's", "Jellyfin has no XMLTV guide"]
+    # The full guide fits any playlist.
+    full = {**LIVE_TV, "ListingProviders": [{"Type": "xmltv", "Path": "/config/guide.xml.gz"}]}
+    assert doctor.PROBLEM not in {f.level for f in jellyfin_report(kia, FakeJellyfin(full)).findings}
+    # Jellyfin refusing kia's key; a later question failing counts as no data; an old refresh.
+    r = jellyfin_report(kia, FakeJellyfin(JellyfinError("Jellyfin answered 401 to /System/Configuration/livetv (check KIA_JELLYFIN_TOKEN)")))
+    assert titles(r) == ["kia can't ask Jellyfin"] and "KIA_JELLYFIN_TOKEN" in r.findings[0].detail
+    old = [{"Key": "RefreshGuide", "LastExecutionResult": {"Status": "Completed", "EndTimeUtc": "2026-10-20T01:00:00Z"}}]
+    t = titles(jellyfin_report(kia, FakeJellyfin(channels=JellyfinError("timed out"), tasks=old)))
+    assert t == ["Jellyfin reads tv.m3u: 3 TV channels", "tv.m3u has 2 radio stations too",
+                 "Jellyfin last refreshed its guide over two days ago"]
+
+
+def test_jellyfin_damaged_answers(kia):
+    # Jellyfin's answers are read as they come: anything in the wrong shape counts as missing.
+    jellyfin_setup(kia)
+    r = jellyfin_report(kia, FakeJellyfin(live_tv=["nope"], channels="many", tasks=[{"Key": "RefreshGuide", "LastExecutionResult": "x"}]))
+    assert titles(r) == ["Jellyfin has no M3U tuner"]
+    r = jellyfin_report(kia, FakeJellyfin(channels=None, tasks=[{"Key": "RefreshGuide", "LastExecutionResult": "x"}]))
+    assert titles(r)[-1] == "Jellyfin hasn't refreshed its guide yet"
+
+
+def test_overview_carries_jellyfin_problems_with_its_settings(kia, monkeypatch):
+    from kia import jellyfin as jellyfin_module
+
+    monkeypatch.setattr(jellyfin_module.Jellyfin, "call", lambda self, path: {"TunerHosts": []})
+    assert "Jellyfin has no M3U tuner" not in titles(overview(kia))  # no settings: not asked
+    for k, v in JF_ENV.items():
+        monkeypatch.setenv(k, v)
+    assert "Jellyfin has no M3U tuner" in titles(overview(kia))
 
 
 def test_every_docs_link_in_doctors_answers_exists():
