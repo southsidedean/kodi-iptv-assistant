@@ -2,6 +2,10 @@
 
 ## 0.5.7 (unreleased)
 
+### Choosing the stack
+
+- Each preset says what it will ask of you before you choose it: Plex's playlist and claim code, your media folder, Jellyfin's API key, or your own Plex's address and token. The Stack page's cards, the installer's list, and `scripts/stack.sh list` show it, and the presets table in [choosing the parts](docs/stack.md#presets) has it too. A card's text now stays at its top, however tall the cards beside it are.
+
 ### Maintenance
 
 - A weekly check says when an image `compose.yaml` pins to a tested version (Threadfin, the graphics card's exporter) has a newer release of the same kind (`scripts/pinned-images.py`).

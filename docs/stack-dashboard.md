@@ -50,7 +50,7 @@ Changes happen on the secure Dashboard, at `https://` and port 8743: `https://19
 
 Choose **Stack** in the menu at the top, and enter the password in the **Password** box.
 
-![The Stack page with only kia and its web server running. Below What runs now, Choose what runs has the password box and a card for each preset, from Kodi and other players (highlighted, since it's what runs now) to Plex TV box, Jellyfin TV box with graphs, and Everything, each saying what it's for and what it needs. Under the cards are Choose the parts yourself, the same choice as a command for the kia folder, and the Check and Apply buttons.](../images/stack/stack-page.png)
+![The Stack page with only kia and its web server running. Below What runs now, Choose what runs has the password box and a card for each preset, from Kodi and other players (highlighted, since it's what runs now) to Plex TV box, Jellyfin TV box with graphs, and Everything, each saying what it's for, what it needs, and, for all but the first, what it asks of you, such as a claim code from plex.tv/claim or your media folder. Under the cards are Choose the parts yourself, the same choice as a command for the kia folder, and the Check and Apply buttons.](../images/stack/stack-page.png)
 
 **What runs now** lists every program next to kia and its state. A line in red means it isn't running, or Docker says it's unhealthy. Without the kia-stack service, this section says so, and the bottom of the page shows the command to run in the kia folder instead.
 
@@ -66,7 +66,7 @@ These go in `.env`, the settings file in the kia folder. Open it with `open -e .
 
 ## 4. Choose, and check
 
-Choose a card: it ticks the parts for that setup. For a combination no card has, open **Choose the parts yourself** and tick them one by one ([what each part is](stack.md#the-parts)). The box below shows the same choice as a command for the kia folder, if you'd rather run it there.
+Choose a card: it ticks the parts for that setup. Each card also says what that setup will ask of you, such as a claim code, your media folder, or an API key, so you can have it ready. For a combination no card has, open **Choose the parts yourself** and tick them one by one ([what each part is](stack.md#the-parts)). The box below shows the same choice as a command for the kia folder, if you'd rather run it there.
 
 Choose **Check**. Within a few seconds, the kia-stack service checks the choice for this computer, and the page shows what it found:
 
