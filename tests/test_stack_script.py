@@ -432,6 +432,8 @@ def test_the_service_passes_a_claim_code_on_and_refuses_a_bad_one(kia: Path):
     request(kia, id="req-10", action="apply", stack="plex", claim="claim-good_1")
     stack(kia, "watch", "--once")
     assert answer(kia)[0]["state"] == "finished" and "PLEX_CLAIM=claim-good_1\n" in (kia / ".env").read_text()
+    # No copy of the code is left behind in the service's folder.
+    assert not any("claim-good_1" in f.read_text() for f in (kia / "stack-service").iterdir() if f.is_file())
     request(kia, id="req-11", action="apply", stack="plex", claim="claim-$(id)")
     stack(kia, "watch", "--once")
     head, said = answer(kia)

@@ -148,6 +148,7 @@ def test_asking_writes_one_request_at_a_time(tmp_path: Path):
     rid = stack.ask(state, service, "check", ["plex", "observability"])
     assert (state / "stack-request").read_text() == f"id={rid}\naction=check\nstack=plex,observability\n"
     assert stack.waiting(state, service) == rid
+    assert (state / "stack-request").stat().st_mode & 0o777 == 0o600  # it can hold a claim code
     try:
         stack.ask(state, service, "apply", ["plex"])
         raise AssertionError("a second request while the first waits")

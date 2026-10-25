@@ -165,9 +165,12 @@ if [ "$cmd" = watch ]; then
             echo "stack: removed something in $in that wasn't a request"
             return 0
         fi
-        head -c 4096 "$req" >"$own/request.txt"
+        (umask 077 && head -c 4096 "$req" >"$own/request.txt")
         id=$(field id "$own/request.txt") action=$(field action "$own/request.txt") parts=$(field stack "$own/request.txt")
         claim=$(field claim "$own/request.txt")
+        # The copy can hold a claim code: keep it no longer than it takes to read it. A
+        # claim code that's used ends up in .env, which only you can read.
+        rm -f "$own/request.txt"
         # Without a proper id there's no one to answer: kia always sends one.
         case "$id" in "" | *[!A-Za-z0-9-]*) echo "stack: ignored a request without a proper id"; rm -f "$req"; return 0 ;; esac
         if [ ${#id} -gt 64 ]; then echo "stack: ignored a request with a long id"; rm -f "$req"; return 0; fi
