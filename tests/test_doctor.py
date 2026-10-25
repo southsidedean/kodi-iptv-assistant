@@ -150,7 +150,7 @@ def test_a_partial_guide_and_a_flaky_stream_in_two_playlists(kia):
     write(kia, "work/mapping.json", {"CNN.us@SD": ["s.tv"]})
     write(kia, "work/guide-choices.json", {"CNN.us@SD": {"site": "s.tv", "hours_24h": 11.0, "programs": 6, "ends": iso(NOW + 11 * HOUR)}})
     [r] = channel(kia, "CNN")
-    assert titles(r) == ["Its stream failed last night, but it's kept for now", "It's in 2 playlists", "It has a partial guide"]
+    assert titles(r) == ["Its stream failed in the last check, and is kept for now", "It's in 2 playlists", "It has a partial guide"]
     assert "failed the last 1 in a row" in r.findings[0].detail and "us (flaky), extra (dead)" in r.findings[1].detail
     assert "Its listings run to" in r.findings[2].detail
 
@@ -171,7 +171,7 @@ def test_matched_but_its_sites_sent_nothing_quotes_their_logs(kia):
     write(kia, "work/logs/broken.tv.log", "starting\nERR: getaddrinfo ENOTFOUND broken.tv\n")
     write(kia, "work/logs/fine.tv.log", "all good\n")
     [r] = channel(kia, "cnn")
-    assert titles(r)[-2:] == ["Its guide sources sent nothing for the next day", "broken.tv had trouble"]
+    assert titles(r)[-2:] == ["Its guide sources sent nothing for the next day", "broken.tv had errors"]
     assert "failed 3 refreshes in a row" in r.findings[-1].detail and "ENOTFOUND" in r.findings[-1].detail
 
 
@@ -179,7 +179,7 @@ def test_before_the_first_guide_build_with_choices(kia):
     kept(kia, CNN)
     write(kia, "work/mapping.json", {"CNN.us@SD": ["a.tv"]})
     [r] = channel(kia, "cnn")
-    assert r.findings[-1].title == "Its guide sources are known, but not which one is used yet"
+    assert r.findings[-1].title == "It has guide sources; which one it uses isn't recorded yet"
 
 
 def test_radio_and_no_id(kia):
@@ -241,3 +241,21 @@ def test_the_command_text_json_and_exit_codes(kia, capsys):
     assert report["subject"] == "nothing here" and report["worst"] == "problem"
     assert report["findings"][0]["evidence"] == ["output/curated.m3u", "output/report.json"]
     assert cli.main(["doctor", "-c", config, "plex"]) == 2
+
+
+def test_a_login_in_quoted_text_is_hidden(kia):
+    kept(kia)
+    write(kia, "output/report.json", {"streams": [dict(STREAM, status="dead", selected=False,
+                                                      error="403 from https://me:s3cret@example.com/live.m3u8")]})  # fmt: skip
+    detail = channel(kia, "cnn")[0].findings[0].detail
+    assert "s3cret" not in detail and "https://•••@example.com/live.m3u8" in detail
+
+
+def test_the_dashboard_and_playlist_pages_offer_it(kia):
+    from kia import channeleditor, doctorview, htmlpage, status
+
+    page = status.render_html(status.collect(kia / "output", kia / "state", {"result": "ok"}, None))
+    assert 'id="ask-why"' in page and "window.kiaWhy" in page
+    # Answers go into the page as text; only kia's own docs pages become links.
+    assert "innerHTML" not in doctorview.SCRIPT and htmlpage.DOCS_URL in doctorview.SCRIPT
+    assert "window.kiaWhy(root, row.dataset.id || name(row), into)" in channeleditor.SCRIPT

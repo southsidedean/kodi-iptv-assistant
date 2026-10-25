@@ -279,7 +279,7 @@ PROTECTED = [
 ]
 PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
           ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"),
-          ("GET", "/api/plex/tuners")]  # fmt: skip
+          ("GET", "/api/plex/tuners"), ("GET", "/api/doctor"), ("GET", "/api/doctor/channel")]  # fmt: skip
 
 
 @pytest.mark.parametrize(("method", "path", "body"), PROTECTED, ids=lambda x: x if isinstance(x, str) else "")
@@ -404,3 +404,18 @@ def test_a_body_that_isnt_json_and_an_address_kia_doesnt_have(cfg):
     assert status == 400 and data["error"] == "The request wasn't valid JSON."
     status, _ = call(cfg, "GET", "/api/nothing-here")
     assert status == 404
+
+
+def test_kia_doctor_through_the_api(cfg, tmp_path):
+    # Without kia's settings file there's nothing to read the answers from.
+    assert call(cfg, "GET", "/api/doctor")[0] == 409
+    (tmp_path / "kia.toml").write_text("")
+    (tmp_path / "sources.txt").write_text("https://example.com/us.m3u\n")
+    cfg.config_file = tmp_path / "kia.toml"
+    status, body = call(cfg, "GET", "/api/doctor", secure=False)  # a read: open on the plain port too
+    assert status == 200 and body["reports"][0]["subject"] == "kia"
+    (cfg.output_dir / "curated.m3u").write_text('#EXTM3U\n#EXTINF:-1 tvg-id="CNN.us",CNN\nhttps://a/cnn\n')
+    status, body = call(cfg, "GET", "/api/doctor/channel?q=CNN.us")
+    assert status == 200 and body["reports"][0]["subject"] == "CNN (CNN.us)"
+    assert call(cfg, "GET", "/api/doctor/channel?q=" + "x" * 201)[0] == 400
+    assert cfg.changes == []

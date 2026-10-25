@@ -182,6 +182,16 @@ SCRIPT = r"""
     table.querySelectorAll("tbody tr[data-key]").forEach(function (row) {
       var key = row.dataset.key, cell = el("td", { class: "fav" });
       row.insertBefore(cell, row.querySelector("td.name"));
+      if (window.kiaWhy) {
+        // Why? reads only, so everyone gets it: kia doctor on this channel, by its ID (or name).
+        var why = el("button", { type: "button", class: "test", text: "Why?", "aria-label": "Why: what kia knows about " + name(row),
+          on: { click: function () {
+            var into = rowSay(row, " ", false);
+            into.classList.add("why-answer");
+            busy(why, function () { return window.kiaWhy(root, row.dataset.id || name(row), into); });
+          } } });
+        row.querySelector("td.name").appendChild(why);
+      }
       if (!can) { if (favorites[key]) cell.appendChild(el("span", { text: "★", title: "Favorite", "aria-label": "Favorite" })); return; }
       var star = el("button", { type: "button", "aria-pressed": favorites[key] ? "true" : "false", text: favorites[key] ? "★" : "☆",
         "aria-label": "Favorite: " + name(row), on: { click: function () {

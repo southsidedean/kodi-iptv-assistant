@@ -14,6 +14,7 @@ What kia does, file by file, to turn your channel list into a TV guide: how it f
 | The match | `work/mapping.json` | Each channel's guide sources, best first |
 | Downloads | `work/guides/<site>.xml` | Each site's listings, from its last good download |
 | Logs | `work/logs/<site>.log` | What each site's download printed |
+| The choice | `work/guide-choices.json` | Each channel's chosen source, and how much of the next 24 hours it fills |
 | The guide | `output/guide.xml`, `guide.xml.gz` | What players read |
 | Reports | `output/mapping-report.html`, `guide-report.html` | Which source each channel matched, and how much of the next day each one fills |
 
@@ -75,6 +76,8 @@ Every 4 hours (`KIA_GUIDE_REFRESH_HOURS`), kia downloads the quick sources again
 With `KIA_UPSTREAM_URL`, kia skips matching and downloading. It downloads the other kia server's guide, and builds its own from it, with the same rules, keeping only the channels in its own list. If the upstream can't be reached, kia matches and downloads by itself as usual, or uses the last copy with `KIA_UPSTREAM_FALLBACK=cached`. The quick refreshes download the upstream's guide again.
 
 ## When a channel's guide is wrong or missing
+
+**Why?** next to the channel on its playlist's page, or `kia doctor channel <name>`, reads the files below for that channel and explains them. To read them yourself:
 
 | What you see | Where to look |
 |---|---|

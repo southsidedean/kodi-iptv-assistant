@@ -84,11 +84,11 @@ With Docker, `http://<your address>:8780/` starts with **Your stack**: a tile fo
 
 Until you've finished setting up, the page then has a **Getting started** checklist: the first refresh, the address other devices use, a player on each device, the password, your playlists, and alerts. kia ticks the steps it can check itself, you tick the rest, and you can hide it.
 
-The page shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button. kia updates the pages when a run starts and ends, and when you save a profile.
+The page shows how kia is doing: whether the last refresh worked and when the next one is, the channel counts, and the last run's alerts. **Ask kia what's wrong** explains any problem and what to do about it ([troubleshooting](troubleshooting.md)). Below that are your playlists, the full one and any [profiles](profiles.md), each with its address and a Copy button. kia updates the pages when a run starts and ends, and when you save a profile.
 
 The menu at the top leads to the other pages:
 
-- **A playlist's page** (Everything, TV only, and each profile) has its playlist and guide addresses and its channels, TV and radio under their own headings, with their numbers, categories, what's on now, and what's next. **Timeline** switches the list to a TV guide of the next 6 hours (3 on a phone) in your device's time zone; tap a show for its full title and times. A profile's page also has **Edit this playlist**.
+- **A playlist's page** (Everything, TV only, and each profile) has its playlist and guide addresses and its channels, TV and radio under their own headings, with their numbers, categories, what's on now, and what's next. **Why?** next to a channel says whether its stream works and where its guide comes from, or why it has none. **Timeline** switches the list to a TV guide of the next 6 hours (3 on a phone) in your device's time zone; tap a show for its full title and times. A profile's page also has **Edit this playlist**.
 - **On the secure page**, each channel also has a star for [favorites](configuration.md#favorites-and-your-own-channel-numbers) and a **Test** button that tries its stream now ([a channel won't play](troubleshooting.md#a-channel-wont-play)). On Everything you can change channel numbers.
 - **Playlists** lists every playlist with its address, and on the secure page has **Make a playlist**.
 - **Sources** has the playlists kia checks (which you can [choose](configuration.md#choosing-channel-sources-on-the-dashboard) on the secure page) and how each one's streams did in the last check.

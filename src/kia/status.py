@@ -15,6 +15,7 @@ from html import escape
 from pathlib import Path
 
 from kia import __version__, channeleditor, editor, guideview, sourceeditor, stackeditor
+from kia import doctorview
 from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
 from kia.channels import FAVORITES
@@ -701,12 +702,31 @@ def render_html(s: dict) -> str:
         items = "".join(f"<li>{escape(_when(a['time']))}: {escape(a['title'])}</li>" for a in s["alerts"])
         alerts = f'<section class="card"><h2>Alerts from the last refresh</h2><ul class="alerts">{items}</ul></section>'
     again = '<p class="muted"><a href="#getting-started" class="show-steps" hidden>Show the Getting started steps again</a></p>'
+    # kia doctor's overview, on request (doctorview).
+    why = ('<section class="card"><div class="actions"><button type="button" id="ask-why">Ask kia what\'s wrong</button></div>'
+           '<div class="why-answer" id="why-answer" aria-live="polite" hidden></div></section>')
     body = (
-        f'<main>{_banner(s)}{_env_warning(s)}{_pluto_warning(s)}{_STACK_CARD}{_checklist_card(s)}{tiles}{alerts}'
+        f'<main>{_banner(s)}{why}{_env_warning(s)}{_pluto_warning(s)}{_STACK_CARD}{_checklist_card(s)}{tiles}{alerts}'
         f'{_short_playlists_card(s)}{again}</main>'
     )
-    script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT + STACK_SCRIPT
-    return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE + STACK_STYLE, current="index.html")
+    script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT + STACK_SCRIPT + doctorview.SCRIPT + WHY_SCRIPT
+    return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE + STACK_STYLE + doctorview.STYLE, current="index.html")
+
+
+WHY_SCRIPT = """
+<script>
+(function () {
+  var button = document.getElementById("ask-why"), answer = document.getElementById("why-answer");
+  if (!button || !answer || !window.kiaWhy) return;
+  button.addEventListener("click", function () {
+    if (button.getAttribute("aria-busy")) return;
+    button.setAttribute("aria-busy", "true");
+    var done = function () { button.removeAttribute("aria-busy"); };
+    window.kiaWhy("", null, answer).then(done, done);
+  });
+})();
+</script>
+"""
 
 
 def render_playlists(s: dict) -> str:
@@ -880,8 +900,8 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         f'<p class="list-more" hidden><button type="button" data-limit="{LIST_LIMIT}">Show all channels</button></p>'
         "</section></main>"
     )
-    script = COPY_SCRIPT + LIST_SCRIPT + editor.SCRIPT + guideview.SCRIPT + channeleditor.SCRIPT
-    style = editor.STYLE + guideview.STYLE + channeleditor.STYLE + LIST_STYLE
+    script = COPY_SCRIPT + LIST_SCRIPT + editor.SCRIPT + guideview.SCRIPT + doctorview.SCRIPT + channeleditor.SCRIPT
+    style = editor.STYLE + guideview.STYLE + channeleditor.STYLE + doctorview.STYLE + LIST_STYLE
     return page(f"{pl['title']} - kia", body, _footer(s, root), script, style, root=root, current="playlists.html")
 
 
