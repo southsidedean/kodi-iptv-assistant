@@ -120,6 +120,13 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
                         e.attrs.setdefault("group-title", src.name)
                 if cfg.epg.playlist_guides:
                     guides = tuple(m3u.header_guide_urls(text))
+                    if not yours:
+                        # The guides a playlist from the internet names are downloaded too, so
+                        # the same rule as for its streams (kia.lan): none on your network.
+                        local = [u for u in guides if lan.is_local(urlparse(u).hostname)]
+                        if local:
+                            log(f"{src.name}: left out {len(local)} of its guides, on your own network: {local[0][:80]}")
+                            guides = tuple(u for u in guides if u not in local)
                     for e in found:
                         e.guide_urls = guides
         except (OSError, ValueError, radio.RadioError) as exc:
