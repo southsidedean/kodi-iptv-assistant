@@ -18,7 +18,29 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=@PYTHON@ -m kia daemon --serve
 Restart=on-failure
 RestartSec=30
+# kia reads playlists and guides from the internet, and ffprobe and ffmpeg open their
+# streams. These settings limit what a stream that took one of them over could do. First,
+# the system calls kia and the programs it starts may make: these work on any Linux with
+# systemd.
 NoNewPrivileges=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# Then files: the computer and your home folder are read-only, except the folders kia
+# writes (the ones its container may write) and npm's cache, for the guide downloads.
+# install-service.sh makes them before kia starts. If you moved one in kia.toml, run
+# systemctl --user edit kia and add ReadWritePaths=/that/folder under [Service].
+# For these, a user service needs the kernel to let it make a user namespace. Ubuntu 23.10
+# and newer don't (AppArmor), and systemd then runs kia without the file limits and logs
+# nothing about it (only the kernel's log shows the refusal). The system call limits still apply.
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@DIR@/output @DIR@/state @DIR@/work @DIR@/vendor @DIR@/profiles @DIR@/tls %h/.npm
+PrivateTmp=yes
 
 [Install]
 WantedBy=default.target

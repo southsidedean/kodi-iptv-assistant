@@ -32,6 +32,23 @@ def test_service_file_dry_run():
         ET.fromstring(out.split("\n", 2)[2])  # well-formed plist (after the XML and DOCTYPE lines)
 
 
+def test_the_service_may_write_what_the_container_may_and_install_makes_it():
+    # The folders compose.yaml lets kia's container write, but plex/warmup (Plex in the stack
+    # is Docker only): the Linux service must allow the same ones, or a refresh fails there.
+    compose = (ROOT / "compose.yaml").read_text()
+    kia = compose[compose.index("\n  kia:"):compose.index("\n  web:")]
+    writable = {m for m in re.findall(r"- \./([a-z/]+):/data/\1\s*$", kia, re.M)} - {"plex/warmup"}
+    assert writable == {"output", "state", "work", "vendor", "profiles", "tls"}
+    unit = (ROOT / "deploy" / "kia.service").read_text()
+    allowed = re.search(r"^ReadWritePaths=(.*)$", unit, re.M).group(1).split()
+    assert sorted(allowed) == sorted([*(f"@DIR@/{d}" for d in writable), "%h/.npm"])
+    assert re.search(r"^ProtectSystem=strict$", unit, re.M) and re.search(r"^ProtectHome=read-only$", unit, re.M)
+    # A folder that isn't there when the service starts can't be made later, so the script makes each.
+    made = re.search(r"^mkdir -p (output .*) \"\$\(dirname", SCRIPTS[1].read_text(), re.M).group(1).split()
+    assert {d.split("/")[0] for d in made} == writable
+    assert 'mkdir -p "$HOME/.npm"' in SCRIPTS[1].read_text()
+
+
 def test_plist_template_is_valid_xml():
     text = (ROOT / "deploy" / "kia.plist").read_text().replace("@ENV@", "")
     root = ET.fromstring(text.split("\n", 2)[2])

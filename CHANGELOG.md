@@ -6,6 +6,10 @@
 
 - Each preset says what it will ask of you before you choose it: Plex's playlist and claim code, your media folder, Jellyfin's API key, or your own Plex's address and token. The Stack page's cards, the installer's list, and `scripts/stack.sh list` show it, and the presets table in [choosing the parts](docs/stack.md#presets) has it too. A card's text now stays at its top, however tall the cards beside it are.
 
+### Running without Docker
+
+- On Linux, the kia service gets systemd's limits: only the system calls an ordinary service makes, and the computer and your home folder read-only except kia's own folders and npm's cache. On Ubuntu 23.10 and newer, a service you run as yourself can't have the file limits (AppArmor won't allow it), and `scripts/install-service.sh` says so; the system call limits still apply. `scripts/update.sh --no-docker` puts the new service file in place. If you moved one of kia's folders in `kia.toml`, see [without Docker](docs/setups.md#without-docker).
+
 ### Maintenance
 
 - The graphics card's exporter (`observability-gpu`) moves from `4.3.1-4.4.1-ubuntu22.04` to NVIDIA's newest, `4.6.1-4.8.4`. It was tested on an NVIDIA card with the Hardware dashboard, where all of its panels have data. A `KIA_DCGM_IMAGE` of your own in `.env` still wins.

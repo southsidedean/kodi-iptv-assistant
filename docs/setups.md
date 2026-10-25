@@ -76,6 +76,7 @@ On Linux it installs a systemd user service (`deploy/kia.service`); on macOS, a 
 - To update: `scripts/update.sh --no-docker`, which moves kia to its newest release and runs the script again.
 - On Linux, a user service runs only while you're logged in, unless you run `sudo loginctl enable-linger $USER` once; the script reminds you.
 - The log: `journalctl --user -u kia -f` on Linux, `work/logs/kia.log` on macOS.
+- On Linux, the service may change only kia's own folders (`output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`) and npm's cache. If you moved one of them in `kia.toml`, run `systemctl --user edit kia` and add `ReadWritePaths=/that/folder` under `[Service]`. On Ubuntu 23.10 and newer this file limit doesn't work for a service you run as yourself (`install-service.sh` says so), and kia can write anywhere you can; Docker locks it down fully. [Security](../SECURITY.md#the-containers) has the details.
 - `scripts/install-service.sh --uninstall` removes the service and keeps your settings and data.
 
-To run kia in a terminal instead, for a quick try: `PYTHONPATH=src KIA_EPG_RUNNER=local python3 -m kia daemon --serve --run-now`. It refreshes daily at `KIA_RUN_AT` (04:00), refreshes the guide every 4 hours, and stops when you close the terminal. The memory limit and the container lockdown apply only to Docker.
+To run kia in a terminal instead, for a quick try: `PYTHONPATH=src KIA_EPG_RUNNER=local python3 -m kia daemon --serve --run-now`. It refreshes daily at `KIA_RUN_AT` (04:00), refreshes the guide every 4 hours, and stops when you close the terminal. Run this way, none of the limits apply: neither Docker's memory limit and lockdown nor the service's.
