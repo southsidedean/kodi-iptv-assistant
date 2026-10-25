@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant player as A player
+  participant kia as kia
+  participant pluto as Pluto TV
+  player->>kia: /pluto/<id>.m3u8
+  kia->>pluto: a new session, with Pluto's ads in it
+  pluto->>kia: the session's playlist
+  Note over kia: at most every 2 seconds:<br>new pieces in time order,<br>repeats and rewinds held back
+  kia->>player: the last 6 pieces, on kia's numbers
+  player->>kia: /pluto/<id>/<n>.ts
+  kia->>pluto: the piece and its key
+  Note over kia: ffmpeg decrypts it and moves<br>its clock on from the piece before
+  kia->>player: the piece, kept for other viewers
+  Note over kia,pluto: near Pluto's time limit: a new session<br>at the next ad or show part

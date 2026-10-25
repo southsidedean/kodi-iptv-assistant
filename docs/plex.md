@@ -157,7 +157,7 @@ Use the kia computer's network address (such as `192.168.1.20`), not `localhost`
 
 ## Keeping it up to date
 
-kia refreshes the playlists every night and the guide every few hours. Threadfin reads them again every night, and Plex refreshes its guide on its own schedule; **Refresh Guide** on Plex's Live TV & DVR page does it right away.
+kia refreshes the playlists every night and the guide every few hours. Threadfin reads them again every 6 hours (when kia set it up), and Plex refreshes its guide on its own schedule; **Refresh Guide** on Plex's Live TV & DVR page does it right away.
 
 When the playlist gains channels, Threadfin adds them, but Plex keeps the channel list it had at setup. kia adds the new ones after each refresh when `KIA_PLEX_URL` is set; otherwise run `docker compose exec kia python3 -m kia plex-tuners` again, or on Plex's Live TV & DVR page choose the tuner's channel count (such as **340 enabled**), then **Rescan**, then **Save**. To keep a channel out of Plex, leave it out of the playlist on kia's page rather than in Threadfin, so the change survives the next refresh.
 
