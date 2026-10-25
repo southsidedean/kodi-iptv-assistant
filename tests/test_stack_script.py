@@ -450,3 +450,17 @@ def test_kia_running_without_an_answer_isnt_taken_as_nobody_watching(kia: Path):
     r = stack(kia, "apply")  # no terminal to answer
     assert "can't tell who's watching" in r.stdout and "Not changed" in r.stdout
     assert "--yes" in r.stdout
+
+
+def test_a_port_something_else_uses_is_a_problem(kia: Path):
+    stub(kia.parent / "bin", "nc", 'case "$*" in *" 32400") exit 0 ;; esac\nexit 1\n')  # another program on Plex's port
+    r = stack(kia, "check", "--stack", "plex")
+    assert r.returncode == 1 and "port 32400, for plex, is in use; set KIA_PLEX_PORT to another one" in r.stdout
+    assert stack(kia, "check", "--stack", "jellyfin").returncode == 0  # its port is free
+
+
+def test_little_memory_and_two_heavy_parts_is_a_warning(kia: Path):
+    stub(kia.parent / "bin", "sysctl", "echo 4294967296\n")  # 4 GB
+    r = stack(kia, "check", "--stack", "jellyfin,observability", FAKE_OS="Darwin")
+    assert "this computer has 4 GB of memory; with 2 of plex, jellyfin, and observability" in r.stdout
+    assert "of memory" not in stack(kia, "check", "--stack", "jellyfin", FAKE_OS="Darwin").stdout  # one is fine

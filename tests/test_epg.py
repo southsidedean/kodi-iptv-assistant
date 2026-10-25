@@ -276,3 +276,7 @@ def test_namespaced_attributes_in_a_sites_channel_list_are_left_out(tmp_path: Pa
     )
     (sc,) = epgmap.load_site_channels(tmp_path)
     assert sc.attrs == {"logo": "l.png"}
+
+
+def test_a_site_name_with_a_line_break_isnt_safe():
+    assert epgmap.is_safe_site("pluto.tv") and not epgmap.is_safe_site("pluto.tv\n")

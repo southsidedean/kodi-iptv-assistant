@@ -22,10 +22,19 @@ def hold(kind: str, state: Path, seconds: float) -> subprocess.Popen:
         + ("with locks.refresh(Path(sys.argv[2]), 'the nightly refresh'):\n" if kind == "refresh" else
            "lock = locks.FilesLock(); lock.configure(Path(sys.argv[2]))\nwith lock:\n")
         + "    print('held', flush=True)\n    time.sleep(float(sys.argv[3]))\n"
+        # When it lets go, by the clock both processes share, so a test can check its own
+        # lock came after that, however slow the computer is.
+        + "    print('releasing', time.time(), flush=True)\n"
     )  # fmt: skip
     proc = subprocess.Popen([sys.executable, "-c", code, SRC, str(state), str(seconds)], stdout=subprocess.PIPE, text=True)
     assert proc.stdout.readline().strip() == "held"
     return proc
+
+
+def done(proc: subprocess.Popen) -> None:
+    proc.kill()
+    proc.wait()
+    proc.stdout.close()
 
 
 def test_a_second_refresh_is_refused_with_what_is_running(tmp_path: Path):
@@ -35,8 +44,7 @@ def test_a_second_refresh_is_refused_with_what_is_running(tmp_path: Path):
             pass
         assert "the nightly refresh, started" in str(busy.value)
     finally:
-        other.kill()
-        other.wait()
+        done(other)
     # Free again once it's done; and a step inside a refresh doesn't wait for itself.
     with locks.refresh(tmp_path, "kia run"), locks.refresh(tmp_path, "kia check"):
         pass
@@ -50,20 +58,19 @@ def test_kia_says_so_and_stops(tmp_path: Path, capsys, monkeypatch):
     try:
         assert cli.main(["guide", "-c", str(tmp_path / "kia.toml")]) == cli.EXIT_BUSY
     finally:
-        other.kill()
-        other.wait()
+        done(other)
     assert "A refresh is already running (the nightly refresh, started" in capsys.readouterr().err
 
 
 def test_writes_wait_for_each_other_across_processes(tmp_path: Path):
-    other = hold("files", tmp_path, 1.0)
+    other = hold("files", tmp_path, 0.5)
     lock = locks.FilesLock()
     lock.configure(tmp_path)
-    start = time.monotonic()
     with lock, lock:  # reentrant within one process
-        waited = time.monotonic() - start
-    other.wait()
-    assert waited >= 0.5
+        got = time.time()
+    released = float(other.stdout.readline().split()[1])
+    done(other)
+    assert got >= released
 
 
 def test_threads_share_the_files_lock(tmp_path: Path):

@@ -187,3 +187,16 @@ def test_filter_reports_the_channels_it_wrote():
     native.filter_xmltv(io.BytesIO(PLUTO.encode()), {"aaa": ["Alpha.us"], "zzz": ["Zed"]}, NOW.replace(hour=0),
                         NOW.replace(hour=23), lambda s: None, seen=seen)  # fmt: skip
     assert seen == {"Alpha.us"}
+
+
+def test_a_damaged_gzip_file_fails_only_itself(tmp_path: Path):
+    base = site_files(tmp_path)
+    damaged = tmp_path / "imjh" / "Plex" / "us.xml.gz"
+    data = bytearray(damaged.read_bytes())
+    data[len(data) // 2] ^= 0xFF  # one flipped byte in the compressed part: zlib.error, not OSError
+    damaged.write_bytes(bytes(data))
+    chans = channels_file(tmp_path, [("PlutoTV/us#aaa", "Alpha.us@SD", "Alpha"), ("Plex/us#ccc", "Gamma.us@SD", "Gamma")])
+    out, logs = tmp_path / "out.xml", []
+    native.grab_imjh(chans, out, 2, logs.append, base_url=base, now=NOW)
+    titles = {p.findtext("title") for p in ET.parse(out).getroot().findall("programme")}
+    assert "Alpha news" in titles and any("Plex/us: ERR" in m for m in logs)

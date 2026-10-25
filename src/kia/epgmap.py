@@ -40,12 +40,13 @@ def country(xmltv_id: str) -> str:
     return base_id(xmltv_id).rpartition(".")[2].lower() if "." in xmltv_id else ""
 
 
-_SITE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# Matched with fullmatch: "$" would let a line break through at the end ("pluto.tv\n").
+_SITE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 def is_safe_site(name: str) -> bool:
     """Site names look like domains (pluto.tv); anything else could be a path."""
-    return bool(_SITE_NAME_RE.match(name)) and ".." not in name
+    return bool(_SITE_NAME_RE.fullmatch(name)) and ".." not in name
 
 
 def load_site_channels(repo_dir: Path) -> list[SiteChannel]:

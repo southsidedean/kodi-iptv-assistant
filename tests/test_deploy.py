@@ -35,6 +35,7 @@ def test_serve_types_and_hides_tmp(server):
     assert ctype == "application/gzip" and gzip.decompress(body) == b"<tv/>"
     with pytest.raises(urllib.error.HTTPError) as err:
         get(f"{base}/guide.xml.tmp")
+    err.value.close()
     assert err.value.code == 404
 
 

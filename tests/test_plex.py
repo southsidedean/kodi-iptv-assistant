@@ -355,15 +355,26 @@ def test_the_warm_up_waits_for_another_library_scan(tmp_path: Path):
     assert stub.sections == [] and not list((tmp_path / plex.WARMUP).glob("*.mp4"))
 
 
+def clip_maker(tmp_path: Path) -> str:
+    """A stand-in ffmpeg that writes the file it's asked for (its last argument), so a test
+    can see the clip removed afterwards; "true" would never have made one."""
+    path = tmp_path / "fake-ffmpeg"
+    path.write_text('#!/bin/sh\nfor last; do :; done\necho clip > "$last"\necho "$last" >> "$0.made"\n')
+    path.chmod(0o755)
+    return str(path)
+
+
 def test_a_new_plex_is_warmed_up_once_and_left_tidy(tmp_path: Path):
     stub = StubPlex(tmp_path)
     assert not plex.has_codecs(tmp_path)
     said = []
-    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg="true", wait=5) is True
+    ffmpeg = clip_maker(tmp_path)
+    assert plex.warm_up(stub, tmp_path, said.append, ffmpeg=ffmpeg, wait=5) is True
+    assert Path(ffmpeg + ".made").read_text().strip().endswith(".mp4")  # a clip was made...
     assert plex.has_codecs(tmp_path)
     assert ("DELETE", "/library/sections/9") in stub.calls and stub.sections == []  # the library is gone again
     assert ("GET", "/video/:/transcode/universal/stop") in stub.calls
-    assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # and so is the clip
+    assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # ...and it's gone again, like the library
     assert "codecs" in said[0] and said[-1] == "Plex has its codecs now."
 
 
@@ -381,8 +392,10 @@ class PlexThatKeepsItsLibrary(StubPlex):
 def test_a_failed_clean_up_doesnt_hide_why_the_warm_up_failed(tmp_path: Path):
     said = []
     with pytest.raises(plex.PlexError, match="didn't find the warm-up clip"):
-        plex.warm_up(PlexThatKeepsItsLibrary(tmp_path), tmp_path, said.append, ffmpeg="true", wait=0.05, step=0.01)
-    assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # the clip is gone anyway
+        plex.warm_up(PlexThatKeepsItsLibrary(tmp_path), tmp_path, said.append, ffmpeg=clip_maker(tmp_path), wait=0.05,
+                     step=0.01)  # fmt: skip
+    assert (tmp_path / "fake-ffmpeg.made").exists()  # it was made
+    assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # and is gone anyway
     assert any("Couldn't remove the kia codec warm-up library" in m for m in said)
 
 

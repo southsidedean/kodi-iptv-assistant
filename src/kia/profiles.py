@@ -24,7 +24,7 @@ from kia.m3u import Entry
 
 # Names already used by files in the output folder.
 RESERVED = {"curated", "guide", "index", "status", "report", "guide-report", "mapping-report"}
-_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")  # the whole name: used with fullmatch
 
 
 @dataclass
@@ -83,7 +83,7 @@ def from_rules(name: str, rules: object, where_file: str = "profile") -> Profile
     where = f"{where_file}, [{name}]"
     if not isinstance(rules, dict):
         raise ValueError(f"{where}: expected a section like [{name}] with settings under it")
-    if not isinstance(name, str) or not _NAME_RE.match(name) or name in RESERVED:
+    if not isinstance(name, str) or not _NAME_RE.fullmatch(name) or name in RESERVED:
         raise ValueError(
             f"{where}: profile names use lowercase letters, digits, and dashes"
             + (f", and {name!r} is already used by kia" if name in RESERVED else "")
