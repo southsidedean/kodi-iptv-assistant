@@ -379,7 +379,8 @@ def test_pluto_playing_and_falling_back(kia):
                                    f"{iso(NOW)}\tguide_drop\tother\tx\nnot a line\n")  # fmt: skip
     r = pluto_report(kia)
     levels = {f.title: f.level for f in r.findings}
-    assert levels["2 playing now, for 3 devices"] == doctor.OK
+    assert levels["2 playing now"] == doctor.OK
+    assert next(f for f in r.findings if f.title == "2 playing now").detail.startswith("3 devices are watching")
     assert levels["Pluto Westerns is playing without kia's fix"] == doctor.PROBLEM  # past the alert's 5 minutes
     assert levels["Pluto News is playing without kia's fix"] == doctor.NOTE
     problems = next(f for f in r.findings if f.title == "Pluto Westerns had problems")

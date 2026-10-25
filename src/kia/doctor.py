@@ -510,7 +510,9 @@ def pluto(cfg: Config, now: datetime | None = None) -> Report:
     playing = list_of(state.get("channels"), dict) if state and not (updated and now - updated > STALE_PLUTO) else []
     if playing:
         viewers = sum(c.get("viewers") for c in playing if isinstance(c.get("viewers"), int))
-        report.findings.append(Finding(OK, f"{len(playing)} playing now, for {viewers} device{'' if viewers == 1 else 's'}", "", ["output/pluto.json"]))
+        watching = (f"{viewers} device{' is' if viewers == 1 else 's are'} watching (they asked in the last 30 seconds)." if viewers
+                    else "No device asked in the last 30 seconds; kia lets a channel go 2 minutes after the last request.")
+        report.findings.append(Finding(OK, f"{len(playing)} playing now", watching, ["output/pluto.json"]))
     for c in playing:
         name = _quote(names.get(c.get("id")) or c.get("id") or "?", 80)
         minutes = c.get("fallback_minutes")
@@ -567,8 +569,8 @@ def setup(cfg: Config, now: datetime | None = None) -> Report:
         report.findings += _certificate(tls, now)
     if (cfg.state_dir / "admin-password.txt").exists():
         report.findings.append(Finding(NOTE, "The Dashboard still has the password kia made",
-                                       "It's in state/admin-password.txt, readable by anyone who can read the kia folder. "
-                                       "Change it, and kia deletes that file.",
+                                       "It's still saved in state/admin-password.txt. Choose your own on the secure Dashboard's "
+                                       "System page, and kia deletes that file.",
                                        ["state/admin-password.txt"], "docs/secure-page.md#changing-it"))  # fmt: skip
     if not cfg.alerts.ntfy_url and not cfg.alerts.email:
         report.findings.append(Finding(NOTE, "kia has nowhere to send alerts",

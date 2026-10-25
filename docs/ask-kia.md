@@ -13,7 +13,7 @@ Start with the first. The second asks the same questions in plain words, and can
 
 - On the Dashboard, **Ask kia what's wrong** shows anything that needs you: a failed refresh, alerts, playlists whose streams all fail, a part of the stack that doesn't answer, and with Prometheus in the stack, a disk that's nearly full or failing. Each answer names the file it comes from and links to the fix.
 - On a playlist's page, **Why?** next to a channel explains that channel: whether its stream works and how it has done, and where its guide comes from, or why it has none.
-- In a terminal, in the kia folder, `kia doctor` gives the same answers, `kia doctor channel <name>` explains one channel, and `kia doctor guide` the whole guide. Three more cover Plex, Jellyfin, and the computer: `kia doctor plex` and `kia doctor jellyfin` say why they show no channels or guide, and `kia doctor hardware` checks the disks, memory, heat, and power (it needs the [observability part](cookbooks/observability.md)):
+- In a terminal, in the kia folder, `kia doctor` gives the same answers, `kia doctor channel <name>` explains one channel, `kia doctor guide` the whole guide, `kia doctor pluto` Pluto TV, and `kia doctor setup` kia's own setup (its certificate, password, alerts, free space, and address). Three more cover Plex, Jellyfin, and the computer: `kia doctor plex` and `kia doctor jellyfin` say why they show no channels or guide, and `kia doctor hardware` checks the disks, memory, heat, and power (it needs the [observability part](cookbooks/observability.md)):
 
   ```sh
   docker compose exec kia python3 -m kia doctor
