@@ -38,6 +38,7 @@ class FakePluto:
         self.boot_works = boot_works
         self.boots = 0
         self.asked: list[str] = []
+        self.refresh_in = 28800  # Pluto's refreshInSec
 
     def __call__(self, url: str):
         self.asked.append(url)
@@ -46,7 +47,7 @@ class FakePluto:
                 raise urllib.error.URLError("boot is down")
             self.boots += 1
             body = {"servers": {"stitcher": "https://stitcher.pluto.tv"}, "stitcherParams": "a=1",
-                    "sessionToken": f"token{self.boots}", "refreshInSec": 28800, "isSuspicious": False}  # fmt: skip
+                    "sessionToken": f"token{self.boots}", "refreshInSec": self.refresh_in, "isSuspicious": False}  # fmt: skip
             return url, json.dumps(body).encode()
         if url.endswith("high.m3u8"):
             text = self.playlists.pop(0) if len(self.playlists) > 1 else self.playlists[0]
@@ -362,3 +363,75 @@ def test_pieces_of_channels_not_playing_dont_take_places(tmp_path: Path):
     assert r.channels == {}
     status, _, _ = r.handle(f"/pluto/{CID}.m3u8", "192.0.2.9")  # a real viewer still gets in
     assert status == 200
+
+
+def test_a_short_session_is_renewed_near_its_end_not_at_every_clip(monkeypatch):
+    fake = FakePluto([media([(n * 5, SHOW.format(part=f"p{n // 2}", n=n)) for n in range(k, k + 2)]) for k in range(0, 40, 2)])
+    fake.refresh_in = 600  # ten minutes: "half an hour before" would be from the start
+    r, _ = relay(fake)
+    for _ in range(4):  # a new clip every second look
+        look(r)
+    ch = r.channel(CID)
+    assert fake.boots == 1 and not ch.renew
+    ch.session.started -= 500  # past three quarters of it: renewed at the next clip change
+    look(r)
+    look(r)
+    assert fake.boots == 2 and not ch.renew
+
+
+def test_a_session_too_old_is_replaced_even_without_a_clip_change():
+    part = "p"
+    fake = FakePluto([media([(n * 5, SHOW.format(part=part, n=n))]) for n in range(10)])
+    r, _ = relay(fake)
+    look(r)
+    ch = r.channel(CID)
+    ch.session.started -= ch.session.refresh_after * 1.6
+    look(r)
+    assert fake.boots == 2
+
+
+def test_back_on_its_own_session_after_the_jmp2_link():
+    fake = FakePluto([media([(n * 5, SHOW.format(part="p", n=n))]) for n in range(10)], boot_works=False)
+    r, _ = relay(fake)
+    look(r)
+    ch = r.channel(CID)
+    assert not ch.session.own
+    fake.boot_works = True
+    look(r)
+    assert not ch.session.own  # not before FALLBACK_RETRY
+    ch.last_session_try -= pluto.FALLBACK_RETRY + 1
+    look(r)
+    assert ch.session.own and ch.fallback_since is None
+
+
+def test_a_long_fallback_sends_one_alert_an_hour():
+    import threading
+
+    fake = FakePluto([media([(n * 5, SHOW.format(part="p", n=n))]) for n in range(10)], boot_works=False)
+    told, done = [], threading.Event()
+    r = pluto.Relay(None, log=lambda m: None, fetcher=fake, remux_fn=lambda *a: b"TS",
+                    on_fallback=lambda cid, minutes: (told.append((cid, minutes)), done.set()))  # fmt: skip
+    assert r.handle(f"/pluto/{CID}.m3u8", "x")[0] == 200
+    assert told == []  # just fell back
+    r.channel(CID).fallback_since -= pluto.FALLBACK_ALERT + 60
+    r.channel(CID).last_fetch = 0.0
+    r.handle(f"/pluto/{CID}.m3u8", "x")
+    assert done.wait(5) and told[0][0] == CID and told[0][1] >= pluto.FALLBACK_ALERT // 60
+    r.handle(f"/pluto/{CID}.m3u8", "x")
+    assert len(told) == 1  # not again within the hour
+
+
+def test_what_a_channel_remembers_stays_small():
+    fake = FakePluto([media([(0, SHOW.format(part="p", n=0))])])
+    r, _ = relay(fake)
+    look(r)
+    ch = r.channel(CID)
+    for n in range(300):
+        ch.piece(0, f"viewer-{n}")
+        ch.viewers[f"viewer-{n}"] -= 400  # gone for a while
+    assert len(ch.viewers) <= 51
+    for n in range(300):
+        ch.furthest[f"clip-{n}"] = 0
+    ch._take([{"pdt": T0 + timedelta(seconds=10), "dur": 5.0, "uri": SHOW.format(part="new", n=1), "key_uri": None,
+               "iv": None, "seq": 1, "disc": False}])  # fmt: skip
+    assert len(ch.furthest) <= 201

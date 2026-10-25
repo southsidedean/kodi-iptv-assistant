@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 import urllib.error
@@ -27,6 +28,8 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+
+from kia.probe import media_env
 
 # Threadfin's folders in the kia folder, and the .env setting for each one's port.
 FOLDERS = (("threadfin", "KIA_THREADFIN_PORT", 34400), ("threadfin-2", "KIA_THREADFIN_2_PORT", 34401))
@@ -249,14 +252,13 @@ def set_up(plex: Plex, tuners: list[Tuner], log=print) -> dict:
 def remove(plex: Plex, tuners: list[Tuner], log=print) -> bool:
     """Delete the DVR that holds kia's Threadfins, if it holds nothing else. Returns whether it did."""
     addresses = {t.address for t in tuners}
-    keys = set()
-    for t in tuners:
-        device = (plex.call("POST", f"/media/grabbers/{GRABBER}/devices", {"uri": t.address}).get("MediaContainer", {})
-                  .get("Device") or [None])[0]  # fmt: skip
-        if device:
-            keys.add(str(device["key"]))
+    # Found by the address Plex lists for each of a DVR's tuners. Asking Plex for the device
+    # (as set_up does) would add any Threadfin it didn't have, the opposite of removing.
+    def ours(dv: dict) -> bool:
+        return re.sub(r"^\w+://", "", str(dv.get("uri", ""))).rstrip("/") in addresses
+
     for dvr in plex.dvrs():
-        mine = [dv for dv in dvr.get("Device", []) if str(dv.get("key")) in keys]
+        mine = [dv for dv in dvr.get("Device", []) if ours(dv)]
         if not mine:
             continue
         if len(mine) < len(dvr.get("Device", [])):
@@ -352,7 +354,7 @@ def _warm_up_with_clip(plex: Plex, base: Path, log, ffmpeg: str, wait: float, bu
     made = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30",
                            "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "10", "-c:v", "libx264",
                            "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(clip)],
-                          capture_output=True, timeout=120, check=False)  # fmt: skip
+                          capture_output=True, timeout=120, check=False, env=media_env())  # fmt: skip
     if made.returncode != 0:
         raise PlexError(f"Couldn't make the warm-up clip: {made.stderr.decode(errors='replace').strip()[-200:]}")
     section = None

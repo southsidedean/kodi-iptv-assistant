@@ -1206,9 +1206,15 @@ def plex_sessions(config: str, players=None):
     if not url:
         return None
     base = Path(config).resolve().parent
-    token = os.environ.get("KIA_PLEX_TOKEN", "") or (plex.own_token(base) if plex.in_stack(url) else None) or ""
-    return metrics.PlexSessions(plex.Plex(url, token, timeout=5, startup_wait=0), state_dir=load(Path(config)).state_dir,
-                                players=players)
+    own = not os.environ.get("KIA_PLEX_TOKEN") and plex.in_stack(url)
+    token = os.environ.get("KIA_PLEX_TOKEN", "") or (plex.own_token(base) if own else None) or ""
+    server = plex.Plex(url, token, timeout=5, startup_wait=0)
+
+    def renew() -> None:  # Plex in the stack: its token appears once it's claimed
+        if fresh := plex.own_token(base):
+            server.headers["X-Plex-Token"] = fresh
+
+    return metrics.PlexSessions(server, state_dir=load(Path(config)).state_dir, players=players, renew=renew if own else None)
 
 
 def jellyfin_sessions(config: str, players=None):

@@ -409,3 +409,26 @@ def test_after_a_refresh_the_warm_up_is_tried_once_a_day(tmp_path: Path, monkeyp
     os.utime(tried, (time.time() - 90000, time.time() - 90000))  # a day on
     assert cli.main([*run, "--after-refresh"]) == 0
     assert len(warmed) == 3
+
+
+def test_remove_never_adds_a_tuner_to_find_one(antenna):
+    fake = FakePlex([antenna])
+    p = plex.Plex(fake.url, "secret")
+    plex.set_up(p, tuners(), lambda m: None)
+    fake.calls.clear()
+    assert plex.remove(p, tuners(), lambda m: None) is True
+    assert not any(c[0] == "POST" for c in fake.calls)  # only a look at the DVRs, then the delete
+
+
+def test_the_warm_up_clip_is_made_with_a_bare_environment(tmp_path: Path, monkeypatch):
+    seen = {}
+
+    def run(cmd, **kw):
+        seen.update(kw)
+        raise plex.PlexError("stop here")
+
+    monkeypatch.setenv("KIA_PLEX_TOKEN", "secret-token")
+    monkeypatch.setattr(plex.subprocess, "run", run)
+    with pytest.raises(plex.PlexError):
+        plex._warm_up_with_clip(None, tmp_path, lambda m: None, "ffmpeg", 1, 1, 0.01)
+    assert "KIA_PLEX_TOKEN" not in seen["env"]

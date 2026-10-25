@@ -1,9 +1,10 @@
 """/metrics: kia's numbers for Prometheus (docs/metrics.md).
 
 Read from status.json (the refresh, channels, guide, sources, playlists) and, live, from
-the Pluto relay, Plex, and this process. Nothing here is secret: the same numbers are on
-the Dashboard. Plex players appear by a pseudonym, such as player-3fa2c1, not by their
-names (often a room or a person's); the secure System page shows which is which.
+the Pluto relay, Plex, Jellyfin, and this process. Nothing here is secret: the same numbers
+are on the Dashboard. Plex's and Jellyfin's players appear by a pseudonym, such as
+player-3fa2c1, not by their names (often a room or a person's); the secure System page
+shows which is which.
 Prometheus's text format, version 0.0.4.
 """
 
@@ -18,6 +19,7 @@ import secrets
 import sys
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -72,17 +74,23 @@ KEEP_PLAYERS_DAYS = 90
 
 
 class Players:
-    """Pseudonyms for Plex players: an HMAC of Plex's id for the device with a secret kept
-    in state/ (metrics-key), so the same device always gets the same one and nobody can
-    work back from it. Which pseudonym is which device is kept in state/plex-players.json,
+    """Pseudonyms for Plex's and Jellyfin's players: an HMAC of the server's id for the
+    device with a secret kept in state/ (metrics-key), so the same device always gets the
+    same one and nobody can work back from it. Which pseudonym is which device is kept in state/plex-players.json,
     for the secure System page."""
 
     def __init__(self, state_dir: Path | None) -> None:
         self.state_dir = state_dir
         self.key: bytes | None = None
         self.known: dict[str, dict] | None = None
+        # Plex's and Jellyfin's numbers are asked for at the same time, from two threads.
+        self.lock = threading.RLock()
 
     def _key(self) -> bytes:
+        with self.lock:
+            return self._key_locked()
+
+    def _key_locked(self) -> bytes:
         if self.key is None:
             path = self.state_dir / "metrics-key" if self.state_dir else None
             try:
@@ -102,6 +110,10 @@ class Players:
         """Remember who each pseudonym is, writing only when something new is seen today."""
         if not self.state_dir:
             return
+        with self.lock:
+            self._note(sessions)
+
+    def _note(self, sessions: list[dict]) -> None:
         path = self.state_dir / PLAYERS_FILE
         if self.known is None:
             try:
@@ -130,7 +142,7 @@ def _write_private(path: Path, text: str) -> None:
 
 
 def known_players(state_dir: Path) -> list[dict]:
-    """Which pseudonym is which Plex player, newest first (for the secure System page)."""
+    """Which pseudonym is which player, Plex's and Jellyfin's, newest first (for the secure System page)."""
     try:
         known = json.loads((state_dir / PLAYERS_FILE).read_text())
     except (OSError, ValueError):
@@ -143,20 +155,27 @@ class PlexSessions:
     seconds, with each player's pseudonym in place of its name. Plex and Jellyfin share one
     Players, so their pseudonyms go in one list."""
 
-    def __init__(self, server, every: float = 15, state_dir: Path | None = None, players: Players | None = None) -> None:
-        self.server, self.every = server, every
+    def __init__(self, server, every: float = 15, state_dir: Path | None = None, players: Players | None = None,
+                 renew: Callable[[], None] | None = None) -> None:  # fmt: skip
+        """renew: called when the server didn't answer, to read its token again (Plex in the
+        stack has none until it's claimed, and kia may have started first)."""
+        self.server, self.every, self.renew = server, every, renew
         self.at, self.value = -1e9, None
         self.lock = threading.Lock()
         self.players = players or Players(state_dir)
 
     def get(self) -> list[dict] | None:
-        """The sessions, or None when Plex didn't answer."""
+        """The sessions, or None when the server didn't answer."""
         with self.lock:
             if time.monotonic() - self.at >= self.every:
                 try:
                     sessions = self.server.sessions()
-                except Exception:  # the server is down, or a bad token: kia_plex_up/kia_jellyfin_up says so
+                except Exception as exc:  # the server is down, or a bad token: kia_plex_up/kia_jellyfin_up says so
                     sessions = None
+                    if self.value is not None or self.at < 0:  # once when it stops answering, not every 15 s
+                        print(f"metrics: {type(self.server).__name__} didn't answer: {exc}", file=sys.stderr)
+                    if self.renew:
+                        self.renew()
                 if sessions is not None:
                     try:
                         for x in sessions:
@@ -188,13 +207,27 @@ def _plex(out: _Out, plex: PlexSessions, name: str = "plex", title: str = "Plex"
                "directplay), hw (gpu or cpu when converting), and location.",
                [({"kind": k, "video": v, "hw": hw, "location": loc}, n) for (k, v, hw, loc), n in sorted(groups.items())]
                or [({"kind": "none", "video": "none", "hw": "none", "location": "none"}, 0)])  # fmt: skip
-    out.metric(f"kia_{name}_session_info", "gauge", f"One line per {title} player now playing (player is a pseudonym).",
-               [({"player": x["pseudonym"], **{key: x[key] for key in ("product", "kind", "video", "location", "state")}}, 1)
-                for x in sessions])  # fmt: skip
+    # Players that look the same (two with no name, say) share a line, with how many as its
+    # value: two lines with the same labels would be one series twice, which Prometheus drops.
+    players: dict[tuple, int] = {}
+    for x in sessions:
+        labels = (x["pseudonym"], *(x[key] for key in ("product", "kind", "video", "location", "state")))
+        players[labels] = players.get(labels, 0) + 1
+    out.metric(f"kia_{name}_session_info", "gauge", f"One line per {title} player now playing (player is a pseudonym); "
+               "the value is how many play the same way.",
+               [(dict(zip(("player", "product", "kind", "video", "location", "state"), labels, strict=True)), n)
+                for labels, n in players.items()])  # fmt: skip
 
 
 def render(output_dir: Path, relay=None, plex: PlexSessions | None = None, jellyfin: PlexSessions | None = None,
            stack=None) -> str:
+    # Ask Plex and Jellyfin at the same time: one after the other, two that don't answer
+    # would take 5 seconds each, and Prometheus gives up on /metrics after 10.
+    asking = [threading.Thread(target=x.get, daemon=True) for x in (plex, jellyfin) if x is not None]
+    for t in asking:
+        t.start()
+    for t in asking:
+        t.join()
     out = _Out()
     try:
         s = json.loads((output_dir / "status.json").read_text())

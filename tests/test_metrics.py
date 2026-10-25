@@ -167,3 +167,63 @@ def test_every_kia_number_a_dashboard_uses_is_one_kia_sends(tmp_path: Path):
     used.discard("kia_")
     assert {"kia_jellyfin_up", "kia_jellyfin_sessions", "kia_jellyfin_session_info"} <= used
     assert used <= sent, sorted(used - sent)
+
+
+def test_players_that_look_the_same_share_a_line(tmp_path: Path):
+    plex = FakePlex()
+    plex.playing = [{"player": "", "player_id": "", "product": "Plex Web", "kind": "live", "video": "copy",
+                     "location": "lan", "state": "playing"}] * 2  # fmt: skip
+    out = metrics.render(tmp_path, plex=metrics.PlexSessions(plex, state_dir=tmp_path / "state"))
+    lines = [line for line in out.splitlines() if line.startswith("kia_plex_session_info{")]
+    assert len(lines) == 1 and lines[0].endswith(" 2")
+
+
+def test_plex_and_jellyfin_are_asked_at_the_same_time(tmp_path: Path):
+    import time
+
+    class Slow(FakePlex):
+        def sessions(self):
+            time.sleep(0.5)
+            return super().sessions()
+
+    state = tmp_path / "state"
+    began = time.monotonic()
+    out = metrics.render(tmp_path, plex=metrics.PlexSessions(Slow(), state_dir=state),
+                         jellyfin=metrics.PlexSessions(Slow(), state_dir=state))  # fmt: skip
+    assert time.monotonic() - began < 0.9 and "kia_plex_up 1" in out and "kia_jellyfin_up 1" in out
+
+
+def test_a_plex_that_turned_kia_away_is_asked_with_its_new_token(tmp_path: Path, capsys):
+    class Unclaimed(FakePlex):
+        token = ""
+
+        def sessions(self):
+            if not self.token:
+                raise OSError("401")
+            return super().sessions()
+
+    server = Unclaimed()
+    renewed = []
+    s = metrics.PlexSessions(server, every=0, state_dir=tmp_path / "state",
+                             renew=lambda: (renewed.append(1), setattr(server, "token", "claimed")))  # fmt: skip
+    assert s.get() is None and renewed == [1]
+    assert "didn't answer" in capsys.readouterr().err  # said once, when it stops answering
+    assert s.get() is not None
+
+
+def test_in_stack_plex_reads_its_token_again(tmp_path: Path, monkeypatch):
+    from kia import cli, plex
+
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    (tmp_path / "kia.toml").write_text("")
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    monkeypatch.delenv("KIA_PLEX_TOKEN", raising=False)
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    tokens = [None, "claimed-token"]
+    monkeypatch.setattr(plex, "own_token", lambda base: tokens.pop(0) if tokens else "claimed-token")
+    s = cli.plex_sessions(str(tmp_path / "kia.toml"))
+    assert s.server.headers["X-Plex-Token"] == "" and s.renew is not None
+    s.renew()
+    assert s.server.headers["X-Plex-Token"] == "claimed-token"
+    monkeypatch.setenv("KIA_PLEX_TOKEN", "from-env")
+    assert cli.plex_sessions(str(tmp_path / "kia.toml")).renew is None  # your own token: nothing to read again

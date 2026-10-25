@@ -54,6 +54,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 
 - With Plex in the stack and two Threadfins, `kia plex-tuners` never added the second Threadfin's guide to the DVR, so its channels got the first one's guide or none. In the stack both Threadfins use port 34400, and kia told guides apart by port. It now tells them apart by name there, and by port for Threadfins on another computer.
 - When a new Plex in the stack has no codecs yet, kia tries the warm-up once a day after refreshes, instead of after every guide refresh: one try can take 20 minutes while Plex scans its libraries. `kia plex-tuners` run by hand still tries every time.
+- `kia plex-tuners --remove` asked Plex to add each Threadfin as a tuner to find it, so it could add one Plex didn't have. It now finds them in the DVR's own list. The warm-up clip is made by an ffmpeg that gets none of kia's passwords or tokens, like the others.
 - When Plex's warm-up failed and removing its library failed too, the second error hid the first, and the clip stayed in `plex/warmup`. The clip goes first now, and the reason for the failure is kept.
 
 ### The guide
@@ -75,6 +76,12 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 
 ### Observability
 
+- Tiles that count something (who's watching on Plex or Jellyfin, video converted on the card or the processor, failed RAID disks, memory errors, throttling) showed 0 when their source wasn't set up at all. They now show their note, such as "kia isn't set up to ask Plex", and 0 only when there's really none.
+- The Hardware dashboard's *Running on* tile could never say Battery on Linux. It now reads whether the mains supply is online.
+- The Pluto TV panels on the kia dashboard say the relay is off (`KIA_PLUTO_RELAY=false`) instead of "No numbers from kia yet".
+- `/metrics` asks Plex and Jellyfin at the same time. When neither answered, asking one after the other took longer than Prometheus waits, and every kia number was lost from that scrape.
+- With Plex in the stack claimed after kia started, the Plex dashboard said "Not answering" until kia restarted: kia read Plex's sign-in only at its start. It reads it again now while Plex turns kia away, and kia's log says when Plex or Jellyfin stops answering.
+- Two players that look exactly the same (no name, the same app) were two identical lines in `/metrics`, which Prometheus drops. They're one line now, with 2 as its value.
 - A Jellyfin dashboard in Grafana, like Plex's: whether Jellyfin answers, what's playing now on each player (by pseudonym), live TV against your own media, copied or converted video, players away from home, and what Jellyfin in the stack sends. It needs `KIA_JELLYFIN_URL` and `KIA_JELLYFIN_TOKEN`, the same settings as Jellyfin's numbers in `/metrics` ([graphs for your TV stack](docs/cookbooks/observability.md#5-jellyfin-optional)). `.env.example` already promised it.
 - The Hardware dashboard's *Converting on the card* and *Converting on the processor* tiles count Jellyfin's sessions as well as Plex's.
 
@@ -139,6 +146,7 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - `kia_plex_up` and `kia_jellyfin_up` said 0 when kia couldn't write its own list of players in `state/`, though the server was fine. The sessions still count then, with no pseudonym.
 - If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
+- When Pluto gave a session of less than half an hour, the relay opened a new one at every clip change, more often than Pluto likes. It now renews in the session's last quarter. A channel watched for days no longer keeps a growing list of every player and clip it has seen.
 - A `|` in a channel's group or id no longer breaks the table in `report.md`.
 - On the secure Sources page, the password box was unstyled and tiny, with its label and hint run together.
 - Writing each playlist's guide left guide.xml open until Python tidied up, and error pages from Plex, Jellyfin, another kia, and channel sources were never closed. Both are closed when kia is done with them.

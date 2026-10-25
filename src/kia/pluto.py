@@ -368,8 +368,11 @@ class Channel:
             self.new_session("trying our own session again")
         elif now - s.started > s.refresh_after * 1.5:
             self.new_session("session too old")  # no ad break came along to switch at
-        elif now - s.started > s.refresh_after - 1800:
-            self.renew = True  # at the next clip change
+        elif now - s.started > s.refresh_after - min(1800, s.refresh_after / 4):
+            # At the next clip change: from half an hour before Pluto wants a new session,
+            # or the last quarter of a short one. Half an hour before a session shorter
+            # than that would be from its start, and every clip change would open a new one.
+            self.renew = True
         text, base = self._playlist()
         with self.lock:
             added, went_back = self._take(parse_media(text, base))
@@ -438,7 +441,9 @@ class Channel:
             added += 1
             self.last_added = time.monotonic()
             if clip is not None and pos is not None:
-                self.furthest[clip] = pos if back else max(pos, self.furthest.get(clip, -1))
+                self.furthest[clip] = pos if back else max(pos, self.furthest.pop(clip, -1))  # popped: now the newest
+                while len(self.furthest) > 200:  # only recent clips can come back; forget the oldest
+                    del self.furthest[next(iter(self.furthest))]
         if went_back:
             self.stats.rewinds += 1
             self.relay.log(f"Pluto {self.cid}: Pluto went back to pieces it already sent; holding them back")
@@ -466,6 +471,8 @@ class Channel:
     def piece(self, seq: int, viewer: str) -> bytes | None:
         self.last_request = time.monotonic()
         self.viewers[viewer] = time.monotonic()
+        if len(self.viewers) > 50:  # players come and go over hours of watching
+            self.viewers = {v: t for v, t in self.viewers.items() if self.last_request - t < 300}
         with self.lock:
             p = next((x for x in self.pieces if x.seq == seq), None)
         if p is None:
@@ -663,7 +670,9 @@ class Relay:
             return
         minutes = int((time.monotonic() - ch.fallback_since) / 60)
         if time.monotonic() - ch.fallback_since > FALLBACK_ALERT and time.monotonic() - self.alerted.get(ch.cid, -1e9) > 3600:
-            self.alerted[ch.cid] = time.monotonic()
+            now = time.monotonic()
+            self.alerted = {c: t for c, t in self.alerted.items() if now - t < 3600}  # older ones no longer hold one back
+            self.alerted[ch.cid] = now
             threading.Thread(target=self.on_fallback, args=(ch.cid, minutes), daemon=True).start()
 
     def status(self) -> dict:

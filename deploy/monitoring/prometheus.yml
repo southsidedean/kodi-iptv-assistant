@@ -10,7 +10,8 @@ scrape_configs:
     static_configs:
       - targets: ["kia:8781"]
 
-  # Each container's processor, memory, and network: kia, web, the Threadfins, Plex.
+  # Each container's processor, memory, and network: kia, web, the Threadfins, Plex, Jellyfin,
+  # Prometheus, and Grafana.
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
