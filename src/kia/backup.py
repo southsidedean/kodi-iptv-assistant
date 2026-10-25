@@ -110,6 +110,11 @@ def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[
         restored = []
         for m in allowed:
             target = base / m.name
+            if target.is_symlink():
+                # Such as tls/cert.pem linked to Let's Encrypt's: replacing the link with the
+                # backup's copy would keep kia on that copy after the next renewal.
+                log(f"Left {m.name} as it is: it's a link to {os.readlink(target)}")
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             data = tar.extractfile(m)
             if data is None:

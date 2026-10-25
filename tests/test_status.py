@@ -282,3 +282,20 @@ def test_the_header_buttons_open_in_a_new_tab(monkeypatch):
     for label in ("Observability", "Documentation"):
         link = next(a for a in head.split("<a ")[1:] if f">{label}</a>" in a)
         assert 'target="_blank"' in link and "noopener" in link, label
+
+
+def test_settings_show_the_stack(tmp_path: Path, monkeypatch):
+    from kia import settings
+
+    cfg = cli.load(make_instance(tmp_path))
+
+    def parts() -> str:
+        return {r["name"]: r for s in settings.describe(cfg) for r in s["rows"]}["Parts"]["value"]
+
+    monkeypatch.delenv("KIA_STACK", raising=False)
+    monkeypatch.delenv("KIA_COMPOSE_PROFILES", raising=False)
+    assert parts() == "not running in Docker"
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex,monitoring")
+    assert parts() == "not set (COMPOSE_PROFILES: plex, monitoring)"
+    monkeypatch.setenv("KIA_STACK", "plex,observability")
+    assert parts() == "plex, observability"

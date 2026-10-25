@@ -75,6 +75,11 @@ def fetch_source(cfg: Config, src) -> str:
     saved = cfg.epg.work_dir / "sources" / f"{src.name}.m3u"
     try:
         text = fetch(src.url)
+        # A server can answer 200 with an error page or an empty file. That's a failed
+        # download too: saving it would lose the last good copy, and the source's channels.
+        # (Any line a playlist doesn't mark is read as a channel, so look for a stream address.)
+        if not any(is_stream_url(e.url) for e in m3u.parse(text, source=src.name)):
+            raise ValueError("what came back has no channels in it")
     except (OSError, ValueError) as exc:
         age = time.time() - saved.stat().st_mtime if saved.exists() else None
         if age is None or age > SAVED_COPY_DAYS * 86400:
@@ -82,7 +87,7 @@ def fetch_source(cfg: Config, src) -> str:
         log(f"{src.name}: could not download ({exc}); using the copy from {age / 3600:.0f} hours ago")
         return saved.read_text(encoding="utf-8")
     saved.parent.mkdir(parents=True, exist_ok=True)
-    tmp = saved.with_suffix(".tmp")
+    tmp = temp_name(saved)  # a check run by hand (kia check -u) can save it at the same time
     tmp.write_text(text, encoding="utf-8")
     tmp.replace(saved)
     return text
@@ -214,7 +219,7 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
     retry = [unique[url] for url, r in results.items() if not r.ok and is_transient(r.error)]
     if retry:
         log(f"Retrying {len(retry)} streams that failed a name lookup or timed out, more slowly...")
-        slow = asyncio.Semaphore(4)
+        slow = asyncio.Semaphore(min(4, cfg.concurrency))
 
         async def again(e: m3u.Entry) -> None:
             async with host_limit(e), slow:
@@ -322,13 +327,11 @@ def alert_on_local_dns(lookups: dict[str, dnscheck.PublicLookup], context: str, 
             log(f"{len(unverified)} hostnames failed to look up, and the public DNS servers couldn't be reached "
                 "to double-check (a moment without internet?): " + ", ".join(unverified[:10]))  # fmt: skip
         return False
-    lines = []
-    if local:
-        lines.append(
-            f"{len(local)} hostnames failed on local DNS but resolve on {', '.join(cfg.dns_resolvers)}: "
-            + ", ".join(local[:10])
-            + (" ..." if len(local) > 10 else "")
-        )
+    lines = [
+        f"{len(local)} hostnames failed on local DNS but resolve on {', '.join(cfg.dns_resolvers)}: "
+        + ", ".join(local[:10])
+        + (" ..." if len(local) > 10 else "")
+    ]
     if unverified:
         lines.append(
             f"{len(unverified)} hostnames failed on local DNS and the backup resolvers were unreachable "
@@ -1208,7 +1211,7 @@ def keep_plex_in_step(config: str) -> None:
     if not os.environ.get("KIA_PLEX_URL"):
         return
     try:
-        main(["plex-tuners", "-c", config])
+        main(["plex-tuners", "-c", config, "--after-refresh"])
     except (Exception, SystemExit) as exc:
         log(f"Couldn't update Plex: {type(exc).__name__}: {exc}")
 
@@ -1299,7 +1302,15 @@ def cmd_plex_tuners(args: argparse.Namespace) -> int:
     try:
         server, tuners = plex.Plex(url, token), plex.find_tuners(base, cfg.output_dir, host, log)
         if stack and not args.remove and not plex.has_codecs(base):
-            plex.warm_up(server, base, log)
+            # A warm-up can take 20 minutes while Plex scans its libraries. After a refresh
+            # (every few hours) it's tried once a day; by hand, every time.
+            tried = cfg.state_dir / "plex-warm-up-tried"
+            if args.after_refresh and tried.exists() and time.time() - tried.stat().st_mtime < 86400:
+                log("Plex still has no codecs. kia tries again tomorrow; playing any video in Plex fixes it sooner.")
+            else:
+                tried.parent.mkdir(parents=True, exist_ok=True)
+                tried.touch()
+                plex.warm_up(server, base, log)
         if args.remove:
             plex.remove(server, tuners, log)
         else:
@@ -1323,9 +1334,29 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
         default=os.environ.get("KIA_BIND") or "127.0.0.1",
         help="address to listen on (default: KIA_BIND or 127.0.0.1; 0.0.0.0 for your whole network)",
     )
-    p.add_argument("--port", type=int, default=int(os.environ.get("KIA_PORT") or 8780), help="default: KIA_PORT or 8780")
-    p.add_argument("--https-port", type=int, default=int(os.environ.get("KIA_HTTPS_PORT") or 8743),
+    p.add_argument("--port", type=int, help="default: KIA_PORT or 8780")
+    p.add_argument("--https-port", type=int,
                    help="the secure Dashboard's port (default: KIA_HTTPS_PORT or 8743; --https-port 0 for none)")  # fmt: skip
+
+
+# Options whose default comes from .env: (option, setting, default). They're read after the
+# command line, so a typo in one is reported by name, and only for the commands that use it.
+ENV_DEFAULTS = (("port", "KIA_PORT", 8780), ("https_port", "KIA_HTTPS_PORT", 8743),
+                ("api_port", "KIA_API_PORT", 0), ("guide_every", "KIA_GUIDE_REFRESH_HOURS", 4.0))  # fmt: skip
+
+
+def env_default(args: argparse.Namespace) -> None:
+    for option, name, fallback in ENV_DEFAULTS:
+        if getattr(args, option, False) is not None:
+            continue  # given on the command line, or not an option of this command
+        raw = os.environ.get(name, "").strip()
+        try:
+            value = type(fallback)(raw) if raw else fallback
+        except ValueError:
+            raise ValueError(f"{name}={raw!r}: expected a number") from None
+        if value < 0:
+            raise ValueError(f"{name}={raw!r}: expected 0 or more")
+        setattr(args, option, value)
 
 
 # Commands that refresh kia's files; one runs at a time (kia.locks).
@@ -1422,6 +1453,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--token", help="a Plex token (default: KIA_PLEX_TOKEN; .env keeps it out of your shell history)")
     p.add_argument("--address", help="this computer's address as Plex reaches it (default: from KIA_PUBLIC_URL)")
     p.add_argument("--remove", action="store_true", help="delete the DVR with kia's Threadfins (only if it has nothing else)")
+    p.add_argument("--after-refresh", action="store_true", help=argparse.SUPPRESS)  # the daemon's own run
     p.set_defaults(func=cmd_plex_tuners)
 
     p = sub.add_parser("check-dashboards", help="show which Grafana dashboard panels have data on this computer")
@@ -1450,11 +1482,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--guide-every",
         type=float,
-        default=float(os.environ.get("KIA_GUIDE_REFRESH_HOURS") or 4),
         help="hours between quick guide refreshes, 0 to turn off (default: KIA_GUIDE_REFRESH_HOURS or 4)",
     )
     p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
-    p.add_argument("--api-port", type=int, default=int(os.environ.get("KIA_API_PORT") or 0),
+    p.add_argument("--api-port", type=int,
                    help="serve the Dashboard's API on this port (Docker sets 8781)")  # fmt: skip
     p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
     add_serve_args(p)
@@ -1464,13 +1495,22 @@ def main(argv: list[str] | None = None) -> int:
     # A setting that can't be read (in .env or kia.toml): say which, without a traceback
     # (in a container that restarts over and over, the last line is what's seen).
     try:
-        if hasattr(args, "config"):
+        env_default(args)
+        # backup and restore work without a readable kia.toml: they're how you get one back.
+        if hasattr(args, "config") and args.func not in (cmd_backup, cmd_restore):
             load_config(args)
         if getattr(args, "at", None):
             next_run(datetime.now(), args.at)
+        if args.func is cmd_daemon:
+            env_bool("KIA_RUN_ON_START", False)
     except (ValueError, tomllib.TOMLDecodeError) as exc:
         print(f"kia: {exc}", file=sys.stderr)
         return 2
+    except FileNotFoundError as exc:
+        print(f"kia: {exc.filename} not found", file=sys.stderr)
+        return 2
+    # kia check --url (the Dashboard's "check now") writes its results to work/check-test,
+    # away from the refresh's files, so it can run while a refresh does.
     if args.func in REFRESHES and not getattr(args, "url", None):
         try:
             with locks.refresh(load_config(args).state_dir, f"kia {args.command}"):

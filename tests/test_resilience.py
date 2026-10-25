@@ -1,5 +1,6 @@
 """The nightly run keeps going when one piece fails, and treats third-party input carefully."""
 
+import argparse
 import asyncio
 import gzip
 import subprocess
@@ -331,3 +332,110 @@ def test_kia_always_uses_its_own_esbuild(tmp_path: Path, monkeypatch):
     # Never the checkout's own: it comes from iptv-org's dependencies, and compiling runs it
     # outside Node's sandbox.
     assert grab._esbuild(cfg, lambda m: None) == ours.resolve()
+
+
+@pytest.mark.parametrize("extra, named", [
+    ('[filters]\nexclude_name_patterns = ["("]\n', "exclude_name_patterns"),
+    ('history_days = "30"\n', "history_days"),
+    ("timeout = 0\n", "timeout"),
+    ("host_delay_ms = -1\n", "host_delay_ms"),
+    ("grace_failures = 1.5\n", "grace_failures"),
+    ("[alerts]\ndrop_percent = 150\n", "drop_percent"),
+    ("[alerts]\nsite_fail_runs = 0\n", "site_fail_runs"),
+    ("[epg]\nmax_connections = 0\n", "max_connections"),
+    ('[epg]\nsite_time_limit = "30"\n', "site_time_limit"),
+    ('[epg]\ndays = "3"\n', "days"),
+])  # fmt: skip
+def test_a_bad_value_in_kia_toml_is_named_at_the_start(tmp_path: Path, monkeypatch, capsys, extra, named):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    monkeypatch.delenv("KIA_EPG_DAYS", raising=False)
+    (tmp_path / "list.m3u").write_text("#EXTM3U\n")
+    cfg_path = make_cfg(tmp_path, extra)
+    with pytest.raises(ValueError, match=named):
+        load(cfg_path)
+    assert cli.main(["check", "-c", str(cfg_path)]) == 2  # said in one line, no traceback
+    assert named in capsys.readouterr().err
+
+
+def test_good_values_in_kia_toml_still_load(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    (tmp_path / "list.m3u").write_text("#EXTM3U\n")
+    cfg = load(make_cfg(tmp_path, 'timeout = 7.5\nhistory_days = 10\n[filters]\nexclude_name_patterns = ["(?i)adult"]\n'
+                                  "[alerts]\ndrop_percent = 12.5\n"))  # fmt: skip
+    assert cfg.timeout == 7.5 and cfg.history_days == 10 and cfg.alerts.drop_percent == 12.5
+
+
+@pytest.mark.parametrize("name, value", [("KIA_PORT", "eighty"), ("KIA_API_PORT", "-1"), ("KIA_GUIDE_REFRESH_HOURS", "4h"),
+                                         ("KIA_RUN_ON_START", "maybe")])  # fmt: skip
+def test_a_bad_number_in_env_is_named_without_a_traceback(tmp_path: Path, monkeypatch, capsys, name, value):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    (tmp_path / "list.m3u").write_text("#EXTM3U\n")
+    monkeypatch.setenv(name, value)
+    assert cli.main(["daemon", "-c", str(make_cfg(tmp_path))]) == 2
+    assert name in capsys.readouterr().err
+
+
+def test_numbers_in_env_are_read_only_for_the_commands_that_use_them(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("KIA_PORT", "eighty")
+    args = argparse.Namespace(port=None, guide_every=None)
+    monkeypatch.setenv("KIA_GUIDE_REFRESH_HOURS", "2.5")
+    with pytest.raises(ValueError, match="KIA_PORT"):
+        cli.env_default(args)
+    monkeypatch.setenv("KIA_PORT", "9000")
+    cli.env_default(args)
+    assert (args.port, args.guide_every) == (9000, 2.5)
+    given = argparse.Namespace(port=1234)
+    cli.env_default(given)
+    assert given.port == 1234  # the command line wins
+    cli.env_default(argparse.Namespace())  # a command without those options reads none of them
+
+
+def test_a_missing_kia_toml_is_one_line(tmp_path: Path, capsys):
+    assert cli.main(["check", "-c", str(tmp_path / "kia.toml")]) == 2
+    assert "kia.toml not found" in capsys.readouterr().err
+
+
+def test_a_page_with_no_channels_keeps_the_last_good_copy(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    (tmp_path / "list.m3u").write_text("#EXTM3U\n")
+    cfg = load(make_cfg(tmp_path))
+    src = cfg.sources[0].__class__(name="us", url="https://example.org/us.m3u")
+    good = '#EXTM3U\n#EXTINF:-1 tvg-id="A.us",A\nhttp://a/1\n'
+    monkeypatch.setattr(cli, "fetch", lambda url: good)
+    assert cli.fetch_source(cfg, src) == good
+    monkeypatch.setattr(cli, "fetch", lambda url: "<html>Service unavailable</html>")
+    assert cli.fetch_source(cfg, src) == good  # the error page wasn't saved over it
+    assert (cfg.epg.work_dir / "sources" / "us.m3u").read_text() == good
+    assert not list((cfg.epg.work_dir / "sources").glob("*.tmp"))
+
+
+def test_a_broken_history_file_is_set_aside(tmp_path: Path):
+    from kia.history import History
+
+    path = tmp_path / "history.json"
+    path.write_text('{"http://a/1": {"checks": 3')  # cut short
+    history = History(path)
+    assert history.records == {}
+    assert (tmp_path / "history.json.bad").read_text().startswith('{"http://a/1"')
+    history.record("http://a/1", ProbeResult(ok=True, height=720))
+    history.save()
+    assert "http://a/1" in History(path).records
+    path.write_text("[]")  # valid, but not what kia writes
+    assert History(path).records == {}
+
+
+def test_the_retry_tests_no_more_at_once_than_concurrency(tmp_path: Path, monkeypatch):
+    seen = {"now": 0, "max": 0}
+
+    async def fake_probe(url, **kw):
+        seen["now"] += 1
+        seen["max"] = max(seen["max"], seen["now"])
+        await asyncio.sleep(0.01)
+        seen["now"] -= 1
+        return ProbeResult(ok=False, error="timed out")
+
+    monkeypatch.setattr(cli, "probe", fake_probe)
+    cfg = load(make_cfg(tmp_path))
+    cfg.concurrency, cfg.host_delay_ms = 1, 0
+    asyncio.run(cli.probe_all([m3u.Entry(str(i), f"http://host{i}/x") for i in range(6)], cfg, verbose=False))
+    assert seen["max"] == 1

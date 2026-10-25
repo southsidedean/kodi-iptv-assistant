@@ -70,3 +70,35 @@ def test_the_safety_copy_keeps_a_sources_file_of_your_own(tmp_path: Path):
     _, safety = backup.restore(tmp_path / "b.tar.gz", home, tmp_path / "safety", lambda m: None)
     assert "my-sources.txt" in backup.read_manifest(safety)["files"]  # the restore can be undone
     assert (home / "my-sources.txt").read_text() == "https://example.org/mine.m3u\n"
+
+
+def test_backup_and_restore_work_without_a_readable_kia_toml(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    home = kia_folder(tmp_path / "home")
+    (home / "kia.toml").write_text("[check\n")  # broken
+    assert cli.main(["backup", "-c", str(home / "kia.toml"), "-o", str(tmp_path / "b.tar.gz")]) == 0
+    assert "kia.toml" in backup.read_manifest(tmp_path / "b.tar.gz")["files"]
+
+    empty = tmp_path / "empty"
+    empty.mkdir()  # no kia.toml at all: the restore brings it back
+    assert cli.main(["restore", str(tmp_path / "b.tar.gz"), "-c", str(empty / "kia.toml")]) == 0
+    assert (empty / "kia.toml").read_text() == "[check\n"
+
+
+def test_restore_leaves_linked_certificates_alone(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    home = kia_folder(tmp_path / "home")
+    (home / "tls").mkdir()
+    (home / "tls" / "cert.pem").write_text("old certificate")
+    assert cli.main(["backup", "-c", str(home / "kia.toml"), "-o", str(tmp_path / "b.tar.gz")]) == 0
+
+    renewed = tmp_path / "letsencrypt" / "fullchain.pem"
+    renewed.parent.mkdir()
+    renewed.write_text("renewed certificate")
+    (home / "tls" / "cert.pem").unlink()
+    (home / "tls" / "cert.pem").symlink_to(renewed)
+    said = []
+    restored, _ = backup.restore(tmp_path / "b.tar.gz", home, tmp_path / "safety", said.append)
+    assert "tls/cert.pem" not in restored and "state/channels.json" in restored
+    assert (home / "tls" / "cert.pem").is_symlink() and renewed.read_text() == "renewed certificate"
+    assert any("tls/cert.pem" in s and "link" in s for s in said)

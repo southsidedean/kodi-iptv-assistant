@@ -1,5 +1,7 @@
 import json
+import os
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -252,7 +254,7 @@ def test_the_daemon_keeps_plex_in_step_only_when_asked(monkeypatch):
     assert calls == []
     monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
     cli.keep_plex_in_step("kia.toml")
-    assert calls == [["plex-tuners", "-c", "kia.toml"]]
+    assert calls == [["plex-tuners", "-c", "kia.toml", "--after-refresh"]]
 
     def broken(argv):
         raise SystemExit(1)
@@ -382,3 +384,28 @@ def test_a_failed_clean_up_doesnt_hide_why_the_warm_up_failed(tmp_path: Path):
         plex.warm_up(PlexThatKeepsItsLibrary(tmp_path), tmp_path, said.append, ffmpeg="true", wait=0.05, step=0.01)
     assert not list((tmp_path / plex.WARMUP).glob("*.mp4"))  # the clip is gone anyway
     assert any("Couldn't remove the kia codec warm-up library" in m for m in said)
+
+
+def test_after_a_refresh_the_warm_up_is_tried_once_a_day(tmp_path: Path, monkeypatch):
+    from kia import cli
+
+    (tmp_path / "sources.txt").write_text("https://example.org/a.m3u\n")
+    (tmp_path / "kia.toml").write_text("")
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    monkeypatch.setattr(plex, "own_token", lambda base: "token")
+    monkeypatch.setattr(plex, "find_tuners", lambda *a, **kw: [])
+    monkeypatch.setattr(plex, "has_codecs", lambda base: False)
+    monkeypatch.setattr(plex, "set_up", lambda *a: None)
+    warmed = []
+    monkeypatch.setattr(plex, "warm_up", lambda *a: warmed.append(1))
+    run = ["plex-tuners", "-c", str(tmp_path / "kia.toml")]
+    assert cli.main([*run, "--after-refresh"]) == 0
+    assert cli.main([*run, "--after-refresh"]) == 0  # the next refresh, hours later
+    assert len(warmed) == 1
+    assert cli.main(run) == 0  # by hand, it's tried every time
+    assert len(warmed) == 2
+    tried = tmp_path / "state" / "plex-warm-up-tried"
+    os.utime(tried, (time.time() - 90000, time.time() - 90000))  # a day on
+    assert cli.main([*run, "--after-refresh"]) == 0
+    assert len(warmed) == 3

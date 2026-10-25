@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from kia.files import temp_name
 from kia.probe import ProbeResult
 
 
@@ -29,7 +30,16 @@ class History:
         self.path = path
         self.records: dict[str, dict] = {}
         if path.exists():
-            self.records = json.loads(path.read_text())
+            try:
+                records = json.loads(path.read_text(encoding="utf-8"))
+            except ValueError:  # cut short (a full disk, a crash) or edited by hand
+                records = None
+            if isinstance(records, dict):
+                self.records = records
+            else:
+                # Start a new one, so the checks still run. The old file stays, as
+                # history.json.bad; losing it only resets each stream's record of past checks.
+                path.replace(path.with_name(path.name + ".bad"))
 
     def get(self, url: str) -> dict:
         return self.records.get(url, {})
@@ -61,6 +71,6 @@ class History:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
+        tmp = temp_name(self.path)
         tmp.write_text(json.dumps(self.records, indent=1, sort_keys=True))
         tmp.replace(self.path)

@@ -38,12 +38,15 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 - The Last refresh tile on the kia dashboard showed nothing during a refresh, instead of Refreshing.
 - After a change on the Dashboard, the System page showed the settings kia started with, even after `kia.toml` had changed.
 - A setting kia can't read, such as `KIA_RUN_AT=4am` or `KIA_EPG_DAYS=abc`, stops kia with one line naming it, instead of a Python traceback. A browser turning down kia's own certificate, or http:// sent to the secure port, is one line in the log too.
+- That goes for `KIA_PORT`, `KIA_HTTPS_PORT`, `KIA_API_PORT`, `KIA_GUIDE_REFRESH_HOURS`, and `KIA_RUN_ON_START` too, and for a missing `kia.toml`. kia also checks the numbers and patterns in `kia.toml` when it starts: `days = "3"`, `timeout = 0`, or an `exclude_name_patterns` entry that isn't a valid pattern. A bad pattern used to stop every stream check, and a bad number stopped a refresh part way through.
+- The System page and `kia settings` show `KIA_STACK`, the parts of the stack.
 - `kia serve` (installs without Docker) takes turns with a refresh run from another process, like the Docker setup.
 - Two writers of the same file at once (the daemon and a kia command, or Plex's and Jellyfin's numbers) could fail or lose a change; each now writes its own temporary file.
 
 ### Plex
 
 - With Plex in the stack and two Threadfins, `kia plex-tuners` never added the second Threadfin's guide to the DVR, so its channels got the first one's guide or none. In the stack both Threadfins use port 34400, and kia told guides apart by port. It now tells them apart by name there, and by port for Threadfins on another computer.
+- When a new Plex in the stack has no codecs yet, kia tries the warm-up once a day after refreshes, instead of after every guide refresh: one try can take 20 minutes while Plex scans its libraries. `kia plex-tuners` run by hand still tries every time.
 - When Plex's warm-up failed and removing its library failed too, the second error hid the first, and the clip stayed in `plex/warmup`. The clip goes first now, and the reason for the failure is kept.
 
 ### The guide
@@ -111,6 +114,10 @@ If `KIA_STACK` is empty and you set `COMPOSE_PROFILES` by hand, nothing changes:
 
 ### Smaller fixes
 
+- A channel source that answers with an error page or an empty file counts as a failed download now. kia keeps using its last good copy, up to 7 days old, instead of saving the error page over it and losing that source's channels.
+- `kia backup` works when `kia.toml` is broken, as it says it does, and `kia restore` works when `kia.toml` is missing, which is when you need it. A restore leaves a linked certificate (`tls/cert.pem` linked to Let's Encrypt's, say) as it is, so renewals keep reaching kia.
+- A damaged `state/history.json` stopped every stream check. kia now keeps it as `history.json.bad` and starts a new one.
+- The second, slower try for streams that timed out tests no more at once than `KIA_CHECK_CONCURRENCY`.
 - `kia_plex_up` and `kia_jellyfin_up` said 0 when kia couldn't write its own list of players in `state/`, though the server was fine. The sessions still count then, with no pseudonym.
 - If kia stopped half-way through giving Threadfin its login, Threadfin's page stayed open; kia finishes it on the next start. A damaged Threadfin `settings.json` no longer stops kia's setup.
 - The Pluto TV relay no longer waits to try an address again that it won't fetch (not https).
