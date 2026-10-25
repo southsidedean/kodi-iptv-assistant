@@ -72,7 +72,7 @@ From the Dashboard you can change [profiles](docs/profiles.md), which playlists 
 
 ### The MCP server
 
-kia's [MCP server](docs/ask-kia.md#2-ask-your-own-ai-assistant) lets an AI assistant read kia's record. It's off until you make its token (`kia mcp-token`), and then it answers only on the secure (HTTPS) port, only with that token.
+kia's [MCP server](docs/mcp.md) lets an AI assistant read kia's record. It's off until you make its token (`kia mcp-token`), and then it answers only on the secure (HTTPS) port, only with that token.
 
 - Its tools only read, and they return what the Dashboard already shows to anyone on your network. Passwords, tokens, and alert addresses show only as set or not set (some settings come from `.env`, shown as on the System page), and user names and passwords in addresses are hidden: before the host, in the query (`?username=&password=`), and in the path (`/live/user/pass/`).
 - A wrong token is slowed down like a wrong password, counted apart from wrong passwords (so a token holder can't use right tokens to reset the count while guessing the password), and each address can make 60 tool calls a minute. kia's log records each call and each refused token, with the address it came from.

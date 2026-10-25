@@ -274,3 +274,76 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
             "content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False)}], "structuredContent": data}}  # fmt: skip
     return 200, _error(id_, -32601, f"Method not found: {str(method)[:60]}")
 
+
+
+# Setting up assistants: kia mcp-token --for <assistant> prints one of these, with the address
+# and token filled in (docs/mcp.md has the steps around each). The certificate's path is the
+# copy of kia's tls/fullchain.pem the person makes; "~/kia-cert.pem" in the docs.
+
+
+def setup_for(assistant: str, address: str, token: str) -> str:
+    """The setup text for one assistant. Raises KeyError for one kia doesn't know."""
+    bearer = f"Bearer {token}"
+    texts = {
+        "claude-code": f"""In a terminal, add kia to Claude Code (for every project):
+
+  claude mcp add --scope user --transport http kia {address} --header "Authorization: {bearer}"
+
+Then start Claude Code trusting kia's certificate:
+
+  NODE_EXTRA_CA_CERTS=~/kia-cert.pem claude
+""",
+        "claude-desktop": f"""Claude Desktop starts a small bridge (mcp-remote, which needs Node.js) that connects to kia.
+Add this to claude_desktop_config.json (Claude > Settings > Developer > Edit Config), inside
+"mcpServers" if the file has one, then restart Claude Desktop. Use the full path to your copy
+of kia's certificate.
+
+{json.dumps({"mcpServers": {"kia": {
+    "command": "npx",
+    "args": ["-y", "mcp-remote", address, "--transport", "http-only", "--header", "Authorization:${KIA_AUTH}"],
+    "env": {"KIA_AUTH": bearer, "NODE_EXTRA_CA_CERTS": "/full/path/to/kia-cert.pem"}}}}, indent=2)}
+""",
+        "gemini": f"""In a terminal, add kia to Gemini CLI (for every project):
+
+  gemini mcp add --scope user --transport http --header "Authorization: {bearer}" kia {address}
+
+Then start Gemini CLI trusting kia's certificate:
+
+  NODE_EXTRA_CA_CERTS=~/kia-cert.pem gemini
+
+Gemini CLI turns MCP servers on only in folders you trust: say yes when it asks.
+""",
+        "codex": f"""Add this to ~/.codex/config.toml:
+
+[mcp_servers.kia]
+url = "{address}"
+bearer_token_env_var = "KIA_MCP_TOKEN"
+
+Then start Codex with the token, and trusting kia's certificate:
+
+  KIA_MCP_TOKEN={token} CODEX_CA_CERTIFICATE=~/kia-cert.pem codex
+""",
+        "vscode": f"""In VS Code, run "MCP: Open User Configuration" and add kia (VS Code asks for the token the
+first time, and keeps it out of the file):
+
+{json.dumps({"inputs": [{"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}],
+             "servers": {"kia": {"type": "http", "url": address, "headers": {"Authorization": "Bearer ${input:kia-token}"}}}}, indent=2)}
+
+The token: {token}
+""",
+        "cursor": f"""Add this to ~/.cursor/mcp.json (inside "mcpServers" if the file has one):
+
+{json.dumps({"mcpServers": {"kia": {"url": address, "headers": {"Authorization": "Bearer ${env:KIA_MCP_TOKEN}"}}}}, indent=2)}
+
+Then set KIA_MCP_TOKEN={token} in your shell's startup file and restart Cursor.
+""",
+        "curl": f"""To check the server by hand (it lists kia's tools):
+
+  curl --cacert ~/kia-cert.pem -H "Authorization: {bearer}" -H "Content-Type: application/json" \\
+    -d '{{"jsonrpc":"2.0","id":1,"method":"tools/list"}}' {address}
+""",
+    }
+    return texts[assistant]
+
+
+ASSISTANTS = ("claude-code", "claude-desktop", "gemini", "codex", "vscode", "cursor", "curl")

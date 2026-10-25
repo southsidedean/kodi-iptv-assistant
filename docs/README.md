@@ -27,6 +27,7 @@ New here? Begin with [start here](start-here.md).
 - [The secure Dashboard and your password](secure-page.md)
 - [Alerts](alerts.md): a message on your phone when something needs you.
 - [Asking kia for help](ask-kia.md): plain answers from the Dashboard, or your own AI assistant reading kia's record.
+- [kia and AI assistants (MCP)](mcp.md): setting up Claude Code, Gemini CLI, Claude Desktop, Codex, VS Code, or Cursor to ask kia.
 - [Troubleshooting](troubleshooting.md)
 
 ## Going further

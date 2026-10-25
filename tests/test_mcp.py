@@ -147,7 +147,7 @@ def test_mcp_token_command(kia, capsys):
     assert cli.main(["mcp-token", "-c", config]) == 0
     out = capsys.readouterr().out
     made = mcp.token(kia.state_dir)
-    assert made and f"Bearer {made}" in out and "claude mcp add --transport http kia https://" in out
+    assert made and f"Bearer {made}" in out and "claude mcp add --scope user --transport http kia https://" in out
     assert "(kept in state/mcp-token.txt in the kia folder)" in out
     assert (kia.state_dir / mcp.TOKEN_FILE).stat().st_mode & 0o777 == 0o600
     assert cli.main(["mcp-token", "-c", config]) == 0 and mcp.token(kia.state_dir) == made  # shown again, not replaced
@@ -258,3 +258,41 @@ def test_backups_leave_the_token_out(kia, tmp_path):
 
     names = backup.make(kia.state_dir.parent, tmp_path / "b.tar.gz")
     assert "state/mcp-token.txt" not in names and any(n.startswith("state/") for n in [*names, "state/x"])
+
+
+# kia mcp: the same server over standard input and output, for an assistant on this computer
+
+
+def test_stdio_answers_on_stdout_and_logs_on_stderr(kia):
+    import subprocess
+    import sys
+
+    messages = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},  # no answer
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "kia_channel", "arguments": {"query": "CNN"}}},
+    ]
+    src = Path(api.__file__).resolve().parent.parent
+    run = subprocess.run([sys.executable, "-m", "kia", "mcp", "-c", str(kia.config_file)], input="".join(json.dumps(m) + "\n" for m in messages),
+                         capture_output=True, text=True, timeout=30, env={**__import__("os").environ, "PYTHONPATH": str(src)},
+                         check=True)  # fmt: skip
+    lines = run.stdout.splitlines()
+    assert [json.loads(line)["id"] for line in lines] == [1, 2]  # one line each, only MCP messages
+    assert json.loads(lines[1])["result"]["structuredContent"]["channels"][0]["subject"] == "CNN (CNN.us)"
+    assert "MCP: kia_channel for stdio" in run.stderr
+
+
+@pytest.mark.parametrize("assistant", mcp.ASSISTANTS)
+def test_setup_for_each_assistant(assistant):
+    text = mcp.setup_for(assistant, "https://my-server.lan:8743/api/mcp", "tok-123")
+    assert "https://my-server.lan:8743/api/mcp" in text
+    if assistant in ("codex", "cursor", "vscode"):
+        assert "tok-123" in text  # set where the snippet says (an environment variable or VS Code's prompt)
+    for block in [b for b in text.split("\n\n") if b.lstrip().startswith("{")]:
+        json.loads(block)  # the JSON ones paste as they are
+
+
+def test_mcp_token_for_an_assistant(kia, capsys):
+    assert cli.main(["mcp-token", "-c", str(kia.config_file), "--for", "gemini"]) == 0
+    out = capsys.readouterr().out
+    assert "gemini mcp add --scope user --transport http" in out and "folders you trust" in out
