@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.7.3 (unreleased)
+
 ## 0.7.2 (2026-10-26)
 
 ### Upgrading from 0.7.1
