@@ -512,7 +512,9 @@ NAME_CARD_SCRIPT = """
       if (r._status !== 200) { say.className = "name-say error"; say.textContent = r.error || "Something went wrong."; return; }
       try { sessionStorage.setItem(KEY, pass.value); } catch (e) {}
       show(r);
-      say.className = "name-say"; say.textContent = "Saved. Alerts use it from now on; reload other pages to see it in their header.";
+      say.className = "name-say";
+      say.textContent = (r.from === "dashboard" ? "Saved." : "Cleared: back to the default.") +
+        " Alerts use it from now on; reload other pages to see it in their header.";
     }, function () { say.className = "name-say error"; say.textContent = "kia didn't answer. Is it running?"; });
   });
 })();
