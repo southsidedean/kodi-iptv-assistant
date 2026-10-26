@@ -27,7 +27,7 @@ class Candidate:
     tvg_id: str
     channel: SiteChannel
     exact: bool  # False when only the channel matched, not the feed (e.g. @East vs @SD)
-    how: str = "id"  # "id", or "name" when matched by the channel's name
+    how: str = "id"  # "id"; "name" when matched by the channel's name; "pluto" by its Pluto TV id
 
 
 def base_id(xmltv_id: str) -> str:
@@ -184,6 +184,32 @@ def radio_schedule_candidates(radio: dict[str, str], skip_sites: set[str]) -> di
     return found
 
 
+# i.mjh.nz's Pluto TV guides, one a country, keyed by Pluto's own channel ids. The countries
+# it publishes (github.com/matthuisman/i.mjh.nz, PlutoTV/, checked 2026-10-26).
+PLUTO_GUIDES = frozenset({"ar", "br", "ca", "cl", "de", "dk", "es", "fr", "gb", "it", "mx", "no", "se", "us"})
+
+
+def pluto_candidates(pluto: dict[str, tuple[str, str]], candidates: dict[str, list[Candidate]],
+                     skip_sites: set[str]) -> int:  # fmt: skip
+    """Add i.mjh.nz's Pluto TV guide, by the channel's Pluto id, to each Pluto channel (tvg-id ->
+    (Pluto id, name)) that doesn't have it yet: its own guide, whatever iptv-org knows it
+    as. After the others, as kia guide keeps whichever source has the most listings. The
+    country comes from the tvg-id (CNN.us -> us). Returns how many it added to."""
+    if "i.mjh.nz" in skip_sites:
+        return 0
+    added = 0
+    for tid, (cid, name) in pluto.items():
+        region = country(tid)
+        site_id = f"PlutoTV/{region}#{cid}"
+        cands = candidates.setdefault(tid, [])
+        if region in PLUTO_GUIDES and not any(c.channel.site == "i.mjh.nz" and c.channel.site_id == site_id for c in cands):
+            cands.append(Candidate(tid, SiteChannel("i.mjh.nz", site_id, "en", tid, name), True, "pluto"))
+            added += 1
+        if not cands:
+            del candidates[tid]
+    return added
+
+
 def usable_channels(site_channels: list[SiteChannel], cfg: EpgConfig, skip_sites: set[str]) -> list[SiteChannel]:
     skip = set(skip_sites) | set(cfg.exclude_sites)
     return [sc for sc in site_channels if sc.site not in skip]
@@ -302,6 +328,7 @@ def render_report(
         f"| Matched to a guide site (same feed) | {exact} |",
         f"| Matched to a different feed of the channel | {len(candidates) - exact - len(by_name)} |",
         f"| Matched by name | {len(by_name)} |",
+        f"| Matched by their Pluto TV id only | {sum(1 for c in candidates.values() if c[0].how == 'pluto')} |",
         f"| Covered by their playlist's own guide | {len(own_guides)} |",
         f"| No guide source found | {len(unmatched)} |",
         "",
