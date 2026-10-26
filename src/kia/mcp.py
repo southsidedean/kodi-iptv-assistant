@@ -196,9 +196,9 @@ TOOLS = [
      "how it went with kia_request_status. The channel is its ID (tvg-id) or part of its name, and must match "
      "just one channel.", _QUERY),
     ("kia_refresh_guide", "Refresh the guide (asks the person first)",
-     "Ask kia to refresh its guide now from the quick sources (the guides it downloads itself, in seconds "
-     "to a few minutes), as it does every few hours by itself; the guide sites it grabs stay as they were "
-     "last night. Nothing happens until the person approves it on kia's Dashboard, unless they let this kind run by itself (the answer says): tell them, and give them "
+     "Ask kia to refresh its guide now from the quick sources (i.mjh.nz, the playlists' own guides, and a few "
+     "radio stations' schedules, in seconds to a few minutes), as it does every few hours by itself; the "
+     "other guide sites stay as they were last night. Nothing happens until the person approves it on kia's Dashboard, unless they let this kind run by itself (the answer says): tell them, and give them "
      "the link in the answer. Then read how it went with kia_request_status.", _NO_ARGS),
     ("kia_add_to_plex", "Add kia's channels to Plex (asks the person first)",
      "Ask kia to add its channels to Plex as Live TV now, as the Stack page's button does (kia does it by "

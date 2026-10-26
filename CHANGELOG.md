@@ -11,6 +11,10 @@
 
 - NTS Radio 1 and 2, from London, get their show schedules in the guide, two weeks ahead, from NTS's public API, like KINK and KEXP. `sources.txt` has a line for them ([radio](docs/how-it-works.md#radio)).
 
+### Fixes
+
+- `kia doctor` said the quick refreshes add more listings during the day for any channel with a partial guide. That's only true for the sources they download again (i.mjh.nz, the playlists' own guides, and the radio schedules); for the others, it now says the listings run until tonight's refresh.
+
 ## 0.7.3 (2026-10-26)
 
 ### Upgrading from 0.7.2

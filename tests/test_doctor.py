@@ -152,7 +152,17 @@ def test_a_partial_guide_and_a_flaky_stream_in_two_playlists(kia):
     [r] = channel(kia, "CNN")
     assert titles(r) == ["Its stream failed in the last check, and is kept for now", "It's in 2 playlists", "It has a partial guide"]
     assert "failed the last 1 in a row" in r.findings[0].detail and "us (flaky), extra (dead)" in r.findings[1].detail
-    assert "Its listings run to" in r.findings[2].detail
+    assert "Its listings run to" in r.findings[2].detail and r.findings[2].detail.endswith("until tonight's refresh.")
+
+
+@pytest.mark.parametrize("site, more", [("i.mjh.nz", True), ("playlist-samsung-us", True), ("nts.live", True),
+                                        ("epgshare01.online", False), ("tvpassport.com", False)])  # fmt: skip
+def test_only_quick_sources_get_more_during_the_day(kia, site, more):
+    kept(kia, CNN)
+    write(kia, "work/mapping.json", {"CNN.us@SD": [site]})
+    write(kia, "work/guide-choices.json", {"CNN.us@SD": {"site": site, "hours_24h": 11.0, "programs": 6, "ends": iso(NOW + 11 * HOUR)}})
+    [r] = channel(kia, "CNN")
+    assert ("quick refreshes add more" in r.findings[-1].detail) is more
 
 
 def test_no_guide_match(kia):
