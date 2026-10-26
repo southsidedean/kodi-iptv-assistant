@@ -59,8 +59,18 @@ def is_allowed_address(text: str) -> bool:
     )
 
 
+ADDRESS_RE = r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)"
+
+
+def test_the_address_pattern_finds_one_ending_a_sentence():
+    found = lambda text: re.findall(ADDRESS_RE, text)
+    assert found("Point Kodi at 192.0.2.5.") == ["192.0.2.5"] and found("http://192.0.2.7./x") == ["192.0.2.7"]
+    assert found("version 1.2.3.4.5") == [] and found("192.0.2.5, then") == ["192.0.2.5"]
+
+
 def test_no_real_network_addresses():
-    hits = findings(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])", is_allowed_address)
+    # Not a fifth number (a version such as 1.2.3.4.5), but an address that ends a sentence counts.
+    hits = findings(ADDRESS_RE, is_allowed_address)
     assert not hits, "use 192.168.1.20 (kia) or 192.0.2.x:\n" + "\n".join(hits)
 
 

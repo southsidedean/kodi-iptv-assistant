@@ -159,8 +159,19 @@ def test_the_preset_reads_this_computers_address_from_any_public_url(kia: Path, 
     assert f"KIA_PLEX_ADVERTISE={advertised}\n" in env(kia)
 
 
+def test_the_preset_uses_your_plex_port_and_a_url_with_a_slash(kia: Path):
+    text = (kia / ".env.example").read_text().replace("KIA_PUBLIC_URL=\n", "KIA_PUBLIC_URL=http://my-server.lan:8780/\n")
+    (kia / ".env").write_text(text.replace("KIA_PLEX_PORT=\n", "KIA_PLEX_PORT=32401\n"))
+    r = install(kia, "--preset", "plex-box", "--yes")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "KIA_PLEX_ADVERTISE=http://my-server.lan:32401/\n" in env(kia)
+    assert "https://my-server.lan:8743/" in r.stdout and ":8780:" not in r.stdout  # not my-server.lan:8780:8743
+
+
 def test_the_preset_menu_says_what_each_one_asks_of_you(kia: Path):
     r = install(kia, "--yes")  # no preset given: the menu is shown, and the default taken
     assert r.returncode == 0, r.stdout + r.stderr
     assert "What is this kia for?" in r.stdout
+    menu = [line.split(":")[0].strip() for line in r.stdout.splitlines() if line.startswith("  ") and ":" in line and "Asks" not in line]
+    assert menu[0] == "kodi"  # in the presets' own order, as the Dashboard shows them
     assert "Asks you for: A playlist named plex, made on the Dashboard; a claim code from plex.tv/claim" in r.stdout

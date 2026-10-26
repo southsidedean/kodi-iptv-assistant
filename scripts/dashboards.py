@@ -206,7 +206,7 @@ def kia() -> Board:
     b.graph("Playlists", "TV channels in each playlist.", [('kia_playlist_channels{kind="tv"}', "{{playlist}}")], w=24)
     b.row("Pluto TV relay")
     b.graph("Viewers per channel", "Players watching each Pluto TV channel through kia (Threadfin counts as one).",
-            [("kia_pluto_viewers", "{{name}}")], stack=True, no_value="No Pluto TV channels watched in this time")  # fmt: skip
+            [("kia_pluto_viewers", "{{name}}")], stack=True, no_value="No Pluto TV channels watched in this time, or the relay is off (KIA_PLUTO_RELAY=false)")  # fmt: skip
     b.graph("Video passed on", "Pluto TV video kia sends to players.", [("rate(kia_pluto_bytes_total[5m]) * 8", "bits per second")], "bps",
             no_value=PLUTO_OFF)  # fmt: skip
     b.graph("Problems per hour", "Pieces kia couldn't pass on, times Pluto went back in a stream, and falls back to the shared stream.",

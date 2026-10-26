@@ -77,17 +77,26 @@ listening() {  # something answers on this port here
 }
 running() { docker compose ps --services --status running 2>/dev/null | grep -qx "$1"; }
 
+presets() {  # stacks/*.env in their "# order:" lines' order, as the Dashboard shows them
+    for f in stacks/*.env; do
+        printf '%s %s\n' "$(sed -n 's/^# order: *\([0-9][0-9]*\).*/\1/p' "$f" | grep . || echo 99)" "$f"
+    done | sort -n | cut -d' ' -f2
+}
+
 if [ "$cmd" = list ]; then
     echo "Parts you can choose, for KIA_STACK in .env (comma between them):"
     echo "$PARTS" | while IFS='|' read -r name _ what; do printf '  %-20s %s\n' "$name" "$what"; done
     echo "Presets (scripts/stack.sh apply --preset NAME):"
-    for f in stacks/*.env; do
+    for f in $(presets); do
         printf '  %-20s %s\n' "$(basename "$f" .env)" "$(sed -n '1s/^# *//p' "$f")"
         asks=$(sed -n 's/^# asks: *//p' "$f")
         case "$asks" in "" | "Nothing more.") ;; *) printf '  %-20s Asks you for: %s\n' "" "$asks" ;; esac
     done
     exit 0
 fi
+# No file name globbing from here on: COMPOSE_PROFILES=* (which Compose accepts) or a * in
+# KIA_STACK would otherwise turn into this folder's file names in the loops below.
+set -f
 
 [ -f .env ] || { echo "stack: no .env here; install kia first (docs/install.md)" >&2; exit 1; }
 

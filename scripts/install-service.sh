@@ -116,7 +116,8 @@ if [ "$STACK" = yes ]; then
         say "Installed $target and started it. It starts again when you log in. Log: $DIR/stack-service/kia-stack.log"
     else
         systemctl --user daemon-reload
-        systemctl --user enable kia-stack >/dev/null 2>&1
+        systemctl --user enable kia-stack >/dev/null 2>&1 \
+            || die "systemd couldn't turn on kia-stack; run systemctl --user enable kia-stack to see why"
         systemctl --user restart kia-stack
         say "Installed $target and started it. Log: journalctl --user -u kia-stack -f"
         if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" != yes ]; then
@@ -188,7 +189,8 @@ if [ "$OS" = Darwin ]; then
     say "Log: $DIR/work/logs/kia.log"
 else
     systemctl --user daemon-reload
-    systemctl --user enable kia >/dev/null 2>&1
+    systemctl --user enable kia >/dev/null 2>&1 \
+        || die "systemd couldn't turn on kia's service; run systemctl --user enable kia to see why"
     systemctl --user restart kia  # starts it, or picks up a changed service file
     say "Installed $target and started kia."
     if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" = yes ]; then

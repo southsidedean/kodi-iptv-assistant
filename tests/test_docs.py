@@ -37,7 +37,8 @@ def test_env_settings_reach_docker_and_docs():
     config_doc = (ROOT / "docs" / "configuration.md").read_text()
     settings = env_example_settings()
     assert "KIA_PUBLIC_URL" in settings and len(settings) > 10
-    missing_compose = [s for s in settings if "${" + s not in compose and not s.startswith("COMPOSE_")]  # COMPOSE_*: read by Docker Compose itself
+    # The whole name: KIA_PLEX would otherwise pass on ${KIA_PLEX_URL. (COMPOSE_*: read by Docker Compose itself.)
+    missing_compose = [s for s in settings if not re.search(r"\$\{" + s + r"(?![A-Z0-9_])", compose) and not s.startswith("COMPOSE_")]
     missing_docs = [s for s in settings if f"`{s}`" not in config_doc]
     assert not missing_compose, f"not used in compose.yaml: {missing_compose}"
     assert not missing_docs, f"not documented in docs/configuration.md: {missing_docs}"
@@ -121,7 +122,9 @@ def test_links_to_sections_exist():
                 continue
             path, anchor = target.split("#", 1)
             page = (doc.parent / path) if path else doc
-            headings = re.findall(r"^#+ (.+)$", page.read_text(), flags=re.M)
+            # Not a "# comment" in a code block: only real headings make anchors.
+            text = re.sub(r"^(```|~~~).*?^\1", "", page.read_text(), flags=re.M | re.S)
+            headings = re.findall(r"^#+ (.+)$", text, flags=re.M)
             if anchor not in {github_anchor(h) for h in headings}:
                 broken.append(f"{doc.relative_to(ROOT)} -> {target}")
     assert not broken, "links to missing sections:\n" + "\n".join(broken)

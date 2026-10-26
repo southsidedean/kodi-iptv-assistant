@@ -98,6 +98,22 @@ def test_services_restart_when_their_mounted_config_files_change(copy: Path):
     assert not any(c.startswith("compose restart") for c in log.read_text().splitlines())
 
 
+def test_grafana_restarts_for_new_provisioning(copy: Path):
+    # Grafana reads its provisioned data source only at start.
+    origin = copy.parent / "origin"
+    (origin / "deploy" / "monitoring" / "grafana" / "datasources").mkdir(parents=True)
+    (origin / "deploy" / "monitoring" / "grafana" / "datasources" / "prometheus.yml").write_text("apiVersion: 1\n")
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "a new data source")
+    git(origin, "tag", "v0.4.0")
+    log = copy.parent / "docker.log"
+    (copy.parent / "bin" / "docker").write_text(
+        f'#!/bin/sh\necho "$*" >> {log}\n'
+        'case "$*" in *"ps --services --status running"*) printf "kia\\ngrafana\\n" ;; esac\n')
+    assert update(copy, "v0.4.0").returncode == 0
+    assert "compose restart grafana" in log.read_text().splitlines()
+
+
 def test_asks_first_while_someone_watches_through_jellyfin(copy: Path):
     (copy.parent / "bin" / "curl").write_text(
         '#!/bin/sh\nprintf \'kia_jellyfin_sessions{kind="live",video="copy",hw="none",location="lan"} 1\\n\'\n')

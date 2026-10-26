@@ -313,24 +313,18 @@ def victim(kia: Path) -> Path:
     return path
 
 
-@pytest.mark.parametrize("name", ["stack-result.tmp", "stack-result", "stack-containers.tmp", "stack-containers.tsv",
-                                  "stack-watch.out", "stack-watch.pid", "stack-request.taken"])  # fmt: skip
-def test_links_in_state_are_never_written_through(kia: Path, name: str):
+def test_the_service_writes_nothing_in_state(kia: Path):
+    # state/ is the kia container's: the service only takes the request out of it, renaming it
+    # into stack-service/. Links planted under any name there are never written through.
     target = victim(kia)
     with_stack(kia, "plex")
     request(kia, id="req-6", action="check", stack="jellyfin")
-    (kia / "state" / name).symlink_to(target)
+    for name in ("stack-result", "stack-containers.tsv", "result", "containers.tsv", "kia-stack.log"):
+        (kia / "state" / name).symlink_to(target)
+    before = sorted(p.name for p in (kia / "state").iterdir())
     assert stack(kia, "watch", "--once").returncode == 0
     assert target.read_text() == "keep me\n" and answer(kia)[0]["state"] == "finished"
-
-
-def test_a_link_into_a_folder_gets_nothing_moved_into_it(kia: Path):
-    folder = kia.parent / "profile.d"
-    folder.mkdir()
-    request(kia, id="req-7", action="check", stack="plex")
-    (kia / "state" / "stack-request.taken").symlink_to(folder)
-    stack(kia, "watch", "--once")
-    assert list(folder.iterdir()) == []
+    assert sorted(p.name for p in (kia / "state").iterdir()) == [n for n in before if n != "stack-request"]
 
 
 def test_a_request_that_is_a_link_is_removed_unread(kia: Path):
@@ -513,3 +507,15 @@ def test_the_list_says_what_each_preset_asks_of_you(kia: Path):
     assert "Asks you for: A playlist named plex, made on the Dashboard; a claim code from plex.tv/claim" in out
     kodi = next(line for line in out.splitlines() if line.strip().startswith("kodi "))
     assert "Asks you for" not in out.split(kodi, 1)[1].splitlines()[1]  # nothing more for kodi
+
+
+def test_a_star_in_compose_profiles_isnt_this_folders_files(kia: Path):
+    env = (kia / ".env").read_text().replace("COMPOSE_PROFILES=\n", "COMPOSE_PROFILES=*\n")
+    (kia / ".env").write_text(env + "KIA_STACK=jellyfin\n")
+    r = stack(kia, "check")
+    assert "scripts" not in r.stdout and "Stops what runs now: *" in r.stdout
+
+
+def test_list_shows_the_presets_in_their_order(kia: Path):
+    presets = [line.split()[0] for line in stack(kia, "list").stdout.split("Presets", 1)[1].splitlines()[1:] if line.startswith("  ") and line.split()]
+    assert presets[0] == "kodi"
