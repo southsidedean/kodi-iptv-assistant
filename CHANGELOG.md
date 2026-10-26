@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.7.3 (unreleased)
+## 0.7.3 (2026-10-26)
+
+### Upgrading from 0.7.2
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change. Under Docker Desktop, or for an assistant on the kia computer itself, the Dashboard no longer offers **Approve, and allow these for an hour**; an hour already allowed there ends by itself within the hour, or press **Stop allowing**.
 
 ### Fixes
 
