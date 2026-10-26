@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.7.2 (unreleased)
+## 0.7.2 (2026-10-26)
+
+### Upgrading from 0.7.1
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change: everything new is off until you turn it on. This update still runs 0.7.1's own copy of `update.sh`, so it asks first while a movie or show plays on a Plex or Jellyfin outside kia's stack; from 0.7.2 on, it won't. kia starts noting new and gone channels the night after the update.
 
 ### Assistants can ask, and you approve
 
