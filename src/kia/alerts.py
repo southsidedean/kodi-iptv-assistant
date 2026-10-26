@@ -17,7 +17,7 @@ from pathlib import Path
 
 from kia import __version__
 from kia.history import now_iso
-from kia.files import temp_name
+from kia.files import obj, read_object, temp_name
 
 # Exit code for runs that completed but raised an alert, so schedulers can react.
 EXIT_ALERT = 3
@@ -67,11 +67,13 @@ def sharp_drop(previous: int | None, current: int, percent: int) -> bool:
 
 
 def load_state(state_dir: Path) -> dict:
-    path = state_dir / "alert-state.json"
-    try:
-        return json.loads(path.read_text())
-    except (OSError, ValueError):
-        return {}
+    # Damaged into another shape counts as missing; so does a count that isn't a number.
+    state = read_object(state_dir / "alert-state.json")
+    for key in ("channels", "guide_channels"):
+        if key in state and not isinstance(state[key], int):
+            del state[key]
+    state["site_failures"] = {k: v for k, v in obj(state.get("site_failures")).items() if isinstance(v, int)}
+    return state
 
 
 def save_state(state_dir: Path, state: dict) -> None:

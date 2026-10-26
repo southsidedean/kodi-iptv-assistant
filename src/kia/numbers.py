@@ -22,7 +22,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from kia.files import temp_name
+from kia.files import obj, read_object, temp_name
 from kia.m3u import Entry
 
 
@@ -34,16 +34,21 @@ class ChannelNumbers:
     def __init__(self, path: Path, recycle_after_days: int = 0):
         self.path = path
         self.recycle_after_days = recycle_after_days
-        data = {}
-        if path.exists():
-            data = json.loads(path.read_text())
+        data = read_object(path)
+        if path.exists() and not data:
+            # Cut short or damaged into another shape: set it aside as channel-numbers.json.bad
+            # (as kia.history does) and start again, so the nightly check still runs. The
+            # numbers come back from the playlists' own and the Dashboard's choices.
+            path.replace(path.with_name(path.name + ".bad"))
+        data = {k: obj(data.get(k)) for k in ("numbers", "next", "retired")} if data else {}
         # numbers[kind][channel key] = {"number": n, "last_seen": iso time, "pinned": bool}
-        self.numbers: dict[str, dict[str, dict]] = data.get("numbers", {"tv": {}, "radio": {}})
+        self.numbers: dict[str, dict[str, dict]] = {k: {c: r for c, r in obj(v).items() if isinstance(r, dict)}
+                                                    for k, v in data.get("numbers", {"tv": {}, "radio": {}}).items()}  # fmt: skip
         # Automatic numbers are never reused, even after a channel is forgotten, so an old
         # number never points at a different channel.
-        self.next: dict[str, int] = data.get("next", {"tv": 1, "radio": 1})
+        self.next: dict[str, int] = {k: v for k, v in data.get("next", {"tv": 1, "radio": 1}).items() if isinstance(v, int)}
         # Numbers of forgotten channels, with when each channel was last seen, for recycling.
-        self.retired: dict[str, dict[str, str]] = data.get("retired", {"tv": {}, "radio": {}})
+        self.retired: dict[str, dict[str, str]] = {k: obj(v) for k, v in data.get("retired", {"tv": {}, "radio": {}}).items()}
 
     def assign(self, entries: list[Entry], when: str, log: Callable[[str], None] = lambda m: None) -> None:
         """Set tvg-chno on each entry: its pinned number, its remembered one, or the next free one."""

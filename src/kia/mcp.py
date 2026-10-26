@@ -217,7 +217,9 @@ def _whats_on(conf: Config, args: dict, _api, now: float | None = None) -> dict:
     listings = preview.get("channels") if isinstance(preview.get("channels"), dict) else {}
     out = []
     for e in found:
-        slots = [s for s in doctor.list_of(listings.get(e.tvg_id), list) if len(s) == 3 and s[1] > now]
+        # Each slot is start, end (numbers), and a title: anything else is damaged, and left out.
+        slots = [s for s in doctor.list_of(listings.get(e.tvg_id), list)
+                 if len(s) == 3 and all(isinstance(t, (int, float)) and not isinstance(t, bool) for t in s[:2]) and s[1] > now]  # fmt: skip
         shows = [{"start": _clock(a), "end": _clock(b), "title": str(t)[:200]} for a, b, t in slots[: WHATS_ON_NEXT + 1]]
         on_now = shows.pop(0) if slots and slots[0][0] <= now else None
         out.append({"channel": e.name, "id": e.tvg_id, "on_now": on_now, "next": shows,

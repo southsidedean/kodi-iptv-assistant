@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kia.config import Source, is_station_line, parse_sources
-from kia.files import temp_name
+from kia.files import items, read_object, temp_name
 
 STATE_FILE = "sources.json"
 _SECTION_RE = re.compile(r"^#\s*-{2,}\s*(.+?)\s*-{2,}")
@@ -84,11 +84,8 @@ def offered(text: str) -> list[Offered]:
 
 
 def load_state(state_dir: Path) -> dict:
-    try:
-        data = json.loads((state_dir / STATE_FILE).read_text())
-    except (OSError, ValueError):
-        data = {}
-    return {"on": list(data.get("on", [])), "off": list(data.get("off", [])), "added": list(data.get("added", []))}
+    data = read_object(state_dir / STATE_FILE)  # damaged into another shape: as if missing
+    return {"on": items(data.get("on")), "off": items(data.get("off")), "added": items(data.get("added"), dict)}
 
 
 def save_state(state_dir: Path, state: dict) -> None:

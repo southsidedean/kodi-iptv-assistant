@@ -126,6 +126,11 @@ def list_of(value: object, kind: type) -> list:
     return [v for v in value if isinstance(v, kind)] if isinstance(value, list) else []
 
 
+def _number(value: object) -> float:
+    """A count or a number of hours from a file, or 0 when it's anything else (text, a list)."""
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
+
+
 def _when(iso: str | None) -> datetime | None:
     try:
         return datetime.fromisoformat(iso) if iso else None
@@ -174,7 +179,7 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
 
 def _refresh(status: dict, now: datetime) -> list[Finding]:
     result = status.get("result")
-    last = status.get("last_run") or {}
+    last = status.get("last_run") if isinstance(status.get("last_run"), dict) else {}
     finished = _when(last.get("finished"))
     if result == "never":
         return [Finding(NOTE, "The first refresh hasn't finished", "It can take up to an hour.", ["output/status.json"])]
@@ -198,7 +203,7 @@ def _refresh(status: dict, now: datetime) -> list[Finding]:
 def _sources(status: dict) -> list[Finding]:
     found = []
     for s in list_of(status.get("sources"), dict):
-        ok, flaky, dead = (s.get(k) or 0 for k in ("ok", "flaky", "dead"))
+        ok, flaky, dead = (_number(s.get(k)) for k in ("ok", "flaky", "dead"))
         if ok + flaky == 0 and dead:
             found.append(Finding(PROBLEM, f"None of the streams in {s.get('name')} work",
                                  f"All {dead} failed in the last check. The playlist may be out of date, or its server may be turning kia away.",
@@ -233,8 +238,10 @@ def channel(cfg: Config, query: str) -> list[Report]:
     out = cfg.output_dir
     playlist = out / "curated.m3u"
     kept = m3u.parse(playlist.read_text(encoding="utf-8")) if playlist.exists() else []
-    streams = list_of((_json(out / "report.json") or {}).get("streams"), dict)
-    removed = channels.load(cfg.state_dir)["removed"]
+    # A row whose address, name, ID, or status isn't text is damaged: left out, not trusted.
+    streams = [s for s in list_of((_json(out / "report.json") or {}).get("streams"), dict)
+               if all(isinstance(s.get(k, ""), str) for k in ("url", "name", "tvg_id", "status"))]  # fmt: skip
+    removed = {k: v for k, v in channels.load(cfg.state_dir)["removed"].items() if isinstance(v, dict)}
     q = query.strip().lower()
     if not q:
         return [Report(query, [Finding(PROBLEM, "Say which channel", "Give part of its name, or its ID (tvg-id).")])]
@@ -287,7 +294,7 @@ def _kept(e: m3u.Entry, streams: list[dict], cfg: Config) -> Report:
     report = Report(f"{e.name} ({e.tvg_id or 'no ID'})")
     rows = _stream_rows(e, streams)
     chosen = next((s for s in rows if s.get("selected")), rows[0] if rows else None)
-    history = _histories(cfg).get(chosen["url"], {}) if chosen else {}
+    history = _histories(cfg).get(chosen.get("url", ""), {}) if chosen else {}
     if chosen and chosen.get("status") == "flaky":
         report.findings.append(Finding(NOTE, "Its stream failed in the last check, and is kept for now",
                                        f"It worked before, so it stays until it fails more nights in a row (grace_failures).{_history_line(history)}",
@@ -353,7 +360,7 @@ def _choice(e: m3u.Entry, choices: object, candidates: list[str], evidence: list
     c = choices.get(e.tvg_id) if isinstance(choices.get(e.tvg_id), dict) else {}
     site = c.get("site")
     if site:
-        hours = c.get("hours_24h") or 0
+        hours = _number(c.get("hours_24h"))
         level, title = (OK, "It has a full guide") if hours >= 20 else (NOTE, "It has a partial guide")
         detail = f"From {site}: {hours} of the next 24 hours, {c.get('programs')} programs."
         if c.get("ends"):
@@ -514,7 +521,8 @@ def pluto(cfg: Config, now: datetime | None = None) -> Report:
                     else "No device asked in the last 30 seconds; kia lets a channel go 2 minutes after the last request.")
         report.findings.append(Finding(OK, f"{len(playing)} playing now", watching, ["output/pluto.json"]))
     for c in playing:
-        name = _quote(names.get(c.get("id")) or c.get("id") or "?", 80)
+        cid = c.get("id") if isinstance(c.get("id"), str) else ""
+        name = _quote(names.get(cid) or cid or "?", 80)
         minutes = c.get("fallback_minutes")
         if isinstance(minutes, int):
             report.findings.append(Finding(PROBLEM if minutes >= FALLBACK_MINUTES else NOTE,
@@ -1045,6 +1053,8 @@ def _jellyfin_refresh(last: object, now: datetime) -> list[Finding]:
     """Jellyfin's Refresh Guide task, the last time it ran."""
     last = last if isinstance(last, dict) else {}
     end = _when(_JELLYFIN_TIME_RE.sub(r"\1", str(last.get("EndTimeUtc") or "")).replace("Z", "+00:00"))
+    if end and end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)  # UTC by its name; without a zone, it can't be compared
     evidence = ["Jellyfin (Scheduled Tasks)"]
     if not end:
         return [Finding(NOTE, "Jellyfin hasn't refreshed its guide yet", "Choose Refresh Guide Data on its Live TV page.",

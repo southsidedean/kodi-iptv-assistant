@@ -85,7 +85,15 @@ def read_manifest(archive: Path) -> dict:
             f = None
         if f is None:
             raise ValueError(f"{archive.name} isn't a kia backup (it has no {MANIFEST})")
-        return json.loads(f.read())
+        try:
+            manifest = json.loads(f.read())
+        except EOFError as exc:  # gzip's "ended before the end-of-stream marker": a cut-short file
+            raise ValueError(f"{archive.name} is cut short: {exc}") from None
+    # An object, whose list of files is a list of names: anything else isn't kia's backup.
+    files = manifest.get("files", []) if isinstance(manifest, dict) else None
+    if not isinstance(files, list) or not all(isinstance(n, str) for n in files):
+        raise ValueError(f"{archive.name} isn't a kia backup (its {MANIFEST} is in another shape)")
+    return manifest
 
 
 def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[list[str], Path | None]:
@@ -101,7 +109,7 @@ def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[
         # top of the kia folder; never what the archive's list claims beyond that.
         def own(name: str) -> bool:
             parts = PurePosixPath(name).parts
-            return (name in FILES or parts[0] in FOLDERS
+            return (name in FILES or (parts[0] in FOLDERS and len(parts) > 1)  # a file named "state" isn't a folder
                     or (len(parts) == 1 and name.endswith(".txt") and name in manifest.get("files", [])))  # fmt: skip
 
         allowed = [m for m in members if m.isfile() and own(m.name)]

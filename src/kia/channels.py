@@ -24,7 +24,7 @@ from pathlib import Path
 from kia import m3u
 from kia.m3u import Entry
 from kia.numbers import ChannelNumbers
-from kia.files import temp_name
+from kia.files import items, obj, read_object, temp_name
 
 STATE_FILE = "channels.json"
 FAVORITES = "Favorites"
@@ -36,13 +36,10 @@ BACK_AFTER_NIGHTS = 3
 
 
 def load(state_dir: Path) -> dict:
-    try:
-        data = json.loads((state_dir / STATE_FILE).read_text())
-    except (OSError, ValueError):
-        data = {}
-    numbers = data.get("numbers", {})
-    return {"favorites": list(data.get("favorites", [])), "removed": dict(data.get("removed", {})),
-            "numbers": {"tv": dict(numbers.get("tv", {})), "radio": dict(numbers.get("radio", {}))}}  # fmt: skip
+    data = read_object(state_dir / STATE_FILE)  # damaged into another shape: as if missing
+    numbers = obj(data.get("numbers"))
+    return {"favorites": items(data.get("favorites")), "removed": obj(data.get("removed")),
+            "numbers": {"tv": obj(numbers.get("tv")), "radio": obj(numbers.get("radio"))}}  # fmt: skip
 
 
 def save(state_dir: Path, choices: dict) -> None:
