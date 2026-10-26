@@ -19,8 +19,9 @@ def ntfy():
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             body = self.rfile.read(int(self.headers["Content-Length"])).decode()
+            click = {"Click": self.headers["Click"]} if self.headers["Click"] else {}  # only when it's sent
             received.append(
-                {"path": self.path, "body": body, **{k: self.headers[k] for k in ("Title", "Priority", "Tags")}}
+                {"path": self.path, "body": body, **{k: self.headers[k] for k in ("Title", "Priority", "Tags")}, **click}
             )
             self.send_response(200)
             self.end_headers()
@@ -51,6 +52,20 @@ def test_notify_sends_ntfy_and_command(tmp_path: Path, ntfy):
     ]
     assert out.read_text() == "dns_local|kia: local DNS problem|line1\nline2"
     assert "\tdns_local\tkia: local DNS problem\tline1 | line2" in (tmp_path / "alerts.log").read_text()
+
+
+def test_alerts_say_which_kia_sent_them(tmp_path: Path, ntfy, monkeypatch):
+    # Several kia installs, one ntfy topic: the name in the title, a tap opens this one's
+    # Dashboard, and an alert command gets the name too.
+    url, received = ntfy
+    monkeypatch.setenv("KIA_NAME", "den")
+    monkeypatch.setenv("KIA_PUBLIC_URL", "http://192.168.1.20:8780")
+    out = tmp_path / "sent.txt"
+    cfg = alerts.AlertConfig(ntfy_url=url, command=f'printf "%s|%s" "$KIA_NAME" "$KIA_ALERT_TITLE" > {out}')
+    assert alerts.notify("run_failed", "kia: nightly run failed", "m", tmp_path, cfg, print)
+    assert received[0]["Title"] == "kia (den): nightly run failed" and received[0]["Click"] == "http://192.168.1.20:8780"
+    assert out.read_text() == "den|kia (den): nightly run failed"
+    assert "\tkia (den): nightly run failed\t" in (tmp_path / "alerts.log").read_text()
 
 
 def test_disabled_events_and_notices(tmp_path: Path, ntfy):

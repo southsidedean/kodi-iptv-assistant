@@ -12,6 +12,7 @@ import os
 from datetime import datetime
 
 from kia import auth
+from kia import name as kia_name
 from kia.config import Config
 
 # Where each setting is changed: its .env name if it has one, else its place in kia.toml.
@@ -43,6 +44,13 @@ def _editing_setup(cfg: Config) -> str:
     }.get(source, source)
 
 
+def _name(cfg: Config) -> str:
+    """This kia's name (kia.name) and where it comes from."""
+    name, source = kia_name.current(cfg.state_dir)
+    where = {"dashboard": "set on the System page", "env": "from KIA_NAME", "computer": "this computer's name"}
+    return f"{name} ({where[source]})" if name else "none (alerts and the header say just kia)"
+
+
 def _masked(url: str) -> str:
     from kia.api import mask_url
 
@@ -68,6 +76,7 @@ def describe(cfg: Config, run_at: str | None = None, guide_every: float | None =
             ("Time zone", _time_zone(), ENV + "TZ"),
         ]),
         ("Addresses", [
+            ("This kia's name", _name(cfg), "the System page (This kia's name), or " + ENV + "KIA_NAME"),
             ("Dashboard and playlists", cfg.public_url or "not set", ENV + "KIA_PUBLIC_URL"),
             ("Secure page port", str(cfg.https_port), ENV + "KIA_HTTPS_PORT"),
             ("Certificate names", _list(cfg.tls_names) if cfg.tls_names else "the host in KIA_PUBLIC_URL",

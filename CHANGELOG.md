@@ -2,6 +2,10 @@
 
 ## 0.7.1 (unreleased)
 
+### Names for telling several kia installs apart
+
+Each kia now has a name: the computer's, unless you change it on the Dashboard's new **This kia's name** card (on the System page) or with `KIA_NAME` in `.env`. Alert titles carry it, such as `kia (den): nightly run failed`, and on ntfy a tap opens that kia's Dashboard. The Dashboard's header shows it. `kia mcp-token` names the MCP server after it (`kia-den`), so one assistant can use several kia installs side by side; [more than one kia](docs/mcp.md#more-than-one-kia) has the steps. `/metrics` has it as a label on `kia_info`. `scripts/update.sh` writes this computer's name into `.env` the first time, since kia in Docker can't see it, and leaves the line alone after that.
+
 ### The outbound guard
 
 kia already left out the streams and guides of a playlist from the internet when their addresses were on your network. Now the http and https ones also go through kia's outbound guard, a small proxy inside kia, which checks every connection they actually make. A name that looks up differently the second time, a stream that redirects onto your network, and an HLS playlist that lists its pieces at addresses on your network are all stopped, and the report says why. Your own playlists don't use it. It works with Docker or without, and needs no setup. rtmp and rtsp streams can't go through it, and keep the first check alone; if you've set a proxy of your own (`http_proxy` and the like), kia uses yours instead ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).

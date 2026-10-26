@@ -21,6 +21,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | Setting | Default | What it does |
 |---|---|---|
 | `KIA_PUBLIC_URL` | empty | How Kodi reaches this machine, e.g. `http://192.168.1.20:8780`. Written into the playlist so Kodi finds the guide. |
+| `KIA_NAME` | this computer's name | This kia's name, for telling several installs apart: alert titles say `kia (den): ...`, the Dashboard's header shows it, and `kia mcp-token` names the server `kia-den` in assistants. Lowercase letters, digits, and dashes, up to 40. `install.sh` and `update.sh` fill it in when it's missing. A name set on the Dashboard's System page comes first; clearing it there goes back to this one. |
 | `KIA_BIND` | `0.0.0.0` | `0.0.0.0` = any device on your network; `127.0.0.1` = this machine only. It doesn't cover kia's node-exporter (the `monitoring-node` part, for the Hardware dashboard), which uses the computer's own network and answers on port 9100 to your network; To keep it off your network while Prometheus still reaches it, set `KIA_NODE_EXPORTER_LISTEN` to Docker's own address, usually `172.17.0.1:9100`. |
 | `KIA_PORT` | `8780` | Port for the playlist and guide. |
 | `KIA_RUN_AT` | `04:00` | Daily refresh time (24-hour clock). A run takes up to an hour. |

@@ -91,6 +91,7 @@ footer { color: var(--muted); font-size: var(--step--1); margin-top: var(--space
 .brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none;
   font-weight: 700; font-size: 2.6rem; line-height: 1; letter-spacing: -.01em; min-height: 44px; }
 .brand svg { width: 4.25rem; height: 4.25rem; }
+.brand .install-name { color: var(--muted); font-weight: 400; font-size: 0.6em; }
 .docs-button { display: inline-flex; align-items: center; min-height: 44px; padding: .45rem 1rem; border: 1px solid var(--control);
   border-radius: var(--radius-small); background: var(--card); text-decoration: none; font-weight: 600; }
 .top-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
@@ -239,10 +240,28 @@ def header(root: str = "", current: str = "") -> str:
     new_tab = 'target="_blank" rel="noopener noreferrer"'
     graphs = f'<a class="docs-button" href="{escape(grafana)}/d/kia" {new_tab}>Observability</a>' if grafana else ""
     return (
-        f'<header class="top"><a class="brand" href="{root}index.html">{MARK}<span>kia</span></a>'
+        f'<header class="top"><a class="brand" href="{root}index.html">{MARK}<span>kia</span>'
+        '<span class="install-name" hidden></span></a>'
         f'<span class="top-buttons">{graphs}<a class="docs-button" href="{DOCS_URL}/README.md" {new_tab}>Documentation</a></span></header>'
         f'<nav class="menu" aria-label="kia">{links}</nav>'
     )
+
+
+# This kia's name (kia.name) beside "kia" in the header and in the tab's title, so a
+# Dashboard says which of several installs it is. Asked for when the page opens, since a
+# name set on the System page holds at once, before kia writes its pages again.
+NAME_SCRIPT = """<script>
+(function () {
+  var shown = document.querySelector(".brand .install-name");
+  if (!shown || location.protocol === "file:") return;
+  fetch("ROOTapi/name").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    if (!d || !d.name) return;
+    shown.textContent = d.name;
+    shown.hidden = false;
+    document.title += " (" + d.name + ")";
+  }).catch(function () {});
+})();
+</script>"""
 
 
 def page(title: str, body: str, footer: str = "", script: str = "", style: str = "", root: str = "",
@@ -267,6 +286,7 @@ def page(title: str, body: str, footer: str = "", script: str = "", style: str =
 {body}
 <footer>{trouble}<p>{footer}</p></footer>
 {script}
+{NAME_SCRIPT.replace("ROOT", root)}
 </body>
 </html>
 """

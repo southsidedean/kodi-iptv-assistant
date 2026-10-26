@@ -28,6 +28,7 @@ import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
 from kia import alerts, auth, channels, lan, locks, pluto, settings, stack, tls
+from kia import name as kia_name
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
@@ -1223,7 +1224,7 @@ def cmd_mcp_token(args: argparse.Namespace) -> int:
         where = str(path)
     print(f"Its token (kept in {where}): {value}")
     print()
-    print(mcp.setup_for(args.for_, address, value), end="")
+    print(mcp.setup_for(args.for_, address, value, kia_name.current(cfg.state_dir)[0]), end="")
     print()
     print("Other computers need a copy of kia's certificate, tls/fullchain.pem, saved as ~/kia-cert.pem:")
     print(f"see docs/mcp.md. For another assistant: kia mcp-token --for {{{','.join(mcp.ASSISTANTS)}}}")
@@ -1252,7 +1253,7 @@ def _gateway_setup(cfg: Config, assistant: str) -> int:
     if host in ("localhost", "127.0.0.1"):
         print("That address works only on this computer. For others, set KIA_PUBLIC_URL (or KIA_TLS_NAMES) in .env, restart kia, and run this again.")
     print()
-    print(mcp.setup_for(assistant, address, key), end="")
+    print(mcp.setup_for(assistant, address, key, kia_name.current(cfg.state_dir)[0]), end="")
     print()
     print("The device needs a copy of kia's certificate, tls/fullchain.pem, saved as ~/kia-cert.pem: see docs/mcp.md.")
     return 0
@@ -1311,7 +1312,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         watch = stack.Watch(cfg.output_dir, running)
         watch.start()
     numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config, players),
-                      jellyfin_sessions(args.config, players), watch)  # /metrics, for Prometheus
+                      jellyfin_sessions(args.config, players), watch, cfg.state_dir)  # /metrics, for Prometheus
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
         serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=relay, metrics=numbers)

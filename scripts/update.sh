@@ -30,6 +30,11 @@ get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
 set_env() {  # set_env NAME VALUE: replace the line
     (umask 077 && awk -v k="$1" -v v="$2" 'BEGIN { FS = OFS = "=" } $1 == k { print k "=" v; next } { print }' .env >.env.tmp) && mv .env.tmp .env
 }
+# This computer's name as kia's name (KIA_NAME): lowercase letters, digits, and dashes, at
+# most 40. In Docker, kia sees only its container's random id, so it's written into .env.
+computer_name() {
+    hostname 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-*//' | cut -c1-40 | sed 's/-*$//'
+}
 
 [ -d .git ] || die "this isn't a git copy of kia; download it again (docs/install.md)."
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -140,6 +145,12 @@ if [ -n "$image" ]; then
 else
     docker compose build --pull
     docker compose pull --ignore-buildable
+fi
+# kia's name (0.7.1), from before names: this computer's. Only when .env has no KIA_NAME
+# line at all; an empty one is your choice, and stays.
+if ! grep -q '^KIA_NAME=' .env && name=$(computer_name) && [ -n "$name" ]; then
+    (umask 077 && cp .env .env.tmp && printf '\n# This kia'"'"'s name, for telling several installs apart (docs/configuration.md).\nKIA_NAME=%s\n' "$name" >>.env.tmp) && mv .env.tmp .env
+    echo "KIA_NAME is now $name, this computer's name: alerts and the Dashboard say which kia they're from. Change it in .env or on the Dashboard's System page."
 fi
 # The gateway part's settings, from this version's scripts/gateway.sh, before it starts: it
 # reads them only from gateway/config.yaml.

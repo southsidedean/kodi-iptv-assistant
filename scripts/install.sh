@@ -38,6 +38,11 @@ STACK_SERVICE=ask
 say() { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
 die() { printf 'Stopped: %s\n' "$*" >&2; exit 1; }
+# This computer's name as kia's name (KIA_NAME): lowercase letters, digits, and dashes, at
+# most 40. In Docker, kia sees only its container's random id, so it's written into .env.
+computer_name() {
+    hostname 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-*//' | cut -c1-40 | sed 's/-*$//'
+}
 value() { [ $# -ge 2 ] || die "$1 needs a value (try --help)"; }
 
 while [ $# -gt 0 ]; do
@@ -183,6 +188,7 @@ else
         -e "s|^TZ=.*|TZ=$TZ_NAME|" \
         -e "s|^PUID=.*|PUID=$(id -u)|" \
         -e "s|^PGID=.*|PGID=$(id -g)|" \
+        -e "s|^KIA_NAME=.*|KIA_NAME=$(computer_name)|" \
         .env.example >.env.new)
     # A Mac: Plex's, Jellyfin's, and Grafana's databases in Docker volumes, since a folder
     # shared from the Mac into Docker's Linux machine breaks Plex's.

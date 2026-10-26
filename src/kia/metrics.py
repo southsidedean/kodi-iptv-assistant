@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from kia import __version__
+from kia import name as kia_name
 from kia.files import temp_name, read_object
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
@@ -212,7 +213,7 @@ def _sessions(out: _Out, server: MediaSessions, name: str, title: str) -> None:
 
 
 def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jellyfin: MediaSessions | None = None,
-           stack=None) -> str:
+           stack=None, state_dir: Path | None = None) -> str:
     # Ask Plex and Jellyfin at the same time: one after the other, two that don't answer
     # would take 5 seconds each, and Prometheus gives up on /metrics after 10.
     asking = [threading.Thread(target=x.get, daemon=True) for x in (plex, jellyfin) if x is not None]
@@ -225,7 +226,11 @@ def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jell
         s = json.loads((output_dir / "status.json").read_text())
     except (OSError, ValueError):
         s = {}
-    out.metric("kia_info", "gauge", "kia's version.", [({"version": __version__}, 1)])
+    # With several kia installs in one Prometheus, the name says which is which (kia.name).
+    labels = {"version": __version__}
+    if state_dir is not None and (name := kia_name.current(state_dir)[0]):
+        labels["name"] = name
+    out.metric("kia_info", "gauge", "kia's version, and its name when it has one.", [(labels, 1)])
     out.one("kia_start_time_seconds", "gauge", "When this kia started (Unix time).", round(STARTED))
 
     run = s.get("last_run") or {}

@@ -42,6 +42,8 @@ def copy(tmp_path: Path) -> Path:
     (kia / ".env").write_text("KIA_PORT=1\n")
     (bin_dir / "curl").write_text('#!/bin/sh\necho "kia_pluto_channels_playing 0"\n')  # kia's numbers: nobody watching
     (bin_dir / "curl").chmod(0o755)
+    (bin_dir / "hostname").write_text('#!/bin/sh\necho "Den_Box"\n')  # the computer's name, for KIA_NAME
+    (bin_dir / "hostname").chmod(0o755)
     return kia
 
 
@@ -272,3 +274,19 @@ def test_the_gateways_settings_are_written_again_before_it_starts(copy: Path):
     assert update(copy, "v0.4.0").returncode == 0
     calls = log.read_text().splitlines()
     assert calls.index("gateway.sh write") < calls.index("compose up -d")
+
+
+def test_kias_name_is_filled_in_once(copy: Path):
+    # Before 0.7.1 there were no names: the computer's, as a name, so alerts and the
+    # Dashboard say which kia they're from.
+    r = update(copy)
+    assert r.returncode == 0 and "KIA_NAME is now den-box" in r.stdout
+    env = (copy / ".env").read_text()
+    assert env.startswith("KIA_PORT=1\n") and env.endswith("\nKIA_NAME=den-box\n")
+    assert (copy / ".env").stat().st_mode & 0o777 == 0o600
+    # Once it's there, it's yours: an empty one too.
+    for kept in ("KIA_NAME=cabin\n", "KIA_NAME=\n"):
+        (copy / ".env").write_text("KIA_PORT=1\n" + kept)
+        git(copy, "-c", "advice.detachedHead=false", "checkout", "-q", "v0.1.0")
+        assert update(copy).returncode == 0
+        assert (copy / ".env").read_text() == "KIA_PORT=1\n" + kept

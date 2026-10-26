@@ -755,6 +755,30 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), who)
 
 
+def get_name(cfg: ApiConfig) -> dict:
+    """This kia's name (kia.name), where it comes from, and what it would be without the
+    Dashboard's: for the page header and the System page."""
+    from kia import name
+
+    current, source = name.current(cfg.state_dir)
+    return {"name": current, "from": source, "env": name.clean(os.environ.get("KIA_NAME", "")),
+            "computer": name.computer_name()}  # fmt: skip
+
+
+def set_name(cfg: ApiConfig, body: dict) -> dict:
+    """Name this kia from the Dashboard; an empty name goes back to KIA_NAME or the computer's."""
+    from kia import name
+
+    text = body.get("name") if isinstance(body, dict) else None
+    if not isinstance(text, str):
+        raise ApiError(400, "Expected the name.")
+    try:
+        name.save(cfg.state_dir, text)
+    except ValueError as exc:
+        raise ApiError(400, str(exc)) from None
+    return get_name(cfg)
+
+
 def change_password(cfg: ApiConfig, body: dict) -> dict:
     new = body.get("new") if isinstance(body, dict) else None
     if not isinstance(new, str):
@@ -863,6 +887,11 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["plex", "tuners"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, start_plex_tuners(cfg)
+        if parts == ["name"] and method == "GET":
+            return 200, get_name(cfg)
+        if parts == ["name"] and method == "PUT":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, set_name(cfg, data)
         if parts == ["password"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, change_password(cfg, data)

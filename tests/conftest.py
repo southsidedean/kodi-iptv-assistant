@@ -8,6 +8,7 @@ import pytest
 from hypothesis import settings
 
 from kia import api, pluto, serve
+from kia import name as kia_name
 
 # On CI, the fuzz tests try the same examples every run, so a rare one can't fail a pull
 # request that didn't cause it. Locally they keep finding new ones.
@@ -30,6 +31,9 @@ def clean_environment(monkeypatch):
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.chdir(Path(__file__).resolve().parent.parent)
+    # The computer's own name would go into alert titles and setups (kia.name): none, unless
+    # a test gives one.
+    monkeypatch.setattr(kia_name, "computer_name", lambda: "")
 
 
 @pytest.fixture(autouse=True)
