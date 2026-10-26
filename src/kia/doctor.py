@@ -864,7 +864,7 @@ def _computer(series, total) -> list[Finding]:
         found.append(Finding(PROBLEM, f"RAID array {_name(labels)} has {failed:.0f} failed disk{'' if failed == 1 else 's'}",
                              "The array still works, but one more failure can lose what's on it.", node,
                              "Replace the failed disk. cat /proc/mdstat shows which one it is (marked (F))."))  # fmt: skip
-    for labels, _ in series('node_md_state{state=~"recovering|resync"} == 1'):
+    for labels, _ in series('node_md_state{state=~"recovering|resync|check"} == 1'):
         found.append(Finding(NOTE, f"RAID array {_name(labels)} is rebuilding or checking itself",
                              "Its disks are slower until it finishes.", node))  # fmt: skip
     bad = total("sum(increase(node_edac_uncorrectable_errors_total[1d]))")
@@ -883,8 +883,11 @@ def _computer(series, total) -> list[Finding]:
     battery = series('max(node_power_supply_power_source_state{state="Battery Power"}) or '
                      '(1 - max(node_power_supply_online * on(instance, power_supply) group_left node_power_supply_info{type="Mains"}))')
     if battery and battery[0][1] == 1:
-        charge = series("min(node_power_supply_current_capacity / node_power_supply_max_capacity) * 100 or min(node_power_supply_capacity)")
-        left = series("min(node_power_supply_time_to_empty_seconds)")
+        # A wireless keyboard's or remote's battery (scope="Device") isn't the computer's.
+        device = 'unless on(instance, power_supply) node_power_supply_info{scope="Device"}'
+        charge = series(f"min((node_power_supply_current_capacity / node_power_supply_max_capacity) {device}) * 100 "
+                        f"or min(node_power_supply_capacity {device})")
+        left = series(f"min(node_power_supply_time_to_empty_seconds {device})")
         detail = ", ".join(x for x in (f"{charge[0][1]:.0f}% charged" if charge else "",
                                        f"about {left[0][1] / 60:.0f} minutes left" if left and left[0][1] > 0 else "") if x)
         low = bool(charge) and charge[0][1] < 20

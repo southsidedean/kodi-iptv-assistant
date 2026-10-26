@@ -360,7 +360,7 @@
    "id": 7,
    "type": "table",
    "title": "Playing now",
-   "description": "Every Plex player now, what it's playing, and how. Players are shown by a pseudonym; kia's System page (the secure one) shows which is which.",
+   "description": "Every Plex player now, what it's playing, and how. Players are shown by a pseudonym; kia's System page (the secure one) shows which is which. Players that look the same share a row.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -398,7 +398,7 @@
      "options": {
       "excludeByName": {
        "Time": true,
-       "Value": true,
+       "Value": false,
        "__name__": true,
        "instance": true,
        "job": true
@@ -409,7 +409,8 @@
        "kind": 2,
        "video": 3,
        "location": 4,
-       "state": 5
+       "state": 5,
+       "Value": 6
       },
       "renameByName": {
        "player": "Player",
@@ -417,7 +418,8 @@
        "kind": "Kind",
        "video": "Video",
        "location": "Location",
-       "state": "State"
+       "state": "State",
+       "Value": "Players"
       }
      }
     }

@@ -58,7 +58,7 @@ What the downloader writes is a guide file, which kia then reads as untrusted li
 
 ### Pluto TV
 
-The relay fetches only https addresses (redirects too), at most 16 MB each, plays only the Pluto channels in kia's playlists, and at most 20 at once ([Pluto TV relay](pluto-under-the-hood.md)).
+The relay fetches only https addresses (redirects too), at most 16 MB each, keeps at most 32 MB of pieces per channel, plays only the Pluto channels in kia's playlists, and at most 20 at once ([Pluto TV relay](pluto-under-the-hood.md)).
 
 ### Another kia server
 

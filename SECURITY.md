@@ -83,7 +83,7 @@ kia's [MCP server](docs/mcp.md) lets an AI assistant read kia's record. It's off
 
 ### Pluto TV
 
-The [Pluto TV relay](docs/how-it-works.md#pluto-tv) fetches only https addresses (redirects included), plays only the Pluto channels in kia's playlists, at most 20 at once, and downloads at most 16 MB for any one address, so a server that sends too much can't fill kia's memory.
+The [Pluto TV relay](docs/how-it-works.md#pluto-tv) fetches only https addresses (redirects included), plays only the Pluto channels in kia's playlists, at most 20 at once, downloads at most 16 MB for any one address, keeps at most 32 MB of pieces for each channel, and keeps only keys of the right size, so a server that sends too much can't fill kia's memory.
 
 ### Published images
 

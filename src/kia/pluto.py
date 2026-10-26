@@ -24,6 +24,7 @@ last request. Everyone watching a channel shares its session and its pieces.
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -59,6 +60,9 @@ USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Ge
 RETRY_DELAY = 1.0  # seconds before trying Pluto again
 MAX_CHANNELS = 20  # Pluto channels playing at once
 CACHE_PIECES = 12  # pieces kept per channel for viewers who are a little behind
+# And at most this many bytes of them: with up to 20 channels, pieces of the largest allowed
+# size (MAX_DOWNLOAD) would otherwise add up to some 4 GB, more than kia's memory limit.
+CACHE_BYTES = 32 * 1024 * 1024
 WINDOW = 6  # pieces in each playlist kia hands out
 KEEP = 60  # pieces kia remembers per channel
 REFRESH_EVERY = 2.0  # seconds between looks at Pluto's playlist
@@ -143,8 +147,12 @@ class _HttpsOnly(urllib.request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if not newurl.lower().startswith("https://"):
-            raise urllib.error.HTTPError(newurl, code, "redirect to an address that isn't https", headers, fp)
+            raise RedirectRefused(newurl, code, "redirect to an address that isn't https", headers, fp)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class RedirectRefused(urllib.error.HTTPError):
+    """A redirect off https, which the relay won't follow: not worth asking again."""
 
 
 _OPENER = urllib.request.build_opener(_HttpsOnly)
@@ -177,7 +185,7 @@ def fetch_retry(url: str, fetcher=fetch) -> tuple[str, bytes]:
     """Once more after a short wait: Pluto now and then answers 500 or times out."""
     try:
         return fetcher(url)
-    except (NotHttps, TooBig):
+    except (NotHttps, TooBig, RedirectRefused):
         raise  # it won't be https, or smaller, the next time either
     except (urllib.error.URLError, OSError, ValueError):
         time.sleep(RETRY_DELAY)
@@ -254,6 +262,8 @@ def parse_media(text: str, base: str) -> list[dict]:
             disc = True
         elif line.startswith("#EXTINF:"):
             dur = float(line[8:].split(",")[0])
+            if not math.isfinite(dur) or dur < 0:  # "inf" and "nan" read as floats too
+                raise ValueError(f"a piece's length isn't a number of seconds: {line[:40]!r}")
         elif line and not line.startswith("#"):
             uri = urljoin(base, line)
             out.append({"pdt": pdt, "dur": dur, "uri": uri, "key_uri": key_uri, "iv": iv, "seq": seq, "disc": disc})
@@ -470,10 +480,10 @@ class Channel:
 
     def piece(self, seq: int, viewer: str) -> bytes | None:
         self.last_request = time.monotonic()
-        self.viewers[viewer] = time.monotonic()
-        if len(self.viewers) > 50:  # players come and go over hours of watching
-            self.viewers = {v: t for v, t in self.viewers.items() if self.last_request - t < 300}
-        with self.lock:
+        with self.lock:  # the server is threaded: two viewers can arrive at once
+            self.viewers[viewer] = time.monotonic()
+            if len(self.viewers) > 50:  # players come and go over hours of watching
+                self.viewers = {v: t for v, t in self.viewers.items() if self.last_request - t < 300}
             p = next((x for x in self.pieces if x.seq == seq), None)
         if p is None:
             return None
@@ -485,14 +495,17 @@ class Channel:
                 self.trace(f"{self.cid[:6]} sent {seq} at {p.t0:.3f} ({len(data)} bytes) to {viewer}")
             if data:  # a piece that failed is tried again on the next request, not kept
                 self.cache[seq] = data
-                while len(self.cache) > CACHE_PIECES:
+                while len(self.cache) > CACHE_PIECES or (len(self.cache) > 1 and sum(map(len, self.cache.values())) > CACHE_BYTES):
                     del self.cache[next(iter(self.cache))]  # the oldest one in
             return data
 
     def _key(self, uri: str) -> bytes:
         if uri not in self.keys:
             self.keys = {k: v for k, v in list(self.keys.items())[-8:]}
-            self.keys[uri] = fetch_retry(uri, self.relay.fetcher)[1]
+            key = fetch_retry(uri, self.relay.fetcher)[1]
+            if len(key) != 16:  # AES-128's: anything else is never a key, and isn't kept
+                raise ValueError(f"the key at {uri[:80]} is {len(key)} bytes, not 16")
+            self.keys[uri] = key
         return self.keys[uri]
 
     def _remux(self, p: Piece) -> bytes:

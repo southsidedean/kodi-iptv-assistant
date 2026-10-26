@@ -40,7 +40,10 @@ def _ask(prometheus: str, expr: str, timeout: float) -> int:
         # syntax, say): no data for this panel, and the others are still asked.
         exc.close()
         return 0
-    result = answer.get("data", {}).get("result") if isinstance(answer, dict) else None
+    except ValueError:  # not JSON: a proxy's page, or the wrong port. No data, not a traceback.
+        return 0
+    data = answer.get("data") if isinstance(answer, dict) else None
+    result = data.get("result") if isinstance(data, dict) else None
     return len(result) if isinstance(result, list) else 0
 
 
