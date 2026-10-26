@@ -469,9 +469,10 @@ def _asks_card(s: dict) -> str:
     return (
         f'<section class="card" id="asks"{_secure_attr(s)} hidden><h2>Requests from assistants</h2>'
         '<p class="muted">An AI assistant using kia asked for these. Nothing happens until you approve one.</p>'
-        '<ul class="links asks-list"></ul>'
+        # The password first: it's needed before Approve or Decline.
         '<form class="editor asks-form" hidden><label class="field" for="asks-pass"><strong>Password</strong></label>'
         '<input type="password" id="asks-pass" autocomplete="current-password"></form>'
+        '<ul class="links asks-list"></ul>'
         '<p role="status" class="asks-say"></p></section>'
     )
 
