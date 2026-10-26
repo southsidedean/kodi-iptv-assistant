@@ -234,13 +234,15 @@ def match_by_name(
 
 
 def suggest_by_name(
-    tvg_ids: list[str], names: dict[str, str], site_channels: list[SiteChannel], matched: set[str]
+    tvg_ids: list[str], names: dict[str, str], site_channels: list[SiteChannel], matched: set[str],
+    ignored: set[str] | frozenset = frozenset(),
 ) -> list[Suggestion]:
-    """Looser name matches for still-unmatched channels, for a person to check."""
+    """Looser name matches for still-unmatched channels, for a person to check. Not for
+    channels in ignore_name_matches: you've already turned their name matches off."""
     index = _by_name(site_channels, loose_key)
     out = []
     for tid in tvg_ids:
-        if not tid or tid in matched or tid not in names:
+        if not tid or tid in matched or tid in ignored or tid not in names:
             continue
         rows = index.get((country(tid), loose_key(names[tid])), [])
         if rows and len({sc.xmltv_id or name_key(sc.name) for sc in rows}) == 1:
@@ -270,7 +272,9 @@ def write_channel_files(candidates: dict[str, list[Candidate]], out_dir: Path) -
 
 
 def _cell(text: str) -> str:
-    return text.replace("|", "/")
+    """Text from a playlist or a guide site in a Markdown table cell: a | would add a column,
+    and a line break would end the row."""
+    return " ".join(str(text).split()).replace("|", "/")
 
 
 def render_report(
@@ -320,7 +324,7 @@ def render_report(
         ]
         for tid, cands in sorted(by_name.items(), key=lambda kv: names.get(kv[0], kv[0]).casefold()):
             c = cands[0].channel
-            lines.append(f"| {_cell(names.get(tid, tid))} | `{tid}` | {c.site} | {_cell(c.name)} |")
+            lines.append(f"| {_cell(names.get(tid, tid))} | `{_cell(tid)}` | {_cell(c.site)} | {_cell(c.name)} |")
     if suggestions:
         lines += [
             "",
@@ -332,7 +336,7 @@ def render_report(
             "| Channel | tvg-id | Guide site | Name there |",
             "|---|---|---|---|",
         ]
-        lines += [f"| {_cell(s.name)} | `{s.tvg_id}` | {s.site} | {_cell(s.site_name)} |" for s in suggestions]
+        lines += [f"| {_cell(s.name)} | `{_cell(s.tvg_id)}` | {_cell(s.site)} | {_cell(s.site_name)} |" for s in suggestions]
     lines += ["", "## Channels with no guide source", "", "| Channel | tvg-id |", "|---|---|"]
-    lines += [f"| {_cell(name)} | `{tid or '-'}` |" for tid, name in unmatched]
+    lines += [f"| {_cell(name)} | `{_cell(tid or '-')}` |" for tid, name in unmatched]
     return "\n".join(lines) + "\n"

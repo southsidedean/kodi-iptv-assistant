@@ -36,7 +36,10 @@ _refresh_guard = threading.Lock()
 
 @contextlib.contextmanager
 def refresh(state_dir: Path, what: str):
-    """Hold the refresh lock for `what`; inside a refresh this process holds, it's a no-op."""
+    """Hold the refresh lock for `what`; inside a refresh this process holds, it's a no-op.
+    "This process" means one thread: the daemon runs its refreshes one after another from one
+    loop, and the Dashboard's Check now runs in a process of its own. A second thread calling
+    this during a refresh would run alongside it, so keep refreshes to one thread."""
     with _refresh_guard:
         if _refresh["depth"]:
             _refresh["depth"] += 1

@@ -26,7 +26,8 @@ window.kiaWhy = (function () {
   var DOCS = "__DOCS_URL__";
   var LABEL = { problem: "Problem", note: "Note", ok: "OK" };
   // Only kia's own docs pages become links; anything else stays text.
-  var DOC_PATH = /^docs\/[\w\/.-]+\.md(#[\w-]+)?$/;
+  // Folders and names of letters, digits, _ and -: no ".." leading out of kia's docs.
+  var DOC_PATH = /^docs\/(?:[\w-]+\/)*[\w-]+\.md(#[\w-]+)?$/;
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function show(reports, into) {
     into.textContent = "";
@@ -59,8 +60,9 @@ window.kiaWhy = (function () {
     into.textContent = "Asking kia…";
     var path = root + "api/doctor" + (query == null ? "" : "/channel?q=" + encodeURIComponent(query));
     return fetch(path).then(function (r) {
-      return r.json().then(function (j) {
-        if (!r.ok || !j.reports) { into.textContent = j.error || "kia couldn't answer."; return; }
+      // An answer that isn't JSON (nginx's page while kia restarts) counts as no answer.
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || !j.reports) { into.textContent = j.error || "kia didn't answer. Is it running?"; return; }
         show(j.reports, into);
       });
     }, function () { into.textContent = "kia didn't answer. Is it running?"; });

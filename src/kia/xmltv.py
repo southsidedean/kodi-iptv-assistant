@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import gzip
+import re
 import json
 import shutil
 import xml.etree.ElementTree as ET
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from kia.epgmap import _cell
 from kia.history import readable
 from kia.m3u import TAG_RE, Entry, xml_attr, xml_text
 
@@ -28,12 +30,15 @@ def display_name(entry: Entry) -> str:
 
 def parse_time(value: str) -> datetime:
     """An XMLTV time, "20261024120000 -0500"; with no offset, UTC. Some guides leave out
-    the space before the offset ("20261024120000-0500")."""
-    value = value.strip()
-    offset = value[14:].strip()
+    the space before the offset ("20261024120000-0500"), and XMLTV lets a time stop early
+    ("202610241200", "20261024"): the rest counts as zeros."""
+    m = re.fullmatch(r"(\d{8,14})\s*(.*)", value.strip())
+    if not m:
+        raise ValueError(f"not an XMLTV time: {value[:40]!r}")
+    digits, offset = m.group(1).ljust(14, "0"), m.group(2).strip()
     if offset:
-        return datetime.strptime(f"{value[:14]} {offset}", "%Y%m%d%H%M%S %z")
-    return datetime.strptime(value[:14], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+        return datetime.strptime(f"{digits} {offset}", "%Y%m%d%H%M%S %z")
+    return datetime.strptime(digits, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
 
 
 def format_time(dt: datetime) -> str:
@@ -259,11 +264,11 @@ def render_report(entries: list[Entry], choices: dict[str, Choice], generated: s
         "| Site | Channels |",
         "|---|---:|",
     ]
-    lines += [f"| {site} | {n} |" for site, n in by_site.most_common()]
+    lines += [f"| {_cell(site)} | {n} |" for site, n in by_site.most_common()]
     if partial:
         lines += ["", "## Partial coverage", "", "| Channel | Site | Hours of next 24 |", "|---|---|---:|"]
         for c in sorted(partial, key=lambda c: c.hours_24h):
-            lines.append(f"| {names.get(c.tvg_id, c.tvg_id)} | {c.site} | {c.hours_24h} |")
+            lines.append(f"| {_cell(names.get(c.tvg_id, c.tvg_id))} | {_cell(c.site)} | {c.hours_24h} |")
     return "\n".join(lines) + "\n"
 
 

@@ -56,7 +56,9 @@ class ChannelNumbers:
         for kind, group in kinds.items():
             known = self.numbers.setdefault(kind, {})
             pins: dict[int, str] = {}
-            for e in group:
+            # Numbers in your own playlist files first: they win over ones chosen on the
+            # Dashboard (docs/configuration.md), whatever order the channels come in.
+            for e in sorted(group, key=lambda x: x.pinned_by != "file"):
                 n = pinned_number(e)
                 if n is None:
                     continue
