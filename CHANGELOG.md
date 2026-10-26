@@ -44,6 +44,12 @@ kia now checks a few more settings when it starts. In `kia.toml`, a switch in qu
 - Channels listed in `ignore_name_matches` are no longer suggested as name matches in the guide report, and a `|` or line break in a channel's name no longer breaks the report's tables.
 - Guide times that stop early, like `202610241200` or `20261024`, are read as XMLTV allows.
 - The Guide page can't be tripped up by a playlist channel ID such as `constructor`, and the Why? button says kia didn't answer while kia restarts, instead of showing nothing.
+- The installer finds the right host name in an address with a port and a path, and gives Plex and Jellyfin the ports set in `.env`. It lists the presets in the same order as the Dashboard.
+- `scripts/update.sh --no-docker` no longer asks about viewers when kia's service isn't running, and restarts Grafana when its data source settings change.
+- `scripts/install-service.sh` stops with a message when systemd can't turn a service on, instead of saying it worked.
+- `scripts/stack.sh` lists the presets in the Dashboard's order, and a `*` in `KIA_STACK` or `COMPOSE_PROFILES` no longer turns into file names.
+- The secure Dashboard's error pages (a 502 while kia restarts) carry the same security headers as its other pages.
+- The Pluto TV panel in Grafana says when the relay is off, instead of only "No Pluto TV channels watched".
 - `kia restore` leaves out a file whose folder is a link, so a restore can't write outside the kia folder.
 - The Stack page's **Check** and **Apply** no longer fail for good after a crash left the request's temporary file behind.
 - With the Docker runner for iptv-org's downloaders (`runner = "docker"`, used without kia's own image), code in that container could make git run a command on this computer at kia's next update, by planting a `.git/commondir`. Git now takes its settings only from the checkout's own folder, ignores your git settings, and allows only https and kia's own kind of address. The container also no longer sees all of `work/`: only the checkout, the site's channel list, and that site's guide folder. Each site's guide has a staging folder of its own, the kink.nl and kexp.org downloads have a size and time limit, and `npm ci` can't be pointed at another git program by the checkout's `.npmrc`.
