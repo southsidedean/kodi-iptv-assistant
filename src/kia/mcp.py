@@ -123,7 +123,19 @@ TOOLS = [
      "last guide refresh went.", _NO_ARGS),
     ("kia_whats_on", "What's on",
      "What's on a channel now and next (or up to 5 channels that match), from kia's guide for the next "
-     "14 hours, in this computer's time zone.", _QUERY),
+     "14 hours, in this computer's time zone. With Plex, also Plex's own channels (an antenna's), by name, "
+     "call sign, or number.", _QUERY),
+    ("kia_find_shows", "Find shows",
+     "Search the TV guides for shows: kia's own, and the Live TV guides of the Plex (its antenna channels) "
+     "and Jellyfin that kia knows. Matches every word in a show's title, episode, or description, and the "
+     "category's words in its categories; up to 25, soonest first, each with its channel, number, start "
+     "and end, and where to watch it (kia's playlists, Plex, or Jellyfin). For questions like \"when is "
+     "the game on?\" or \"what sports are on now?\". Times are in this computer's time zone.",
+     {"type": "object", "additionalProperties": False,
+      "properties": {"query": {"type": "string", "maxLength": 100, "description": "Words in the show's title or description, such as NFL"},
+                     "category": {"type": "string", "maxLength": 50, "description": "A guide category, such as Sports (kia's and Jellyfin's guides)"},
+                     "hours": {"type": "number", "minimum": 0, "maximum": 168,
+                               "description": "How far ahead to look: 0 for on now; 24 if left out"}}}),
     ("kia_docs", "kia's docs",
      "Search kia's own documentation (the copy installed with this kia, so it matches its version) for "
      "the sections that best match some words: setup steps, settings, troubleshooting, how things work. "
@@ -210,7 +222,10 @@ def _whats_on(conf: Config, args: dict, _api, now: float | None = None) -> dict:
         on_now = shows.pop(0) if slots and slots[0][0] <= now else None
         out.append({"channel": e.name, "id": e.tvg_id, "on_now": on_now, "next": shows,
                     **({} if slots else {"note": "No listings in kia's guide for the next 14 hours: it shows the channel's name."})})  # fmt: skip
-    note = {} if found else {"note": "No channel by that name or ID in kia's playlists."}
+    from kia import shows
+
+    out += shows.plex_on_now(os.environ, q)  # Plex's own channels (an antenna's), when kia knows a Plex
+    note = {} if out else {"note": "No channel by that name or ID in kia's playlists, or in Plex's own channels."}
     return {"guide_written": preview.get("generated"), "channels": out, **note}
 
 
@@ -279,6 +294,15 @@ def _setup(conf: Config, _args: dict, _api) -> dict:
     return doctor.setup(conf).to_dict()
 
 
+def _find_shows(conf: Config, args: dict, _api) -> dict:
+    from kia import shows
+
+    query, category = str(args.get("query") or "")[:100], str(args.get("category") or "")[:50]
+    if not query.strip() and not category.strip():
+        return {"note": "Give some words to look for, a category, or both."}
+    return shows.search(conf, query, category, args.get("hours", 24))
+
+
 def _plex(conf: Config, _args: dict, _api) -> dict:
     return doctor.plex(conf).to_dict()
 
@@ -294,7 +318,7 @@ def _jellyfin(conf: Config, _args: dict, _api) -> dict:
 RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": _find, "kia_plex": _plex, "kia_guide": _guide, "kia_pluto": _pluto, "kia_setup": _setup,
        "kia_hardware": _hardware, "kia_jellyfin": _jellyfin,
        "kia_playlists": _playlists, "kia_stack": _stack, "kia_settings": _settings,
-       "kia_whats_on": _whats_on, "kia_docs": _docs}  # fmt: skip
+       "kia_whats_on": _whats_on, "kia_find_shows": _find_shows, "kia_docs": _docs}  # fmt: skip
 
 
 # Starter prompts: MCP prompts, which assistants offer as ready-made questions (Claude Code shows

@@ -97,7 +97,7 @@ def test_every_tool_only_reads_and_answers(kia):
     status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert status == 200
     tools = body["result"]["tools"]
-    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 14
+    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 15
     assert all(t["annotations"]["readOnlyHint"] and not t["annotations"]["destructiveHint"] for t in tools)
     before = sorted(p.name for p in kia.state_dir.parent.rglob("*"))
     for t in tools:
