@@ -1498,7 +1498,9 @@ def _plex_tuners(args: argparse.Namespace, cfg: Config, plex, log, record: dict)
                 tried.touch()
                 plex.warm_up(server, base, log)
         if args.remove:
-            plex.remove(server, tuners, log)
+            # Every Threadfin kia set up, not only those answering now: taking Live TV out is
+            # often done with them stopped.
+            plex.remove(server, plex.kia_addresses(base, host), log)
         else:
             dvr = plex.set_up(server, tuners, log)
             record["dvr"] = str(dvr.get("key")) if isinstance(dvr, dict) else None

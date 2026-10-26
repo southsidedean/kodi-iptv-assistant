@@ -84,9 +84,9 @@ def node_exporter_up(prometheus: str = "http://prometheus:9090", timeout: float 
     try:
         with urllib.request.urlopen(f"{prometheus}/api/v1/query?{query}", timeout=timeout) as r:  # nosec B310
             result = json.load(r)["data"]["result"]
-    except (OSError, ValueError, KeyError, TypeError):
+        return any(isinstance(x, dict) and list(x.get("value") or [0, "0"])[1:2] == ["1"] for x in result)
+    except (OSError, ValueError, KeyError, TypeError):  # down, or an answer in another shape
         return False
-    return any(x.get("value", [0, "0"])[1] == "1" for x in result)
 
 
 def check(running: list[str], knock: Callable[[str, int], bool] = answers,
@@ -137,6 +137,8 @@ class Watch:
                     self.once()
                 except OSError as exc:  # output/ not writable for a moment: try again next time
                     print(f"stack: couldn't write {self.path.name}: {exc}", file=sys.stderr)
+                except Exception as exc:  # anything else: say so, and keep the tiles going
+                    print(f"stack: couldn't check the stack: {type(exc).__name__}: {exc}", file=sys.stderr)
                 time.sleep(self.every)
 
         threading.Thread(target=loop, daemon=True, name="kia-stack").start()

@@ -90,9 +90,23 @@ def test_a_login_made_half_way_is_finished_and_bad_settings_dont_stop_it(tmp_pat
     (conf / "settings.json").write_text('{"mine": true}')
     threadfin.secure_login(conf, "threadfin", lambda m: None)
     (conf / "settings.json").write_text('{"mine": true}')  # stopped before the page's login was on
+    (conf / threadfin.LOGIN_DONE).unlink()
     assert threadfin.secure_login(conf, "threadfin", lambda m: None) is False  # no new user
     assert json.loads((conf / "settings.json").read_text())["authentication.web"] is True
     said = []
+    (conf / threadfin.LOGIN_DONE).unlink()
     (conf / "settings.json").write_text("{not json")
     threadfin.secure_login(conf, "threadfin", said.append)
     assert any("couldn't read conf/settings.json" in m for m in said)
+
+
+def test_a_page_login_you_turn_off_stays_off(tmp_path: Path):
+    # threadfin-setup runs before Threadfin at every start: once kia has turned the page's login
+    # on, turning it off on Threadfin's own settings page must stick.
+    conf = tmp_path / "conf"
+    conf.mkdir()
+    (conf / "settings.json").write_text("{}")
+    threadfin.secure_login(conf, "threadfin", lambda m: None)
+    (conf / "settings.json").write_text('{"authentication.web": false}')
+    threadfin.secure_login(conf, "threadfin", lambda m: None)
+    assert json.loads((conf / "settings.json").read_text())["authentication.web"] is False

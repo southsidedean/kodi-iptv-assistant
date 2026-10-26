@@ -29,6 +29,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from kia.files import items, obj, read_object
 from kia.probe import media_env
 
 # Threadfin's folders in the kia folder, and the .env setting for each one's port.
@@ -62,15 +63,11 @@ def _get_json(url: str, timeout: float = 15) -> object:
 
 def playlist_title(base: Path, folder: str, output_dir: Path) -> str | None:
     """The title of the kia playlist a Threadfin reads (its M3U file), from its settings."""
-    try:
-        files = json.loads((base / folder / "conf" / "settings.json").read_text()).get("files", {}).get("m3u", {})
-    except (OSError, ValueError):
-        return None
-    names = [Path(urllib.parse.urlparse(f.get("file.source", "")).path).name for f in files.values()]
-    try:
-        profiles = {p["file"]: p["title"] for p in json.loads((output_dir / "profiles.json").read_text())["profiles"]}
-    except (OSError, ValueError, KeyError):
-        profiles = {}
+    # Threadfin's own file, and kia's: read in whatever shape they come (wrong shapes count as missing).
+    files = obj(obj(read_object(base / folder / "conf" / "settings.json").get("files")).get("m3u"))
+    names = [Path(urllib.parse.urlparse(str(f.get("file.source", ""))).path).name for f in files.values() if isinstance(f, dict)]
+    profiles = {p["file"]: p["title"] for p in items(read_object(output_dir / "profiles.json").get("profiles"), dict)
+                if isinstance(p.get("file"), str) and isinstance(p.get("title"), str)}  # fmt: skip
     titles = [profiles.get(n, n.removesuffix(".m3u")) for n in names if n.endswith(".m3u")]
     return ", ".join(titles) or None
 
@@ -252,13 +249,28 @@ def set_up(plex: Plex, tuners: list[Tuner], log=print) -> dict:
     return dvr
 
 
-def remove(plex: Plex, tuners: list[Tuner], log=print) -> bool:
-    """Delete the DVR that holds kia's Threadfins, if it holds nothing else. Returns whether it did."""
-    addresses = {t.address for t in tuners}
+def kia_addresses(base: Path, host: str | None) -> list[str]:
+    """Every Threadfin this kia set up, answering or not (find_tuners leaves out one that's
+    stopped): the addresses Plex would know them by. host as for find_tuners."""
+    return [f"{folder}:34400" if host is None else f"{host}:{os.environ.get(setting) or default}"
+            for folder, setting, default in FOLDERS if (base / folder / "conf" / "settings.json").exists()]  # fmt: skip
+
+
+def remove(plex: Plex, tuners: list[Tuner | str], log=print) -> bool:
+    """Delete the DVR that holds kia's Threadfins, if it holds nothing else. Returns whether it did.
+    tuners: kia's Threadfins, or their addresses (kia_addresses, so stopped ones count too)."""
+    addresses = {t.address if isinstance(t, Tuner) else t for t in tuners}
+    ports = {a.rsplit(":", 1)[-1] for a in addresses}
     # Found by the address Plex lists for each of a DVR's tuners. Asking Plex for the device,
-    # as set_up does, would also register any Threadfin it didn't have yet.
+    # as set_up does, would also register any Threadfin it didn't have yet. Threadfins on
+    # this computer differ by port, so a port of kia's matches whatever name Plex has for
+    # this computer (KIA_PUBLIC_URL may have changed since); in kia's stack they share a port
+    # and differ by name.
+    by_port = len(ports) == len(addresses)
+
     def ours(dv: dict) -> bool:
-        return re.sub(r"^\w+://", "", str(dv.get("uri", ""))).rstrip("/") in addresses
+        where = re.sub(r"^\w+://", "", str(dv.get("uri", ""))).rstrip("/")
+        return where in addresses or (by_port and where.rsplit(":", 1)[-1] in ports)
 
     for dvr in plex.dvrs():
         mine = [dv for dv in dvr.get("Device", []) if ours(dv)]

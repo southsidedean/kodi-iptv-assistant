@@ -1375,7 +1375,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(node_md_state{state=~\"recovering|resync\"}) or (count(node_load1) * 0)",
+     "expr": "sum(node_md_state{state=~\"recovering|resync|check\"}) or (count(node_load1) * 0)",
      "legendFormat": ""
     }
    ],
@@ -2062,7 +2062,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "min(node_power_supply_current_capacity / node_power_supply_max_capacity) * 100 or min(node_power_supply_capacity)",
+     "expr": "min((node_power_supply_current_capacity / node_power_supply_max_capacity) unless on(instance, power_supply) node_power_supply_info{scope=\"Device\"}) * 100 or min(node_power_supply_capacity unless on(instance, power_supply) node_power_supply_info{scope=\"Device\"})",
      "legendFormat": ""
     }
    ],
@@ -2130,7 +2130,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "min(node_power_supply_time_to_empty_seconds)",
+     "expr": "min(node_power_supply_time_to_empty_seconds unless on(instance, power_supply) node_power_supply_info{scope=\"Device\"})",
      "legendFormat": ""
     }
    ],

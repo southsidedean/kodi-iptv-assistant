@@ -29,6 +29,9 @@ NO_NODE = "No numbers from node-exporter on port 9100"
 NO_CONTAINERS = "No containers seen: is cAdvisor running?"
 # The same, short enough for a small tile.
 GPU_OFF_TILE, DISKS_OFF_TILE, NO_UPS_TILE = "Needs observability-gpu", "Needs observability-disks", "No UPS"
+# Batteries of devices (a wireless keyboard, a remote) are listed too, as scope="Device": the
+# UPS and laptop tiles leave them out. (kia.doctor's battery check does the same.)
+NOT_A_DEVICE = 'unless on(instance, power_supply) node_power_supply_info{scope="Device"}'
 
 
 class Board:
@@ -110,15 +113,17 @@ class Board:
         p["options"] = {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}}
 
     def table(self, title: str, description: str, expr: str, columns: list[str], w: int = 24, h: int = 8,
-              no_value: str | None = None) -> None:  # fmt: skip
+              no_value: str | None = None, value: str | None = None) -> None:  # fmt: skip
+        """A row per series, a column per label. value names a last column for the series'
+        value (a count), which is left out otherwise."""
         p = self._panel("table", title, description, [(expr, "")], w, h)
         if no_value:
             p["fieldConfig"]["defaults"]["noValue"] = no_value
         p["targets"][0].update({"format": "table", "instant": True})
         p["transformations"] = [{"id": "organize", "options": {
-            "excludeByName": {"Time": True, "Value": True, "__name__": True, "instance": True, "job": True},
-            "indexByName": {c: i for i, c in enumerate(columns)},
-            "renameByName": {c: c.capitalize() for c in columns}}}]  # fmt: skip
+            "excludeByName": {"Time": True, "Value": value is None, "__name__": True, "instance": True, "job": True},
+            "indexByName": {**{c: i for i, c in enumerate(columns)}, "Value": len(columns)},
+            "renameByName": {**{c: c.capitalize() for c in columns}, **({"Value": value} if value else {})}}}]  # fmt: skip
 
     def columns(self, title: str, description: str, key: str, columns: list[tuple[str, str, str]], w: int = 24,
                 h: int = 8, no_value: str | None = None) -> None:  # fmt: skip
@@ -269,9 +274,11 @@ def media(name: str, title: str, url: str) -> Board:
     b.stat("Converting video", f"Players {title} is converting video for (transcoding), which takes the most processor time.",
            f'sum({sessions}{{video="transcode"}}) or {none}', w=5)  # fmt: skip
     b.stat("Away from home", "Players outside your home network.", f'sum({sessions}{{location="wan"}}) or {none}', w=5)
+    # Players that look exactly the same share a row (kia.metrics counts them), so Players says how many.
     b.table("Playing now", f"Every {title} player now, what it's playing, and how. Players are shown by a pseudonym; "
-            "kia's System page (the secure one) shows which is which.", f"kia_{name}_session_info",
-            ["player", "product", "kind", "video", "location", "state"], no_value="Nothing playing")  # fmt: skip
+            "kia's System page (the secure one) shows which is which. Players that look the same share a row.", f"kia_{name}_session_info",
+            ["player", "product", "kind", "video", "location", "state"], no_value="Nothing playing",
+            value="Players")  # fmt: skip
     b.row("Over time")
     b.graph("Sessions by kind", "Live TV, movies, episodes, and music.", [(f'sum by (kind) ({sessions}{{kind!="none"}})', "{{kind}}")],
             stack=True, no_value="Nothing played in this time")  # fmt: skip
@@ -361,7 +368,7 @@ def hardware() -> Board:
     b.stat("Failed disks in RAID", "Disks that software RAID (mdadm) marked failed.",
            f'sum(node_md_disks{{state="failed"}}) or {node}', thresholds=bad, w=6)  # fmt: skip
     b.stat("RAID rebuilding", "Arrays rebuilding or checking now; slower meanwhile.",
-           f'sum(node_md_state{{state=~"recovering|resync"}}) or {node}',
+           f'sum(node_md_state{{state=~"recovering|resync|check"}}) or {node}',
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6)  # fmt: skip
     b.stat("Memory errors today", "Errors the memory corrected or couldn't, in the last day (ECC memory only).",
            "(sum(increase(node_edac_correctable_errors_total[1d])) + sum(increase(node_edac_uncorrectable_errors_total[1d]))) "
@@ -391,11 +398,12 @@ def hardware() -> Board:
            mappings=[{"type": "value", "options": {"0": {"text": "Mains", "color": "green"}, "1": {"text": "Battery", "color": "orange"}}}],
            thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 1}], w=6, no_value=NO_UPS_TILE)  # fmt: skip
     b.stat("Battery charge", "How full the UPS's or laptop's battery is.",
-           "min(node_power_supply_current_capacity / node_power_supply_max_capacity) * 100 or min(node_power_supply_capacity)",
+           f"min((node_power_supply_current_capacity / node_power_supply_max_capacity) {NOT_A_DEVICE}) * 100 "
+           f"or min(node_power_supply_capacity {NOT_A_DEVICE})",
            "percent", thresholds=[{"color": "red", "value": None}, {"color": "orange", "value": 30}, {"color": "green", "value": 60}],
            w=6, decimals=0, no_value=NO_UPS_TILE)  # fmt: skip
     b.stat("Battery time left", "How long the battery would last, by its own estimate.",
-           "min(node_power_supply_time_to_empty_seconds)", "s", w=6, no_value=NO_UPS_TILE)  # fmt: skip
+           f"min(node_power_supply_time_to_empty_seconds {NOT_A_DEVICE})", "s", w=6, no_value=NO_UPS_TILE)  # fmt: skip
     return b
 
 

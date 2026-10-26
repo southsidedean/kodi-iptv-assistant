@@ -97,10 +97,11 @@ def secure_login(conf: Path, folder: str, log=print) -> bool:
         db = json.loads(users_file.read_text())
     except (OSError, ValueError):
         db = {}
-    if db.get("users"):
+    if isinstance(db, dict) and db.get("users"):
         # Someone set up Threadfin's login already. If it was kia, stopped before it turned the
-        # login on for Threadfin's page, finish that.
-        if (conf / "admin-password.txt").exists():
+        # login on for Threadfin's page, finish that. Only then: once it's done (LOGIN_DONE), a
+        # login you turn off on Threadfin's own page stays off.
+        if (conf / "admin-password.txt").exists() and not (conf / LOGIN_DONE).exists():
             _turn_on_login(conf, folder, log)
         return False
     password = secrets.token_urlsafe(18)
@@ -123,6 +124,9 @@ def secure_login(conf: Path, folder: str, log=print) -> bool:
     return _turn_on_login(conf, folder, log)
 
 
+LOGIN_DONE = "kia-login-done"  # in conf/: kia has turned the page's login on once
+
+
 def _turn_on_login(conf: Path, folder: str, log) -> bool:
     """Have Threadfin's page ask for its login. True if it didn't already."""
     settings_file = conf / "settings.json"
@@ -131,12 +135,17 @@ def _turn_on_login(conf: Path, folder: str, log) -> bool:
     except (OSError, ValueError) as exc:
         log(f"{folder}: couldn't read conf/settings.json ({exc}), so its page doesn't ask for a login yet.")
         return False
+    if not isinstance(current, dict):
+        log(f"{folder}: conf/settings.json isn't Threadfin's settings, so its page doesn't ask for a login yet.")
+        return False
     if current.get("authentication.web") is True:
+        (conf / LOGIN_DONE).touch()
         return False
     current["authentication.web"] = True  # only the page: Plex's access stays open
     tmp = temp_name(settings_file)
     tmp.write_text(json.dumps(current, indent=1) + "\n")
     tmp.replace(settings_file)
+    (conf / LOGIN_DONE).touch()
     log(f"{folder}: its page now asks for a login: admin, with the password in {folder}/conf/admin-password.txt.")
     return True
 
@@ -157,7 +166,7 @@ def set_up(base: Path, output_dir: Path, log=print) -> list[str]:
             continue
         playlist = os.environ.get(setting) or playlist_for(index, output_dir)
         conf.mkdir(parents=True, exist_ok=True)
-        tmp = target.with_name("settings.json.tmp")
+        tmp = temp_name(target)
         tmp.write_text(json.dumps(settings(playlist), indent=1) + "\n")
         tmp.replace(target)
         note = "" if (output_dir / f"{playlist}.m3u").exists() else (
