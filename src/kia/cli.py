@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import dataclasses
+import http.client
 import json
 import os
 import re
@@ -61,7 +62,8 @@ def fetch(url: str) -> str:
             if (exc.code < 500 and exc.code != 429) or wait is None:
                 raise
             exc.close()  # the error page, which isn't read
-        except OSError:
+        except (OSError, http.client.HTTPException):
+            # HTTPException: a server that cut its answer short, or sent no proper reply.
             if wait is None:
                 raise
         time.sleep(wait)
@@ -80,7 +82,7 @@ def fetch_source(cfg: Config, src) -> str:
         # (Any line a playlist doesn't mark is read as a channel, so look for a stream address.)
         if not any(is_stream_url(e.url) for e in m3u.parse(text, source=src.name)):
             raise ValueError("what came back has no channels in it")
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, http.client.HTTPException) as exc:
         age = time.time() - saved.stat().st_mtime if saved.exists() else None
         if age is None or age > SAVED_COPY_DAYS * 86400:
             raise
@@ -123,13 +125,14 @@ def load_entries(cfg: Config, only: list[str] | None) -> list[m3u.Entry]:
                     if not yours:
                         # The guides a playlist from the internet names are downloaded too, so
                         # the same rule as for its streams (kia.lan): none on your network.
-                        local = [u for u in guides if lan.is_local(urlparse(u).hostname)]
+                        # (An address Python can't read counts as local: it's left out too.)
+                        local = [u for u in guides if not lan.host_of(u) or lan.is_local(lan.host_of(u))]
                         if local:
                             log(f"{src.name}: left out {len(local)} of its guides, on your own network: {local[0][:80]}")
                             guides = tuple(u for u in guides if u not in local)
                     for e in found:
                         e.guide_urls = guides
-        except (OSError, ValueError, radio.RadioError) as exc:
+        except (OSError, ValueError, http.client.HTTPException, radio.RadioError) as exc:
             # Skip it; if that loses many channels, the channels_drop alert says so.
             log(f"{src.name}: could not load ({exc}); skipping")
             continue
@@ -173,9 +176,8 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
     ok = 0
 
     def host_limit(e: m3u.Entry) -> asyncio.Semaphore:
-        url = urlparse(e.url)
-        limit = cfg.per_host_limits.get(url.hostname or "", cfg.per_host)
-        return per_host.setdefault(url.netloc, asyncio.Semaphore(limit))
+        host = lan.host_of(e.url)  # "" for an address that isn't a stream: it isn't tested anyway
+        return per_host.setdefault(host, asyncio.Semaphore(cfg.per_host_limits.get(host, cfg.per_host)))
 
     # Tests on one server start at least host_delay_ms apart: a burst of requests can set
     # off a site's firewall even within the per-server limit. Other servers aren't held up.
@@ -186,7 +188,7 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
     async def spaced(e: m3u.Entry) -> None:
         if gap <= 0:
             return
-        host = urlparse(e.url).netloc
+        host = lan.host_of(e.url)
         async with host_locks.setdefault(host, asyncio.Lock()):
             loop = asyncio.get_running_loop()
             wait = last_start.get(host, -gap) + gap - loop.time()
@@ -202,7 +204,7 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
         if not is_stream_url(e.url):
             return ProbeResult(ok=False, error=f"not a network stream (only {', '.join(STREAM_SCHEMES)} are checked)")
         if e.url not in yours:
-            host = urlparse(e.url).hostname or ""
+            host = lan.host_of(e.url)
             if host not in local_hosts:
                 local_hosts[host] = await asyncio.to_thread(lan.is_local, host)
             if local_hosts[host]:
@@ -259,7 +261,13 @@ STREAM_SCHEMES = ("http", "https", "rtmp", "rtmps", "rtsp", "rtsps")
 
 
 def is_stream_url(url: str) -> bool:
-    return urlparse(url).scheme.lower() in STREAM_SCHEMES and bool(urlparse(url).netloc)
+    """A network stream kia may hand to ffprobe: one of STREAM_SCHEMES, with a host. An
+    empty host ("http://:9090/x") would make ffmpeg connect to this computer itself, past
+    kia.lan's guard, and an address Python can't read isn't one either."""
+    try:
+        return urlparse(url).scheme.lower() in STREAM_SCHEMES and bool(urlparse(url).hostname)
+    except ValueError:
+        return False
 
 
 def play_as_tested(entries: list[m3u.Entry], user_agent: str | None) -> None:

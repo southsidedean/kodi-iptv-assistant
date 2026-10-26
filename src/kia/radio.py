@@ -3,13 +3,14 @@ and from two stations that publish their own: SomaFM's channels and KEXP."""
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from kia import __version__
+from kia import __version__, lan
 from kia.m3u import Entry
 
 PREFIX = "radio-browser:"
@@ -165,9 +166,13 @@ def somafm(params: dict[str, str], source: str, get=_get) -> list[Entry]:
         raw = ch.get("playlists")
         lists = [p for p in raw if isinstance(p, dict)] if isinstance(raw, list) else []
         best = next((p for fmt in ("aac", "mp3") for p in lists if p.get("format") == fmt and p.get("quality") == "highest"), None)
+        # The playlist's address comes from SomaFM's list, so it's checked like any stranger's:
+        # https only, and not on your network (kia.lan).
+        address = _text(best.get("url")) if best else ""
         try:
-            url = pls_stream(get(best["url"]).decode("utf-8", errors="replace")) if best and _text(best.get("url")) else None
-        except OSError:
+            fine = address.startswith("https://") and lan.host_of(address) and not lan.is_local(lan.host_of(address))
+            url = pls_stream(get(address).decode("utf-8", errors="replace")) if fine else None
+        except (OSError, ValueError, http.client.HTTPException):
             url = None
         if not url:
             continue  # this channel's playlist didn't answer; the rest still count

@@ -55,6 +55,15 @@ def test_download_guide(server, tmp_path: Path):
         upstream.download_guide("http://127.0.0.1:9", dest, timeout=2)
 
 
+def test_an_upstream_guide_has_a_size_limit(server, tmp_path: Path):
+    www, base = server
+    dest = tmp_path / "cache" / "guide.xml.gz"
+    (www / "guide.xml.gz").write_bytes(b"x" * 300_000)
+    with pytest.raises(upstream.UpstreamError, match="over 0 MB"):
+        upstream.download_guide(base, dest, limit=200_000)
+    assert not dest.exists() and not dest.with_name(dest.name + ".tmp").exists()
+
+
 def test_placeholders_are_tagged_and_skipped(tmp_path: Path):
     now = datetime(2026, 10, 16, 12, tzinfo=timezone.utc)
     entries = [Entry("Quiet TV", "u", {"tvg-id": "Quiet.us@SD"})]

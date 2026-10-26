@@ -24,6 +24,7 @@ from kia.files import temp_name
 
 STATE_FILE = "sources.json"
 _SECTION_RE = re.compile(r"^#\s*-{2,}\s*(.+?)\s*-{2,}")
+FLAG_WORDS = ("lan", "radio")  # words a sources line reads as flags (config.parse_sources)
 _NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")  # the whole name: used with fullmatch
 _PLAYLIST_RE = re.compile(r"^(https?://\S+|(radio-browser|somafm|kexp):.*)$", re.I)
 
@@ -38,6 +39,7 @@ class Offered:
     label: str  # the comment after it, e.g. "Canada  264"
     section: str
     on: bool  # turned on in the file
+    allow_lan: bool = False  # the line has the word lan (kia.lan)
 
 
 def _split_comment(line: str) -> tuple[str, str]:
@@ -77,7 +79,7 @@ def offered(text: str) -> list[Offered]:
             name, n = f"{s.name}-{n}", n + 1
         taken.add(name)
         out.append(Offered(s.url, name, s.radio or s.is_stations, re.sub(r"\s{2,}", "  ", label),
-                           section, on))  # fmt: skip
+                           section, on, s.allow_lan))  # fmt: skip
     return out
 
 
@@ -108,6 +110,8 @@ def apply(sources: list[Source], offers: list[Offered], state: dict) -> list[Sou
     names = {s.name for s in out}
 
     def add(spec: str, name: str | None, radio: bool) -> None:
+        if name and name.lower() in FLAG_WORDS:
+            name = None  # saved before check_new refused these: read as a flag, it would turn lan or radio on
         line = spec + (f" {name}" if name and not is_station_line(spec) else "") + (" radio" if radio else "")
         if is_station_line(spec) and name:
             line = f"{spec} name={name}"
@@ -154,14 +158,14 @@ def listing(sources_text: str, catalog_text: str | None, state: dict, counts: di
         k = _key(o.url)
         used = (o.on or k in on) and k not in off
         rows.append({"url": o.url, "name": o.name, "label": o.label, "section": o.section or "Playlists",
-                     "radio": o.radio, "on": used, "origin": "file", "changed": k in on or k in off,
+                     "radio": o.radio, "lan": o.allow_lan, "on": used, "origin": "file", "changed": k in on or k in off,
                      "streams": counts.get(o.name)})  # fmt: skip
     for a in state["added"]:
         k = _key(a["url"])
         if k in seen:
             continue
         rows.append({"url": a["url"], "name": a.get("name") or "", "label": "", "section": "Added on the Dashboard",
-                     "radio": bool(a.get("radio")), "on": k not in off, "origin": "added", "changed": True,
+                     "radio": bool(a.get("radio")), "lan": False, "on": k not in off, "origin": "added", "changed": True,
                      "streams": counts.get(a.get("name") or "")})  # fmt: skip
     return rows
 
@@ -191,6 +195,10 @@ def check_new(url: str, name: str, taken: set[str]) -> tuple[str, str]:
         raise ValueError("That address is too long.")
     if name and not _NAME_RE.fullmatch(name):
         raise ValueError("Use lowercase letters, numbers, and dashes for the name, up to 40.")
+    if name in FLAG_WORDS:
+        # On a sources line these words are flags, not names: "lan" would let a playlist from
+        # the internet send kia's tests onto your network, and "radio" would make it all radio.
+        raise ValueError(f"{name!r} has a meaning of its own in kia's playlist list. Choose another name.")
     try:
         parsed = parse_sources(url + (f" name={name}" if name and is_station_line(url) else f" {name}" if name else ""))
     except ValueError as exc:

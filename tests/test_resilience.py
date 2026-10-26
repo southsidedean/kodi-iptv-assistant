@@ -522,6 +522,66 @@ def test_which_playlists_are_yours(tmp_path: Path):
     assert not lan.is_local("8.8.8.8") and not lan.is_local("") and not lan.is_local("no-such-host.invalid")
 
 
+def test_an_address_python_cant_read_doesnt_stop_the_check(tmp_path: Path, monkeypatch):
+    # urlparse raises on these; one in a stranger's playlist used to stop the whole nightly check.
+    tested = []
+
+    async def fake_probe(url, **kw):
+        tested.append(url)
+        return ProbeResult(ok=True, height=720)
+
+    monkeypatch.setattr(cli, "probe", fake_probe)
+    cfg = load(make_cfg(tmp_path))
+    cfg.host_delay_ms = 0
+    bad = ["http://[x/bad.m3u8", "http://[192.168.1.20]/a", "http://:9090/x", "http://me@:9090/x"]
+    results = asyncio.run(cli.probe_all([m3u.Entry("Good", "https://8.8.8.8/a.m3u8"), *(m3u.Entry(u, u) for u in bad)],
+                                        cfg, verbose=False))  # fmt: skip
+    assert tested == ["https://8.8.8.8/a.m3u8"]  # an empty host would reach this computer itself
+    assert all("not a network stream" in results[u].error for u in bad)
+    assert not cli.is_stream_url("http://:9090/x") and cli.is_stream_url("rtsp://192.0.2.5/live")
+
+
+def test_a_cut_short_download_is_retried_then_uses_the_saved_copy(tmp_path: Path, monkeypatch):
+    import http.client
+
+    calls = []
+
+    def short(*a, **kw):
+        calls.append(1)
+        raise http.client.IncompleteRead(b"#EXT", 1000)
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", short)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    with pytest.raises(http.client.HTTPException):
+        cli.fetch("https://8.8.8.8/us.m3u")
+    assert len(calls) == len(cli.FETCH_WAITS) + 1  # retried like a dropped connection
+    from kia.config import Source
+
+    cfg = load(make_cfg(tmp_path))
+    src = Source(name="us", url="https://8.8.8.8/us.m3u")
+    saved = cfg.epg.work_dir / "sources" / "us.m3u"
+    saved.parent.mkdir(parents=True, exist_ok=True)
+    saved.write_text("#EXTM3U\n#EXTINF:-1,A\nhttps://8.8.8.8/a.m3u8\n")
+    assert "https://8.8.8.8/a.m3u8" in cli.fetch_source(cfg, src)  # last night's copy, not a crash
+
+
+def test_yours_is_decided_by_the_address_not_a_lookup(monkeypatch):
+    import ipaddress
+
+    from kia import lan
+    from kia.config import parse_sources
+
+    # A stranger's DNS answers with a local address: their playlist still isn't yours.
+    monkeypatch.setattr(lan, "_addresses", lambda host: [ipaddress.ip_address("192.168.1.20")])
+    theirs, nas, tuner, word = parse_sources("https://playlists.example/x.m3u x\nhttp://my-server.lan/a.m3u a\n"
+                                             "http://192.0.2.5/b.m3u b\nhttp://threadfin:34400/c.m3u c\n")  # fmt: skip
+    assert [s.is_yours for s in (theirs, nas, tuner, word)] == [False, True, True, True]
+    # Addresses that carry a local IPv4 address inside count as local.
+    monkeypatch.undo()
+    assert lan.is_local("64:ff9b::c0a8:114") and lan.is_local("2002:c0a8:0114::1") and not lan.is_local("2606:4700::1111")
+    assert lan.host_of("http://[x/a") == "" and lan.host_of("https://Example.com:8/x") == "example.com"
+
+
 def test_the_check_marks_entries_from_your_own_playlists(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
     (tmp_path / "list.m3u").write_text('#EXTM3U\n#EXTINF:-1 tvg-id="A.us",A\nhttp://192.168.1.20/a\n')
@@ -543,3 +603,7 @@ def test_a_playlist_from_the_internet_cant_name_a_guide_on_your_network(tmp_path
     assert us.guide_urls == ("https://8.8.8.8/guide.xml",)
     assert any("us: left out 1 of its guides, on your own network" in m for m in said)
     assert len(eu.guide_urls) == 2  # marked lan: its guides may be on your network
+    # An address Python can't read is left out too, without stopping the playlist.
+    monkeypatch.setattr(cli, "fetch", lambda url: text.replace("https://8.8.8.8/guide.xml", "http://[x/guide.xml"))
+    us, _eu = cli.load_entries(load(tmp_path / "kia.toml"), None)
+    assert us.guide_urls == ()

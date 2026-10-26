@@ -31,8 +31,8 @@ Most of it is ordinary, and some of it is broken. But kia reads thousands of add
 ### Playlists
 
 - Control characters and broken text are removed as kia reads each line. Only `#KODIPROP` lines that tell Kodi how to play a stream are passed on to your playlists; anything else a playlist sets for Kodi is dropped.
-- Only network addresses (`http`, `https`, `rtmp`, `rtsp`) reach ffprobe. A playlist entry like a file path, or any of ffmpeg's special addresses that read files or chain other addresses together, is marked dead without being opened.
-- A playlist that isn't yours can't point kia at your network: kia tests its streams, and downloads the guides it names, only at addresses out on the internet ([playlists from the internet](../SECURITY.md#playlists-from-the-internet)). Playlists of your own (a file on this computer, one from your network, or a line marked `lan`) can name anything.
+- Only network addresses (`http`, `https`, `rtmp`, `rtmps`, `rtsp`, `rtsps`) with a host reach ffprobe. One with no host, such as `http://:9090/`, would make ffmpeg connect to this computer itself, so it's marked dead, as is one kia can't read. A playlist entry like a file path, or any of ffmpeg's special addresses that read files or chain other addresses together, is marked dead without being opened.
+- A playlist that isn't yours can't point kia at your network: kia tests its streams, and downloads the guides it names, only at addresses out on the internet ([playlists from the internet](../SECURITY.md#playlists-from-the-internet)). Playlists of your own (a file on this computer, one whose address names your network as written, such as `192.168.1.20` or `my-server.lan`, or a line marked `lan`) can name anything. kia never decides that by looking a name up. Guide downloads refuse a redirect from the internet onto your network.
 - A playlist that downloads but holds no stream addresses counts as a failed download, so a broken answer can't replace your last good copy.
 
 ### Streams
