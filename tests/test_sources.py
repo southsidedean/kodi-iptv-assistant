@@ -278,3 +278,9 @@ def test_the_page_hears_why_the_password_didnt_unlock_it(cfg, monkeypatch):
     right = get("secret")
     assert right["unlocked"] and "locked" not in right
     assert "locked" not in call(cfg, "GET", "/api/sources", password=None)[1]  # nothing given, nothing to say
+
+
+def test_radio_must_be_a_switch(cfg):
+    # As every other switch: the text "false" isn't false.
+    status, data = call(cfg, "POST", "/api/sources", {"url": "https://example.org/a.m3u", "radio": "false"})
+    assert status == 400 and "true or false" in data["error"]

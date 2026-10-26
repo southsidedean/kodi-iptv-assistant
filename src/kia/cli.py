@@ -7,6 +7,7 @@ import asyncio
 import dataclasses
 import http.client
 import json
+import math
 import os
 import re
 import shutil
@@ -537,7 +538,8 @@ def cmd_map(args: argparse.Namespace) -> int:
         radio = {e.tvg_id: xmltv.display_name(e) for e in entries if e.is_radio}
         candidates.update(epgmap.radio_schedule_candidates(radio, broken | set(epg.exclude_sites)))
     suggestions = (
-        epgmap.suggest_by_name(tvg_ids, names, epgmap.usable_channels(site_channels, epg, broken), set(candidates))
+        epgmap.suggest_by_name(tvg_ids, names, epgmap.usable_channels(site_channels, epg, broken), set(candidates),
+                               set(epg.ignore_name_matches))
         if epg.name_matching
         else []
     )
@@ -774,7 +776,7 @@ def run_pipeline(config: str, update_epg: bool) -> int:
         log(f"=== kia {name} ===")
         rc = main([name, "-c", config, *extra])
         if rc == EXIT_ALERT:
-            worst = EXIT_ALERT
+            worst = worst or EXIT_ALERT  # a failure already noted (a grab) stays the result
             return 0
         return rc
 
@@ -788,7 +790,9 @@ def run_pipeline(config: str, update_epg: bool) -> int:
     for name in ("map", "grab", "guide"):
         rc = step(name, *(["--update"] if name == "map" and update_epg else []))
         if rc and name == "grab":
-            worst = worst or rc  # sites that failed keep their previous guide, so still build one
+            # Sites that failed keep their previous guide, so still build one. A failure counts
+            # over an alert: the night's result is "failed", not "working, with alerts".
+            worst = rc if worst in (0, EXIT_ALERT) else worst
         elif rc:
             log(f"kia {name} failed with exit code {rc}; stopping")
             return rc
@@ -1532,12 +1536,13 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
 
 # Options whose default comes from .env: (option, setting, default). They're read after the
 # command line, so a typo in one is reported by name, and only for the commands that use it.
-ENV_DEFAULTS = (("port", "KIA_PORT", 8780), ("https_port", "KIA_HTTPS_PORT", 8743),
-                ("api_port", "KIA_API_PORT", 0), ("guide_every", "KIA_GUIDE_REFRESH_HOURS", 4.0))  # fmt: skip
+# (option, .env name, default, highest): ports up to 65535, and a quick guide refresh at most weekly.
+ENV_DEFAULTS = (("port", "KIA_PORT", 8780, 65535), ("https_port", "KIA_HTTPS_PORT", 8743, 65535),
+                ("api_port", "KIA_API_PORT", 0, 65535), ("guide_every", "KIA_GUIDE_REFRESH_HOURS", 4.0, 168.0))  # fmt: skip
 
 
 def env_default(args: argparse.Namespace) -> None:
-    for option, name, fallback in ENV_DEFAULTS:
+    for option, name, fallback, highest in ENV_DEFAULTS:
         if getattr(args, option, False) is not None:
             continue  # given on the command line, or not an option of this command
         raw = os.environ.get(name, "").strip()
@@ -1545,8 +1550,9 @@ def env_default(args: argparse.Namespace) -> None:
             value = type(fallback)(raw) if raw else fallback
         except ValueError:
             raise ValueError(f"{name}={raw!r}: expected a number") from None
-        if value < 0:
-            raise ValueError(f"{name}={raw!r}: expected 0 or more")
+        # inf and nan read as numbers too, and a huge one only fails later, with a traceback.
+        if not math.isfinite(value) or not 0 <= value <= highest:
+            raise ValueError(f"{name}={raw!r}: expected a number from 0 to {highest:g}")
         setattr(args, option, value)
 
 

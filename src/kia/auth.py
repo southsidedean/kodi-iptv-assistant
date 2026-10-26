@@ -82,6 +82,9 @@ class Auth:
             if not typeable(self.env_password):
                 log("KIA_ADMIN_PASSWORD has characters a browser can't send (accents, emoji), so the "
                     "Dashboard can't use it: change it in .env to letters, digits, and ordinary symbols.")  # fmt: skip
+            elif self.env_password != self.env_password.strip():
+                log("KIA_ADMIN_PASSWORD starts or ends with a space, which a browser drops when it sends the password, "
+                    "so the Dashboard can't use it: take the spaces out in .env.")  # fmt: skip
             elif len(self.env_password) < MIN_LENGTH:
                 log(f"KIA_ADMIN_PASSWORD is shorter than {MIN_LENGTH} characters: easy to guess on your network.")
         if not self.enabled or self.env_password or self._record() is not None:
@@ -133,6 +136,9 @@ class Auth:
             raise ValueError("The password is set in kia's .env file, so change it there and restart kia.")
         if len(new) < MIN_LENGTH:
             raise ValueError(f"Use at least {MIN_LENGTH} characters.")
+        if new != new.strip():
+            # It travels in a header, and browsers drop spaces at its ends: it could never be typed back.
+            raise ValueError("Leave out spaces at the start and end.")
         if not typeable(new):
             raise ValueError("Use letters, digits, spaces, and ordinary symbols only, with no accents or emoji: "
                              "browsers can't send other characters in kia's password.")  # fmt: skip

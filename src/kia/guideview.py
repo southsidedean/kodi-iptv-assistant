@@ -48,7 +48,12 @@ SCRIPT = r"""
 
   function time(t) { return new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-  function slots(row) { return (guide && guide.channels[row.dataset.id]) || []; }
+  // A playlist from the internet chooses the IDs: one called "constructor" mustn't reach the
+  // object's own properties, and only a list counts.
+  function slots(row) {
+    var c = guide && guide.channels, l = c && Object.prototype.hasOwnProperty.call(c, row.dataset.id) ? c[row.dataset.id] : null;
+    return Array.isArray(l) ? l : [];
+  }
   function current(list, now) {
     for (var i = 0; i < list.length; i++) if (list[i][1] > now) return i;
     return -1;

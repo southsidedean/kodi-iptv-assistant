@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import tomllib
@@ -137,6 +138,7 @@ class Config:
 def source_name(url: str, taken: set[str]) -> str:
     """Derive a short name from a playlist URL: .../countries/us.m3u -> "us"."""
     stem = Path(urlparse(url).path).stem or urlparse(url).netloc or "source"
+    stem = re.sub(r"[^\w.-]+", "-", stem).strip("-.")[:60] or "source"  # it becomes a file name
     name, n = stem, 2
     while name in taken:
         name, n = f"{stem}-{n}", n + 1
@@ -165,6 +167,9 @@ def parse_sources(text: str) -> list[Source]:
             words = {w.lower() for w in flags}
             name = next((w for w in rest if w not in flags), "")
             source = Source(name=name or source_name(url, taken), url=url, radio="radio" in words, allow_lan="lan" in words)
+        # The name becomes a file name (work/sources/<name>.m3u): letters, digits, ., _ and - only.
+        if not re.fullmatch(r"[\w.-]{1,80}", source.name):
+            raise ValueError(f"source name {source.name!r}: use letters, digits, dots, dashes, and underscores")
         if source.name in taken:
             raise ValueError(f"duplicate source name {source.name!r}")
         taken.add(source.name)
@@ -238,9 +243,9 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         per_host_limits={host: _at_least_one(f"per_host_limits {host}", n)
                          for host, n in dict(check.get("per_host_limits", {})).items()},
         host_delay_ms=_whole("[check] host_delay_ms", check.get("host_delay_ms", 100), 0),
-        require_video=check.get("require_video", True),
+        require_video=_switch("[check] require_video", check.get("require_video", True)),
         grace_failures=_whole("[check] grace_failures", check.get("grace_failures", 2), 0),
-        merge_duplicates=check.get("merge_duplicates", True),
+        merge_duplicates=_switch("[check] merge_duplicates", check.get("merge_duplicates", True)),
         user_agent=check.get("user_agent", DEFAULT_USER_AGENT) or None,
         ffprobe=check.get("ffprobe", "ffprobe"),
         exclude_groups=_merge_env_list("KIA_EXCLUDE_GROUPS", filters.get("exclude_groups", [])),
@@ -249,19 +254,19 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         output_dir=base / output.get("dir", "output"),
         state_dir=base / output.get("state_dir", "state"),
         epg_url=output.get("epg_url") or _derive_epg_url(output),
-        channel_numbers=output.get("channel_numbers", True),
+        channel_numbers=_switch("[output] channel_numbers", output.get("channel_numbers", True)),
         recycle_numbers_after_days=_recycle_days(output.get("recycle_numbers_after_days", 0)),
         profiles_file=base / (os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles/profiles.toml")),
         public_url=_public_url(output),
         tls_dir=base / output.get("tls_dir", "tls"),
-        https_port=_env_int("KIA_HTTPS_PORT", output.get("https_port", 8743)),
+        https_port=_port("KIA_HTTPS_PORT", _whole("[output] https_port", output.get("https_port", 8743), 1)),
         tls_names=_merge_env_list("KIA_TLS_NAMES", list(output.get("tls_names", []))),
         alerts=_load_alerts(data.get("alerts", {})),
         history_days=_whole("[check] history_days", check.get("history_days", 30), 1),
         upstream_url=_upstream_url(data.get("upstream", {})),
         upstream_fallback=_upstream_fallback(data.get("upstream", {})),
         pluto_relay=env_bool("KIA_PLUTO_RELAY", data.get("pluto", {}).get("relay", True)),
-        dns_resolvers=tuple(data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
+        dns_resolvers=_texts("[dns] verify_resolvers", data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
         epg=_load_epg(data.get("epg", {}), base),
     )
 
@@ -291,7 +296,9 @@ def _whole(name: str, value: object, least: int) -> int:
 
 def _number(name: str, value: object, above: float, most: float | None = None) -> float:
     """A number from kia.toml (whole or not), more than `above` and at most `most`."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= above or (most is not None and value > most):
+    # (TOML has nan and inf: nan passes every comparison, and inf breaks every sum.)
+    if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= above
+            or (most is not None and value > most)):  # fmt: skip
         limits = f"more than {above:g}" + (f" and at most {most:g}" if most is not None else "")
         raise ValueError(f"{name} = {value!r}: expected a number, {limits}")
     return value
@@ -308,6 +315,27 @@ def _patterns(value: object) -> list[str]:
         except re.error as exc:
             raise ValueError(f"[filters] exclude_name_patterns: {pattern!r} isn't a valid pattern ({exc})") from None
     return value
+
+
+def _port(name: str, fallback: int) -> int:
+    port = _env_int(name, fallback)
+    if port > 65535:
+        raise ValueError(f"{name}={port}: a port is at most 65535")
+    return port
+
+
+def _switch(name: str, value: object) -> bool:
+    """true or false from kia.toml: the text "false" would otherwise count as on."""
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} = {value!r}: expected true or false (without quotes)")
+    return value
+
+
+def _texts(name: str, value: object) -> tuple[str, ...]:
+    """A list of text from kia.toml: a single "8.8.8.8" would otherwise be read letter by letter."""
+    if not isinstance(value, (list, tuple)) or not all(isinstance(v, str) for v in value):
+        raise ValueError(f"{name} = {value!r}: expected a list, like [\"8.8.8.8\", \"1.1.1.1\"]")
+    return tuple(value)
 
 
 def _env_int(name: str, fallback: int) -> int:
@@ -427,14 +455,15 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         docker_image=epg.get("docker_image", d.docker_image),
         parallel_sites=_env_int("KIA_PARALLEL_SITES", _whole("[epg] parallel_sites", epg.get("parallel_sites", d.parallel_sites), 1)),
         max_connections=_whole("[epg] max_connections", epg.get("max_connections", d.max_connections), 1),
-        placeholders=env_bool("KIA_PLACEHOLDERS", epg.get("placeholders", d.placeholders)),
+        placeholders=env_bool("KIA_PLACEHOLDERS", _switch("[epg] placeholders", epg.get("placeholders", d.placeholders))),
         placeholder_hours=_placeholder_hours(epg.get("placeholder_hours", d.placeholder_hours)),
-        radio_placeholders=env_bool("KIA_RADIO_PLACEHOLDERS", epg.get("radio_placeholders", d.radio_placeholders)),
+        radio_placeholders=env_bool("KIA_RADIO_PLACEHOLDERS",
+                                    _switch("[epg] radio_placeholders", epg.get("radio_placeholders", d.radio_placeholders))),
         git_url=os.environ.get("KIA_EPG_GIT_URL") or epg.get("git_url", d.git_url),
         git_ref=os.environ.get("KIA_EPG_GIT_REF") or epg.get("git_ref", d.git_ref),
-        native_grabbers=epg.get("native_grabbers", d.native_grabbers),
+        native_grabbers=_switch("[epg] native_grabbers", epg.get("native_grabbers", d.native_grabbers)),
         name_matching=epg.get("name_matching", d.name_matching),
-        playlist_guides=epg.get("playlist_guides", d.playlist_guides),
+        playlist_guides=_switch("[epg] playlist_guides", epg.get("playlist_guides", d.playlist_guides)),
         site_time_limit=_whole("[epg] site_time_limit", epg.get("site_time_limit", d.site_time_limit), 0),
         site_connections=dict(epg.get("site_connections", {})),
         site_delay_ms=dict(epg.get("site_delay_ms", {})),

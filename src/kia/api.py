@@ -16,6 +16,7 @@ profile playlists and the Dashboard from the last check, which takes about a sec
 from __future__ import annotations
 
 import contextvars
+import ipaddress
 import json
 import math
 import re
@@ -450,7 +451,10 @@ def add_source(cfg: ApiConfig, body: dict) -> dict:
             url, name = web_sources.check_new(body["url"], str(body.get("name") or ""), {r["name"] for r in rows})
         except ValueError as exc:
             raise ApiError(400, str(exc)) from None
-        web_sources.add(state, url, name, bool(body.get("radio")))
+        radio = body.get("radio", False)
+        if not isinstance(radio, bool):  # as every other switch: "false" isn't false
+            raise ApiError(400, "Expected radio to be true or false.")
+        web_sources.add(state, url, name, radio)
         web_sources.save_state(cfg.state_dir, state)
     return get_sources(cfg, True, unlocked=True)
 
@@ -471,7 +475,9 @@ def remove_source(cfg: ApiConfig, url: str) -> dict:
 
 
 def mask_url(url: str) -> str:
-    """An address with any user name, password, or query hidden."""
+    """An address with any user name, password, or query hidden, and its folders: some
+    providers put the login in the path (/playlist/USER/PASS/m3u_plus), so only the file's
+    name shows, as in https://example.org/•••/m3u_plus."""
     from urllib.parse import urlsplit, urlunsplit
 
     try:
@@ -481,9 +487,13 @@ def mask_url(url: str) -> str:
         return "•••"
     if not u.scheme.startswith("http"):
         return url
-    host = u.hostname or ""
+    from kia.tls import in_url
+
+    host = in_url(u.hostname) if u.hostname else ""  # an IPv6 address keeps its brackets
     netloc = ("•••@" if u.username or u.password else "") + host + (f":{port}" if port else "")
-    return urlunsplit((u.scheme, netloc, u.path, "•••" if u.query else "", ""))
+    folders, _, name = u.path.rpartition("/")
+    path = f"/•••/{name}" if folders.strip("/") else u.path
+    return urlunsplit((u.scheme, netloc, path, "•••" if u.query else "", ""))
 
 
 # "Check now": a test check of one playlist, one at a time. It writes to work/check-test/
@@ -665,11 +675,21 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
     _slowed("password", lambda: cfg.auth.check(given), "Wrong password.", "Too many wrong passwords.")
 
 
+def _who(address: str | None) -> str | None:
+    """Whom a wrong guess counts against: the address, or for IPv6 its /64, since one computer
+    can pick a new address in its network for every guess."""
+    try:
+        ip = ipaddress.ip_address(address or "")
+    except ValueError:
+        return address
+    return str(ipaddress.ip_network(f"{ip}/64", strict=False)) if ip.version == 6 and not ip.ipv4_mapped else address
+
+
 def _slowed(kind: str, right: Callable[[], bool], wrong_text: str, too_many: str) -> None:
     """Check a password or token, slowing down whoever keeps getting it wrong: a second
     after each wrong one, then a wait that doubles from the second in a row, up to a minute,
     per kind and address (_CLIENT). Raises ApiError when it's wrong or they must wait."""
-    client = (kind, _CLIENT.get())
+    client = (kind, _who(_CLIENT.get()))
     # One check at a time (each costs 16 MB), with the count of wrong ones read and updated
     # in the same turn: read before waiting, a burst of guesses sent at once would all pass
     # the "too many" check, and each would count as only the first.
