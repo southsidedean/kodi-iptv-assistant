@@ -472,7 +472,7 @@ def _name_card(s: dict) -> str:
         '<p class="name-now"></p>'
         '<form class="editor name-form" hidden><label class="field" for="name-new"><strong>Name</strong> '
         "<span>lowercase letters, digits, and dashes, such as den or cabin-pi; empty for the default</span></label>"
-        '<input id="name-new" maxlength="40" autocomplete="off" spellcheck="false">'
+        '<input type="text" id="name-new" maxlength="40" autocomplete="off" spellcheck="false">'
         '<label class="field" for="name-pass"><strong>Password</strong></label>'
         '<input type="password" id="name-pass" autocomplete="current-password">'
         '<div class="actions"><button type="submit" class="primary">Save the name</button></div>'
@@ -496,8 +496,8 @@ NAME_CARD_SCRIPT = """
   fetch("api/name").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) show(d); }).catch(function () {});
   if (location.protocol !== "https:") {
     var url = card.dataset.secureUrl;
-    if (url) card.querySelector("p.muted").appendChild(Object.assign(document.createElement("a"),
-      { href: new URL("system.html#install-name", url).href, textContent: " Change it on the secure page." }));
+    if (url) card.querySelector("p.muted").append(" ", Object.assign(document.createElement("a"),
+      { href: new URL("system.html#install-name", url).href, textContent: "Change it on the secure page." }));
     return;
   }
   form.hidden = false;
