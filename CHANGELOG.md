@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.8 (unreleased)
+## 0.7.0 (unreleased)
 
 ## 0.6.7 (2026-10-25)
 
