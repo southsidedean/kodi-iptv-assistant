@@ -28,12 +28,15 @@ def test_more_logins_are_hidden():
 
 
 def test_an_interrupted_renewal_is_repaired(tmp_path: Path):
+    # A renewal writes the mark with both fingerprints first: wherever it stops, the
+    # certificate in place is one the mark names, so it stays kia's own.
     tls.make_self_signed(tmp_path, ["kia.lan"])
-    (tmp_path / tls.MARK).unlink()  # stopped before the mark was written: still kia's own
-    assert tls.info(tmp_path)["generated"]
     other = tmp_path / "other"
     tls.make_self_signed(other, ["kia.lan"])
-    (other / tls.KEY).replace(tmp_path / tls.KEY)  # a new key next to the old certificate
+    old, new = tls.fingerprint(tmp_path / tls.CERT), tls.fingerprint(other / tls.CERT)
+    (tmp_path / tls.MARK).write_text(f"{new}\n{old}\n")
+    assert tls.info(tmp_path)["generated"]  # stopped before the move
+    (other / tls.KEY).replace(tmp_path / tls.KEY)  # stopped after the key: a new key next to the old certificate
     assert tls.info(tmp_path)["key_matches"] is False
     said = []
     assert tls.ensure(tmp_path, ["kia.lan"], said.append)["key_matches"] is True
