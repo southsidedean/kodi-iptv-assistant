@@ -175,6 +175,38 @@ def test_a_link_left_in_state_is_removed_not_followed(copy: Path):
     assert target.read_text() == "keep me\n" and not (copy / "state" / "deployed-rev").is_symlink()
 
 
+def test_a_macs_stack_service_is_installed_again_for_new_settings(copy: Path):
+    # launchd keeps the service's settings file as it was installed (where its log goes), so a
+    # release that changes it installs the service again; a new stack.sh only restarts it.
+    origin, bin_dir, calls = copy.parent / "origin", copy.parent / "bin", copy.parent / "calls.log"
+    for name, body in (("uname", "echo Darwin"), ("launchctl", f'echo "launchctl $*" >> {calls}')):
+        (bin_dir / name).write_text(f"#!/bin/sh\n{body}\n")
+        (bin_dir / name).chmod(0o755)
+    (origin / "deploy").mkdir()
+    (origin / "deploy" / "kia-stack.plist").write_text("<plist/>\n")
+    (origin / "scripts" / "install-service.sh").write_text(f'#!/bin/sh\necho "install-service $*" >> {calls}\n')
+    (origin / "scripts" / "install-service.sh").chmod(0o755)
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "the service's log moves")
+    git(origin, "tag", "v0.4.0")
+    r = update(copy, "v0.4.0")
+    assert r.returncode == 0 and "Installed the kia-stack service again" in r.stdout, r.stdout + r.stderr
+    assert "install-service --stack" in calls.read_text() and "kickstart" not in calls.read_text()
+    (origin / "scripts" / "stack.sh").write_text("#!/bin/sh\n")
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "a new stack.sh only")
+    git(origin, "tag", "v0.5.0")
+    calls.unlink()
+    r = update(copy, "v0.5.0")
+    assert "Restarted the kia-stack service" in r.stdout and "install-service" not in calls.read_text()
+
+
+def test_a_folder_left_in_state_doesnt_stop_updates(copy: Path):
+    # The kia container can make one there: before, rm -f failed on it and every update stopped.
+    (copy / "state" / "deployed-rev").mkdir(parents=True)
+    assert update(copy).returncode == 0 and not (copy / "state" / "deployed-rev").exists()
+
+
 def test_a_copy_that_follows_main_stays_on_main(copy: Path):
     assert update(copy, "--main", "--no-restart").returncode == 0
     r = update(copy, "--no-restart")  # no version named

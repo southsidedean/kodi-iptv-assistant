@@ -111,7 +111,7 @@ To change what runs later, come back to the Stack page: choose, **Check**, **App
 **Check is greyed out, and the page says the kia-stack service isn't running.** The page hasn't heard from the service for 90 seconds.
 
 - On Linux, `systemctl --user status kia-stack` shows whether it runs, and `journalctl --user -u kia-stack -f` shows what it says. If it stopped when you logged out, run the `loginctl enable-linger` command from step 1.
-- On a Mac, `launchctl list | grep kia-stack` shows it, and its log is `work/logs/kia-stack.log` in the kia folder.
+- On a Mac, `launchctl list | grep kia-stack` shows it, and its log is `stack-service/kia-stack.log` in the kia folder.
 - To install it again: `scripts/install-service.sh --stack`.
 
 **"The kia-stack service hasn't picked the request up."** The service isn't running: start it as above. The page keeps waiting for 5 minutes, and the service refuses a request older than that, so choose **Check** again once it runs.
@@ -129,7 +129,7 @@ To change what runs later, come back to the Stack page: choose, **Check**, **App
 
 **A warning says this computer has N GB of memory.** It may still run. Fewer parts at once, or more memory, is safer ([setups](setups.md)).
 
-**Apply didn't finish.** The page shows what the script said. In the kia folder, `docker compose ps` shows what runs, and `scripts/stack.sh` shows the choice and what each part is doing. Your `.env` from before the apply is in `state/env.before-stack-<date>`.
+**Apply didn't finish.** The page shows what the script said. In the kia folder, `docker compose ps` shows what runs, and `scripts/stack.sh` shows the choice and what each part is doing. Your `.env` from before the apply is in `stack-service/env.before-stack-<date>`.
 
 **Plex isn't on your account.** The claim code had run out, or Plex started without one. Get a new code at [plex.tv/claim](https://plex.tv/claim), put it in `.env` as `PLEX_CLAIM=claim-...`, and in the kia folder run `docker compose up -d --force-recreate plex` within 4 minutes.
 

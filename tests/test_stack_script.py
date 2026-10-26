@@ -89,7 +89,7 @@ def test_a_mac_gets_the_mac_rules(kia: Path):
 def test_apply_empties_the_address_of_a_part_it_drops(kia: Path):
     # Plex leaves, Jellyfin stays: Plex's address in the stack goes, and comes back with Plex.
     def apply(*args):
-        for old in (kia / "state").glob("env.before-stack-*"):  # each apply's copy of .env is named by the second
+        for old in (kia / "stack-service").glob("env.before-stack-*"):  # each apply's copy of .env is named by the second
             old.unlink()
         return stack(kia, "apply", *args, "--yes")
 
@@ -131,7 +131,8 @@ def test_apply_sets_the_profiles_and_stops_what_is_no_longer_chosen(kia: Path):
     assert any("rm --stop --force jellyfin" in c and c.startswith("COMPOSE_PROFILES=* ") for c in calls)  # not chosen any more
     assert any("rm --stop --force threadfin-2" in c for c in calls)  # stopped or stuck restarting, it goes too
     assert not any("rm --stop --force kia" in c for c in calls)
-    assert list((kia / "state").glob("env.before-stack-*"))  # the old .env, kept
+    assert list((kia / "stack-service").glob("env.before-stack-*"))  # the old .env, kept, where kia can't write
+    assert not list((kia / "state").glob("env.before-stack-*"))
     assert "Next for Plex" in r.stdout
 
 
@@ -362,23 +363,29 @@ def test_a_refused_apply_leaves_env_alone(kia: Path):
     for args in (["apply", "--stack", "plex,plex-tuner"], ["apply", "--preset", "plex-box", "--stack", "plex"]):
         assert stack(kia, *args).returncode != 0
         assert (kia / ".env").read_text() == before, args
-    assert not list((kia / "state").glob("env.before-stack-*")) if (kia / "state").exists() else True
+    assert not list(kia.glob("*/env.before-stack-*"))
 
 
 def test_the_env_copy_is_never_written_through_a_link(kia: Path):
     import time
 
+    # The copy goes in stack-service/, which kia's container can't write; even so, nothing
+    # already at the name is written through: a file, or a link to one or to a device
+    # (set -C alone writes through a link to /dev/null or a FIFO).
     target = victim(kia)
     with_stack(kia, "plex")
-    (kia / "state").mkdir()
+    (kia / "stack-service").mkdir()
     now = time.time()
-    for second in range(-1, 6):  # the copy's name has the time in it: cover the next few seconds
-        name = time.strftime("env.before-stack-%Y%m%d-%H%M%S", time.localtime(now + second))
-        (kia / "state" / name).symlink_to(target)
-    r = stack(kia, "apply", "--stack", "jellyfin", "--yes")
-    assert target.read_text() == "keep me\n"
-    assert r.returncode == 1 and "couldn't save a copy of .env" in r.stderr
-    assert "KIA_STACK=plex\n" in (kia / ".env").read_text()  # and nothing changed
+    for link_to in (target, Path("/dev/null")):
+        for old in (kia / "stack-service").glob("env.before-stack-*"):
+            old.unlink()
+        for second in range(-1, 6):  # the copy's name has the time in it: cover the next few seconds
+            name = time.strftime("env.before-stack-%Y%m%d-%H%M%S", time.localtime(now + second))
+            (kia / "stack-service" / name).symlink_to(link_to)
+        r = stack(kia, "apply", "--stack", "jellyfin", "--yes")
+        assert target.read_text() == "keep me\n"
+        assert r.returncode == 1 and "couldn't save a copy of .env" in r.stderr, link_to
+        assert "KIA_STACK=plex\n" in (kia / ".env").read_text()  # and nothing changed
 
 
 def test_the_stack_service_file(tmp_path: Path):
@@ -386,6 +393,14 @@ def test_the_stack_service_file(tmp_path: Path):
                          capture_output=True, text=True, check=True).stdout  # fmt: skip
     assert "stack.sh" in out and "watch" in out and str(ROOT) in out
     assert "@DIR@" not in out and "@PATH@" not in out and "kia daemon" not in out
+
+
+def test_the_stack_services_files_are_out_of_kias_reach():
+    # On a Mac, launchd writes the service's log; a link kia planted in a folder it can write
+    # (work/, state/) would send it into one of your files. Its own folder kia can only read.
+    plist = (ROOT / "deploy" / "kia-stack.plist").read_text()
+    paths = [p for p in plist.split("<string>") if p.startswith("@DIR@/")]
+    assert paths and all(p.startswith("@DIR@/stack-service/") or p.startswith("@DIR@/scripts/") for p in paths), paths
 
 
 def test_check_says_what_a_choice_would_stop(kia: Path):

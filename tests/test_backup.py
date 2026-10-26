@@ -1,5 +1,6 @@
 import io
 import json
+import shutil
 import tarfile
 from pathlib import Path
 
@@ -102,3 +103,19 @@ def test_restore_leaves_linked_certificates_alone(tmp_path: Path, monkeypatch):
     assert "tls/cert.pem" not in restored and "state/channels.json" in restored
     assert (home / "tls" / "cert.pem").is_symlink() and renewed.read_text() == "renewed certificate"
     assert any("tls/cert.pem" in s and "link" in s for s in said)
+
+
+def test_restore_wont_write_through_a_linked_folder(tmp_path: Path, monkeypatch):
+    # kia's container can write state/: a link it planted there would send a restored file
+    # anywhere the link leads.
+    monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
+    home = kia_folder(tmp_path / "home")
+    assert cli.main(["backup", "-c", str(home / "kia.toml"), "-o", str(tmp_path / "b.tar.gz")]) == 0
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    shutil.rmtree(home / "state")
+    (home / "state").symlink_to(elsewhere)
+    said = []
+    restored, _ = backup.restore(tmp_path / "b.tar.gz", home, tmp_path / "safety", said.append)
+    assert not any(n.startswith("state/") for n in restored) and not any(elsewhere.iterdir())
+    assert any("state is a link" in s for s in said)
