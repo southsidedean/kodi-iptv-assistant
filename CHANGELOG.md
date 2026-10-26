@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.7.1 (unreleased)
+## 0.7.1 (2026-10-26)
+
+### Upgrading from 0.7.0
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). With Docker, it adds `KIA_NAME` to `.env` with this computer's name, once; rename it there or on the Dashboard's System page. If you've chosen your own alert events, with `KIA_ALERT_EVENTS` in `.env` or `events` in `kia.toml`, add `part_down`, `guessing`, and `playlist_lan` to your list to get the new alerts.
+
+### The outbound guard
+
+kia already left out the streams and guides of a playlist from the internet when their addresses were on your network. Now the http and https ones also go through kia's outbound guard, a small proxy inside kia, which checks every connection they actually make. A name that looks up differently the second time, a stream that redirects onto your network, and an HLS playlist that lists its pieces at addresses on your network are all stopped, and the report says why. Your own playlists don't use it. It works with Docker or without, and needs no setup. rtmp and rtsp streams can't go through it, and keep the first check alone; if you've set a proxy of your own (`http_proxy` and the like), kia uses yours instead ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
+
+### Names for telling several kia installs apart
+
+Each kia now has a name: the computer's, unless you change it on the Dashboard's new **This kia's name** card (on the System page) or with `KIA_NAME` in `.env`. Alert titles carry it, such as `kia (den): nightly run failed`, and on ntfy a tap opens that kia's Dashboard. The Dashboard's header shows it. `kia mcp-token` names the MCP server after it (`kia-den`), so one assistant can use several kia installs side by side; [more than one kia](docs/mcp.md#more-than-one-kia) has the steps. `/metrics` has it as a label on `kia_info`. `scripts/update.sh` writes this computer's name into `.env` the first time, since kia in Docker can't see it, and leaves the line alone after that.
 
 ### New alerts
 
@@ -8,17 +20,9 @@ Three more alerts, on by default ([alerts](docs/alerts.md#what-triggers-an-alert
 
 - `part_down`: a part of the stack you chose, such as Plex, Threadfin, or the gateway, hasn't answered for 10 minutes. Once, and again when it's back.
 - `guessing`: the Dashboard's password or kia's MCP token was wrong 10 times in a row from one address. The alert names the address.
-- `playlist_lan`: a playlist from the internet pointed kia at your network, by a stream's address or where it led, which the outbound guard (below) now catches. Once a playlist, until a night it doesn't.
+- `playlist_lan`: a playlist from the internet pointed kia at your network, by a stream's address or where it led, which the outbound guard (above) now catches. Once a playlist, until a night it doesn't.
 
 If you've chosen your own events, with `KIA_ALERT_EVENTS` in `.env` or `events` in `kia.toml`, add these to your list to get them.
-
-### Names for telling several kia installs apart
-
-Each kia now has a name: the computer's, unless you change it on the Dashboard's new **This kia's name** card (on the System page) or with `KIA_NAME` in `.env`. Alert titles carry it, such as `kia (den): nightly run failed`, and on ntfy a tap opens that kia's Dashboard. The Dashboard's header shows it. `kia mcp-token` names the MCP server after it (`kia-den`), so one assistant can use several kia installs side by side; [more than one kia](docs/mcp.md#more-than-one-kia) has the steps. `/metrics` has it as a label on `kia_info`. `scripts/update.sh` writes this computer's name into `.env` the first time, since kia in Docker can't see it, and leaves the line alone after that.
-
-### The outbound guard
-
-kia already left out the streams and guides of a playlist from the internet when their addresses were on your network. Now the http and https ones also go through kia's outbound guard, a small proxy inside kia, which checks every connection they actually make. A name that looks up differently the second time, a stream that redirects onto your network, and an HLS playlist that lists its pieces at addresses on your network are all stopped, and the report says why. Your own playlists don't use it. It works with Docker or without, and needs no setup. rtmp and rtsp streams can't go through it, and keep the first check alone; if you've set a proxy of your own (`http_proxy` and the like), kia uses yours instead ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
 
 ## 0.7.0 (2026-10-26)
 
