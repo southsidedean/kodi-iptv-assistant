@@ -18,7 +18,10 @@ class UpstreamError(Exception):
     pass
 
 
-def download_guide(base_url: str, dest: Path, timeout: float = 30) -> None:
+MAX_GUIDE = 500 * 1024 * 1024  # bytes, compressed: far beyond any real guide, and a full disk stops kia
+
+
+def download_guide(base_url: str, dest: Path, timeout: float = 30, limit: int = MAX_GUIDE) -> None:
     """Fetch <base_url>/guide.xml.gz into dest, replacing it only if the download is a valid guide."""
     url = f"{base_url.rstrip('/')}/guide.xml.gz"
     req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
@@ -26,7 +29,12 @@ def download_guide(base_url: str, dest: Path, timeout: float = 30) -> None:
     tmp = dest.with_name(dest.name + ".tmp")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as f:
+            # Another kia server is a stranger too: one that sends without end would fill the disk.
+            size = 0
             while chunk := resp.read(1 << 16):
+                size += len(chunk)
+                if size > limit:
+                    raise OSError(f"the guide is over {limit // 1024**2} MB, so kia stopped downloading it")
                 f.write(chunk)
         # Read the whole guide as XML: a connection that drops part way leaves a truncated
         # gzip, which only shows at the end, and a broken guide would replace the good copy,

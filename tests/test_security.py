@@ -191,6 +191,38 @@ def test_test_only_tries_stream_addresses(monkeypatch):
         assert err.value.status == 400
 
 
+def test_test_keeps_strangers_playlists_off_your_network(tmp_path: Path, monkeypatch):
+    # As the nightly check: a channel from a playlist off the internet isn't tested on your network.
+    tried = []
+
+    async def fake_probe(url, **kw):
+        tried.append(url)
+        return type("R", (), {"ok": True, "error": None, "elapsed": 1.0, "height": 720})()
+
+    monkeypatch.setattr("kia.probe.probe", fake_probe)
+    cfg = type("C", (), {"user_agent": None, "require_video": False, "ffprobe": "ffprobe"})()
+    monkeypatch.setattr(api, "_entry", lambda cfg, body: Entry("Router", "http://192.168.1.20/admin"))
+    monkeypatch.setattr(api, "_from_yours", lambda cfg, entry: False)
+    with pytest.raises(api.ApiError, match="on your own network"):
+        api.test_channel(cfg, {"key": "x"})
+    monkeypatch.setattr(api, "_from_yours", lambda cfg, entry: True)  # your own tuner's playlist
+    assert api.test_channel(cfg, {"key": "x"})["ok"] and tried == ["http://192.168.1.20/admin"]
+
+
+def test_guide_downloads_dont_redirect_onto_your_network():
+    from kia import native
+
+    handler = native._StayOffYourNetwork()
+    req = urllib.request.Request("https://8.8.8.8/guide.xml")
+    for target in ("http://192.168.1.20/guide.xml", "file:///etc/passwd", "ftp://8.8.4.4/g.xml"):
+        with pytest.raises(urllib.error.URLError):
+            handler.redirect_request(req, io.BytesIO(), 302, "Found", {}, target)
+    assert handler.redirect_request(req, io.BytesIO(), 302, "Found", {}, "https://8.8.4.4/g.xml") is not None
+    # A guide that's on your network already (your own playlist's) may move within it.
+    local = urllib.request.Request("http://192.168.1.20/guide.xml")
+    assert handler.redirect_request(local, io.BytesIO(), 302, "Found", {}, "http://192.168.1.20/g2.xml") is not None
+
+
 def test_a_leftover_temp_file_cant_make_the_password_file_public(tmp_path: Path):
     target = tmp_path / "admin.json"
     leftover = tmp_path / "admin.json.tmp"

@@ -2,6 +2,19 @@
 
 ## 0.6.7 (unreleased)
 
+### Upgrading from 0.6.6
+
+A playlist downloaded from a name like `tuner.example.com` that points at your own network no longer counts as yours, because kia now goes by how its address is written, not by looking the name up. If its streams stop being tested ("on your own network, and the playlist comes from the internet"), add the word `lan` to its line in the sources file, or use its local IP address or a name like `my-server.lan`.
+
+### Fixes
+
+- One stream address Python can't read, such as `http://[x/a.m3u8`, in any playlist stopped the whole nightly check. Now that stream is marked dead and the rest carry on. A playlist server that cuts its answer short is retried, and kia falls back to last night's copy, as it does for a dropped connection.
+- Playlists from the internet can't reach your network in four more ways. An address with no host (`http://:9090/x`), which made ffmpeg connect to this computer itself, is never tested. A playlist named `lan` or `radio` on the Dashboard no longer switches that on: kia refuses those names. An IPv6 address carrying a local IPv4 address (NAT64, 6to4) counts as local. And whether a playlist is yours no longer depends on a DNS answer its owner controls.
+- Guide downloads refuse a redirect from the internet onto your network, or to anything other than http or https.
+- **Test** on a channel refuses an address on your network when the channel's playlist comes from the internet, as the nightly check does. **Check now** keeps a playlist's `lan` word, so it tests the playlist as the nightly check does.
+- SomaFM's channel list can only point kia at https playlists off your network, and one odd channel no longer loses all of SomaFM's channels.
+- Another kia server's guide (an upstream) is downloaded up to 500 MB, so one that never stops sending can't fill the disk.
+
 ## 0.6.6 (2026-10-25)
 
 ### Upgrading from 0.6.5

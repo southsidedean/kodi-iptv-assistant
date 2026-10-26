@@ -34,12 +34,13 @@ class Source:
     @property
     def is_yours(self) -> bool:
         """A playlist of your own, whose streams may be on your network (kia.lan): a file
-        on this computer, one downloaded from an address on your network, or one marked lan."""
+        on this computer, one downloaded from an address on your network, or one marked lan.
+        The address counts by what it says (lan.names_your_network), never by a DNS lookup."""
         from kia import lan
 
         if self.is_stations:
             return False
-        return self.allow_lan or self.is_local_file or lan.is_local(urlparse(self.url).hostname)
+        return self.allow_lan or self.is_local_file or lan.names_your_network(lan.host_of(self.url))
 
     @property
     def is_radio_browser(self) -> bool:

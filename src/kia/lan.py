@@ -12,13 +12,30 @@ playlist's line in the sources file lets one from elsewhere do the same.
 It's a guard for the ordinary case, and someone determined can get past it: kia looks
 each name up before the test and ffprobe looks it up again, so a DNS server that answers
 differently the second time gets through, and so does a stream that redirects. SECURITY.md
-says so too.
+says so too. Whether a playlist is yours, though, is decided from its address as written,
+never by a lookup (names_your_network).
 """
 
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
+from urllib.parse import urlparse
+
+# IPv6 addresses that carry an IPv4 one inside: NAT64 (64:ff9b::192.168.1.20 reaches that
+# address on a network with NAT64) and 6to4. Python calls both global, whatever they carry.
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
+def host_of(url: str) -> str:
+    """The host in an address, or "" when it has none or Python can't read it. Its parser
+    raises on some ("http://[x/a", "http://[192.168.1.20]/a"), and one such line in a
+    stranger's playlist mustn't stop a whole run."""
+    try:
+        return urlparse(url).hostname or ""
+    except ValueError:
+        return ""
 
 
 def _addresses(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
@@ -39,9 +56,36 @@ def _addresses(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]
     return found
 
 
+def _not_global(a: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if not a.is_global:
+        return True
+    if a.version == 6:
+        inside = ipaddress.IPv4Address(int(a) & 0xFFFFFFFF) if a in _NAT64 else a.sixtofour
+        return inside is not None and not inside.is_global
+    return False
+
+
 def is_local(host: str | None) -> bool:
     """Whether host is, or looks up to, an address that isn't out on the internet: this
-    computer, your network, Docker's networks, link-local, or reserved addresses. One such
-    address is enough, since a connection could use any of them."""
+    computer, your network, Docker's networks, link-local, or reserved addresses, or an
+    IPv6 address carrying one of those (NAT64, 6to4). One such address is enough, since a
+    connection could use any of them."""
     host = (host or "").strip("[]")
-    return bool(host) and any(not a.is_global for a in _addresses(host))
+    return bool(host) and any(_not_global(a) for a in _addresses(host))
+
+
+# Names that only make sense on your own network: one word (nas, threadfin, a container),
+# localhost, and the endings home routers and Docker use.
+_HOME_NAME_RE = re.compile(r"(?i)[a-z0-9-]+|localhost|.+\.(lan|local|home|home\.arpa|internal|localdomain)")
+
+
+def names_your_network(host: str | None) -> bool:
+    """Whether a playlist's own address says it's on your network, judged from the address
+    as written: an IP address that isn't on the internet, or a name only your network has.
+    Not by looking the name up: whoever runs a name's DNS could answer with a local address
+    once, and every stream in their playlist would then be allowed onto your network."""
+    host = (host or "").strip("[]")
+    try:
+        return _not_global(ipaddress.ip_address(host))
+    except ValueError:
+        return bool(_HOME_NAME_RE.fullmatch(host))

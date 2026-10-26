@@ -13,6 +13,8 @@ import http.client
 import json
 import re
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import zlib
@@ -92,9 +94,28 @@ def filter_xmltv(
     return written
 
 
+class _StayOffYourNetwork(urllib.request.HTTPRedirectHandler):
+    """Redirects only to http or https, and never from an address on the internet to one on
+    your network (kia.lan): a guide a stranger's playlist names was checked before the
+    download, and a redirect mustn't take it past that check."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        from kia import lan
+
+        new = urllib.parse.urlparse(newurl)
+        if new.scheme not in ("http", "https"):
+            raise urllib.error.URLError(f"redirected to a {new.scheme or 'relative'} address, which kia doesn't follow")
+        if lan.is_local(lan.host_of(newurl)) and not lan.is_local(lan.host_of(req.full_url)):
+            raise urllib.error.URLError("redirected to an address on your own network, which kia doesn't follow")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = urllib.request.build_opener(_StayOffYourNetwork)
+
+
 def fetch(url: str, timeout: float = 120):
     req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
-    return urllib.request.urlopen(req, timeout=timeout)
+    return _OPENER.open(req, timeout=timeout)
 
 
 def grab_imjh(

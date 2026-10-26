@@ -84,6 +84,23 @@ def test_names_and_addresses_are_checked():
     assert sources.check_new(" https://example.org/a.m3u ", "", set()) == ("https://example.org/a.m3u", "a")
 
 
+def test_lan_and_radio_arent_names(monkeypatch):
+    # On a sources line they're flags: named lan, a playlist from the internet could test your network.
+    for word in ("lan", "radio"):
+        with pytest.raises(ValueError, match="meaning of its own"):
+            sources.check_new("https://example.org/a.m3u", word, set())
+    # One saved before this check is read with a name of its own, not as the flag.
+
+    state = {"on": [], "off": [], "added": [{"url": "https://example.org/a.m3u", "name": "lan", "radio": False}]}
+    (added,) = sources.apply([], [], state)
+    assert not added.allow_lan and not added.is_yours and added.name == "a"
+
+
+def test_check_now_keeps_the_lan_word():
+    rows = sources.listing("https://example.org/z.m3u mine lan\n", "", {"on": [], "off": [], "added": []}, {})
+    assert rows[0]["lan"] is True
+
+
 @pytest.fixture
 def cfg(tmp_path: Path, monkeypatch) -> api.ApiConfig:
     monkeypatch.setattr(api.time, "sleep", lambda s: None)
@@ -146,6 +163,12 @@ def test_check_now_runs_one_playlist(cfg, monkeypatch):
     check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]
     assert not check["running"] and check["result"] == {"total": 2, "ok": 1, "flaky": 0, "dead": 1, "sample": ["Rock"]}
     assert call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/jazz.m3u"}, secure=False)[0] == 403
+    # A line with the word lan is checked with it, as the nightly check reads it.
+    (cfg.sources_file).write_text(cfg.sources_file.read_text() + "https://example.com/home.m3u home lan\n")
+    ran.clear()
+    cfg.test_report.unlink()
+    assert call(cfg, "POST", "/api/sources/check", {"url": "https://example.com/home.m3u"})[0] == 200
+    assert ran[0][-1] == "https://example.com/home.m3u home lan"
 
 
 def test_a_check_can_be_stopped(cfg, monkeypatch):

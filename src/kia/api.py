@@ -32,7 +32,7 @@ import signal
 import subprocess
 import sys
 
-from kia import channels, locks, profiles, stack
+from kia import channels, lan, locks, profiles, stack
 from kia.config import is_station_line
 from kia import sources as web_sources
 from kia.auth import Auth
@@ -273,6 +273,19 @@ def _entry(cfg: ApiConfig, body: dict):
     return entry
 
 
+def _from_yours(cfg: ApiConfig, entry) -> bool:
+    """Whether any playlist the channel came from is yours (config.Source.is_yours). Without
+    kia's settings to tell, it isn't."""
+    from kia.config import load
+
+    names = next((srcs for e, srcs in _items(cfg) if e.key == entry.key), set())
+    try:
+        sources = load(cfg.config_file).sources if cfg.config_file else []
+    except (OSError, ValueError):
+        return False
+    return any(s.is_yours for s in sources if s.name in names)
+
+
 def stream_url(url: str) -> str:
     """The stream to test: Pluto channels' own address rather than kia's relay for them."""
     from kia import pluto
@@ -291,6 +304,11 @@ def test_channel(cfg: ApiConfig, body: dict) -> dict:
     entry = _entry(cfg, body)
     if not is_stream_url(stream_url(entry.url)):  # as the nightly check: only stream addresses
         raise ApiError(400, "That channel's address isn't a stream kia can test.")
+    if lan.is_local(lan.host_of(stream_url(entry.url))) and not _from_yours(cfg, entry):
+        # As the nightly check (kia.lan): a playlist from the internet can't send tests onto
+        # your network. A channel kept from last night can have moved to such an address.
+        raise ApiError(400, "That channel's address is on your own network, and its playlist comes from the internet, "
+                            "so kia doesn't test it.")  # fmt: skip
     r = asyncio.run(probe(stream_url(entry.url), timeout=20, user_agent=entry.user_agent or cfg.user_agent,
                           referrer=entry.referrer, require_video=cfg.require_video and not entry.is_radio,
                           ffprobe=cfg.ffprobe))  # fmt: skip
@@ -506,6 +524,8 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
     line = f"{url} name={row['name']}" if is_station_line(url) else f"{url} {row['name']}"
     if row["radio"] and not is_station_line(url):
         line += " radio"
+    if row.get("lan") and not is_station_line(url):
+        line += " lan"  # as the nightly check reads the line (kia.lan)
     threading.Thread(target=_run_check, args=(cfg, line), daemon=True, name="kia-check-now").start()
     return {"check": check_state(unlocked=True)}
 

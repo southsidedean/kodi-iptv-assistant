@@ -33,6 +33,27 @@ def fake_get(url, timeout=30):
     raise OSError("404")  # the "gone" channel's playlist
 
 
+def test_somafm_playlist_addresses_are_checked(monkeypatch):
+    # The playlist address comes from SomaFM's list: https only, not on your network, and one odd
+    # entry doesn't lose the others.
+    from kia import lan
+
+    monkeypatch.setattr(lan, "is_local", lambda host: host == "192.168.1.20")
+    odd = {"channels": [
+        {"id": "a", "title": "A", "playlists": [{"url": "file:///etc/hosts", "format": "mp3", "quality": "highest"}]},
+        {"id": "b", "title": "B", "playlists": [{"url": "https://192.168.1.20/b.pls", "format": "mp3", "quality": "highest"}]},
+        {"id": "c", "title": "C", "playlists": [{"url": "c.pls", "format": "mp3", "quality": "highest"}]},
+        {"id": "d", "title": "D", "playlists": [{"url": "https://api.somafm.com/d.pls", "format": "mp3", "quality": "highest"}]}]}  # fmt: skip
+    asked = []
+
+    def get(url, timeout=30):
+        asked.append(url)
+        return json.dumps(odd).encode() if url == radio.SOMAFM_CHANNELS else b"[playlist]\nFile1=https://ice.somafm.com/d\n"
+
+    assert [e.name for e in radio.somafm({}, "s", get=get)] == ["SomaFM D"]
+    assert asked == [radio.SOMAFM_CHANNELS, "https://api.somafm.com/d.pls"]
+
+
 def test_somafm_channels_from_its_own_list():
     entries = radio.somafm({}, "somafm", get=fake_get)
     assert [(e.name, e.url) for e in entries] == [
