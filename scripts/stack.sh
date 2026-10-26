@@ -220,7 +220,12 @@ if [ "$cmd" = watch ]; then
     echo "stack: watching for requests from the Dashboard's Stack page (Ctrl-C stops)"
     round=0
     while :; do
-        if [ $((round % 10)) -eq 0 ]; then containers; fi  # every 30 seconds
+        if [ $((round % 10)) -eq 0 ]; then  # every 30 seconds
+            containers
+            # The gateway part: a restart when kia renewed its certificate, which the
+            # gateway misses with Docker Desktop (scripts/gateway.sh refresh).
+            if [ -s gateway/loaded ]; then sh scripts/gateway.sh refresh </dev/null || true; fi
+        fi
         take_request
         [ "$once" = no ] || exit 0
         round=$((round + 1))

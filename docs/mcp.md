@@ -229,7 +229,7 @@ scripts/gateway.sh add laptop
 
 It prints the device's key, once, and the setup for Claude Code with the gateway's address and that key filled in. For another assistant, add `--for` and its name, as with `kia mcp-token`: `scripts/gateway.sh add office-pc --for gemini`. Name each device so you'll know it in the log, with lowercase letters, digits, and dashes. The device also needs [kia's certificate](#2-trust-kias-certificate), as before.
 
-`scripts/gateway.sh list` shows the devices that have a key. `scripts/gateway.sh remove laptop` turns that device's key off within seconds, with no restart. A key can't be shown again: if one is lost, remove the device and add it again for a new key.
+`scripts/gateway.sh list` shows the devices that have a key. `scripts/gateway.sh remove laptop` turns that device's key off at once. Adding or removing a device restarts the gateway, which takes about a second. A key can't be shown again: if one is lost, remove the device and add it again for a new key.
 
 ### 3. Turn kia's own token off (optional)
 
@@ -245,7 +245,7 @@ The gateway keeps working: it has a token of its own for kia, in `gateway/kia-to
 
 `docker compose logs gateway` shows a line for each call, with the time, the device, the tool, the answer's status, and how long it took. It never shows a key or a token.
 
-Each device can make 120 requests a minute (`KIA_GATEWAY_RATE`), and an assistant's start-up takes a few of them. Over the limit, that device's assistant gets "rate limit exceeded" for a moment while the others carry on. kia's own limit of 60 tool calls a minute still covers all the devices together, since they all reach kia through the gateway.
+Each device can make 120 requests a minute (`KIA_GATEWAY_RATE`), and an assistant's start-up takes a few of them. Over the limit, that device's assistant gets "rate limit exceeded" for a moment while the others carry on. kia's own limit of 60 tool calls a minute applies to each device too, and kia's log names the device each call came from.
 
 The gateway keeps each key only as its SHA-256, in `gateway/`, so its settings can't give a key away. Backups keep the list of devices and leave the gateway's token out; after restoring one, `scripts/stack.sh apply` makes a new token.
 
@@ -295,7 +295,7 @@ That's what the Dashboard shows to anyone on your network, plus a few things fro
 | Gemini CLI shows kia as "Disabled" | Gemini CLI turns MCP servers on only in folders you trust |
 | 401 "api key authentication failure" (through the gateway) | The device's key is missing, wrong, or removed. `scripts/gateway.sh list` shows the devices; remove the device and add it again for a new key |
 | "rate limit exceeded" (through the gateway) | That device made more than `KIA_GATEWAY_RATE` requests in a minute. Wait a moment, or raise the limit and run `scripts/gateway.sh write` |
-| 500 "upstream" errors (through the gateway) | The gateway can't reach kia: kia isn't running, or `gateway/kia-token` is missing (run `scripts/gateway.sh write`). `docker compose logs gateway` says which |
+| 500 "upstream" errors (through the gateway) | The gateway can't reach kia: kia isn't running, or `gateway/kia-token` is missing (run `scripts/gateway.sh write`). `docker compose logs gateway` says which. After a new certificate goes into `tls/`, calls fail for up to a minute, until kia's web server uses it too. With Docker Desktop, also run `scripts/gateway.sh refresh` (the kia-stack service does it within 30 seconds) |
 | A channel's guide answer says "not recorded yet" | kia hasn't built the guide since it was updated. It does within a few hours |
 
 ## For developers
@@ -304,7 +304,7 @@ That's what the Dashboard shows to anyone on your network, plus a few things fro
 - **Versions:** `2025-11-25` and `2025-06-18`. A request with another `MCP-Protocol-Version` gets `400`; `initialize` answers with the client's version if kia has it, else `2025-11-25`.
 - **Authentication:** `Authorization: Bearer <token>`, the token from `kia mcp-token` (in `state/mcp-token.txt`). Wrong tokens are slowed down per address, apart from wrong Dashboard passwords; each address can make 60 tool calls a minute. Requests whose `Origin` is another site are refused.
 - **Tools:** the fifteen above, each with `readOnlyHint` set; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
-- **Through the gateway:** `POST https://<address>:8745/mcp` with `Authorization: Bearer <device key>`. agentgateway checks the key against its SHA-256 in `gateway/config.yaml`, limits each device, logs the call, and passes it to kia's `/api/mcp` on a network of its own, with its own token (`gateway/kia-token`). It keeps no sessions, as kia doesn't. Over its limit, it answers with JSON-RPC error `-32003`.
+- **Through the gateway:** `POST https://<address>:8745/mcp` with `Authorization: Bearer <device key>`. agentgateway checks the key against its SHA-256 in `gateway/config.yaml`, limits each device, logs the call, and passes it to kia's `/api/mcp` on a network of its own, with its own token (`gateway/kia-token`) and the device's name in `X-Kia-Device`, which kia uses for its limit and log only with that token. It keeps no sessions, as kia doesn't. Over its limit, it answers with JSON-RPC error `-32003`.
 - **Locally:** `kia mcp` speaks the same over standard input and output (MCP's stdio transport), one JSON message per line, with kia's own lines on standard error.
 - **By hand:**
 

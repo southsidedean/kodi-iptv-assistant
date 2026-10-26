@@ -78,6 +78,20 @@ def gateway_token(project_dir: Path | None) -> str | None:
     return value if 32 <= len(value) <= 100 else None
 
 
+# A device's name as scripts/gateway.sh allows it: lowercase letters, digits, and dashes.
+DEVICE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
+
+
+def via_gateway(device: str | None, address: str) -> str:
+    """Who a call through the gateway is from, for the limit and kia's log: the device the
+    gateway names in X-Kia-Device, so each device has CALLS_PER_MINUTE of its own. kia sees
+    every device at the gateway's address. Without a proper name, that address, which then
+    shares the limit (an older gateway's settings, say)."""
+    if device and DEVICE.fullmatch(device):
+        return f"{device} (through the gateway)"
+    return address
+
+
 def tokens(state_dir: Path, project_dir: Path | None, gateway: bool) -> list[str]:
     """Every token kia accepts: its own (kia mcp-token), and the gateway's while the gateway
     part is chosen. Taking the part out stops its token working, though the file stays. An

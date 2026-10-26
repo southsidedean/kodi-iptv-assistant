@@ -152,16 +152,19 @@ The `gateway` part runs [agentgateway](https://agentgateway.dev) in front of kia
 | `gateway/devices` | the kia folder | One line for each device: its name, and the SHA-256 of its key. The key itself is shown once and kept nowhere |
 | `gateway/config.yaml` | the kia folder | The gateway's settings, written from `gateway/devices` and `.env` (`KIA_GATEWAY_RATE`) |
 | `gateway/kia-token` | the kia folder | The gateway's own token for kia, made the first time the settings are written |
+| `gateway/loaded` | the kia folder | A SHA-256 of the settings and of which certificate is in `tls/` when the gateway last started, so `scripts/gateway.sh` knows when to restart it |
 | The `gateway` container | its own Docker network | Checks each device's key, limits it, logs the call, and passes it on to kia |
 
-Everything in `gateway/` is readable only by you; kia and the gateway run as you, so they can read it too. The gateway reads its settings again within seconds of a change, so adding or removing a device needs no restart. It also notices a new certificate in `tls/` by itself.
+Everything in `gateway/` is readable only by you; kia and the gateway run as you, so they can read it too.
+
+On Linux, the gateway notices a new settings file or certificate by itself. With Docker Desktop (macOS, Windows) it notices the first one and misses the rest, so `scripts/gateway.sh` restarts it whenever either has changed since it last started. That takes about a second, and since kia keeps no sessions, a device just sends its next request. Adding or removing a device restarts it at once. For kia's certificate renewals, the kia-stack service runs `scripts/gateway.sh refresh` every 30 seconds; without the service, run it yourself after a new certificate goes into `tls/`. It finds the certificate by its inode and size, from `ls`, without opening it, because kia's container can write `tls/`.
 
 A call goes like this:
 
 1. The device's assistant sends it to `https://<kia's address>:8745/mcp` with its key. The gateway answers with kia's certificate, from `tls/`.
 2. The gateway checks the key against the hashes in its settings, and counts the call against that device's limit. A wrong key gets 401; a device over its limit gets JSON-RPC error `-32003`.
-3. It passes the call to `https://web:443/api/mcp`: kia's web server, on the gateway's own Docker network, which only the gateway, kia, and the web server are on. It trusts only the certificate in `tls/` there, and sends its own token in place of the device's key.
-4. kia checks that token as it checks its own (`kia.mcp.tokens`), but only while the gateway part is chosen (kia reads that from its Compose profiles), and answers as it would any assistant. kia sees every device as the gateway's one address, so its own limit, 60 tool calls a minute, is shared by all of them.
+3. It passes the call to `https://web:443/api/mcp`: kia's web server, on the gateway's own Docker network, which only the gateway, kia, and the web server are on. It trusts only the certificate in `tls/` there, sends its own token in place of the device's key, and names the device in an `X-Kia-Device` header. That header replaces any the device sent, so a device can't borrow another's name.
+4. kia checks that token as it checks its own (`kia.mcp.tokens`), but only while the gateway part is chosen (kia reads that from its Compose profiles), and answers as it would any assistant. Every device reaches kia from the gateway's one address, so with the gateway's token, kia counts its limit of 60 tool calls a minute for each device named in `X-Kia-Device` (`kia.mcp.via_gateway`), and names the device in its log. It trusts that header only with the gateway's token: with kia's own token, anyone could send it.
 5. The gateway writes one line to its log: the time, the device, the tool, the answer's status, and how long it took.
 
 `scripts/stack.sh apply` and `scripts/update.sh` write the settings again before the gateway starts, so a new version's settings take effect. Without the gateway part, nothing in `gateway/` is used, and kia accepts only its own token.

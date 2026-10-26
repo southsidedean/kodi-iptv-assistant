@@ -537,3 +537,18 @@ def test_the_gateway_part_writes_its_settings_before_it_starts(kia: Path):
     (kia / ".env").write_text((kia / ".env").read_text() + "KIA_GATEWAY_RATE=fast\n")
     r = stack(kia, "check")
     assert r.returncode == 1 and "KIA_GATEWAY_RATE" in r.stdout
+
+
+def test_watch_restarts_the_gateway_when_kias_certificate_changes(kia: Path):
+    # With Docker Desktop the gateway misses a renewed certificate, so the kia-stack service
+    # checks every 30 seconds (scripts/gateway.sh refresh), but only with the gateway part.
+    shutil.copy(ROOT / "scripts" / "gateway.sh", kia / "scripts" / "gateway.sh")
+    stack(kia, "watch", "--once")
+    assert "gateway" not in (kia.parent / "docker.log").read_text()
+    with_stack(kia, "gateway")
+    assert stack(kia, "apply", "--yes").returncode == 0
+    (kia / "tls").mkdir()
+    (kia / "tls" / "fullchain.pem").write_text("RENEWED\n")
+    asked = (kia.parent / "docker.log").read_text().count("ps -q --status running gateway")
+    stack(kia, "watch", "--once")
+    assert (kia.parent / "docker.log").read_text().count("ps -q --status running gateway") == asked + 1

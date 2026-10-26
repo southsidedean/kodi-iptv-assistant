@@ -721,7 +721,9 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     # kia's own token, and the gateway part's while it's chosen (scripts/gateway.sh).
     from kia import stack
 
-    expected = mcp.tokens(cfg.state_dir, cfg.config_file.parent if cfg.config_file else None, "gateway" in (stack.profiles() or []))
+    project = cfg.config_file.parent if cfg.config_file else None
+    gateway = "gateway" in (stack.profiles() or [])
+    expected = mcp.tokens(cfg.state_dir, project, gateway)
     if not expected:
         raise ApiError(404, "kia's MCP server is off. Turn it on with: kia mcp-token")
     if method != "POST":
@@ -742,7 +744,13 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
         raise
     if not cfg.config_file:
         raise ApiError(409, "kia's MCP server needs kia's settings file, which this server wasn't given.")
-    return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), _CLIENT.get())
+    who = _CLIENT.get()
+    # The device's name counts only with the gateway's token: the gateway sets it from the
+    # device's key. With kia's own token, anyone could send any name.
+    gateway_token = mcp.gateway_token(project) if gateway else None
+    if gateway_token and hmac.compare_digest(given.encode(), gateway_token.encode()):
+        who = mcp.via_gateway(headers.get("X-Kia-Device"), who)
+    return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), who)
 
 
 def change_password(cfg: ApiConfig, body: dict) -> dict:

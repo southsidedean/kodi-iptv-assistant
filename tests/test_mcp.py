@@ -203,6 +203,30 @@ def test_tool_calls_are_limited_per_address(kia, monkeypatch):
     assert mcp._allowed("192.0.2.5", now=10**9)  # a minute later, allowed again
 
 
+def test_through_the_gateway_each_device_has_its_own_limit(kia, tmp_path, monkeypatch, capsys):
+    # Every device reaches kia from the gateway's one address; the gateway names the device
+    # in X-Kia-Device (scripts/gateway.sh), and kia believes it only with the gateway's token.
+    monkeypatch.setattr(mcp, "CALLS_PER_MINUTE", 2)
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "gateway")
+    (tmp_path / "gateway").mkdir()
+    (tmp_path / "gateway" / "kia-token").write_text("g" * 43 + "\n")
+    call = {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "kia_stack"}}
+
+    def through(device, token="g" * 43):
+        return rpc(kia, call, token=token, headers={"X-Kia-Device": device}, client="192.0.2.9")[0]
+
+    assert [through("laptop") for _ in range(3)] == [200, 200, 429]
+    assert [through("phone") for _ in range(2)] == [200, 200]  # the laptop's calls don't count against it
+    assert "MCP: kia_stack for laptop (through the gateway)" in capsys.readouterr().out
+    # A name gateway.sh wouldn't write: the gateway's address, which those calls then share.
+    for bad in ("Laptop", "-x", "a b", "x" * 41, "laptop\n", ""):
+        assert mcp.via_gateway(bad, "192.0.2.9") == "192.0.2.9", bad
+    assert [through("../x") for _ in range(3)] == [200, 200, 429]
+    # With kia's own token, the header is anyone's to send: the address counts, as always,
+    # and that one has used its calls.
+    assert through("tablet", token=TOKEN) == 429
+
+
 # The token command, and over real HTTPS
 
 

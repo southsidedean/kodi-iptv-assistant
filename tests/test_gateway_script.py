@@ -2,6 +2,7 @@
 hash in the gateway's settings, and the gateway's own token for kia. docker is a stand-in."""
 
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -24,7 +25,12 @@ def kia(tmp_path: Path) -> Path:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log, stdin = tmp_path / "docker.log", tmp_path / "docker.stdin"
-    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$*" >> {log}\ncat > {stdin}\n'
+    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$*" >> {log}\n'
+                                    'case "$*" in\n'
+                                    '  *" ps "*) [ -n "$FAKE_RUNNING" ] && echo 3715ea6ba64e; exit 0 ;;\n'
+                                    '  *restart*) exit 0 ;;\n'
+                                    'esac\n'
+                                    f'cat > {stdin}\n'
                                     '[ -n "$FAKE_NO_KIA" ] && exit 1\necho "SETUP FROM KIA"\n')  # fmt: skip
     (bin_dir / "docker").chmod(0o755)
     return folder
@@ -49,7 +55,8 @@ def test_a_device_key_is_shown_once_and_kept_only_as_its_hash(kia: Path):
     digest = hashlib.sha256(key.encode()).hexdigest()
     config = (kia / "gateway" / "config.yaml").read_text()
     assert f"keyHash: sha256:{digest}" in config and "device: laptop" in config
-    for name in ("config.yaml", "devices", "kia-token"):
+    assert "x-kia-device: apiKey.device" in config  # for kia's limit on each device (kia.mcp.via_gateway)
+    for name in ("config.yaml", "devices", "kia-token", "loaded"):
         path = kia / "gateway" / name
         assert key not in path.read_text(), name  # nowhere on disk
         assert path.stat().st_mode & 0o777 == 0o600, name  # only you (and kia and the gateway, as you)
@@ -108,3 +115,43 @@ def test_a_link_in_place_of_the_folder_is_refused(kia: Path, tmp_path: Path):
     (kia / "gateway").symlink_to(elsewhere)
     r = gateway(kia, "write")
     assert r.returncode != 0 and not list(elsewhere.iterdir())
+
+
+def restarts(kia: Path) -> int:
+    log = kia.parent / "docker.log"
+    return log.read_text().count("compose restart gateway") if log.exists() else 0
+
+
+def test_a_running_gateway_restarts_when_its_settings_or_certificate_change(kia: Path):
+    # With Docker Desktop, the gateway misses every change after the first, so gateway.sh
+    # restarts it; nothing changed, no restart.
+    (kia / "tls").mkdir()
+    (kia / "tls" / "fullchain.pem").write_text("CERTIFICATE 1\n")
+    r = gateway(kia, "add", "laptop", FAKE_RUNNING="1")
+    assert r.returncode == 0 and "Restarted the gateway" in r.stdout and restarts(kia) == 1
+    assert gateway(kia, "write", FAKE_RUNNING="1").returncode == 0 and restarts(kia) == 1
+    assert gateway(kia, "refresh", FAKE_RUNNING="1").stdout == "" and restarts(kia) == 1
+    gateway(kia, "remove", "laptop", FAKE_RUNNING="1")
+    assert restarts(kia) == 2  # a removed key stops working at once
+    # kia renews its certificate by renaming a new one into place.
+    (kia / "tls" / "new.pem").write_text("CERTIFICATE 2\n")
+    (kia / "tls" / "new.pem").replace(kia / "tls" / "fullchain.pem")
+    assert gateway(kia, "refresh", FAKE_RUNNING="1").returncode == 0 and restarts(kia) == 3
+    assert gateway(kia, "refresh", FAKE_RUNNING="1").returncode == 0 and restarts(kia) == 3
+
+
+def test_a_gateway_that_isnt_running_isnt_started(kia: Path):
+    assert gateway(kia, "add", "laptop").returncode == 0 and restarts(kia) == 0
+    # It reads the new settings when it starts, so there's nothing to restart for later.
+    assert gateway(kia, "refresh", FAKE_RUNNING="1").returncode == 0 and restarts(kia) == 0
+
+
+def test_refresh_never_opens_the_certificate(kia: Path, tmp_path: Path):
+    # kia's container can write tls/, and the kia-stack service runs refresh: a pipe there
+    # would hang anything that read it.
+    gateway(kia, "write")
+    (kia / "tls").mkdir()
+    os.mkfifo(kia / "tls" / "fullchain.pem")
+    r = subprocess.run(["sh", "scripts/gateway.sh", "refresh"], cwd=kia, capture_output=True, text=True, timeout=10,
+                       env={"PATH": f"{tmp_path / 'bin'}:/usr/bin:/bin", "HOME": str(tmp_path), "FAKE_RUNNING": "1"})  # fmt: skip
+    assert r.returncode == 0 and restarts(kia) == 1

@@ -7,10 +7,13 @@
 #   scripts/gateway.sh list                        the devices that have a key
 #   scripts/gateway.sh write                       write the gateway's settings again
 #                                                  (scripts/stack.sh apply does this)
+#   scripts/gateway.sh refresh                     restart the gateway if its settings or
+#                                                  kia's certificate changed (the kia-stack
+#                                                  service does this every 30 seconds)
 #
 # NAME is the device's name in the log, such as laptop or office-pc: lowercase letters,
-# digits, and dashes. The gateway reads its settings again within seconds of a change, so
-# adding or removing a key needs no restart.
+# digits, and dashes. A change takes effect at once: the gateway restarts, which takes
+# about a second.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -18,6 +21,8 @@ dir=gateway
 devices=$dir/devices          # one line per device: its name, and the SHA-256 of its key
 config=$dir/config.yaml       # the gateway's settings, written from devices and .env
 kia_token=$dir/kia-token      # the gateway's own token for kia (kia.mcp reads it too)
+loaded=$dir/loaded            # what the gateway last started with (refresh, below)
+cert=tls/fullchain.pem        # kia's certificate, or yours
 
 die() { echo "gateway: $*" >&2; exit 1; }
 get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
@@ -29,8 +34,8 @@ case "$cmd" in
     add | remove)
         [ $# -gt 0 ] || die "$cmd needs the device's name, such as laptop"
         name=$1; shift ;;
-    list | write) ;;
-    -h | --help | "") sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    list | write | refresh) ;;
+    -h | --help | "") sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown command $cmd (see --help)" ;;
 esac
 while [ $# -gt 0 ]; do
@@ -105,6 +110,13 @@ binds:
       - path:
           exact: /mcp
       policies:
+        # The device's name, for kia: it counts each device's tool calls apart (kia.mcp).
+        # This replaces any X-Kia-Device a device sends, so a device can't use another's
+        # name, and kia trusts the header only with the gateway's token.
+        transformations:
+          request:
+            set:
+              x-kia-device: apiKey.device
         # A key for each device, kept only as its SHA-256: this file can't give one away.
         apiKey:
           mode: strict
@@ -149,12 +161,44 @@ EOF
     mv -f "$config.tmp" "$config"
 }
 
+# What the gateway runs with: its settings, and which certificate is in tls/. The
+# certificate by its inode and size, from ls, which never opens it: kia's container can
+# write tls/, and the kia-stack service runs this, so a link or a pipe put there by a
+# taken-over kia is never read. kia replaces its certificate by renaming a new one into
+# place (a new inode); one copied over the old file changes in place, which the gateway
+# notices by itself.
+# shellcheck disable=SC2012  # one name we chose; macOS's find can't print an inode
+stamp() { { cat "$config" 2>/dev/null; ls -lni "$cert" 2>/dev/null | awk '{ print $1, $6 }'; } | sha256; }
+
+# On Linux, the gateway notices a new settings file or certificate by itself. With Docker
+# Desktop (macOS, Windows) it notices the first one and misses every one after it, so when
+# either changed since the gateway started, it's restarted. That takes about a second, and
+# kia keeps no sessions, so a device just sends its next request. A gateway that isn't
+# running reads both when it starts.
+refresh() {
+    now=$(stamp)
+    if [ "$now" = "$(cat "$loaded" 2>/dev/null)" ]; then return 0; fi
+    if [ -n "$(docker compose ps -q --status running gateway 2>/dev/null)" ]; then
+        if ! docker compose restart gateway >/dev/null 2>&1; then
+            echo "gateway: couldn't restart the gateway: docker compose restart gateway" >&2
+            return 0  # not marked as loaded, so the next refresh tries again
+        fi
+        echo "Restarted the gateway with its new settings."
+    fi
+    printf '%s\n' "$now" >"$loaded.tmp"
+    mv -f "$loaded.tmp" "$loaded"
+}
+
 case "$cmd" in
     list)
         if [ -s "$devices" ]; then cut -d' ' -f1 "$devices"; else echo "No devices have a key yet: scripts/gateway.sh add laptop"; fi
         ;;
+    refresh)
+        refresh
+        ;;
     write)
         write
+        refresh
         echo "Wrote $config ($(grep -c . "$devices" || true) device(s))."
         ;;
     remove)
@@ -162,6 +206,7 @@ case "$cmd" in
         grep -v "^$name " "$devices" >"$devices.tmp" || true
         mv -f "$devices.tmp" "$devices"
         write
+        refresh
         echo "Removed $name: its key no longer works."
         ;;
     add)
@@ -170,6 +215,7 @@ case "$cmd" in
         [ ${#key} -ge 40 ] || die "couldn't make a key (no /dev/urandom?)"
         printf '%s %s\n' "$name" "$(printf '%s' "$key" | sha256)" >>"$devices"
         write
+        refresh
         echo "Added $name. Its key is shown only now; keep it with the device's assistant:"
         echo
         echo "  $key"
