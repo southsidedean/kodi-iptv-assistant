@@ -64,6 +64,52 @@ def test_an_upstream_guide_has_a_size_limit(server, tmp_path: Path):
     assert not dest.exists() and not dest.with_name(dest.name + ".tmp").exists()
 
 
+def test_a_planted_commondir_cant_make_git_run_a_command(tmp_path: Path):
+    # The Docker runner's container can write the checkout: a .git/commondir pointing at a
+    # config of its own (with an ext:: address, or a filter) must not run anything at kia's update.
+    import subprocess
+
+    origin = tmp_path / "origin"
+    subprocess.run(["git", "init", "-q", "-b", "master", str(origin)], check=True)
+    (origin / "package-lock.json").write_text("{}")
+    subprocess.run(["git", "-C", str(origin), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(origin), "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "x"], check=True)
+    repo = tmp_path / "epg"
+    subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
+    evil, ran = tmp_path / "evil", tmp_path / "RAN"
+    subprocess.run(["cp", "-R", str(repo / ".git"), str(evil)], check=True)
+    (evil / "config").write_text(f'[remote "origin"]\n\turl = ext::touch {ran}\n[protocol]\n\tallow = always\n'
+                                 f'[filter "x"]\n\tsmudge = sh -c "touch {ran}; cat"\n')  # fmt: skip
+    (evil / "info").mkdir(exist_ok=True)
+    (evil / "info" / "attributes").write_text("* filter=x\n")
+    (repo / ".git" / "commondir").write_text(str(evil) + "\n")
+    grab._reset_git_config(repo, str(origin))
+    try:
+        grab._git(repo, "fetch", "-q", "--depth", "1", "origin", "master", url=str(origin))
+    except subprocess.CalledProcessError:
+        pass  # what matters is that nothing ran
+    assert not ran.exists()
+    grab._git(repo, "fetch", "-q", "--depth", "1", "origin", "master", url=str(origin))
+    grab._git(repo, "checkout", "-q", "--force", "--detach", "FETCH_HEAD", url=str(origin))
+    assert not ran.exists() and not (repo / ".git" / "commondir").exists()
+    # An ext:: address is refused even when kia's own setting somehow names one.
+    with pytest.raises(subprocess.CalledProcessError):
+        grab._git(repo, "ls-remote", f"ext::touch {ran}", url="https://example.com/x.git")
+    assert not ran.exists()
+
+
+def test_the_docker_runner_sees_only_what_a_grab_needs(tmp_path: Path):
+    from kia.config import EpgConfig
+
+    cfg = EpgConfig(repo_dir=tmp_path / "epg", work_dir=tmp_path / "work", runner="docker")
+    channels, staged = tmp_path / "work" / "channels" / "a.com.channels.xml", tmp_path / "work" / "guides" / ".staging" / "a.com"
+    cmd = grab.runner_prefix(cfg, "x", reads=(channels,), writes=(staged,))
+    mounts = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-v"]
+    work = str((tmp_path / "work").resolve())
+    assert f"{work}:{work}" not in mounts  # never all of work/: kia reads logs and plans there
+    assert f"{channels.resolve()}:{channels.resolve()}:ro" in mounts and f"{staged.resolve()}:{staged.resolve()}" in mounts
+
+
 def test_placeholders_are_tagged_and_skipped(tmp_path: Path):
     now = datetime(2026, 10, 16, 12, tzinfo=timezone.utc)
     entries = [Entry("Quiet TV", "u", {"tvg-id": "Quiet.us@SD"})]

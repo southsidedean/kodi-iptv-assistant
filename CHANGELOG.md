@@ -18,6 +18,7 @@ A playlist downloaded from a name like `tuner.example.com` that points at your o
 - `scripts/update.sh` no longer stops for good when a folder sits at `state/deployed-rev`.
 - `kia restore` leaves out a file whose folder is a link, so a restore can't write outside the kia folder.
 - The Stack page's **Check** and **Apply** no longer fail for good after a crash left the request's temporary file behind.
+- With the Docker runner for iptv-org's downloaders (`runner = "docker"`, used without kia's own image), code in that container could make git run a command on this computer at kia's next update, by planting a `.git/commondir`. Git now takes its settings only from the checkout's own folder, ignores your git settings, and allows only https and kia's own kind of address. The container also no longer sees all of `work/`: only the checkout, the site's channel list, and that site's guide folder. Each site's guide has a staging folder of its own, the kink.nl and kexp.org downloads have a size and time limit, and `npm ci` can't be pointed at another git program by the checkout's `.npmrc`.
 
 ## 0.6.6 (2026-10-25)
 
