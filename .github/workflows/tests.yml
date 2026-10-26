@@ -37,8 +37,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       # For the Pluto TV relay's remux tests, which are skipped without it.
+      # A mirror that stops answering has held a run for 20 minutes: give up after 5 instead,
+      # retrying each download, so the job fails fast and can be run again.
       - name: ffmpeg
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+        timeout-minutes: 5
+        run: sudo apt-get update -q -o Acquire::Retries=3 && sudo apt-get install -y -q --no-install-recommends -o Acquire::Retries=3 ffmpeg
       - run: pip install -e ".[dev]"
       - name: pytest, with coverage (kia's lines the tests never run are listed, for reading, not enforced)
         run: python -m pytest -q --cov=kia --cov-report=term-missing:skip-covered
