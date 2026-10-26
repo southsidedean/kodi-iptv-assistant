@@ -16,6 +16,8 @@ Alerts are off until you choose where to send them. Until then they're written t
 | `pluto_fallback` | no | kia couldn't open a session of its own with Pluto TV for 5 minutes, so a Pluto channel is playing without kia's fix and may freeze at ad breaks. You hear about each channel at most once an hour. |
 | `daily_summary` | no | A short "all done" message after each run, e.g. "1174 working channels, 541 with guide data". It's handy at first, to see that everything works. |
 
+Each alert's title has the kia's name, such as `kia (den): nightly run failed`, so with more than one kia sending to the same place you know which one it is. The name is this computer's unless you change it on the Dashboard's **System** page or with `KIA_NAME` in `.env` ([settings](configuration.md)). On ntfy, tapping the alert opens that kia's Dashboard.
+
 If you remove playlists or exclude guide sites yourself, the next run may report a drop. That's expected, and the message says so. What to do about each alert is in [troubleshooting](troubleshooting.md#alerts).
 
 ## Getting alerts on your phone (ntfy)

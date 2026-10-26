@@ -11,6 +11,7 @@ On this page:
 - [On the same computer as kia](#on-the-same-computer-as-kia)
 - [From another computer](#from-another-computer): turn it on, trust kia's certificate, then [your assistant](#set-up-your-assistant)
 - [Several devices: the gateway](#several-devices-the-gateway): a key for each device, with a limit and a log
+- [More than one kia](#more-than-one-kia): every kia in one assistant
 - [What the assistant can see](#what-the-assistant-can-see)
 - [Privacy and safety](#privacy-and-safety)
 - [When it doesn't work](#when-it-doesnt-work)
@@ -248,6 +249,21 @@ The gateway keeps working: it has a token of its own for kia, in `gateway/kia-to
 Each device can make 120 requests a minute (`KIA_GATEWAY_RATE`), and an assistant's start-up takes a few of them. Over the limit, that device's assistant gets "rate limit exceeded" for a moment while the others carry on. kia's own limit of 60 tool calls a minute applies to each device too, and kia's log names the device each call came from.
 
 The gateway keeps each key only as its SHA-256, in `gateway/`, so its settings can't give a key away. Backups keep the list of devices and leave the gateway's token out; after restoring one, `scripts/stack.sh apply` makes a new token.
+
+## More than one kia
+
+An assistant can use several kia installs at once, such as one in the den and one on a Raspberry Pi at the cabin. Each kia has a name: this computer's, unless you change it on the Dashboard's **System** page or with `KIA_NAME` in `.env`. Give each kia a different one.
+
+1. On each kia, run `kia mcp-token --for <assistant>` as above. Its setup names the server after that kia, such as `kia-den` and `kia-cabin-pi`, so adding the second doesn't replace the first. For Codex and Cursor, each kia's token goes in a variable of its own, such as `KIA_MCP_TOKEN_DEN`.
+2. Put every kia's certificate in the one file the assistant trusts. Copy each kia's `tls/fullchain.pem` to this computer, then join them:
+
+   ```sh
+   cat den.pem cabin-pi.pem > ~/kia-cert.pem
+   ```
+
+   Claude Code, Gemini CLI, Claude Desktop, and Codex each read a single file, and trust every certificate in it. Skip this for a kia whose certificate every computer already trusts.
+
+The assistant then sees each kia's tools under its own server's name, and each kia tells it its name, so you can ask "is the guide working on cabin-pi?". With the gateway part, each kia has its own gateway, and a device needs a key from each.
 
 ## What the assistant can see
 

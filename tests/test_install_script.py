@@ -36,6 +36,7 @@ def kia(tmp_path: Path) -> Path:
          'case "$*" in info*) [ -z "$FAKE_DOCKER_DOWN" ] || exit 1 ;; esac\n')  # fmt: skip
     stub(bin_dir, "uname", 'echo "${FAKE_OS:-Linux}"\n')
     stub(bin_dir, "nc", "exit 1\n")
+    stub(bin_dir, "hostname", 'echo "Den_Box"\n')  # this computer's name, for KIA_NAME
     return folder
 
 
@@ -66,6 +67,7 @@ def test_without_a_terminal_it_takes_the_defaults(kia: Path):
     r = install(kia, "--address", "192.168.1.20")
     assert r.returncode == 0, r.stdout + r.stderr
     assert "KIA_STACK=\n" in env(kia) and "KIA_PUBLIC_URL=http://192.168.1.20:1\n" in env(kia)  # preset kodi
+    assert "KIA_NAME=den-box\n" in env(kia)  # the computer's name, as a name: kia in Docker can't see it
     assert "COMPOSE_PROFILES= compose up -d --build" in calls(kia)
     assert not (kia / ".env.new").exists()
     # A password kia made before isn't printed again, only where it is.

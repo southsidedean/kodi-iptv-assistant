@@ -29,6 +29,7 @@ from datetime import datetime
 from pathlib import Path
 
 from kia import __version__, doctor
+from kia import name as kia_name
 from kia.config import Config
 from kia.files import temp_name
 
@@ -485,10 +486,14 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
         return 200, _error(id_, -32602, "params must be an object.")
     if method == "initialize":
         asked = params.get("protocolVersion")
+        # With several kia installs connected, the name says which one this is (kia.name).
+        name = kia_name.current(api_cfg.state_dir)[0] if getattr(api_cfg, "state_dir", None) else ""
+        title = f"kia (kodi-iptv-assistant) on {name}" if name else "kia (kodi-iptv-assistant)"
+        told = f"{INSTRUCTIONS} This kia is called {name}; others may be connected too, each with its own name." if name else INSTRUCTIONS
         result = {"protocolVersion": asked if asked in VERSIONS else VERSIONS[0],
                   "capabilities": {"tools": {"listChanged": False}, "prompts": {"listChanged": False}},
-                  "serverInfo": {"name": "kia", "title": "kia (kodi-iptv-assistant)", "version": __version__},
-                  "instructions": INSTRUCTIONS}  # fmt: skip
+                  "serverInfo": {"name": f"kia-{name}" if name else "kia", "title": title, "version": __version__},
+                  "instructions": told}  # fmt: skip
         return 200, {"jsonrpc": "2.0", "id": id_, "result": result}
     if method == "ping":
         return 200, {"jsonrpc": "2.0", "id": id_, "result": {}}
@@ -545,17 +550,22 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
 # copy of kia's tls/fullchain.pem the person makes; "~/kia-cert.pem" in the docs.
 
 
-def setup_for(assistant: str, address: str, token: str) -> str:
-    """The setup text for one assistant. Raises KeyError for one kia doesn't know."""
+def setup_for(assistant: str, address: str, token: str, name: str = "") -> str:
+    """The setup text for one assistant. Raises KeyError for one kia doesn't know. With this
+    kia's name (kia.name), the server, its token's variable, and VS Code's prompt are named
+    after it (kia-den, KIA_MCP_TOKEN_DEN), so several kia installs sit side by side in one
+    assistant; without, they're plain kia, as before names."""
+    server = f"kia-{name}" if name else "kia"
+    var = "KIA_MCP_TOKEN" + (f"_{name.upper().replace('-', '_')}" if name else "")
     bearer = f"Bearer {token}"
     # "password": true is VS Code's setting that hides the token as it's typed, not a password.
-    prompt = {"type": "promptString", "id": "kia-token", "description": "kia's MCP token", "password": True}  # nosec B105
-    vscode = json.dumps({"inputs": [prompt], "servers": {"kia": {"type": "http", "url": address,
-                         "headers": {"Authorization": "Bearer ${input:kia-token}"}}}}, indent=2)  # fmt: skip
+    prompt = {"type": "promptString", "id": f"{server}-token", "description": f"{server}'s MCP token", "password": True}  # nosec B105
+    vscode = json.dumps({"inputs": [prompt], "servers": {server: {"type": "http", "url": address,
+                         "headers": {"Authorization": f"Bearer ${{input:{server}-token}}"}}}}, indent=2)  # fmt: skip
     texts = {
         "claude-code": f"""In a terminal, add kia to Claude Code (for every project):
 
-  claude mcp add --scope user --transport http kia {address} --header "Authorization: {bearer}"
+  claude mcp add --scope user --transport http {server} {address} --header "Authorization: {bearer}"
 
 Then start Claude Code trusting kia's certificate:
 
@@ -566,14 +576,14 @@ Add this to claude_desktop_config.json (Claude > Settings > Developer > Edit Con
 "mcpServers" if the file has one, then restart Claude Desktop. Use the full path to your copy
 of kia's certificate.
 
-{json.dumps({"mcpServers": {"kia": {
+{json.dumps({"mcpServers": {server: {
     "command": "npx",
     "args": ["-y", "mcp-remote", address, "--transport", "http-only", "--header", "Authorization:${KIA_AUTH}"],
     "env": {"KIA_AUTH": bearer, "NODE_EXTRA_CA_CERTS": "/full/path/to/kia-cert.pem"}}}}, indent=2)}
 """,
         "gemini": f"""In a terminal, add kia to Gemini CLI (for every project):
 
-  gemini mcp add --scope user --transport http --header "Authorization: {bearer}" kia {address}
+  gemini mcp add --scope user --transport http --header "Authorization: {bearer}" {server} {address}
 
 Then start Gemini CLI trusting kia's certificate:
 
@@ -583,13 +593,13 @@ Gemini CLI turns MCP servers on only in folders you trust: say yes when it asks.
 """,
         "codex": f"""Add this to ~/.codex/config.toml:
 
-[mcp_servers.kia]
+[mcp_servers.{server}]
 url = "{address}"
-bearer_token_env_var = "KIA_MCP_TOKEN"
+bearer_token_env_var = "{var}"
 
 Then start Codex with the token, and trusting kia's certificate:
 
-  KIA_MCP_TOKEN={token} CODEX_CA_CERTIFICATE=~/kia-cert.pem codex
+  {var}={token} CODEX_CA_CERTIFICATE=~/kia-cert.pem codex
 """,
         "vscode": f"""In VS Code, run "MCP: Open User Configuration" and add kia (VS Code asks for the token the
 first time, and keeps it out of the file):
@@ -600,9 +610,9 @@ The token: {token}
 """,
         "cursor": f"""Add this to ~/.cursor/mcp.json (inside "mcpServers" if the file has one):
 
-{json.dumps({"mcpServers": {"kia": {"url": address, "headers": {"Authorization": "Bearer ${env:KIA_MCP_TOKEN}"}}}}, indent=2)}
+{json.dumps({"mcpServers": {server: {"url": address, "headers": {"Authorization": f"Bearer ${{env:{var}}}"}}}}, indent=2)}
 
-Then set KIA_MCP_TOKEN={token} in your shell's startup file and restart Cursor.
+Then set {var}={token} in your shell's startup file and restart Cursor.
 """,
         "curl": f"""To check the server by hand (it lists kia's tools):
 

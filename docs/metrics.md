@@ -22,7 +22,7 @@ Most of the numbers change once a night or every few hours, so once a minute is 
 
 | Metric | What it is |
 |---|---|
-| `kia_info{version}` | Always 1; the label is kia's version |
+| `kia_info{version,name}` | Always 1; the labels are kia's version and its name, when it has one (for telling several kia installs apart in one Prometheus) |
 | `kia_start_time_seconds` | When kia started (Unix time) |
 | `kia_refresh_running` | 1 while the nightly refresh runs |
 | `kia_last_refresh_success` | 1 if the last refresh finished, with or without alerts |

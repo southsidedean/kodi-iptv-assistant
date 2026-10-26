@@ -463,6 +463,65 @@ CHECKLIST_SCRIPT = """
 """
 
 
+def _name_card(s: dict) -> str:
+    """This kia's name (kia.name), changed after the password; filled in by NAME_CARD_SCRIPT."""
+    return (
+        f'<section class="card" id="install-name"{_secure_attr(s)}><h2>This kia\'s name</h2>'
+        '<p class="muted">With more than one kia, the name says which one an alert, a Dashboard, or an assistant\'s '
+        "tools come from.</p>"
+        '<p class="name-now"></p>'
+        '<form class="editor name-form" hidden><label class="field" for="name-new"><strong>Name</strong> '
+        "<span>lowercase letters, digits, and dashes, such as den or cabin-pi; empty for the default</span></label>"
+        '<input type="text" id="name-new" maxlength="40" autocomplete="off" spellcheck="false">'
+        '<label class="field" for="name-pass"><strong>Password</strong></label>'
+        '<input type="password" id="name-pass" autocomplete="current-password">'
+        '<div class="actions"><button type="submit" class="primary">Save the name</button></div>'
+        '<p role="status" class="name-say"></p></form></section>'
+    )
+
+
+NAME_CARD_SCRIPT = """
+<script>
+(function () {
+  var card = document.getElementById("install-name");
+  if (!card) return;
+  var now = card.querySelector(".name-now"), form = card.querySelector(".name-form"), say = card.querySelector(".name-say");
+  var input = card.querySelector("#name-new"), pass = card.querySelector("#name-pass"), KEY = "kia-password";
+  var FROM = { dashboard: "set here", env: "KIA_NAME in .env", computer: "this computer's name" };
+  function show(d) {
+    now.textContent = d.name ? "It's " + d.name + " (" + (FROM[d.from] || d.from) + ")." : "It has none: alerts and the header say just kia.";
+    input.value = d.from === "dashboard" ? d.name : "";
+    input.placeholder = d.env || d.computer || "";
+  }
+  fetch("api/name").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) show(d); }).catch(function () {});
+  if (location.protocol !== "https:") {
+    var url = card.dataset.secureUrl;
+    if (url) card.querySelector("p.muted").append(" ", Object.assign(document.createElement("a"),
+      { href: new URL("system.html#install-name", url).href, textContent: "Change it on the secure page." }));
+    return;
+  }
+  form.hidden = false;
+  try { pass.value = sessionStorage.getItem(KEY) || ""; } catch (e) {}
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    say.textContent = "";
+    fetch("api/name", { method: "PUT", headers: { "Content-Type": "application/json", "X-Kia-Password": pass.value },
+                        body: JSON.stringify({ name: input.value.trim() }) }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
+    }).then(function (r) {
+      if (r._status !== 200) { say.className = "name-say error"; say.textContent = r.error || "Something went wrong."; return; }
+      try { sessionStorage.setItem(KEY, pass.value); } catch (e) {}
+      show(r);
+      say.className = "name-say";
+      say.textContent = (r.from === "dashboard" ? "Saved." : "Cleared: back to the default.") +
+        " Alerts use it from now on; reload other pages to see it in their header.";
+    }, function () { say.className = "name-say error"; say.textContent = "kia didn't answer. Is it running?"; });
+  });
+})();
+</script>
+"""
+
+
 def _players_card(s: dict) -> str:
     """Which pseudonym in the graphs is which Plex player, after the password."""
     if not s.get("plex_players"):
@@ -809,9 +868,9 @@ def render_system(s: dict) -> str:
     )
     body = (
         f'<main><h1>System</h1><div class="pair">{_secure_card(s)}{editing}</div>'
-        f"{_pluto_card(s)}{_players_card(s)}{_settings_card(s)}{reports}</main>"
+        f"{_name_card(s)}{_pluto_card(s)}{_players_card(s)}{_settings_card(s)}{reports}</main>"
     )
-    script = editor.EDITING_SCRIPT + PLUTO_SCRIPT + PLAYERS_SCRIPT
+    script = editor.EDITING_SCRIPT + NAME_CARD_SCRIPT + PLUTO_SCRIPT + PLAYERS_SCRIPT
     return page("System - kia", body, _footer(s), script, editor.STYLE, current="system.html")
 
 

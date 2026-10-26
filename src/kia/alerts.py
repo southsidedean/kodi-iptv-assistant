@@ -13,9 +13,11 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from email.message import EmailMessage
+from email.utils import formataddr
 from pathlib import Path
 
 from kia import __version__
+from kia import name as kia_name
 from kia.history import now_iso
 from kia.files import obj, read_object, temp_name
 
@@ -95,6 +97,9 @@ def notify(
 
     Returns True if this was an alert that's turned on, i.e. something a person should act on.
     """
+    # With several kia installs sending to one ntfy topic or inbox, the name says which.
+    name = kia_name.current(state_dir)[0]
+    title = kia_name.titled(title, name)
     if event not in cfg.events:
         if event not in NOTICES:
             log(f"(alert '{event}' is turned off) {title}")
@@ -108,16 +113,18 @@ def notify(
     if cfg.ntfy_url:
         send_ntfy(cfg.ntfy_url, event, title, message, log)
     if cfg.command:
-        run_command(cfg.command, event, title, message, log)
+        run_command(cfg.command, event, title, message, log, name)
     if cfg.email:
-        send_email(cfg.email, title, message, log)
+        send_email(cfg.email, title, message, log, name)
     return not notice
 
 
-def send_email(cfg: EmailConfig, title: str, message: str, log: Callable[[str], None]) -> None:
+def send_email(cfg: EmailConfig, title: str, message: str, log: Callable[[str], None], name: str = "") -> None:
     msg = EmailMessage()
     msg["Subject"] = title
-    msg["From"] = cfg.sender or cfg.user or f"kia@{cfg.host}"
+    sender = cfg.sender or cfg.user or f"kia@{cfg.host}"
+    # "kia (den)" as the sender's name, unless KIA_EMAIL_FROM already gives one.
+    msg["From"] = formataddr((f"kia ({name})", sender)) if name and "<" not in sender else sender
     msg["To"] = ", ".join(cfg.to)
     msg["X-Mailer"] = f"kodi-iptv-assistant/{__version__}"
     msg.set_content(message + "\n\n(Sent by kia, kodi-iptv-assistant.)\n")
@@ -145,6 +152,11 @@ def send_ntfy(url: str, event: str, title: str, message: str, log: Callable[[str
         "Tags": "white_check_mark" if event in NOTICES else "warning",
         "Priority": "high" if event in URGENT else "default",
     }
+    # Tapping the notification opens this kia's Dashboard: with several installs, the one
+    # the alert came from.
+    dashboard = os.environ.get("KIA_PUBLIC_URL", "")
+    if dashboard.startswith(("http://", "https://")) and dashboard.isascii() and dashboard.isprintable():
+        headers["Click"] = dashboard
     try:
         # A mistyped address (no http://) raises ValueError; that must not stop the run.
         req = urllib.request.Request(url, data=message.encode(), headers=headers, method="POST")
@@ -157,8 +169,9 @@ def send_ntfy(url: str, event: str, title: str, message: str, log: Callable[[str
         log(f"ntfy notification failed: {getattr(exc, 'reason', exc)}")
 
 
-def run_command(command: str, event: str, title: str, message: str, log: Callable[[str], None]) -> None:
-    env = {**os.environ, "KIA_ALERT_EVENT": event, "KIA_ALERT_TITLE": title, "KIA_ALERT_MESSAGE": message}
+def run_command(command: str, event: str, title: str, message: str, log: Callable[[str], None], name: str = "") -> None:
+    env = {**os.environ, "KIA_ALERT_EVENT": event, "KIA_ALERT_TITLE": title, "KIA_ALERT_MESSAGE": message,
+           "KIA_NAME": name}  # fmt: skip
     try:
         # A shell on purpose: the command is your own, from KIA_ALERT_COMMAND.
         proc = subprocess.run(command, shell=True, env=env, timeout=60, capture_output=True, text=True, check=False)  # noqa: S602  # nosec B602
