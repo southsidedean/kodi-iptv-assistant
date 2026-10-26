@@ -233,6 +233,9 @@ def test_third_party_text_in_a_log_is_cut_short(kia):
 
 def test_the_command_text_json_and_exit_codes(kia, capsys):
     config = str(kia / "kia.toml")
+    # The command reads the real clock, so the last refresh is an hour before it, not NOW.
+    now = datetime.now(timezone.utc)
+    status(kia, last_run={"started": iso(now - 2 * HOUR), "finished": iso(now - HOUR), "minutes": 18, "exit_code": 0})
     assert cli.main(["doctor", "-c", config]) == 0
     assert "OK       Nothing needs you" in capsys.readouterr().out
     kept(kia)

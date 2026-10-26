@@ -88,6 +88,8 @@ The Dashboard is how you change things, so it's how someone else would try to:
 
 The [MCP server](mcp.md), when you turn it on, gives an AI assistant the Dashboard's view, plus what Prometheus, Plex, and Jellyfin in your stack can tell it (disk health, Live TV settings, guide listings): read-only, over HTTPS, with its own token. What it quotes from playlists and guide sites can carry planted instructions, so its tools can't change anything, whatever the assistant is told. The assistant itself may be able to do more (Claude Code can run commands), so its own permission questions are the other half of the protection ([security](../SECURITY.md#the-mcp-server)).
 
+With the optional gateway part, assistants on other devices reach the MCP server through [agentgateway](https://agentgateway.dev) instead, each with a key of its own: the gateway logs and limits each device, and passes the call to kia with its own token, over HTTPS on a Docker network shared only with kia and its web server. kia still checks that token, and accepts it only while the part is chosen ([the gateway part](../SECURITY.md#the-gateway-part), [how it works](stack-under-the-hood.md#the-gateway-part)).
+
 ## What's left to you
 
 - Who can connect: `KIA_BIND` chooses every device on your network, or this computer only. Keep kia off the internet; to reach it from outside, use a VPN such as Tailscale ([away from home](players.md#away-from-home)).

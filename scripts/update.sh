@@ -141,6 +141,9 @@ else
     docker compose build --pull
     docker compose pull --ignore-buildable
 fi
+# The gateway part's settings, from this version's scripts/gateway.sh, before it starts: it
+# reads them only from gateway/config.yaml.
+if [ -s gateway/config.yaml ]; then sh scripts/gateway.sh write; fi
 docker compose up -d
 # Docker pins a config file mounted on its own (nginx's, Prometheus's) to the copy the
 # container started with, so after a release that changed one, that container restarts.

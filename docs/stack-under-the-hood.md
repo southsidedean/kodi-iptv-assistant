@@ -27,6 +27,7 @@ Parts are the names you choose. Profiles are the names `compose.yaml` groups its
 | `observability` | `monitoring`, and on Linux `monitoring-node` | Prometheus, Grafana, cAdvisor, and node-exporter |
 | `observability-gpu` | `monitoring-gpu` | the graphics card exporter |
 | `observability-disks` | `monitoring-disks` | the disk health exporter |
+| `gateway` | `gateway` | the gateway in front of kia's MCP server (agentgateway) |
 
 `monitoring-node` is left out when something else already answers on port 9100, such as a node-exporter you run yourself. Prometheus then reads that one. On a Mac it's always left out: Docker runs in a Linux machine of its own there, so kia's node-exporter would describe that machine, not the Mac. Homebrew's node-exporter on the Mac takes its place.
 
@@ -38,8 +39,8 @@ The profile `plex` is only Threadfin, while the part `plex` is Plex and Threadfi
 
 1. Maps each part to its profiles. An unknown name is a problem.
 2. Checks the parts against each other: `plex` with `plex-tuner` (Plex already brings its tuner), `plex-tuner-2` without one of them, or a Hardware part without `observability`.
-3. Checks them against this computer: an NVIDIA card and NVIDIA's Container Toolkit for `observability-gpu`, Linux for either Hardware part, a media folder it can read, and, for Plex, Jellyfin, Grafana, and Prometheus when they aren't running yet, that nothing else answers on their port. With less than 6 GB of memory and two or more of Plex, Jellyfin, and the graphs, it warns that memory may run short.
-4. Looks for what the parts need: kia's `plex` playlist for Threadfin (in `output/`), a claim code for Plex's first start, and the addresses Plex and Jellyfin apps use. A missing playlist is a problem; the rest are warnings.
+3. Checks them against this computer: an NVIDIA card and NVIDIA's Container Toolkit for `observability-gpu`, Linux for either Hardware part, a media folder it can read, and, for Plex, Jellyfin, Grafana, Prometheus, and the gateway when they aren't running yet, that nothing else answers on their port. With less than 6 GB of memory and two or more of Plex, Jellyfin, and the graphs, it warns that memory may run short.
+4. Looks for what the parts need: kia's `plex` playlist for Threadfin (in `output/`), a claim code for Plex's first start, the addresses Plex and Jellyfin apps use, and for the gateway, a `KIA_GATEWAY_RATE` that's a number and a device with a key. A missing playlist or a bad rate is a problem; a gateway with no devices yet is a hint, and the rest are warnings.
 5. Prints the result: `KIA_STACK`, the `COMPOSE_PROFILES` it makes, the profiles that run now and that the choice leaves out ("Stops what runs now"), and a count of problems and warnings.
 
 It exits with 1 when there's a problem, and with 0 otherwise. Warnings never stop it.
@@ -58,7 +59,7 @@ It exits with 1 when there's a problem, and with 0 otherwise. Warnings never sto
    When Plex or Jellyfin leaves the stack, it empties `KIA_PLEX_URL` or `KIA_JELLYFIN_URL` if it still holds the container's own address (`http://plex:32400`, `http://jellyfin:8096`), so kia stops asking a server that's gone. Choosing the part again sets it back. An address that points anywhere else stays, and so do the tokens.
 
    Each change rewrites `.env` through a temporary file made with `umask 077`, so it stays readable only by you.
-4. It starts what's chosen: `docker compose up -d`. Compose recreates any container whose settings changed. kia's container gets the profiles as `KIA_COMPOSE_PROFILES`, so a new choice restarts kia too.
+4. With the gateway part, it writes the gateway's settings first (`scripts/gateway.sh write`): the gateway reads them only from `gateway/config.yaml`, so they have to be there before it starts. Then it starts what's chosen: `docker compose up -d`. Compose recreates any container whose settings changed. kia's container gets the profiles as `KIA_COMPOSE_PROFILES`, so a new choice restarts kia too.
 5. It stops what isn't chosen: every container of kia's stack, in any state, that the new profiles don't include is stopped and removed (`docker compose rm --stop --force`). Their data folders stay.
 
 Running it again with nothing changed restarts nothing.
@@ -140,6 +141,33 @@ A knock can tell a running program from one that doesn't answer. It can't tell o
 - **The claim code** goes from the page to the request (`claim=`), to `stack.sh apply --claim`, to `PLEX_CLAIM` in `.env`. Plex reads it on its first start only, to link itself to your account. Each step checks it, it never appears in what the script prints, and it works for 4 minutes.
 - **The playlist.** When the check's output says there's no playlist named `plex`, the page asks kia how many TV channels it has. With 480 or fewer, its button saves a playlist named `plex` with all of them and **For Plex through Threadfin** ticked, the same as making it on the Playlists page. kia writes `output/plex.m3u` right away, so the next Check finds it.
 - **Add Live TV to Plex now** runs `kia plex-tuners` inside kia, one at a time: the same step kia runs by itself after each guide refresh. It needs `KIA_PLEX_URL`, which apply sets for Plex in the stack.
+
+## The gateway part
+
+The `gateway` part runs [agentgateway](https://agentgateway.dev) in front of kia's MCP server ([several devices](mcp.md#several-devices-the-gateway)). It's built from these pieces:
+
+| Piece | Where | What it does |
+|---|---|---|
+| `scripts/gateway.sh` | the kia folder, run as you | Adds and removes devices, and writes the gateway's settings |
+| `gateway/devices` | the kia folder | One line for each device: its name, and the SHA-256 of its key. The key itself is shown once and kept nowhere |
+| `gateway/config.yaml` | the kia folder | The gateway's settings, written from `gateway/devices` and `.env` (`KIA_GATEWAY_RATE`) |
+| `gateway/kia-token` | the kia folder | The gateway's own token for kia, made the first time the settings are written |
+| `gateway/loaded` | the kia folder | A SHA-256 of the settings and of which certificate is in `tls/` when the gateway last started, so `scripts/gateway.sh` knows when to restart it |
+| The `gateway` container | its own Docker network | Checks each device's key, limits it, logs the call, and passes it on to kia |
+
+Everything in `gateway/` is readable only by you; kia and the gateway run as you, so they can read it too.
+
+On Linux, the gateway notices a new settings file or certificate by itself. With Docker Desktop (macOS, Windows) it notices the first one and misses the rest, so `scripts/gateway.sh` restarts it whenever either has changed since it last started. That takes about a second, and since kia keeps no sessions, a device just sends its next request. Adding or removing a device restarts it at once. For kia's certificate renewals, the kia-stack service runs `scripts/gateway.sh refresh` every 30 seconds; without the service, run it yourself after a new certificate goes into `tls/`. It finds the certificate by its inode and size, from `ls`, without opening it, because kia's container can write `tls/`.
+
+A call goes like this:
+
+1. The device's assistant sends it to `https://<kia's address>:8745/mcp` with its key. The gateway answers with kia's certificate, from `tls/`.
+2. The gateway checks the key against the hashes in its settings, and counts the call against that device's limit. A wrong key gets 401; a device over its limit gets JSON-RPC error `-32003`.
+3. It passes the call to `https://web:443/api/mcp`: kia's web server, on the gateway's own Docker network, which only the gateway, kia, and the web server are on. It trusts only the certificate in `tls/` there, sends its own token in place of the device's key, and names the device in an `X-Kia-Device` header. That header replaces any the device sent, so a device can't borrow another's name.
+4. kia checks that token as it checks its own (`kia.mcp.tokens`), but only while the gateway part is chosen (kia reads that from its Compose profiles), and answers as it would any assistant. Every device reaches kia from the gateway's one address, so with the gateway's token, kia counts its limit of 60 tool calls a minute for each device named in `X-Kia-Device` (`kia.mcp.via_gateway`), and names the device in its log. It trusts that header only with the gateway's token: with kia's own token, anyone could send it.
+5. The gateway writes one line to its log: the time, the device, the tool, the answer's status, and how long it took.
+
+`scripts/stack.sh apply` and `scripts/update.sh` write the settings again before the gateway starts, so a new version's settings take effect. Without the gateway part, nothing in `gateway/` is used, and kia accepts only its own token.
 
 ## Without the service
 

@@ -718,7 +718,12 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     from kia import mcp
     from kia.config import load
 
-    expected = mcp.token(cfg.state_dir)
+    # kia's own token, and the gateway part's while it's chosen (scripts/gateway.sh).
+    from kia import stack
+
+    project = cfg.config_file.parent if cfg.config_file else None
+    gateway = "gateway" in (stack.profiles() or [])
+    expected = mcp.tokens(cfg.state_dir, project, gateway)
     if not expected:
         raise ApiError(404, "kia's MCP server is off. Turn it on with: kia mcp-token")
     if method != "POST":
@@ -730,13 +735,22 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     if not given:
         raise ApiError(401, "Send kia's MCP token: Authorization: Bearer <token> (kia mcp-token shows it).")
     try:
-        _slowed("mcp", lambda: hmac.compare_digest(given.encode(), expected.encode()), "Wrong MCP token.", "Too many wrong MCP tokens.")
+        # Every token compared, not just up to the first that matches: how long it takes
+        # doesn't say which one a guess was close to.
+        _slowed("mcp", lambda: any([hmac.compare_digest(given.encode(), t.encode()) for t in expected]),
+                "Wrong MCP token.", "Too many wrong MCP tokens.")  # fmt: skip
     except ApiError as exc:
         print(f"MCP: refused a token from {_CLIENT.get() or 'a client'} ({exc.status})", flush=True)
         raise
     if not cfg.config_file:
         raise ApiError(409, "kia's MCP server needs kia's settings file, which this server wasn't given.")
-    return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), _CLIENT.get())
+    who = _CLIENT.get()
+    # The device's name counts only with the gateway's token: the gateway sets it from the
+    # device's key. With kia's own token, anyone could send any name.
+    gateway_token = mcp.gateway_token(project) if gateway else None
+    if gateway_token and hmac.compare_digest(given.encode(), gateway_token.encode()):
+        who = mcp.via_gateway(headers.get("X-Kia-Device"), who)
+    return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), who)
 
 
 def change_password(cfg: ApiConfig, body: dict) -> dict:

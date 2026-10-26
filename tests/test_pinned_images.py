@@ -11,22 +11,27 @@ spec.loader.exec_module(pinned_images)
 
 def test_it_finds_the_pinned_images_in_compose():
     found = pinned_images.pinned((ROOT / "compose.yaml").read_text())
-    assert "KIA_THREADFIN_IMAGE" in found and "KIA_DCGM_IMAGE" in found
+    assert "KIA_THREADFIN_IMAGE" in found and "KIA_DCGM_IMAGE" in found and "KIA_GATEWAY_IMAGE" in found
     assert "KIA_NGINX_IMAGE" not in found  # nginx:alpine follows its newest release already
-    assert all(image.rpartition(":")[2][:1].isdigit() for image in found.values())
+    assert all(pinned_images.is_version(image.rpartition(":")[2]) for image in found.values())
 
 
 def test_only_a_newer_tag_of_the_same_shape_counts():
     tags = ["latest", "1.2.38-nvidia", "1.2.38", "1.2.37", "1.2.36", "1.10.0"]
     assert pinned_images.newer("1.2.37", tags) == ["1.10.0", "1.2.38"]  # by number, not as text
+    # A test release isn't a newer one: its tag has another shape.
+    assert pinned_images.newer("v1.6.0", ["v1.7.0-alpha.1", "v1.6.0", "v1.5.0", "latest"]) == []
+    assert pinned_images.newer("v1.6.0", ["v1.6.1", "v1.7.0-alpha.1"]) == ["v1.6.1"]
     dcgm = ["4.6.1-4.8.4", "4.6.1-4.8.4-distroless", "4.5.2-4.8.1-ubuntu22.04", "4.3.1-4.4.1-ubuntu22.04"]
     assert pinned_images.newer("4.3.1-4.4.1-ubuntu22.04", dcgm) == ["4.5.2-4.8.1-ubuntu22.04"]
 
 
 def test_it_fails_when_one_is_behind_and_passes_when_none_is(tmp_path: Path, capsys):
     compose = tmp_path / "compose.yaml"
-    compose.write_text("    image: ${KIA_A_IMAGE:-me/a:1.0.0}\n    image: ${KIA_B_IMAGE:-quay.io/me/b:2.0}\n")
-    assert pinned_images.main(str(compose), tags_of=lambda name: ["1.0.1", "1.0.0"]) == 1
+    compose.write_text("    image: ${KIA_A_IMAGE:-me/a:1.0.0}\n    image: ${KIA_B_IMAGE:-quay.io/me/b:2.0}\n"
+                       "    image: ${KIA_C_IMAGE:-ghcr.io/me/c:v1.0.0}\n")
+    assert pinned_images.main(str(compose), tags_of=lambda name: ["1.0.1", "1.0.0", "v1.0.0"]) == 1
     out = capsys.readouterr().out
     assert "me/a:1.0.0 has a newer release: me/a:1.0.1" in out and "quay.io/me/b:2.0 is on another registry" in out
-    assert pinned_images.main(str(compose), tags_of=lambda name: ["latest", "1.0.0"]) == 0
+    assert "ghcr.io/me/c:v1.0.0 is the newest of its kind" in out  # GitHub's registry is checked
+    assert pinned_images.main(str(compose), tags_of=lambda name: ["latest", "1.0.0", "v1.0.0"]) == 0

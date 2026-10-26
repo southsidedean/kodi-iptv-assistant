@@ -2,6 +2,18 @@
 
 ## 0.7.0 (unreleased)
 
+### Upgrading from 0.6.7
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). With Docker, the update also recreates kia and its web server so they join the gateway's network. Docker makes that network whether or not you use the gateway.
+
+### A gateway for AI assistants on several devices
+
+kia's MCP server can now have a gateway in front of it: the new `gateway` part runs [agentgateway](https://agentgateway.dev), an open-source gateway for AI tools, next to kia. Each device gets a key of its own with `scripts/gateway.sh add laptop`, which prints the key once and the assistant's setup with it. The gateway logs every call with the device that made it (`docker compose logs gateway`) and limits each device to `KIA_GATEWAY_RATE` requests a minute (120 by default). `scripts/gateway.sh remove laptop` stops that device's key at once. kia's own limit of 60 tool calls a minute applies to each device, and kia's log names the device. The gateway keeps only a hash of each key, and has its own token for kia, which no device sees, so you can turn kia's own token off and send every call through the gateway. It's optional and needs Docker; [several devices](docs/mcp.md#several-devices-the-gateway) has the steps.
+
+- `kia mcp-token --gateway` prints an assistant's setup with the gateway's address, for a device's key.
+- Backups keep the gateway's list of devices, and leave its token for kia out, as they do kia's own.
+- The weekly check for newer versions of the images kia pins now covers images on GitHub's registry, the gateway's included.
+
 ## 0.6.7 (2026-10-25)
 
 ### Upgrading from 0.6.6

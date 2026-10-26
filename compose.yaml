@@ -79,6 +79,10 @@ services:
       KIA_THREADFIN_2_PORT: ${KIA_THREADFIN_2_PORT:-}
       KIA_PLEX_PORT: ${KIA_PLEX_PORT:-}
       KIA_JELLYFIN_PORT: ${KIA_JELLYFIN_PORT:-}
+      # The gateway part (scripts/gateway.sh): its port, for the setups kia prints, and each
+      # device's limit, for kia settings.
+      KIA_GATEWAY_PORT: ${KIA_GATEWAY_PORT:-}
+      KIA_GATEWAY_RATE: ${KIA_GATEWAY_RATE:-}
       # Optional; empty means use the setting in kia.toml.
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
@@ -104,6 +108,8 @@ services:
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}
     command: ["daemon", "--at", "${KIA_RUN_AT:-04:00}"]
+    # The gateway's network too, so the Stack tiles can tell whether the gateway answers.
+    networks: [default, gateway]
     # Healthy while kia's own server (the profile editor and Pluto relay) answers.
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8781/api/profiles', timeout=5)"]
@@ -157,6 +163,8 @@ services:
       - "${KIA_BIND:-0.0.0.0}:${KIA_HTTPS_PORT:-8743}:443"
     depends_on:
       - kia
+    # The gateway part reaches kia's MCP server through this server, on the gateway's network.
+    networks: [default, gateway]
     # Healthy while nginx serves the Dashboard.
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
@@ -526,6 +534,31 @@ services:
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
 
+  # The gateway in front of kia's MCP server (agentgateway; the gateway part, docs/mcp.md):
+  # a key for each device, a limit for each, and a log of every call. scripts/gateway.sh
+  # writes its settings into gateway/, with the gateway's own token for kia. It's on a
+  # network of its own with only kia and its web server, and reaches kia's MCP server through
+  # the web server over HTTPS, like any assistant. Its image is a single program, with no
+  # shell, so there's no health check: the Stack tile knocks on its port.
+  gateway:
+    profiles: ["gateway"]
+    image: ${KIA_GATEWAY_IMAGE:-ghcr.io/agentgateway/agentgateway:v1.6.0}
+    restart: unless-stopped
+    logging: *logging
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command: ["-f", "/gateway/config.yaml"]
+    networks: [gateway]
+    depends_on:
+      - web
+    ports:
+      - "${KIA_BIND:-0.0.0.0}:${KIA_GATEWAY_PORT:-8745}:8745"
+    volumes:
+      - ./gateway:/gateway:ro
+      - ./tls:/etc/kia-tls:ro
+
 # Docker volumes for Plex's, Jellyfin's, and Grafana's databases on a Mac, where a folder
 # shared from the Mac into Docker's Linux machine breaks Plex's database within minutes.
 # KIA_PLEX_CONFIG=plex-config, KIA_JELLYFIN_CONFIG=jellyfin-config, and
@@ -535,3 +568,9 @@ volumes:
   plex-config:
   jellyfin-config:
   grafana-data:
+
+# The gateway part's network: the gateway, kia, and its web server only, so Plex, Threadfin,
+# and the rest can't reach the gateway except through its published port, like any device.
+networks:
+  default:
+  gateway:

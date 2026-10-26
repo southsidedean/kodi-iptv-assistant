@@ -519,3 +519,36 @@ def test_a_star_in_compose_profiles_isnt_this_folders_files(kia: Path):
 def test_list_shows_the_presets_in_their_order(kia: Path):
     presets = [line.split()[0] for line in stack(kia, "list").stdout.split("Presets", 1)[1].splitlines()[1:] if line.startswith("  ") and line.split()]
     assert presets[0] == "kodi"
+
+
+def test_the_gateway_part_writes_its_settings_before_it_starts(kia: Path):
+    shutil.copy(ROOT / "scripts" / "gateway.sh", kia / "scripts" / "gateway.sh")
+    with_stack(kia, "gateway")
+    r = stack(kia, "check")
+    assert r.returncode == 0 and "COMPOSE_PROFILES=gateway" in r.stdout
+    assert "no device has a gateway key yet: scripts/gateway.sh add laptop" in r.stdout
+    r = stack(kia, "apply", "--yes")
+    assert r.returncode == 0, r.stdout + r.stderr
+    config = (kia / "gateway" / "config.yaml").read_text()
+    assert "keys: []" in config and (kia / "gateway" / "kia-token").stat().st_size > 40
+    # Written before Compose starts the gateway, which reads it only from that file.
+    calls = (kia.parent / "docker.log").read_text().splitlines()
+    assert any("up -d" in c and "COMPOSE_PROFILES=gateway " in c for c in calls)
+    (kia / ".env").write_text((kia / ".env").read_text() + "KIA_GATEWAY_RATE=fast\n")
+    r = stack(kia, "check")
+    assert r.returncode == 1 and "KIA_GATEWAY_RATE" in r.stdout
+
+
+def test_watch_restarts_the_gateway_when_kias_certificate_changes(kia: Path):
+    # With Docker Desktop the gateway misses a renewed certificate, so the kia-stack service
+    # checks every 30 seconds (scripts/gateway.sh refresh), but only with the gateway part.
+    shutil.copy(ROOT / "scripts" / "gateway.sh", kia / "scripts" / "gateway.sh")
+    stack(kia, "watch", "--once")
+    assert "gateway" not in (kia.parent / "docker.log").read_text()
+    with_stack(kia, "gateway")
+    assert stack(kia, "apply", "--yes").returncode == 0
+    (kia / "tls").mkdir()
+    (kia / "tls" / "fullchain.pem").write_text("RENEWED\n")
+    asked = (kia.parent / "docker.log").read_text().count("ps -q --status running gateway")
+    stack(kia, "watch", "--once")
+    assert (kia.parent / "docker.log").read_text().count("ps -q --status running gateway") == asked + 1

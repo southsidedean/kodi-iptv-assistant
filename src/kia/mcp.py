@@ -60,6 +60,45 @@ def token(state_dir: Path) -> str | None:
     return value or None
 
 
+# The gateway part's own token for kia, in the kia folder (scripts/gateway.sh makes it). The
+# gateway sends it with every device's call, so devices hold keys of their own, never this.
+GATEWAY_TOKEN_FILE = Path("gateway") / "kia-token"
+
+
+def gateway_token(project_dir: Path | None) -> str | None:
+    """The gateway's token for kia, or None without the gateway part. Only the first line,
+    and not a long one: anything else in the file isn't a token scripts/gateway.sh wrote."""
+    if project_dir is None:
+        return None
+    try:
+        with open(project_dir / GATEWAY_TOKEN_FILE, encoding="utf-8", errors="replace") as f:
+            value = f.read(200).splitlines()[0].strip()
+    except (OSError, IndexError):
+        return None
+    return value if 32 <= len(value) <= 100 else None
+
+
+# A device's name as scripts/gateway.sh allows it: lowercase letters, digits, and dashes.
+DEVICE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
+
+
+def via_gateway(device: str | None, address: str) -> str:
+    """Who a call through the gateway is from, for the limit and kia's log: the device the
+    gateway names in X-Kia-Device, so each device has CALLS_PER_MINUTE of its own. kia sees
+    every device at the gateway's address. Without a proper name, that address, which then
+    shares the limit (an older gateway's settings, say)."""
+    if device and DEVICE.fullmatch(device):
+        return f"{device} (through the gateway)"
+    return address
+
+
+def tokens(state_dir: Path, project_dir: Path | None, gateway: bool) -> list[str]:
+    """Every token kia accepts: its own (kia mcp-token), and the gateway's while the gateway
+    part is chosen. Taking the part out stops its token working, though the file stays. An
+    empty list: the server is off."""
+    return [t for t in (token(state_dir), gateway_token(project_dir) if gateway else None) if t]
+
+
 def make_token(state_dir: Path) -> str:
     """A new token, replacing any old one (which stops working), readable only by you."""
     value = secrets.token_urlsafe(32)

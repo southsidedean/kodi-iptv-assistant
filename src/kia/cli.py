@@ -1199,6 +1199,8 @@ def cmd_mcp_token(args: argparse.Namespace) -> int:
     from kia import mcp
 
     cfg = load_config(args)
+    if args.gateway:
+        return _gateway_setup(cfg, args.for_)
     path = cfg.state_dir / mcp.TOKEN_FILE
     if args.off:
         path.unlink(missing_ok=True)
@@ -1226,6 +1228,34 @@ def cmd_mcp_token(args: argparse.Namespace) -> int:
     print()
     print("Other computers need a copy of kia's certificate, tls/fullchain.pem, saved as ~/kia-cert.pem:")
     print(f"see docs/mcp.md. For another assistant: kia mcp-token --for {{{','.join(mcp.ASSISTANTS)}}}")
+    return 0
+
+
+# A device's key from scripts/gateway.sh add: what its new_key makes (43 characters), or close.
+_DEVICE_KEY = re.compile(r"[A-Za-z0-9_-]{32,100}")
+
+
+def _gateway_setup(cfg: Config, assistant: str) -> int:
+    """The setup for one device through the gateway part: its address and the device's key.
+    scripts/gateway.sh add passes the key on stdin, so it never shows in a list of processes;
+    without one, the setup says where it goes. kia's own token isn't made or shown."""
+    from kia import mcp
+
+    given = "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.readline(200).strip()
+    key = given if _DEVICE_KEY.fullmatch(given) else "YOUR-DEVICE-KEY"
+    port = os.environ.get("KIA_GATEWAY_PORT", "").strip() or "8745"
+    if not port.isdigit() or not 0 < int(port) < 65536:
+        log(f"KIA_GATEWAY_PORT={port[:20]!r}: expected a port number, such as 8745")
+        return 2
+    host = tls.names(cfg.public_url, cfg.tls_names)[0]
+    address = f"https://{tls.in_url(host)}:{port}/mcp"
+    print(f"The gateway is at {address}")
+    if host in ("localhost", "127.0.0.1"):
+        print("That address works only on this computer. For others, set KIA_PUBLIC_URL (or KIA_TLS_NAMES) in .env, restart kia, and run this again.")
+    print()
+    print(mcp.setup_for(assistant, address, key), end="")
+    print()
+    print("The device needs a copy of kia's certificate, tls/fullchain.pem, saved as ~/kia-cert.pem: see docs/mcp.md.")
     return 0
 
 
@@ -1653,6 +1683,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--off", action="store_true", help="turn the MCP server off (deletes the token)")
     p.add_argument("--for", dest="for_", default="claude-code", choices=("claude-code", "claude-desktop", "gemini", "codex", "vscode", "cursor", "curl"),
                    help="which assistant to show the setup for (default: claude-code)")
+    p.add_argument("--gateway", action="store_true",
+                   help="the setup through the gateway part instead, with a device's key from scripts/gateway.sh add (on stdin)")
     p.set_defaults(func=cmd_mcp_token)
     p = sub.add_parser("settings", help="show the settings kia is running with, and where each is changed")
     p.add_argument("-c", "--config", default="kia.toml")

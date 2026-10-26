@@ -24,10 +24,12 @@ from pathlib import Path, PurePosixPath
 from kia import __version__
 
 FILES = (".env", "kia.toml", "sources.txt", "sources.local.txt")
-FOLDERS = ("playlists", "profiles", "state", "tls", "threadfin", "threadfin-2")
-# Left out: the MCP server's token (kia.mcp). A backup that turns up somewhere mustn't carry a
-# working key to kia; after a restore, kia mcp-token makes a new one.
-LEFT_OUT = ("state/mcp-token.txt",)
+FOLDERS = ("playlists", "profiles", "state", "tls", "threadfin", "threadfin-2", "gateway")
+# Left out: the MCP server's tokens (kia.mcp), kia's own and the gateway's. A backup that turns
+# up somewhere mustn't carry a working key to kia; after a restore, kia mcp-token and
+# scripts/gateway.sh write make new ones. The devices' keys are kept only as hashes, which
+# can't be used as keys.
+LEFT_OUT = ("state/mcp-token.txt", "gateway/kia-token")
 MANIFEST = "kia-backup.json"
 
 

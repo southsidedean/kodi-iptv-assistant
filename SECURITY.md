@@ -81,6 +81,16 @@ kia's [MCP server](docs/mcp.md) lets an AI assistant read kia's record. It's off
 - What it returns quotes text from strangers: channel names, guide titles, guide sites' errors. An assistant could read instructions planted there, and a taken-over kia container controls everything the tools return. kia tells the assistant at the start that this text is data, and kia's tools can't change anything. But an assistant such as Claude Code can also run commands and reach the internet, so a planted instruction that fooled it could try to use those. Keep the assistant asking before it runs commands, and don't approve one that came from an answer about kia unless kia's docs give it.
 - The token is kept in `state/mcp-token.txt`, readable only by you, and left out of backups. `kia mcp-token --reset` replaces it; `--off` turns the server off.
 
+### The gateway part
+
+The optional `gateway` part puts [agentgateway](https://agentgateway.dev) in front of the MCP server ([several devices](docs/mcp.md#several-devices-the-gateway)). kia's own protections stay in place behind it, and kia checks every call's token as before.
+
+- Each device has a key of its own, kept only as its SHA-256 in `gateway/`, readable only by you. Removing a device stops its key at once. The gateway logs each call with the device that made it, and limits each device (`KIA_GATEWAY_RATE`).
+- The gateway has its own token for kia (`gateway/kia-token`), which no device sees, and kia accepts it only while the gateway part is chosen. With kia's own token turned off (`kia mcp-token --off`), the gateway is the only way in.
+- It runs read-only, as you, with no capabilities, on a Docker network of its own shared only with kia and its web server. It reaches kia's MCP server through the web server over HTTPS, trusting only the certificate in `tls/`. Its admin page is off.
+- kia sees every call through the gateway as coming from the gateway's address. The gateway names the device in a header, which kia believes only with the gateway's token, so kia's limit of 60 tool calls a minute applies to each device. Wrong tokens are still counted for the gateway's address.
+- It's a third-party program, pinned to a tested version (`KIA_GATEWAY_IMAGE`). Without the part, it doesn't run and nothing in `gateway/` is used.
+
 ### Pluto TV
 
 The [Pluto TV relay](docs/how-it-works.md#pluto-tv) fetches only https addresses (redirects included), plays only the Pluto channels in kia's playlists, at most 20 at once, downloads at most 16 MB for any one address, keeps at most 32 MB of pieces for each channel, and keeps only keys of the right size, so a server that sends too much can't fill kia's memory.

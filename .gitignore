@@ -27,6 +27,8 @@ media/*
 # Prometheus's and Grafana's data, and your own targets and dashboards (monitoring profile).
 monitoring/*/*
 !monitoring/*/.gitkeep
+# The gateway part's settings, its devices' key hashes, and its token for kia (scripts/gateway.sh).
+gateway/*
 # The kia-stack service's own files: its answers to the Dashboard, and the request it's on.
 stack-service/
 # Your profiles (the Dashboard writes them here), apart from the example.
