@@ -257,3 +257,24 @@ def test_email_settings(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("KIA_SMTP_SECURITY", "plain")
     with pytest.raises(ValueError, match="starttls"):
         load(cfg)
+
+
+def test_a_playlist_that_points_at_your_network_is_an_alert_once(tmp_path: Path, monkeypatch):
+    from kia.m3u import Entry
+    from kia.probe import GUARD_REFUSED, ProbeResult
+
+    said = []
+    monkeypatch.setattr(alerts, "notify", lambda event, title, message, *a: said.append((event, title, message)) or True)
+    cfg = config(tmp_path)
+    entries = [Entry("A", "http://192.168.1.20/a", {}, source="free"), Entry("B", "https://tv.example/b", {}, source="free"),
+               Entry("C", "https://tv.example/c", {}, source="other")]  # fmt: skip
+    night = {"http://192.168.1.20/a": ProbeResult(ok=False, error=cli.LAN_REFUSED),
+             "https://tv.example/b": ProbeResult(ok=False, error=GUARD_REFUSED),  # a redirect, say
+             "https://tv.example/c": ProbeResult(ok=True)}  # fmt: skip
+    assert cli.track_playlists_on_your_network(cfg, entries, night)
+    assert said[0][0] == "playlist_lan" and said[0][1] == "kia: a playlist from the internet pointed at your network: free"
+    assert said[0][2].startswith("free: 2 streams.") and "the word lan" in said[0][2]
+    assert not cli.track_playlists_on_your_network(cfg, entries, night)  # the next night, the same: no new alert
+    fine = {u: ProbeResult(ok=True) for u in night}
+    assert not cli.track_playlists_on_your_network(cfg, entries, fine)  # it stopped...
+    assert cli.track_playlists_on_your_network(cfg, entries, night) and len(said) == 2  # ...and started again

@@ -114,14 +114,22 @@ def check(running: list[str], knock: Callable[[str, int], bool] = answers,
         return list(pool.map(one, services))
 
 
+DOWN_MINUTES = 10  # without an answer this long, a part gets an alert: longer than a restart or an update takes
+
+
 class Watch:
     """Checks the stack every minute in the background, writes stack.json for the Dashboard,
-    and keeps the last result for /metrics."""
+    keeps the last result for /metrics, and with alert(title, message), says when a part
+    stops answering for DOWN_MINUTES, and again when it's back."""
 
-    def __init__(self, output_dir: Path, running: list[str], every: float = 60, check=check) -> None:
+    def __init__(self, output_dir: Path, running: list[str], every: float = 60, check=check,
+                 alert: Callable[[str, str], None] | None = None, now: Callable[[], float] = time.monotonic) -> None:  # fmt: skip
         self.path = output_dir / STACK_FILE
         self.running, self.every, self._check = running, every, check
         self.last: list[dict] = []
+        self._alert, self._now = alert, now
+        self._down_since: dict[str, float] = {}  # service -> when it last stopped answering
+        self._told: set[str] = set()  # services an alert went out for, until they're back
 
     def once(self) -> list[dict]:
         services = self._check(self.running)
@@ -130,7 +138,30 @@ class Watch:
         tmp.write_text(json.dumps(body, indent=1) + "\n")
         tmp.replace(self.path)
         self.last = services
+        if self._alert:
+            self._tell(services)
         return services
+
+    def _tell(self, services: list[dict]) -> None:
+        """One alert a part, once it's gone DOWN_MINUTES without answering, and one when it
+        answers again. kia starting counts as the start: a part already down then gets its
+        alert DOWN_MINUTES later."""
+        now = self._now()
+        for s in services:
+            name, title = s["service"], s["title"]
+            if s["ok"]:
+                self._down_since.pop(name, None)
+                if name in self._told:
+                    self._told.discard(name)
+                    self._alert(f"kia: {title} is answering again", f"{title} answers kia's check again.")
+                continue
+            since = self._down_since.setdefault(name, now)
+            if name not in self._told and now - since >= DOWN_MINUTES * 60:
+                self._told.add(name)
+                self._alert(f"kia: {title} isn't answering",
+                            f"{title} hasn't answered kia's check for {DOWN_MINUTES} minutes. On kia's computer, "
+                            f"docker compose ps shows whether it's running, and docker compose logs {name} says why. "
+                            "The Dashboard's Stack page shows it too.")  # fmt: skip
 
     def start(self) -> None:
         def loop():

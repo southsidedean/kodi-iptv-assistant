@@ -34,7 +34,7 @@ from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
-from kia.probe import ProbeResult, probe, probe_guarded
+from kia.probe import GUARD_REFUSED, ProbeResult, probe, probe_guarded
 from kia.files import read_object, temp_name
 import contextlib
 
@@ -474,6 +474,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     drop_alert = False if partial else check_count_drop(cfg, "channels", len(chosen), "channels_drop",
                                                           "working channels")  # fmt: skip
+    lan_alert = False if partial else track_playlists_on_your_network(cfg, entries, results)
 
     n_ok = sum(c.status == "ok" for c in checked)
     n_flaky = sum(c.status == "flaky" for c in checked)
@@ -485,7 +486,38 @@ def cmd_check(args: argparse.Namespace) -> int:
         log(f"Test run: the live playlist in {cfg.output_dir} was left as it was.")
     else:
         update_status(cfg)
-    return EXIT_ALERT if dns_alert or drop_alert else 0
+    return EXIT_ALERT if dns_alert or drop_alert or lan_alert else 0
+
+
+def track_playlists_on_your_network(cfg: Config, entries: list[m3u.Entry], results: dict[str, ProbeResult]) -> bool:
+    """Alert when a playlist from the internet points kia at your own network: a stream's
+    address (kia.lan) or where it led (kia.guard). Once a playlist, until a night it doesn't,
+    so one that always does isn't an alert every night."""
+    counts: dict[str, int] = {}
+    for e in entries:
+        r = results.get(e.url)
+        if r is not None and r.error in (LAN_REFUSED, GUARD_REFUSED):
+            counts[e.source] = counts.get(e.source, 0) + 1
+    state = alerts.load_state(cfg.state_dir)
+    before = set(state["lan_playlists"])
+    state["lan_playlists"] = sorted(counts)
+    alerts.save_state(cfg.state_dir, state)
+    new = [s for s in sorted(counts) if s not in before]
+    if not new:
+        return False
+    found = "; ".join(f"{s}: {counts[s]} stream{'' if counts[s] == 1 else 's'}" for s in new)
+    return alerts.notify(
+        "playlist_lan",
+        f"kia: a playlist from the internet pointed at your network: {', '.join(new)}",
+        f"{found}. kia didn't test those streams: their addresses, or where they led (a redirect, an HLS piece, "
+        "or a name that looked up differently), were on your own network, and the playlist comes from the "
+        "internet. Usually that's a mistake in the playlist, but it can be one trying to reach your router or "
+        "other devices. If the playlist is yours and its streams really are on your network, add the word lan "
+        "to its line in the sources file. The report lists each stream.",
+        cfg.state_dir,
+        cfg.alerts,
+        log,
+    )
 
 
 def check_count_drop(cfg: Config, key: str, current: int, event: str, what: str) -> bool:
@@ -915,6 +947,7 @@ def api_config(cfg: Config):
         require_video=cfg.require_video,
         user_agent=cfg.user_agent,
         ffprobe=cfg.ffprobe,
+        alert=lambda event, title, message: alerts.notify(event, title, message, cfg.state_dir, cfg.alerts, log),
     )
 
 
@@ -1309,7 +1342,10 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     players = metrics.Players(cfg.state_dir)  # one pseudonym list for Plex's and Jellyfin's players
     watch = None
     if (running := stack.profiles()) is not None:  # kia in Docker: the Dashboard's Stack tiles
-        watch = stack.Watch(cfg.output_dir, running)
+        def part_alert(title: str, message: str) -> None:
+            alerts.notify("part_down", title, message, cfg.state_dir, cfg.alerts, log)
+
+        watch = stack.Watch(cfg.output_dir, running, alert=part_alert)
         watch.start()
     numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config, players),
                       jellyfin_sessions(args.config, players), watch, cfg.state_dir)  # /metrics, for Prometheus

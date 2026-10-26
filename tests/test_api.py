@@ -3,6 +3,7 @@ import json
 import shutil
 import socket
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -231,6 +232,39 @@ def test_wrong_passwords_slow_down_only_who_sends_them(cfg):
     assert try_("secret", "192.0.2.10") == 200  # someone else's right password still works
     assert api.handle(cfg, "PUT", "/api/profiles/x", {"Host": "tv.lan:8743"}, b"{}", True)[1] == {
         "error": "Enter kia's password first."}  # fmt: skip
+
+
+def test_someone_guessing_is_an_alert_once(cfg, monkeypatch):
+    # The waits between tries would take minutes: a clock that moves on 2 minutes a try.
+    clock = [1000.0]
+
+    def later():
+        clock[0] += 120
+        return clock[0]
+
+    monkeypatch.setattr(api.time, "monotonic", later)
+    said = []
+    cfg.alert = lambda event, title, message: said.append((event, title, message))
+
+    def arrived(n):  # alerts go out on a thread of their own, so the answer doesn't wait
+        deadline = time.time() + 5  # (the cfg fixture makes time.sleep return at once)
+        while len(said) < n and time.time() < deadline:
+            pass
+
+    def try_(password, client="192.0.2.9"):
+        headers = {"Host": "tv.lan:8743", "X-Kia-Password": password}
+        return api.handle(cfg, "PUT", "/api/profiles/x", headers, b'{"name": "x"}', True, client)[0]
+
+    for _ in range(api.GUESSES * 2):
+        assert try_("nope") == 401
+    arrived(1)
+    assert said == [("guessing", "kia: 10 wrong tries at the Dashboard's password from 192.0.2.9",
+                     said[0][2])] and "192.0.2.9 got the Dashboard's password wrong 10 times in a row" in said[0][2]  # fmt: skip
+    assert try_("secret") == 200  # the right one ends the streak
+    for _ in range(api.GUESSES):
+        try_("nope")
+    arrived(2)
+    assert len(said) == 2  # arrived(2) above waited for it; a third would need 10 more
 
 
 def test_a_password_the_browser_can_send(tmp_path: Path):

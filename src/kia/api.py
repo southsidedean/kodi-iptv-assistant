@@ -77,6 +77,8 @@ class ApiConfig:
     require_video: bool = True
     user_agent: str | None = None
     ffprobe: str = "ffprobe"
+    # Sends one of kia's alerts (kia.alerts.notify): event, title, message.
+    alert: Callable[[str, str, str], None] | None = None
 
 
 class ApiError(Exception):
@@ -674,7 +676,7 @@ def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
         raise ApiError(403, "Changes are accepted only on the secure (https://) Dashboard.")
     if not given:
         raise ApiError(401, "Enter kia's password first.")
-    _slowed("password", lambda: cfg.auth.check(given), "Wrong password.", "Too many wrong passwords.")
+    _slowed("password", lambda: cfg.auth.check(given), "Wrong password.", "Too many wrong passwords.", cfg.alert)
 
 
 def _who(address: str | None) -> str | None:
@@ -687,10 +689,15 @@ def _who(address: str | None) -> str | None:
     return str(ipaddress.ip_network(f"{ip}/64", strict=False)) if ip.version == 6 and not ip.ipv4_mapped else address
 
 
-def _slowed(kind: str, right: Callable[[], bool], wrong_text: str, too_many: str) -> None:
+GUESSES = 10  # wrong ones in a row from one address: someone guessing, or a device with an old one
+
+
+def _slowed(kind: str, right: Callable[[], bool], wrong_text: str, too_many: str,
+            alert: Callable[[str, str, str], None] | None = None) -> None:  # fmt: skip
     """Check a password or token, slowing down whoever keeps getting it wrong: a second
     after each wrong one, then a wait that doubles from the second in a row, up to a minute,
-    per kind and address (_CLIENT). Raises ApiError when it's wrong or they must wait."""
+    per kind and address (_CLIENT). Raises ApiError when it's wrong or they must wait. The
+    GUESSES-th wrong one in a row is an alert, once a streak (a right one ends it)."""
     client = (kind, _who(_CLIENT.get()))
     # One check at a time (each costs 16 MB), with the count of wrong ones read and updated
     # in the same turn: read before waiting, a burst of guesses sent at once would all pass
@@ -707,6 +714,16 @@ def _slowed(kind: str, right: Callable[[], bool], wrong_text: str, too_many: str
             for k in [k for k, (_, u) in _WRONG.items() if u < now]:
                 del _WRONG[k]
         _WRONG[client] = (wrong + 1, time.monotonic() + (min(2.0**wrong, 60.0) if wrong else 0))
+    if alert and wrong + 1 == GUESSES:
+        what = "the Dashboard's password" if kind == "password" else "kia's MCP token"
+        # The address is kia's own reading of who connected (_CLIENT), never text from the request.
+        address = _CLIENT.get() or "an unknown address"
+        # On its own thread: sending can take seconds, and the answer shouldn't wait.
+        threading.Thread(target=alert, daemon=True, args=(
+            "guessing", f"kia: {GUESSES} wrong tries at {what} from {address}",
+            f"{address} got {what} wrong {GUESSES} times in a row. kia slows each try down, up to a minute "
+            "apart. It may be a device with an old one saved (an assistant after a new MCP token, say); if "
+            "you don't know the address, someone on your network may be guessing.")).start()  # fmt: skip
     time.sleep(1)  # outside the lock: someone guessing doesn't hold up the right password
     raise ApiError(401, wrong_text)
 
@@ -740,7 +757,7 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
         # Every token compared, not just up to the first that matches: how long it takes
         # doesn't say which one a guess was close to.
         _slowed("mcp", lambda: any([hmac.compare_digest(given.encode(), t.encode()) for t in expected]),
-                "Wrong MCP token.", "Too many wrong MCP tokens.")  # fmt: skip
+                "Wrong MCP token.", "Too many wrong MCP tokens.", cfg.alert)  # fmt: skip
     except ApiError as exc:
         print(f"MCP: refused a token from {_CLIENT.get() or 'a client'} ({exc.status})", flush=True)
         raise
