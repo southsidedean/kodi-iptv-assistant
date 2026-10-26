@@ -18,9 +18,11 @@ import time
 import xml.etree.ElementTree as ET
 import zlib
 from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from kia import guard
 from kia.m3u import Entry, xml_attr, xml_text
 from kia.native import fetch, filter_xmltv
 
@@ -33,11 +35,14 @@ def site_name(source: str) -> str:
 
 
 def plan(entries: list[Entry], aliases: dict[str, list[tuple[str, str]]] | None = None) -> dict:
-    """{site: {"urls": [...], "channels": {id in the guide: [tvg-ids in our playlist]}}}
+    """{site: {"urls": [...], "channels": {id in the guide: [tvg-ids in our playlist]}, "guarded": bool}}
 
     `aliases` (our tvg-id -> [(source, its id there)]) lets a channel kept from one playlist
-    use another playlist's guide, when duplicates were merged.
+    use another playlist's guide, when duplicates were merged. "guarded": the playlist isn't
+    yours, so its guides download through kia's outbound guard (kia.guard). A playlist known
+    only through aliases counts as not yours.
     """
+    yours = {e.source for e in entries if e.yours}
     spec: dict[str, dict] = {}
     for e in entries:
         if not e.tvg_id:
@@ -48,7 +53,7 @@ def plan(entries: list[Entry], aliases: dict[str, list[tuple[str, str]]] | None 
         for source, source_id, urls in members:
             if not urls or not source_id:
                 continue
-            site = spec.setdefault(site_name(source), {"urls": list(urls), "channels": {}})
+            site = spec.setdefault(site_name(source), {"urls": list(urls), "channels": {}, "guarded": source not in yours})
             site["channels"].setdefault(source_id, [])
             if e.tvg_id not in site["channels"][source_id]:
                 site["channels"][source_id].append(e.tvg_id)
@@ -79,9 +84,9 @@ def sites_by_channel(spec: dict) -> dict[str, list[str]]:
     return out
 
 
-def _open_guide(url: str):
+def _open_guide(url: str, proxy: str | None = None):
     """The guide as a stream of XML, unzipped if it's gzip (by its first bytes, not its name)."""
-    resp = fetch(url)
+    resp = fetch(url, proxy=proxy)
     stream = io.BufferedReader(resp)
     if stream.peek(2)[:2] == b"\x1f\x8b":
         return resp, gzip.GzipFile(fileobj=stream)
@@ -114,7 +119,9 @@ def download(
     failures = 0
     covered: set[str] = set()
     output.parent.mkdir(parents=True, exist_ok=True)
-    with open(output, "w", encoding="utf-8") as out:
+    # A plan without "guarded" (from an older kia) counts as guarded: the safe way round.
+    g = guard.get() if info.get("guarded", True) else None
+    with (g.ticket() if g else nullcontext()) as ticket, open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
         for tid in ours:
             out.write(f"  <channel id={xml_attr(tid)}><display-name>{xml_text(tid)}</display-name></channel>\n")
@@ -124,7 +131,7 @@ def download(
             try:
                 if deadline is not None and t0 > deadline:
                     raise TimeoutError("not started: past the time limit (site_time_limit)")
-                resp, stream = _open_guide(url)
+                resp, stream = _open_guide(url, ticket.url if ticket else None)
                 with resp, stream:
                     found: set[str] = set()
                     n = filter_xmltv(stream, wanted, start, end, got.append, suffix_fallback=False, deadline=deadline,
@@ -136,7 +143,11 @@ def download(
             except (OSError, EOFError, ValueError, zlib.error, http.client.HTTPException, ET.ParseError) as exc:
                 # One bad guide (gone, not XML, cut off) shouldn't stop the others.
                 failures += 1
-                log(f"  {url}: ERR: {type(exc).__name__}: {exc}")
+                if ticket and ticket.refused:
+                    log(f"  {url}: ERR: it led to an address on your own network, so kia's outbound guard stopped it")
+                    ticket.refused.clear()
+                else:
+                    log(f"  {url}: ERR: {type(exc).__name__}: {exc}")
         missing = {tid: [tid] for tid in ours if tid not in covered}
         if failures and missing and previous and previous.exists():
             try:

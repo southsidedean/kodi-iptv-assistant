@@ -8,6 +8,7 @@ it gives the same programmes in seconds with almost no memory.
 
 from __future__ import annotations
 
+import base64
 import gzip
 import http.client
 import json
@@ -113,6 +114,33 @@ class _StayOffYourNetwork(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_StayOffYourNetwork)
 
 
+class _ThroughTheGuard(urllib.request.BaseHandler):
+    """Sends every request, each redirect's too, through kia's outbound guard (kia.guard)
+    with a ticket: https as a tunnel, plain http as a request for the whole address. It
+    runs before the others (handler_order), so no request leaves without it."""
+
+    handler_order = 100
+
+    def __init__(self, proxy: str):
+        p = urllib.parse.urlsplit(proxy)
+        self._proxy = f"{p.hostname}:{p.port}"
+        self._login = "Basic " + base64.b64encode(f"{p.username}:{p.password}".encode()).decode()
+
+    def http_request(self, req):
+        # The server's own name, before set_proxy swaps req.host for the guard's address:
+        # urllib fills Host in from req.host later, and a server (Cloudflare's, say)
+        # refuses a request that names 127.0.0.1.
+        if not req.has_header("Host"):
+            req.add_unredirected_header("Host", req.host)
+        req.set_proxy(self._proxy, "http")
+        # urllib moves this header to the tunnel's own request for https, so it reaches
+        # only the guard, never the server.
+        req.add_unredirected_header("Proxy-Authorization", self._login)
+        return req
+
+    https_request = http_request
+
+
 MAX_PAGE = 20 * 1024 * 1024  # bytes: a schedule page or API answer; real ones are a few hundred KB
 PAGE_TIME = 120  # seconds for the whole page: a timeout alone limits each read, not the download
 
@@ -131,9 +159,14 @@ def read_page(resp, limit: int = MAX_PAGE, seconds: float = PAGE_TIME) -> bytes:
     return b"".join(parts)
 
 
-def fetch(url: str, timeout: float = 120):
+def fetch(url: str, timeout: float = 120, proxy: str | None = None):
+    """Open url; with proxy (a kia.guard ticket's address), through the outbound guard, and
+    never through a proxy of yours (ProxyHandler({}))."""
     req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
-    return _OPENER.open(req, timeout=timeout)
+    if proxy is None:
+        return _OPENER.open(req, timeout=timeout)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _StayOffYourNetwork, _ThroughTheGuard(proxy))
+    return opener.open(req, timeout=timeout)
 
 
 def grab_imjh(

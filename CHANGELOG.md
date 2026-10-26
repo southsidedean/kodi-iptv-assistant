@@ -2,6 +2,10 @@
 
 ## 0.7.1 (unreleased)
 
+### The outbound guard
+
+kia already left out the streams and guides of a playlist from the internet when their addresses were on your network. Now the http and https ones also go through kia's outbound guard, a small proxy inside kia, which checks every connection they actually make. A name that looks up differently the second time, a stream that redirects onto your network, and an HLS playlist that lists its pieces at addresses on your network are all stopped, and the report says why. Your own playlists don't use it. It works with Docker or without, and needs no setup. rtmp and rtsp streams can't go through it, and keep the first check alone; if you've set a proxy of your own (`http_proxy` and the like), kia uses yours instead ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
+
 ## 0.7.0 (2026-10-26)
 
 ### Upgrading from 0.6.7

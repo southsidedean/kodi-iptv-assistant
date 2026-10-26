@@ -3,10 +3,12 @@ flowchart TB
   subgraph container["kia's container: read-only, own folders only, no Docker"]
     checks["kia's checks<br>on what it reads"]
     media["ffprobe and ffmpeg<br>none of kia's settings"]
+    guard["The outbound guard<br>checks every connection"]
     sandbox["iptv-org's downloader<br>in Node's sandbox"]
   end
   net --> checks
-  net --> media
+  net --> guard
+  guard --> media
   net --> sandbox
   you["You, on the Dashboard"] -->|"password, HTTPS"| webserver["The web server"]
   ai["An AI assistant<br>(MCP), read-only"] -->|"its own token, HTTPS"| webserver

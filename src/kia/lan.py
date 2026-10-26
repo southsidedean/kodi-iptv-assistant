@@ -9,11 +9,12 @@ Your own playlists can name anything: a file on this computer, or a playlist dow
 from an address on your network (a tuner, Threadfin, tvheadend). The word `lan` on a
 playlist's line in the sources file lets one from elsewhere do the same.
 
-It's a guard for the ordinary case, and someone determined can get past it: kia looks
-each name up before the test and ffprobe looks it up again, so a DNS server that answers
-differently the second time gets through, and so does a stream that redirects. SECURITY.md
-says so too. Whether a playlist is yours, though, is decided from its address as written,
-never by a lookup (names_your_network).
+This check comes first, and gives the clearest reason in the report. On its own, someone
+determined could get past it: kia looks each name up before the test and ffprobe looks it
+up again, and ffprobe follows redirects and HLS pieces by itself. So the http and https
+streams and guides of such a playlist also go through kia.guard, which checks every
+connection they make. Whether a playlist is yours, though, is decided from its address as
+written, never by a lookup (names_your_network).
 """
 
 from __future__ import annotations
@@ -63,6 +64,15 @@ def _not_global(a: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
         inside = ipaddress.IPv4Address(int(a) & 0xFFFFFFFF) if a in _NAT64 else a.sixtofour
         return inside is not None and not inside.is_global
     return False
+
+
+def is_local_address(address: str) -> bool:
+    """Whether an IP address, as a lookup gives it, isn't out on the internet (as _not_global
+    judges it). Anything that doesn't read as an address counts as local: refused."""
+    try:
+        return _not_global(ipaddress.ip_address(address.partition("%")[0]))  # fe80::1%eth0
+    except ValueError:
+        return True
 
 
 def is_local(host: str | None) -> bool:

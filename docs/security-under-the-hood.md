@@ -23,7 +23,7 @@ Most of it is ordinary, and some of it is broken. But kia reads thousands of add
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/security-layers-dark.svg">
-  <img alt="kia's layers of protection, from the outside in. Playlists, streams, guide sites, iptv-org's code, and Pluto TV come from the internet. Each enters through a guard: kia's checks on what it reads, ffprobe and ffmpeg with none of kia's settings, and iptv-org's downloader in Node's sandbox. All of them run inside kia's container, which is read-only apart from kia's own folders and has no Docker access. The Dashboard reaches kia through the web server, with the password over HTTPS, and so does an AI assistant using kia's read-only MCP server, with its own token over HTTPS. Only the kia-stack service, on the computer as you, reaches Docker, and it accepts only a strictly checked request to start or stop parts of the stack." src="../images/diagrams/security-layers-light.svg">
+  <img alt="kia's layers of protection, from the outside in. Playlists, streams, guide sites, iptv-org's code, and Pluto TV come from the internet. Each enters through a guard: kia's checks on what it reads, ffprobe and ffmpeg with none of kia's settings, reaching streams only through the outbound guard, which checks every connection, and iptv-org's downloader in Node's sandbox. All of them run inside kia's container, which is read-only apart from kia's own folders and has no Docker access. The Dashboard reaches kia through the web server, with the password over HTTPS, and so does an AI assistant using kia's read-only MCP server, with its own token over HTTPS. Only the kia-stack service, on the computer as you, reaches Docker, and it accepts only a strictly checked request to start or stop parts of the stack." src="../images/diagrams/security-layers-light.svg">
 </picture>
 
 ## Where untrusted input goes
@@ -32,12 +32,27 @@ Most of it is ordinary, and some of it is broken. But kia reads thousands of add
 
 - Control characters and broken text are removed as kia reads each line. Only `#KODIPROP` lines that tell Kodi how to play a stream are passed on to your playlists; anything else a playlist sets for Kodi is dropped.
 - Only network addresses (`http`, `https`, `rtmp`, `rtmps`, `rtsp`, `rtsps`) with a host reach ffprobe. One with no host, such as `http://:9090/`, would make ffmpeg connect to this computer itself, so it's marked dead, as is one kia can't read. A playlist entry like a file path, or any of ffmpeg's special addresses that read files or chain other addresses together, is marked dead without being opened.
-- A playlist that isn't yours can't point kia at your network: kia tests its streams, and downloads the guides it names, only at addresses out on the internet ([playlists from the internet](../SECURITY.md#playlists-from-the-internet)). Playlists of your own (a file on this computer, one whose address names your network as written, such as `192.168.1.20` or `my-server.lan`, or a line marked `lan`) can name anything. kia never decides that by looking a name up. Guide downloads refuse a redirect from the internet onto your network.
+- A playlist that isn't yours can't point kia at your network: kia tests its streams, and downloads the guides it names, only at addresses out on the internet ([playlists from the internet](../SECURITY.md#playlists-from-the-internet)). Playlists of your own (a file on this computer, one whose address names your network as written, such as `192.168.1.20` or `my-server.lan`, or a line marked `lan`) can name anything. kia never decides that by looking a name up. The http and https ones then go through [the outbound guard](#the-outbound-guard), which checks every connection they make, redirects and HLS pieces included.
 - A playlist that downloads but holds no stream addresses counts as a failed download, so a broken answer can't replace your last good copy.
 
 ### Streams
 
 ffprobe and ffmpeg are the programs most exposed: they read the streams themselves, in formats complicated enough to have had bugs. kia starts them with a bare environment, so none of kia's passwords or tokens are in the settings they're given, and with time limits, so a server that stalls or trickles can't hold a test open. In Docker, they run inside kia's container, with its limits (below).
+
+### The outbound guard
+
+A playlist that isn't yours is checked twice. First kia looks at each stream's and guide's address and leaves out any on your network ([playlists](#playlists)). Then the http and https ones go through kia's outbound guard (`src/kia/guard.py`), which checks every connection they actually make. That second check is what stops a name whose DNS answers differently on a second lookup, a redirect onto your network, and an HLS playlist that lists its pieces at local addresses: ffprobe opens all of those itself.
+
+The guard is a small proxy, in Python's standard library like the rest of kia, running inside kia's own process and listening on `127.0.0.1` only. It works the same with Docker or without, on a Raspberry Pi too. For each test or guide download:
+
+1. kia makes a ticket: a name and a secret of its own, put in the proxy address it gives ffprobe (`http_proxy`) or Python's downloader. The guard answers anything without a live ticket with 407, so nothing else on the computer can use it.
+2. ffprobe sends https through it as a tunnel (`CONNECT host:443`) and plain http as a request for the whole address. Redirects and HLS pieces are new connections, and each one comes through the guard the same way.
+3. For each connection, the guard looks the name up once. If any address it gets isn't out on the internet, the connection is refused with 403 and noted on the ticket; otherwise the guard connects to the address it checked, never looking the name up again.
+4. When the test fails and its ticket has a refusal, the report says the stream led to an address on your network. A guide's log says the same.
+
+ffprobe gets `-protocol_whitelist http,https,tls,tcp,httpproxy,crypto,data` for these tests, so a stream can't switch it to reading a file or opening a raw connection, and `no_proxy` is taken out of its settings, since a name listed there would skip the guard. ffmpeg's HLS reader opens only http and https pieces anyway (checked with ffmpeg 9.0). The guard passes on only `GET`, `HEAD`, and `CONNECT`, reads at most 16 KB of a request's headers, sends plain http requests on with `Connection: close` so each one is checked anew, handles 64 connections at once, and closes a connection that passes nothing for 60 seconds.
+
+It doesn't cover rtmp and rtsp streams, which can't go through a web proxy; they keep the first check alone. When you've set a proxy of your own (`http_proxy`, `https_proxy`, `all_proxy`, in either case), kia leaves your proxy in charge and doesn't start the guard. Your own playlists don't use it: they can name anything on your network.
 
 ### Guide sites
 

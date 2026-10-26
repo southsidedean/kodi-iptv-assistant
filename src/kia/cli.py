@@ -33,7 +33,7 @@ from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
 from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
-from kia.probe import ProbeResult, probe
+from kia.probe import ProbeResult, probe, probe_guarded
 from kia.files import read_object, temp_name
 import contextlib
 
@@ -211,14 +211,13 @@ async def probe_all(entries: list[m3u.Entry], cfg: Config, verbose: bool) -> dic
             if local_hosts[host]:
                 return ProbeResult(ok=False, error=LAN_REFUSED)
         await spaced(e)
-        return await probe(
-            e.url,
-            timeout=cfg.timeout,
-            user_agent=e.user_agent or cfg.user_agent,
-            referrer=e.referrer,
-            require_video=cfg.require_video and not e.is_radio,
-            ffprobe=cfg.ffprobe,
-        )
+        how = {"timeout": cfg.timeout, "user_agent": e.user_agent or cfg.user_agent, "referrer": e.referrer,
+               "require_video": cfg.require_video and not e.is_radio, "ffprobe": cfg.ffprobe}  # fmt: skip
+        if e.url in yours:
+            return await probe(e.url, **how)
+        # From a playlist that isn't yours, through kia's outbound guard (kia.guard), which
+        # checks every connection ffprobe makes: redirects and HLS pieces included.
+        return await probe_guarded(e.url, run=probe, **how)
 
     async def one(e: m3u.Entry) -> None:
         nonlocal ok

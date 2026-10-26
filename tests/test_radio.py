@@ -93,7 +93,7 @@ def test_radio_duplicates_collapse_to_one_station():
 def test_radio_is_probed_without_requiring_video(monkeypatch):
     seen = {}
 
-    async def fake_probe(url, timeout, user_agent, referrer, require_video, ffprobe):
+    async def fake_probe(url, timeout, user_agent, referrer, require_video, ffprobe, proxy=None):
         seen[url] = require_video
         return ProbeResult(ok=True)
 

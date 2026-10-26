@@ -24,7 +24,7 @@ def test_same_channel_from_two_playlists_becomes_one():
     assert [e.tvg_id for e in out.also] == ["USBA300011PO"] and b.selected and not a.selected
     # The other copy's playlist guide is used for our id.
     spec = playlistguide.plan([out.entry], {out.entry.tvg_id: [(e.source, e.tvg_id, e.guide_urls) for e in out.also]})
-    assert spec == {"playlist-samsung-us": {"urls": ["https://g/samsung.xml.gz"], "channels": {"USBA300011PO": ["FOXWeather.us@SD"]}}}
+    assert spec == {"playlist-samsung-us": {"urls": ["https://g/samsung.xml.gz"], "channels": {"USBA300011PO": ["FOXWeather.us@SD"]}, "guarded": True}}
 
 
 def test_ambiguous_names_and_other_countries_stay_apart():
