@@ -5,6 +5,7 @@
 ### A better guide
 
 - Pluto TV channels get Pluto's own listings, found by the ID in their stream address, even when the playlist's name or ID for the channel isn't one iptv-org knows. On a test install with the US playlist, 17 of the 25 Pluto channels without a guide got one ([how kia matches channels](docs/guide-under-the-hood.md#matching-kia-map)).
+- kia reads epgshare01.online, a free guide service, itself: the channel lists it publishes today, for the countries in your playlists, and only the feeds your channels need, once a night. iptv-org's lists for it name feeds that no longer exist, so channels matched there got nothing. On the same test install, 12 more channels got a guide, among them AXS TV, Free Speech TV, News 12 New Jersey, and WWE Network. `exclude_sites = ["epgshare01.online"]` turns it off.
 
 ## 0.7.3 (2026-10-26)
 
