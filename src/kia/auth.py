@@ -73,10 +73,8 @@ class Auth:
             return "off"
         if self.env_password:
             return "env"
-        try:
-            return "generated" if json.loads(self.saved.read_text()).get("generated") else "set"
-        except (OSError, ValueError):
-            return "generated"
+        record = self._record()
+        return "set" if record and not record.get("generated") else "generated"
 
     def ensure(self, log=print) -> None:
         """Make a password on first start when .env doesn't set one."""
@@ -86,8 +84,10 @@ class Auth:
                     "Dashboard can't use it: change it in .env to letters, digits, and ordinary symbols.")  # fmt: skip
             elif len(self.env_password) < MIN_LENGTH:
                 log(f"KIA_ADMIN_PASSWORD is shorter than {MIN_LENGTH} characters: easy to guess on your network.")
-        if not self.enabled or self.env_password or self.saved.exists():
+        if not self.enabled or self.env_password or self._record() is not None:
             return
+        if self.saved.exists():
+            log(f"{self.saved} is damaged, so kia made a new password.")
         self.reset(log)
 
     def reset(self, log=print) -> str:
@@ -110,13 +110,22 @@ class Auth:
             return False
         if self.env_password:
             return hmac.compare_digest(given.encode(), self.env_password.encode())
+        record = self._record()
+        if record is None:
+            return False
+        return hmac.compare_digest(_hash(given, bytes.fromhex(record["salt"])), record["hash"])
+
+    def _record(self) -> dict | None:
+        """The saved password's record, or None when there's none kia can use: missing, not
+        JSON, another shape, or without a salt and hash in hex. ensure() then makes a new one."""
         try:
             record = json.loads(self.saved.read_text())
-            expected = record["hash"]
-            actual = _hash(given, bytes.fromhex(record["salt"]))
-        except (OSError, ValueError, KeyError):
-            return False
-        return hmac.compare_digest(actual, expected)
+            if isinstance(record, dict) and isinstance(record.get("hash"), str):
+                bytes.fromhex(record["salt"])
+                return record
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+        return None
 
     def change(self, new: str) -> None:
         """Save a new password (the caller has checked the current one)."""

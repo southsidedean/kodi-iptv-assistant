@@ -20,6 +20,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from kia.files import read_object
 from kia.m3u import Entry
 
 # Names already used by files in the output folder.
@@ -98,6 +99,11 @@ def from_rules(name: str, rules: object, where_file: str = "profile") -> Profile
         value = rules.get(key, [])
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
             raise ValueError(f"{where}: {key} must be a list of text, like [\"News\"]")
+    # Text kia writes back into profiles.toml: no control characters (TOML refuses DEL) and
+    # no lone surrogates (they can't be saved as UTF-8). Either gave a 500 and a stray .tmp.
+    texts = [rules.get("title", ""), *(v for key in LISTS for v in rules.get(key, []))]
+    if any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for t in texts for c in t):
+        raise ValueError(f"{where}: text can't hold control characters")
     for key in FLAGS + SWITCHES:
         if not isinstance(rules.get(key, key in FLAGS), bool):
             raise ValueError(f"{where}: {key} must be true or false")
@@ -229,6 +235,7 @@ def write_guides(output_dir: Path, wanted: dict[str, set[str]]) -> set[str]:
         return set()
     files = {name: output_dir / f"{name}.guide.xml.gz.tmp" for name in wanted}
     outs = {name: gzip.open(path, "wt", encoding="utf-8", compresslevel=6) for name, path in files.items()}  # noqa: SIM115
+    done = False
     try:
         for f in outs.values():
             f.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="kodi-iptv-assistant">\n')
@@ -249,9 +256,13 @@ def write_guides(output_dir: Path, wanted: dict[str, set[str]]) -> set[str]:
                 root.clear()  # keep memory flat on a large guide
         for f in outs.values():
             f.write("</tv>\n")
+        done = True
     finally:
         for f in outs.values():
             f.close()
+        if not done:  # a guide.xml that can't be read: no half-written files left behind
+            for path in files.values():
+                path.unlink(missing_ok=True)
     for name, path in files.items():
         path.replace(output_dir / f"{name}.guide.xml.gz")
     return set(wanted)
@@ -316,26 +327,20 @@ def rebuild(output_dir: Path, state_dir: Path, profiles_file: Path | None, epg_u
         defined = load(profiles_file) if profiles_file else []
     except (ValueError, OSError) as exc:  # tomllib.TOMLDecodeError is a ValueError
         log(f"Profiles not updated: {exc}")
-        old = json.loads(summary_path.read_text()) if summary_path.exists() else {}
-        result = {**old, "error": str(exc)}
+        result = {**read_object(summary_path), "error": str(exc)}
         _write(summary_path, json.dumps(result, indent=1))
         return result
     curated = output_dir / "curated.m3u"
     entries = parse(curated.read_text()) if curated.exists() else []
-    try:
-        sources = json.loads((state_dir / "channel-sources.json").read_text())
-    except (OSError, ValueError):
-        sources = {}
-    items = [(e, set(sources.get(e.key, [e.source] if e.source else []))) for e in entries]
+    sources = read_object(state_dir / "channel-sources.json")  # damaged into another shape: as if missing
+    items = [(e, set(sources[e.key]) if isinstance(sources.get(e.key), list) else {e.source} - {""}) for e in entries]
     builtin = set()
     if entries and TV_ONLY.name not in {p.name for p in defined}:
         defined = [*defined, TV_ONLY]
         builtin.add(TV_ONLY.name)
     picks = {p.name: numbered(p, select(p, items)) for p in defined}
-    try:
-        before = {p["name"]: p.get("guide_ids") for p in json.loads(summary_path.read_text()).get("profiles", [])}
-    except (OSError, ValueError):
-        before = {}
+    before = {p["name"]: p.get("guide_ids") for p in read_object(summary_path).get("profiles", [])
+              if isinstance(p, dict) and isinstance(p.get("name"), str)}  # fmt: skip
     wanted = {name: {e.tvg_id for e in picked if e.tvg_id} for name, picked in picks.items()}
     try:
         guides, digests = update_guides(output_dir, wanted, before, link_tv=TV_ONLY.name in builtin)

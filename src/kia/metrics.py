@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from kia import __version__
-from kia.files import temp_name
+from kia.files import temp_name, read_object
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 STARTED = time.time()
@@ -116,10 +116,8 @@ class Players:
     def _note(self, sessions: list[dict]) -> None:
         path = self.state_dir / PLAYERS_FILE
         if self.known is None:
-            try:
-                self.known = json.loads(path.read_text())
-            except (OSError, ValueError):
-                self.known = {}
+            # Damaged into another shape: as if missing (it only maps pseudonyms to players).
+            self.known = {k: v for k, v in read_object(path).items() if isinstance(v, dict)}
         today, changed = datetime.now().astimezone().date().isoformat(), False
         for x in sessions:
             seen = {"name": x["player"], "product": x["product"], "seen": today}
@@ -143,10 +141,7 @@ def _write_private(path: Path, text: str) -> None:
 
 def known_players(state_dir: Path) -> list[dict]:
     """Which pseudonym is which player, Plex's and Jellyfin's, newest first (for the secure System page)."""
-    try:
-        known = json.loads((state_dir / PLAYERS_FILE).read_text())
-    except (OSError, ValueError):
-        return []
+    known = {k: v for k, v in read_object(state_dir / PLAYERS_FILE).items() if isinstance(v, dict)}
     return sorted(({"pseudonym": k, **v} for k, v in known.items()), key=lambda p: (p.get("seen", ""), p["pseudonym"]), reverse=True)
 
 

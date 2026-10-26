@@ -315,9 +315,10 @@ def _jellyfin_time(text: object) -> datetime | None:
     if not isinstance(text, str):
         return None
     try:
-        return datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", text).replace("Z", "+00:00"))
+        when = datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", text).replace("Z", "+00:00"))
     except ValueError:
         return None
+    return when if when.tzinfo else when.replace(tzinfo=timezone.utc)  # Jellyfin's times are UTC
 
 
 def _plain(channel: str) -> str:

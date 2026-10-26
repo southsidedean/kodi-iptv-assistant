@@ -14,6 +14,10 @@ A playlist downloaded from a name like `tuner.example.com` that points at your o
 - **Test** on a channel refuses an address on your network when the channel's playlist comes from the internet, as the nightly check does. **Check now** keeps a playlist's `lan` word, so it tests the playlist as the nightly check does.
 - SomaFM's channel list can only point kia at https playlists off your network, and one odd channel no longer loses all of SomaFM's channels.
 - Another kia server's guide (an upstream) is downloaded up to 500 MB, so one that never stops sending can't fill the disk.
+- A file kia keeps that's damaged into another shape (a hand edit, a full disk) no longer stops kia. The playlist, channel, alert, player, profile, and settings records, the saved password, a backup's list of files, and the files kia doctor and the MCP tools read are all treated as missing when they don't hold what kia wrote. Before, one such file could stop every refresh, the Dashboard's updates, `/metrics`, or the editors until someone fixed it by hand. A damaged channel-numbers file is set aside as `channel-numbers.json.bad`, as stream history is, and a damaged password file is replaced with a new password in `state/admin-password.txt`.
+- `kia restore` gives one line, not a traceback, for a cut-short or odd backup file.
+- Jellyfin times without a time zone are read as UTC, so `kia doctor` and `kia find` don't fail on them.
+- A profile whose title or lists hold a control character is refused on the Dashboard, instead of giving an error and leaving a temporary file behind.
 
 ## 0.6.6 (2026-10-25)
 

@@ -20,7 +20,7 @@ from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
 from kia.channels import FAVORITES
 from kia.m3u import parse
-from kia.files import temp_name
+from kia.files import read_object, temp_name
 from kia.locks import FilesLock
 
 # Files in output/ the page links to, with what each one is for.
@@ -43,10 +43,7 @@ RESULTS = {
 
 
 def _load(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text())
-    except (OSError, ValueError):
-        return {}
+    return read_object(path)  # damaged into another shape: as if missing
 
 
 def _write(path: Path, text: str) -> None:

@@ -33,7 +33,7 @@ from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
 from kia.probe import ProbeResult, probe
-from kia.files import temp_name
+from kia.files import read_object, temp_name
 import contextlib
 
 
@@ -799,8 +799,8 @@ def update_status(cfg: Config, **run: object) -> None:
     """Rewrite the Dashboard; a failure here never stops a run."""
     try:
         status.update(cfg.output_dir, cfg.state_dir, cfg.public_url, **run)
-    except (OSError, ValueError) as exc:
-        log(f"Couldn't update the Dashboard: {exc}")
+    except Exception as exc:  # any: the run's work is done, and the Dashboard is only its report
+        log(f"Couldn't update the Dashboard: {type(exc).__name__}: {exc}")
 
 
 def run_and_report(config: str, update_epg: bool) -> int:
@@ -956,10 +956,7 @@ def _reloaded(cfg: Config) -> Config:
 def refresh_settings_and_status(cfg: Config) -> None:
     """After a change on the Dashboard (a new password, say): the settings shown on
     the System page and the Getting started checklist read them, so rewrite both."""
-    try:
-        saved = json.loads((cfg.state_dir / "settings.json").read_text())
-    except (OSError, ValueError):
-        saved = {}
+    saved = read_object(cfg.state_dir / "settings.json")
     write_settings(cfg, saved.get("run_at"), saved.get("guide_every"))
     update_status(cfg)
 
@@ -1018,10 +1015,7 @@ def cmd_find(args: argparse.Namespace) -> int:
 
 def cmd_settings(args: argparse.Namespace) -> int:
     cfg = load_config(args)
-    try:  # the schedule is the running daemon's, which this command can't see otherwise
-        saved = json.loads((cfg.state_dir / "settings.json").read_text())
-    except (OSError, ValueError):
-        saved = {}
+    saved = read_object(cfg.state_dir / "settings.json")  # the running daemon's schedule, which this command can't see otherwise
     run_at = saved.get("run_at") or os.environ.get("KIA_RUN_AT")
     every = saved.get("guide_every")
     print(settings.as_text(settings.describe(cfg, run_at, every)), end="")
@@ -1127,7 +1121,7 @@ def cmd_restore(args: argparse.Namespace) -> int:
     base = Path(args.to).resolve() if args.to else Path(args.config).resolve().parent
     try:
         restored, _ = backup.restore(Path(args.archive), base, base / "work" / "backups", log)
-    except (OSError, ValueError, tarfile.TarError) as exc:
+    except (OSError, ValueError, EOFError, tarfile.TarError) as exc:  # EOFError: a cut-short archive
         log(f"error: {exc}")
         return 1
     if not restored:
