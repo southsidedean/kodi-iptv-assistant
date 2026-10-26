@@ -39,8 +39,8 @@ def test_plan_groups_channels_by_playlist():
 
     spec = playlistguide.plan([entry("A", "roku"), entry("B", "roku"), entry("C", "us", ()), entry("D", "My List!")])
     assert spec == {
-        "playlist-roku": {"urls": ["https://g/x.xml"], "channels": {"A": ["A"], "B": ["B"]}},
-        "playlist-My-List": {"urls": ["https://g/x.xml"], "channels": {"D": ["D"]}},
+        "playlist-roku": {"urls": ["https://g/x.xml"], "channels": {"A": ["A"], "B": ["B"]}, "guarded": True},
+        "playlist-My-List": {"urls": ["https://g/x.xml"], "channels": {"D": ["D"]}, "guarded": True},
     }
     assert playlistguide.sites_by_channel(spec)["A"] == ["playlist-roku"]
 
@@ -49,7 +49,7 @@ def test_download_keeps_only_our_channels(server, tmp_path: Path):
     www, base = server
     (www / "a.xml.gz").write_bytes(gzip.compress(guide({"A": ["News", "Weather"], "Z": ["Not ours"]})))
     (www / "b.xml").write_bytes(guide({"B": ["Movie"]}))
-    info = {"urls": [f"{base}/a.xml.gz", f"{base}/missing.xml", f"{base}/b.xml"], "channels": {"A": ["A.us"], "B": ["B"]}}
+    info = {"urls": [f"{base}/a.xml.gz", f"{base}/missing.xml", f"{base}/b.xml"], "channels": {"A": ["A.us"], "B": ["B"]}, "guarded": False}
     out = tmp_path / "g.xml"
     logs = []
     counts = playlistguide.download(info, out, 1, logs.append, NOW)
@@ -59,7 +59,7 @@ def test_download_keeps_only_our_channels(server, tmp_path: Path):
     assert any("missing.xml: ERR" in m for m in logs)  # one bad guide doesn't stop the rest
 
     with pytest.raises(RuntimeError):
-        playlistguide.download({"urls": [f"{base}/missing.xml"], "channels": {"A": ["A"]}}, out, 1, logs.append, NOW)
+        playlistguide.download({"urls": [f"{base}/missing.xml"], "channels": {"A": ["A"]}, "guarded": False}, out, 1, logs.append, NOW)
     with pytest.raises(RuntimeError):  # past site_time_limit: none is started
         playlistguide.download(info, out, 1, logs.append, NOW, deadline=time.monotonic() - 1)
 
@@ -83,7 +83,7 @@ def test_check_map_grab_guide_use_the_playlists_guide(server, tmp_path: Path, mo
     cfg = str(tmp_path / "kia.toml")
     assert cli.main(["check", "-c", cfg]) == 0
     spec = json.loads((tmp_path / "work" / "playlist-guides.json").read_text())
-    assert spec == {"playlist-roku": {"urls": [f"{base}/roku.xml"], "channels": {"r1": ["r1"]}}}
+    assert spec == {"playlist-roku": {"urls": [f"{base}/roku.xml"], "channels": {"r1": ["r1"]}, "guarded": False}}  # a file: yours
     assert cli.main(["map", "-c", cfg]) == 0
     assert json.loads((tmp_path / "work" / "mapping.json").read_text()) == {"r1": ["playlist-roku"]}
     assert "| Covered by their playlist's own guide | 1 |" in (tmp_path / "output" / "mapping-report.md").read_text()
@@ -105,7 +105,7 @@ def test_failed_playlist_guide_keeps_the_previous_one(tmp_path: Path):
     previous = tmp_path / "work" / "guides" / "playlist-x.xml"
     previous.parent.mkdir(parents=True)
     previous.write_text("<tv>old</tv>")
-    (r,) = grab.grab_playlist_guides(cfg, {"playlist-x": {"urls": ["http://127.0.0.1:9/g.xml"], "channels": {"a": ["a"]}}},
+    (r,) = grab.grab_playlist_guides(cfg, {"playlist-x": {"urls": ["http://127.0.0.1:9/g.xml"], "channels": {"a": ["a"]}, "guarded": False}},
                                      lambda m: None)  # fmt: skip
     assert r.returncode == 1 and previous.read_text() == "<tv>old</tv>"
 
@@ -116,7 +116,7 @@ def test_quick_refresh_fetches_only_the_guides_that_had_our_channels(server, tmp
     (www / "ours.xml").write_bytes(guide({"A": ["News"]}, now))
     (www / "other.xml").write_bytes(guide({"Z": ["Not ours"]}, now))
     cfg = EpgConfig(work_dir=tmp_path / "work")
-    spec = {"playlist-free": {"urls": [f"{base}/ours.xml", f"{base}/other.xml"], "channels": {"A": ["A"]}}}
+    spec = {"playlist-free": {"urls": [f"{base}/ours.xml", f"{base}/other.xml"], "channels": {"A": ["A"]}, "guarded": False}}
     grab.grab_playlist_guides(cfg, spec, lambda m: None)  # nightly: tries both, notes which helped
     used = json.loads((tmp_path / "work" / "playlist-guides-used.json").read_text())
     assert used == {"playlist-free": [f"{base}/ours.xml"]}
@@ -132,7 +132,7 @@ def test_a_guide_that_fails_tonight_keeps_its_channels_and_its_place(server, tmp
     (www / "a.xml").write_bytes(guide({"A": ["News"]}, now))
     (www / "b.xml").write_bytes(guide({"B": [f"Film {h}" for h in range(24)]}, now))
     cfg = EpgConfig(work_dir=tmp_path / "work")
-    spec = {"playlist-free": {"urls": [f"{base}/a.xml", f"{base}/b.xml"], "channels": {"A": ["A"], "B": ["B"]}}}
+    spec = {"playlist-free": {"urls": [f"{base}/a.xml", f"{base}/b.xml"], "channels": {"A": ["A"], "B": ["B"]}, "guarded": False}}
     grab.grab_playlist_guides(cfg, spec, lambda m: None)
     (www / "b.xml").unlink()  # tonight b.xml is gone
     (r,) = grab.grab_playlist_guides(cfg, spec, lambda m: None)

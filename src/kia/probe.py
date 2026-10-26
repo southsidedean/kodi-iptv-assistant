@@ -70,14 +70,33 @@ def media_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k in _MEDIA_ENV}
 
 
+# Through kia's outbound guard (kia.guard), what ffprobe may open: http and https, the tls
+# and tcp they run on (tcp also reaches the guard itself), the tunnel to it (httpproxy),
+# and what HLS needs (crypto for encrypted pieces, data for inline ones). Never file:, udp:,
+# or other ways around the guard. ffmpeg's HLS reader opens only http and https pieces
+# anyway; this holds for whatever else a stream from the internet tries.
+GUARDED_PROTOCOLS = "http,https,tls,tcp,httpproxy,crypto,data"
+
+
+def guarded_env(proxy: str) -> dict[str, str]:
+    """media_env() for a test through the guard at proxy. ffmpeg reads http_proxy for http
+    and https alike; no_proxy goes, since a name it lists would skip the guard."""
+    env = {k: v for k, v in media_env().items() if k.lower() not in ("http_proxy", "https_proxy", "no_proxy")}
+    env["http_proxy"] = proxy
+    return env
+
+
 def build_command(
     url: str,
     timeout: float,
     user_agent: str | None = None,
     referrer: str | None = None,
     ffprobe: str = "ffprobe",
+    guarded: bool = False,
 ) -> list[str]:
     cmd = [ffprobe, "-v", "warning", "-hide_banner", "-rw_timeout", str(int(timeout * 1_000_000))]
+    if guarded:
+        cmd += ["-protocol_whitelist", GUARDED_PROTOCOLS]
     if user_agent:
         cmd += ["-user_agent", user_agent]
     if referrer:
@@ -93,15 +112,18 @@ async def probe(
     referrer: str | None = None,
     require_video: bool = True,
     ffprobe: str = "ffprobe",
+    proxy: str | None = None,
 ) -> ProbeResult:
-    cmd = build_command(url, timeout, user_agent, referrer, ffprobe)
+    """Test a stream with ffprobe; with proxy (a kia.guard ticket's address), through the
+    outbound guard."""
+    cmd = build_command(url, timeout, user_agent, referrer, ffprobe, guarded=proxy is not None)
     start = time.monotonic()
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=media_env(),
+        env=media_env() if proxy is None else guarded_env(proxy),
     )
     try:
         # ffprobe's rw_timeout only catches a server that stops sending. This also stops one
@@ -122,4 +144,26 @@ async def probe(
     # ffprobe exits 0 when an HLS master loads but every variant fails, so check stderr either way.
     if not result.ok and (proc.returncode != 0 or stderr.strip()):
         result.error = _summarize_error(stderr.decode(errors="replace"))
+    return result
+
+
+GUARD_REFUSED = ("it led to an address on your own network (a redirect, a piece, or a name that looked up "
+                 "differently), and the playlist comes from the internet, so kia's outbound guard stopped it")  # fmt: skip
+
+
+async def probe_guarded(url: str, run=None, **kwargs) -> ProbeResult:
+    """probe() (or run, which takes the same arguments), through kia's outbound guard
+    (kia.guard), for a stream from a playlist that isn't yours. http and https only: rtmp
+    and rtsp can't go through it, and keep kia.lan's check alone, as do all streams when
+    you've set a proxy of your own."""
+    from kia import guard
+
+    run = run or probe
+    g = guard.get() if url.split(":", 1)[0].lower() in ("http", "https") else None
+    if g is None:
+        return await run(url, **kwargs)
+    with g.ticket() as ticket:
+        result = await run(url, proxy=ticket.url, **kwargs)
+    if ticket.refused and not result.ok:
+        return ProbeResult(ok=False, error=GUARD_REFUSED, elapsed=result.elapsed)
     return result

@@ -300,7 +300,7 @@ def test_channel(cfg: ApiConfig, body: dict) -> dict:
     import asyncio
 
     from kia.cli import is_stream_url
-    from kia.probe import probe
+    from kia.probe import probe, probe_guarded
 
     entry = _entry(cfg, body)
     if not is_stream_url(stream_url(entry.url)):  # as the nightly check: only stream addresses
@@ -310,9 +310,11 @@ def test_channel(cfg: ApiConfig, body: dict) -> dict:
         # your network. A channel kept from last night can have moved to such an address.
         raise ApiError(400, "That channel's address is on your own network, and its playlist comes from the internet, "
                             "so kia doesn't test it.")  # fmt: skip
-    r = asyncio.run(probe(stream_url(entry.url), timeout=20, user_agent=entry.user_agent or cfg.user_agent,
-                          referrer=entry.referrer, require_video=cfg.require_video and not entry.is_radio,
-                          ffprobe=cfg.ffprobe))  # fmt: skip
+    # As the nightly check: one from the internet goes through kia's outbound guard (kia.guard).
+    test = probe if _from_yours(cfg, entry) else probe_guarded
+    r = asyncio.run(test(stream_url(entry.url), timeout=20, user_agent=entry.user_agent or cfg.user_agent,
+                         referrer=entry.referrer, require_video=cfg.require_video and not entry.is_radio,
+                         ffprobe=cfg.ffprobe))  # fmt: skip
     return {"key": entry.key, "name": entry.name, "ok": r.ok, "error": r.error, "seconds": round(r.elapsed, 1),
             "height": r.height}  # fmt: skip
 
