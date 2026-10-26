@@ -179,7 +179,50 @@ def grab_imjh(
     previous: Path | None = None,
     deadline: float | None = None,
 ) -> None:
-    """Write an XMLTV guide for every channel in channels_file from i.mjh.nz's published files.
+    """Write an XMLTV guide for every channel in channels_file from i.mjh.nz's published files."""
+    grab_files(channels_file, output, days, log, lambda path: f"{base_url}/{path}.xml.gz", "i.mjh.nz", now, previous, deadline)
+
+
+# epgshare01.online: free XMLTV files, one a "feed" (US2, UK1, DISTROTV1...), refreshed once a
+# day by the one person who runs it. kia reads only the feeds your channels need, once a
+# night (never in the quick refreshes between: QUICK_GRABBERS). kia.epgshare matches them.
+EPGSHARE_BASE = "https://epgshare01.online/epgshare01"
+_FEED_RE = re.compile(r"[A-Z0-9_]{2,40}")
+
+
+def grab_epgshare01(
+    channels_file: Path,
+    output: Path,
+    days: int,
+    log: Callable[[str], None],
+    base_url: str = EPGSHARE_BASE,
+    now: datetime | None = None,
+    previous: Path | None = None,
+    deadline: float | None = None,
+) -> None:
+    """Write an XMLTV guide for every channel in channels_file from epgshare01's feeds."""
+
+    def url_for(feed: str) -> str:
+        if not _FEED_RE.fullmatch(feed):  # it goes into the address: a feed's name only
+            raise ValueError(f"not a feed name: {feed[:40]!r}")
+        return f"{base_url}/epg_ripper_{feed}.xml.gz"
+
+    grab_files(channels_file, output, days, log, url_for, "epgshare01", now, previous, deadline)
+
+
+def grab_files(
+    channels_file: Path,
+    output: Path,
+    days: int,
+    log: Callable[[str], None],
+    url_for: Callable[[str], str],
+    label: str,
+    now: datetime | None = None,
+    previous: Path | None = None,
+    deadline: float | None = None,
+) -> None:
+    """Write an XMLTV guide for every channel in channels_file, whose site_ids are "file#id",
+    from each file's gzipped XMLTV at url_for(file).
 
     For the channels of a file that fails tonight, programmes still to come are kept from
     previous (last night's guide), rather than leaving them empty until tomorrow."""
@@ -194,7 +237,7 @@ def grab_imjh(
     now = now or datetime.now(timezone.utc)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end = start + timedelta(days=days)
-    log(f"i.mjh.nz: {len(names)} channels from {len(by_path)} files, {days} days")
+    log(f"{label}: {len(names)} channels from {len(by_path)} files, {days} days")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     failed: list[str] = []
@@ -207,11 +250,11 @@ def grab_imjh(
             # Written to a list first, so a file cut off half-way adds nothing.
             got: list[str] = []
             try:
-                with fetch(f"{base_url}/{path}.xml.gz") as resp, gzip.GzipFile(fileobj=resp) as stream:
+                with fetch(url_for(path)) as resp, gzip.GzipFile(fileobj=resp) as stream:
                     n = filter_xmltv(stream, wanted, start, end, got.append, deadline=deadline)
                 out.writelines(got)
                 log(f"  {path}: {len(wanted)} channels, {n} programmes in {time.monotonic() - t0:.1f}s")
-            except (OSError, ET.ParseError, EOFError, zlib.error, http.client.HTTPException) as exc:
+            except (OSError, ValueError, ET.ParseError, EOFError, zlib.error, http.client.HTTPException) as exc:
                 # Cut off (IncompleteRead) or damaged gzip: this file fails, the others still count.
                 failed.append(path)
                 log(f"  {path}: ERR: {exc}")
@@ -225,7 +268,7 @@ def grab_imjh(
                 log(f"  couldn't read last time's guide: {exc}")
         out.write("</tv>\n")
     if len(failed) == len(by_path):
-        raise RuntimeError("every i.mjh.nz file failed to download")
+        raise RuntimeError(f"every {label} file failed to download")
 
 
 KINK_SCHEDULE_URL = "https://kink.nl/programmering"
@@ -370,7 +413,11 @@ def grab_kexp(
 
 
 # site name -> grabber(channels_file, output, days, log)
-NATIVE_GRABBERS: dict[str, Callable[..., None]] = {"i.mjh.nz": grab_imjh, "kink.nl": grab_kink, "kexp.org": grab_kexp}
+NATIVE_GRABBERS: dict[str, Callable[..., None]] = {"i.mjh.nz": grab_imjh, "kink.nl": grab_kink, "kexp.org": grab_kexp,
+                                                   "epgshare01.online": grab_epgshare01}  # fmt: skip
+# The ones the quick refreshes between nights download again (kia refresh-guide). Not
+# epgshare01: it changes once a day, and one person pays for its traffic.
+QUICK_GRABBERS = frozenset({"i.mjh.nz", "kink.nl", "kexp.org"})
 
 # Radio stations with a schedule kia can read itself: station name (see epgmap.name_key)
 # -> (site, site_id). Almost no radio station is on iptv-org's guide sites.

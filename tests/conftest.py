@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from hypothesis import settings
 
-from kia import api, pluto, serve
+from kia import api, epgshare, pluto, serve
 from kia import name as kia_name
 
 # On CI, the fuzz tests try the same examples every run, so a rare one can't fail a pull
@@ -36,6 +36,12 @@ def clean_environment(monkeypatch):
     monkeypatch.setattr(kia_name, "computer_name", lambda: "")
     # Run under Docker Desktop, every caller would share one address (api.shared_address).
     monkeypatch.setattr(api, "_docker_desktop", lambda: False)
+    # kia map reads epgshare01's channel lists from the internet: never in a test, unless it
+    # gives its own (kia.epgshare.load_lists then keeps last time's, or none).
+    def offline(url):
+        raise OSError("no network in tests")
+
+    monkeypatch.setattr(epgshare, "_get", offline)
 
 
 @pytest.fixture(autouse=True)

@@ -20,6 +20,7 @@ class SiteChannel:
     xmltv_id: str  # empty when iptv-org hasn't linked the site's channel to a channel id
     name: str
     attrs: dict[str, str] = field(default_factory=dict)
+    country: str = ""  # for name matching, when xmltv_id is empty and the site's lists give one (kia.epgshare)
 
 
 @dataclass
@@ -231,7 +232,7 @@ def _by_name(site_channels: list[SiteChannel], key) -> dict[tuple[str, str], lis
     site_country = {site: counts.most_common(1)[0][0] for site, counts in seen.items()}
     index: dict[tuple[str, str], list[SiteChannel]] = defaultdict(list)
     for sc in site_channels:
-        c = country(sc.xmltv_id) if sc.xmltv_id else site_country.get(sc.site, "")
+        c = country(sc.xmltv_id) if sc.xmltv_id else sc.country or site_country.get(sc.site, "")
         k = key(sc.name)
         if c and k:
             index[c, k].append(sc)

@@ -15,7 +15,7 @@ from pathlib import Path
 from kia.config import EpgConfig
 from kia import playlistguide
 from kia.epgmap import is_safe_site
-from kia.native import NATIVE_GRABBERS, grab_imjh
+from kia.native import NATIVE_GRABBERS, grab_epgshare01, grab_imjh
 
 # iptv-org/epg is third-party code: its site configs change every day and come from many
 # contributors. Without Docker's own container (the "local" runner, which kia's image
@@ -315,7 +315,7 @@ def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
     native = NATIVE_GRABBERS.get(site) if cfg.native_grabbers else None
     if native:
         extra = {}
-        if native is grab_imjh:  # the big one: last night's guide to fall back on, and the time limit
+        if native in (grab_imjh, grab_epgshare01):  # several files: last night's guide to fall back on, and the time limit
             extra = {"previous": output, "deadline": _deadline(cfg, start)}
         with open(log_path, "w") as logf:
             try:

@@ -26,8 +26,8 @@ from urllib.parse import urlparse
 
 import xml.etree.ElementTree as ET
 
-from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, channels, lan, locks, newchannels, pluto, settings, stack, tls
+from kia import __version__, dnscheck, epgmap, epgshare, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
+from kia import alerts, auth, channels, lan, locks, native, newchannels, pluto, settings, stack, tls
 from kia import name as kia_name
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -562,6 +562,13 @@ def cmd_map(args: argparse.Namespace) -> int:
     site_channels = epgmap.load_site_channels(epg.repo_dir)
     broken = epgmap.broken_sites(epg.repo_dir)
     log(f"{len(site_channels)} channels across the epg repo's sites; {len(broken)} sites marked broken")
+    if epg.native_grabbers and epgshare.SITE not in broken | set(epg.exclude_sites):
+        # epgshare01's own lists, for the countries in the playlists, in place of iptv-org's
+        # (whose feed names are out of date); kia reads its guides itself (kia.epgshare).
+        countries = {epgmap.country(e.tvg_id) for e in entries if not e.is_radio} - {""}
+        lists = epgshare.load_lists(epg.work_dir, countries, log)
+        if lists:
+            site_channels = [sc for sc in site_channels if sc.site != epgshare.SITE] + epgshare.site_channels(lists)
 
     tvg_ids = [e.tvg_id for e in entries]
     names = {e.tvg_id: xmltv.display_name(e) for e in entries if not e.is_radio}
@@ -794,7 +801,7 @@ def cmd_refresh_guide(args: argparse.Namespace) -> int:
     quick = sorted(
         site
         for p in (epg.work_dir / "channels").glob("*.channels.xml")
-        if epg.native_grabbers and (site := p.name.removesuffix(".channels.xml")) in grab.NATIVE_GRABBERS
+        if epg.native_grabbers and (site := p.name.removesuffix(".channels.xml")) in native.QUICK_GRABBERS
     )
     results = grab.grab_all(epg, quick, log) if quick else []
     if epg.playlist_guides:
