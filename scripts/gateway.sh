@@ -60,7 +60,7 @@ new_key() { head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
 # Only you (and kia and the gateway, which run as you) can read anything in gateway/.
 umask 077
 mkdir -p "$dir"
-[ ! -L "$dir" ] && [ -d "$dir" ] || die "$dir isn't a folder"
+if [ -L "$dir" ] || [ ! -d "$dir" ]; then die "$dir isn't a folder"; fi
 touch "$devices"
 
 # The settings, from the devices and .env. Written to a new file and renamed into place, so
@@ -68,7 +68,7 @@ touch "$devices"
 write() {
     rate=$(get KIA_GATEWAY_RATE); rate=${rate:-120}
     case "$rate" in "" | *[!0-9]*) die "KIA_GATEWAY_RATE is a number of requests a minute, such as 120" ;; esac
-    [ "$rate" -ge 1 ] && [ "$rate" -le 10000 ] || die "KIA_GATEWAY_RATE is from 1 to 10000 requests a minute"
+    if [ "$rate" -lt 1 ] || [ "$rate" -gt 10000 ]; then die "KIA_GATEWAY_RATE is from 1 to 10000 requests a minute"; fi
     # The gateway's own token for kia, made the first time. kia accepts it as it does its own
     # (state/mcp-token.txt), so with the gateway in use, kia's own token can be turned off.
     if [ ! -s "$kia_token" ]; then new_key >"$kia_token.tmp" && mv -f "$kia_token.tmp" "$kia_token"; fi

@@ -80,7 +80,7 @@ def ghcr_tags(name: str) -> list[str]:
 
 
 def registry_tags(name: str) -> list[str]:
-    return ghcr_tags(name) if name.startswith("ghcr.io/") else docker_hub_tags(name)
+    return ghcr_tags(name) if name.split("/", 1)[0] == "ghcr.io" else docker_hub_tags(name)
 
 
 def main(compose_path: str = "compose.yaml", tags_of=registry_tags) -> int:
