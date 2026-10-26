@@ -36,12 +36,27 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
-      # For the Pluto TV relay's remux tests, which are skipped without it.
-      # A mirror that stops answering has held a run for 20 minutes: give up after 5 instead,
-      # retrying each download, so the job fails fast and can be run again.
+      # For the Pluto TV relay's and the outbound guard's ffmpeg tests, which are skipped
+      # without it. Ubuntu's mirror has been slow enough to hold runs for many minutes, so its
+      # packages are kept from run to run, and apt downloads only what changed since.
+      - name: this week, for the cache's name
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: ffmpeg's packages, from earlier runs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-cache
+          key: ffmpeg-debs-${{ runner.os }}-${{ steps.week.outputs.week }}
+          restore-keys: ffmpeg-debs-${{ runner.os }}-
+      # A mirror that stops answering: give up after 5 minutes, retrying each download, so
+      # the job fails fast and can be run again.
       - name: ffmpeg
         timeout-minutes: 5
-        run: sudo apt-get update -q -o Acquire::Retries=3 && sudo apt-get install -y -q --no-install-recommends -o Acquire::Retries=3 ffmpeg
+        run: |
+          mkdir -p ~/apt-cache/partial
+          sudo apt-get update -q -o Acquire::Retries=3
+          sudo apt-get install -y -q --no-install-recommends -o Acquire::Retries=3 -o Dir::Cache::Archives="$HOME/apt-cache" ffmpeg
+          sudo chown -R "$(id -u)" ~/apt-cache
       - run: pip install -e ".[dev]"
       - name: pytest, with coverage (kia's lines the tests never run are listed, for reading, not enforced)
         run: python -m pytest -q --cov=kia --cov-report=term-missing:skip-covered
