@@ -13,6 +13,9 @@ Alerts are off until you choose where to send them. Until then they're written t
 | `channels_drop` | yes | Working channels fell sharply since the last run (25% by default). Usually a playlist that broke upstream or a bad internet connection during the run. |
 | `guide_drop` | yes | Channels with guide data fell sharply. A major guide source probably broke. |
 | `site_failing` | yes | One guide site failed 3 runs in a row. You hear about it once per streak, not every night. |
+| `part_down` | yes | A part of the stack you chose, such as Plex, Threadfin, or the gateway, hasn't answered kia's check for 10 minutes. You hear about it once, and again when it answers. Restarts and updates take less time, so they don't set it off. |
+| `guessing` | yes | Someone got the Dashboard's password or kia's MCP token wrong 10 times in a row, from one address. Often it's a device with an old password or token saved; the alert names the address. kia slows the tries down either way. |
+| `playlist_lan` | yes | A playlist from the internet pointed kia at your own network: a stream's address, or where it led (a redirect, an HLS piece), was on your network. kia didn't test those streams. You hear about each playlist once, until a night it doesn't. |
 | `pluto_fallback` | no | kia couldn't open a session of its own with Pluto TV for 5 minutes, so a Pluto channel is playing without kia's fix and may freeze at ad breaks. You hear about each channel at most once an hour. |
 | `daily_summary` | no | A short "all done" message after each run, e.g. "1174 working channels, 541 with guide data". It's handy at first, to see that everything works. |
 
@@ -77,7 +80,7 @@ The settings view on the Dashboard shows only whether email is set up, never the
 `KIA_ALERT_EVENTS` in `.env` picks which events notify you, comma-separated. For example, to add the nightly summary to the defaults:
 
 ```ini
-KIA_ALERT_EVENTS=dns_local,run_failed,channels_drop,guide_drop,site_failing,daily_summary
+KIA_ALERT_EVENTS=dns_local,run_failed,channels_drop,guide_drop,site_failing,part_down,guessing,playlist_lan,daily_summary
 ```
 
 The thresholds are in `kia.toml` under `[alerts]`: `drop_percent` (default 25) and `site_fail_runs` (default 3).

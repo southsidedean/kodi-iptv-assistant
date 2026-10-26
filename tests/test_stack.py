@@ -97,6 +97,34 @@ def test_the_watch_writes_stack_json_and_metrics(tmp_path: Path):
     assert "kia_stack_service_up" not in metrics.render(tmp_path)  # kia outside Docker
 
 
+def test_a_part_that_stops_answering_is_an_alert_once_and_again_when_back(tmp_path: Path):
+    clock, said = [0.0], []
+    plex = {"service": "plex", "title": "Plex", "ok": True}
+    watch = stack.Watch(tmp_path, ["plex-server"], check=lambda running: [dict(plex)],
+                        alert=lambda title, message: said.append((title, message)), now=lambda: clock[0])  # fmt: skip
+
+    def minute(ok: bool) -> None:
+        plex["ok"] = ok
+        watch.once()
+        clock[0] += 60
+
+    minute(True)
+    for _ in range(stack.DOWN_MINUTES):  # a restart or an update: no alert
+        minute(False)
+    assert not said
+    minute(False)  # DOWN_MINUTES since it stopped answering
+    assert [t for t, _ in said] == ["kia: Plex isn't answering"] and "docker compose logs plex" in said[0][1]
+    for _ in range(30):
+        minute(False)
+    assert len(said) == 1  # once a streak
+    minute(True)
+    assert said[-1][0] == "kia: Plex is answering again"
+    minute(True)
+    for _ in range(stack.DOWN_MINUTES + 1):  # a new streak: a new alert
+        minute(False)
+    assert [t for t, _ in said].count("kia: Plex isn't answering") == 2
+
+
 def test_the_dashboard_has_a_stack_card_it_fills_in(tmp_path: Path):
     html = status.render_html(status.collect(tmp_path, tmp_path, {}, None))
     assert '<section class="card" id="stack" hidden>' in html  # hidden until stack.json lists something

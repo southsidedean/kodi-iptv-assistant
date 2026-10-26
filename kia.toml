@@ -131,9 +131,12 @@ verify_resolvers = ["8.8.8.8", "1.1.1.1"]
 #   channels_drop  working channels fell sharply since the last run
 #   guide_drop     channels with guide data fell sharply since the last run
 #   site_failing   a guide site failed several runs in a row
+#   part_down      a part of the stack (Plex, Threadfin, the gateway) hasn't answered for 10 minutes
+#   guessing       10 wrong tries at the Dashboard's password or the MCP token from one address
+#   playlist_lan   a playlist from the internet pointed kia at your own network
 #   daily_summary  an "all done" message after each run (off unless you add it)
 #   pluto_fallback a Pluto TV channel played without kia's fix for 5 minutes (off unless you add it)
-events = ["dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing"]
+events = ["dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing", "part_down", "guessing", "playlist_lan"]
 
 # How big a fall, in percent, counts as sharp for channels_drop and guide_drop.
 drop_percent = 25

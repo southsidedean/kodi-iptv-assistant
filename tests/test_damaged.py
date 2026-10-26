@@ -28,7 +28,7 @@ def test_state_files_in_another_shape_count_as_missing(tmp_path: Path, value):
         (tmp_path / name).write_text(json.dumps(value))
     assert sources.load_state(tmp_path) == {"on": [], "off": [], "added": []}
     assert channels.load(tmp_path) == {"favorites": [], "removed": {}, "numbers": {"tv": {}, "radio": {}}}
-    assert alerts.load_state(tmp_path) == {"site_failures": {}}
+    assert alerts.load_state(tmp_path) == {"site_failures": {}, "lan_playlists": []}
     assert metrics.known_players(tmp_path) == []
     a = auth.Auth(tmp_path)
     assert not a.check("anything") and a.source == "generated"
@@ -43,8 +43,11 @@ def test_inner_values_in_another_shape_are_left_out(tmp_path: Path):
     assert sources.load_state(tmp_path) == {"on": [], "off": [], "added": [{"url": "https://z"}]}  # not letter by letter
     (tmp_path / "channels.json").write_text(json.dumps({"numbers": [], "favorites": "CNN.us"}))
     assert channels.load(tmp_path)["numbers"] == {"tv": {}, "radio": {}} and channels.load(tmp_path)["favorites"] == []
-    (tmp_path / "alert-state.json").write_text(json.dumps({"channels": "many", "guide_channels": 900, "site_failures": {"a.tv": "x", "b.tv": 2}}))
-    assert alerts.load_state(tmp_path) == {"guide_channels": 900, "site_failures": {"b.tv": 2}}
+    (tmp_path / "alert-state.json").write_text(json.dumps({"channels": "many", "guide_channels": 900, "site_failures": {"a.tv": "x", "b.tv": 2},
+                                                           "lan_playlists": ["us", 3, None]}))  # fmt: skip
+    assert alerts.load_state(tmp_path) == {"guide_channels": 900, "site_failures": {"b.tv": 2}, "lan_playlists": ["us"]}
+    (tmp_path / "alert-state.json").write_text(json.dumps({"lan_playlists": "us"}))  # a list in another shape
+    assert alerts.load_state(tmp_path)["lan_playlists"] == []
 
 
 def test_damaged_channel_numbers_are_set_aside(tmp_path: Path):

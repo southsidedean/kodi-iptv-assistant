@@ -31,9 +31,13 @@ EVENTS = {
     "guide_drop": "channels with guide data dropped sharply since the last run",
     "site_failing": "a guide site failed several runs in a row",
     "pluto_fallback": "a Pluto TV channel has been playing without kia's fix for a while",
+    "part_down": "a part of the stack (Plex, Threadfin, the gateway...) hasn't answered for 10 minutes",
+    "guessing": "someone got the Dashboard's password or the MCP token wrong 10 times in a row",
+    "playlist_lan": "a playlist from the internet pointed kia at your own network",
     "daily_summary": "a short summary after every successful run (not an alert)",
 }
-DEFAULT_EVENTS = ("dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing")
+DEFAULT_EVENTS = ("dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing", "part_down", "guessing",
+                  "playlist_lan")  # fmt: skip
 # Notices, not alerts: sent only when turned on, and never logged to alerts.log or
 # counted in exit codes.
 NOTICES = {"daily_summary"}
@@ -75,6 +79,8 @@ def load_state(state_dir: Path) -> dict:
         if key in state and not isinstance(state[key], int):
             del state[key]
     state["site_failures"] = {k: v for k, v in obj(state.get("site_failures")).items() if isinstance(v, int)}
+    lan = state.get("lan_playlists")  # playlists already alerted for pointing at your network
+    state["lan_playlists"] = [s for s in lan if isinstance(s, str)] if isinstance(lan, list) else []
     return state
 
 
