@@ -278,3 +278,10 @@ def test_a_playlist_that_points_at_your_network_is_an_alert_once(tmp_path: Path,
     fine = {u: ProbeResult(ok=True) for u in night}
     assert not cli.track_playlists_on_your_network(cfg, entries, fine)  # it stopped...
     assert cli.track_playlists_on_your_network(cfg, entries, night) and len(said) == 2  # ...and started again
+
+
+def test_the_shipped_kia_toml_turns_on_the_default_events():
+    # kia.toml's own list wins over the code's defaults, so a new event that's on by default
+    # has to be on that list too, or every install has it off (as 0.7.1's three were, at first).
+    shipped = load(Path(__file__).resolve().parent.parent / "kia.toml")
+    assert shipped.alerts.events == alerts.DEFAULT_EVENTS

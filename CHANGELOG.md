@@ -10,7 +10,7 @@ Three more alerts, on by default ([alerts](docs/alerts.md#what-triggers-an-alert
 - `guessing`: the Dashboard's password or kia's MCP token was wrong 10 times in a row from one address. The alert names the address.
 - `playlist_lan`: a playlist from the internet pointed kia at your network, by a stream's address or where it led, which the outbound guard (below) now catches. Once a playlist, until a night it doesn't.
 
-If you've chosen your events with `KIA_ALERT_EVENTS`, add these to the list to get them.
+If you've chosen your own events, with `KIA_ALERT_EVENTS` in `.env` or `events` in `kia.toml`, add these to your list to get them.
 
 ### Names for telling several kia installs apart
 
