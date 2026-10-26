@@ -53,6 +53,8 @@ SERVICES = (
     Service("monitoring", "node-exporter", "node-exporter", 9100),
     Service("monitoring-gpu", "dcgm-exporter", "Graphics card exporter", 9400),
     Service("monitoring-disks", "smartctl-exporter", "Disk health exporter", 9633),
+    # No link: it answers assistants, not browsers. kia reaches it on the gateway's network.
+    Service("gateway", "gateway", "Gateway", 8745),
 )
 
 
@@ -171,6 +173,7 @@ PARTS = (
     ("observability", "Prometheus and Grafana, and node-exporter on Linux"),
     ("observability-gpu", "The graphics card on the Hardware dashboard: NVIDIA, Linux"),
     ("observability-disks", "Each disk's health (SMART) on the Hardware dashboard: Linux"),
+    ("gateway", "A gateway in front of kia's MCP server: a key for each device, with a limit and a log"),
 )
 SERVICE_DIR = "stack-service"  # in the kia folder
 REQUEST, TAKEN, RESULT, CONTAINERS = "stack-request", "request", "result", "containers.tsv"

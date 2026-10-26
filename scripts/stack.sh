@@ -47,7 +47,8 @@ plex-tuner-2|plex-2|a second Threadfin, for more than 480 channels in Plex
 jellyfin|jellyfin-server|Jellyfin in the stack (docs/cookbooks/jellyfin-box.md)
 observability|monitoring|Prometheus and Grafana, and node-exporter on Linux (docs/cookbooks/observability.md)
 observability-gpu|monitoring-gpu|the graphics card on the Hardware dashboard: NVIDIA, Linux
-observability-disks|monitoring-disks|each disk's health (SMART) on the Hardware dashboard: Linux"
+observability-disks|monitoring-disks|each disk's health (SMART) on the Hardware dashboard: Linux
+gateway|gateway|a gateway in front of kia's MCP server: a key for each device, with a limit and a log (docs/mcp.md)"
 
 get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
 set_env() {  # set_env NAME VALUE: replace the line, or add it
@@ -364,10 +365,17 @@ if has plex || has jellyfin; then
     elif [ ! -r "$media" ]; then problem "KIA_MEDIA_DIR ($media) can't be read"
     fi
 fi
+if has gateway; then
+    rate=$(get KIA_GATEWAY_RATE)
+    case "$rate" in "") ;; *[!0-9]* | 0) problem "KIA_GATEWAY_RATE is a number of requests a minute, such as 120" ;; esac
+    if [ ! -s gateway/devices ]; then
+        note "no device has a gateway key yet: scripts/gateway.sh add laptop (docs/mcp.md)"
+    fi
+fi
 [ -n "$(get KIA_PUBLIC_URL)" ] || warn "KIA_PUBLIC_URL is empty: players get links without kia's address (docs/configuration.md)"
 
 # Ports for parts that aren't running yet.
-for v in plex:plex:KIA_PLEX_PORT:32400 jellyfin:jellyfin:KIA_JELLYFIN_PORT:8096 observability:grafana:KIA_GRAFANA_PORT:8788 observability:prometheus:KIA_PROMETHEUS_PORT:8789; do
+for v in plex:plex:KIA_PLEX_PORT:32400 jellyfin:jellyfin:KIA_JELLYFIN_PORT:8096 observability:grafana:KIA_GRAFANA_PORT:8788 observability:prometheus:KIA_PROMETHEUS_PORT:8789 gateway:gateway:KIA_GATEWAY_PORT:8745; do
     part=${v%%:*} rest=${v#*:}; service=${rest%%:*}; rest=${rest#*:}; setting=${rest%%:*}; default=${rest#*:}
     port=$(get "$setting"); port=${port:-$default}
     if has "$part" && ! running "$service" && listening "$port"; then
@@ -476,6 +484,10 @@ fi
 if ! has jellyfin && [ "$(get KIA_JELLYFIN_URL)" = http://jellyfin:8096 ]; then
     set_env KIA_JELLYFIN_URL "" && echo "Emptied KIA_JELLYFIN_URL: Jellyfin isn't in KIA_STACK any more."
 fi
+
+# The gateway's settings, from its devices and .env, before it starts: it reads them only
+# from that file (scripts/gateway.sh).
+if has gateway; then sh scripts/gateway.sh write; fi
 
 # The profiles given here too: one exported in this shell would win over .env's.
 compose_profiles=$(echo "$profiles" | tr ' ' ',')

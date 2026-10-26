@@ -28,7 +28,8 @@ def test_each_profile_brings_its_programs():
 def test_every_program_is_a_compose_service_of_its_profile():
     import re
 
-    compose = (Path(__file__).resolve().parent.parent / "compose.yaml").read_text().split("\nservices:\n", 1)[1]
+    # The services only: networks: after them has a gateway too.
+    compose = (Path(__file__).resolve().parent.parent / "compose.yaml").read_text().split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
     blocks = dict(re.findall(r"^  ([a-z0-9-]+):\n(.*?)(?=^  [a-z0-9-]+:\n|^\S|\Z)", compose, re.S | re.M))
     for s in stack.SERVICES:
         if s.name == "node-exporter" and s.profile == "monitoring":

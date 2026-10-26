@@ -60,6 +60,29 @@ def token(state_dir: Path) -> str | None:
     return value or None
 
 
+# The gateway part's own token for kia, in the kia folder (scripts/gateway.sh makes it). The
+# gateway sends it with every device's call, so devices hold keys of their own, never this.
+GATEWAY_TOKEN_FILE = Path("gateway") / "kia-token"
+
+
+def gateway_token(project_dir: Path | None) -> str | None:
+    """The gateway's token for kia, or None without the gateway part. Only the first line,
+    and not a long one: anything else in the file isn't a token scripts/gateway.sh wrote."""
+    if project_dir is None:
+        return None
+    try:
+        with open(project_dir / GATEWAY_TOKEN_FILE, encoding="utf-8", errors="replace") as f:
+            value = f.read(200).splitlines()[0].strip()
+    except (OSError, IndexError):
+        return None
+    return value if 32 <= len(value) <= 100 else None
+
+
+def tokens(state_dir: Path, project_dir: Path | None) -> list[str]:
+    """Every token kia accepts: its own (kia mcp-token) and the gateway's. None: it's off."""
+    return [t for t in (token(state_dir), gateway_token(project_dir)) if t]
+
+
 def make_token(state_dir: Path) -> str:
     """A new token, replacing any old one (which stops working), readable only by you."""
     value = secrets.token_urlsafe(32)

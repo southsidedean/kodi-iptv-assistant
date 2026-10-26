@@ -718,7 +718,8 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     from kia import mcp
     from kia.config import load
 
-    expected = mcp.token(cfg.state_dir)
+    # kia's own token, and the gateway part's when it's in use (scripts/gateway.sh).
+    expected = mcp.tokens(cfg.state_dir, cfg.config_file.parent if cfg.config_file else None)
     if not expected:
         raise ApiError(404, "kia's MCP server is off. Turn it on with: kia mcp-token")
     if method != "POST":
@@ -730,7 +731,10 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     if not given:
         raise ApiError(401, "Send kia's MCP token: Authorization: Bearer <token> (kia mcp-token shows it).")
     try:
-        _slowed("mcp", lambda: hmac.compare_digest(given.encode(), expected.encode()), "Wrong MCP token.", "Too many wrong MCP tokens.")
+        # Every token compared, not just up to the first that matches: how long it takes
+        # doesn't say which one a guess was close to.
+        _slowed("mcp", lambda: any([hmac.compare_digest(given.encode(), t.encode()) for t in expected]),
+                "Wrong MCP token.", "Too many wrong MCP tokens.")  # fmt: skip
     except ApiError as exc:
         print(f"MCP: refused a token from {_CLIENT.get() or 'a client'} ({exc.status})", flush=True)
         raise
