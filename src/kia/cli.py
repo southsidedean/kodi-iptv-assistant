@@ -994,7 +994,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def cmd_find(args: argparse.Namespace) -> int:
-    """Shows in the guides (kia.shows), soonest first. 1 when nothing matches."""
+    """Shows in the guides (kia.shows): named for the words first, then soonest. 1 when nothing matches."""
     from kia import shows
 
     if not args.words and not args.category:
@@ -1167,18 +1167,26 @@ def cmd_mcp(args: argparse.Namespace) -> int:
     def note(text: str) -> None:
         print(text, file=sys.stderr, flush=True)
 
-    try:
-        api_cfg = api_config(load(path))
-    except (OSError, ValueError) as exc:  # the tools say so when they're used; connecting still works
-        note(f"kia's settings couldn't be read: {exc}")
-        api_cfg = None
-    for line in sys.stdin:
+    def settings() -> object | None:
+        try:
+            return api_config(load(path))
+        except (OSError, ValueError) as exc:  # the tools say so when they're used; connecting still works
+            note(f"kia's settings couldn't be read: {exc}")
+            return None
+
+    api_cfg = settings()
+    # Bytes in and out, as MCP's stdio is UTF-8 whatever this computer's own setting: a byte
+    # that isn't UTF-8 gets a parse error back instead of ending the server, and a channel
+    # name in any script can be written.
+    for line in sys.stdin.buffer:
         if not line.strip():
             continue
-        _status, answer = mcp.handle(lambda: load(path), api_cfg, {}, line.encode(), note, "stdio")
+        if api_cfg is None:
+            api_cfg = settings()  # fixed since: the tools that need it work again
+        _status, answer = mcp.handle(lambda: load(path), api_cfg, {}, line, note, "stdio")
         if answer is not None:
-            sys.stdout.write(json.dumps(answer, ensure_ascii=False) + "\n")  # one line: no line breaks inside
-            sys.stdout.flush()
+            sys.stdout.buffer.write((json.dumps(answer, ensure_ascii=False) + "\n").encode("utf-8"))  # one line each
+            sys.stdout.buffer.flush()
     return 0
 
 
@@ -1699,8 +1707,9 @@ def main(argv: list[str] | None = None) -> int:
     # (in a container that restarts over and over, the last line is what's seen).
     try:
         env_default(args)
-        # backup and restore work without a readable kia.toml: they're how you get one back.
-        if hasattr(args, "config") and args.func not in (cmd_backup, cmd_restore):
+        # backup and restore work without a readable kia.toml: they're how you get one back. And
+        # kia mcp answers an assistant anyway: its tools say what's wrong when they're used.
+        if hasattr(args, "config") and args.func not in (cmd_backup, cmd_restore, cmd_mcp):
             load_config(args)
         if getattr(args, "at", None):
             next_run(datetime.now(), args.at)

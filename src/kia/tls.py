@@ -98,9 +98,21 @@ def make_self_signed(tls_dir: Path, hosts: list[str]) -> None:
         "-keyout", str(key), "-out", str(cert),
     )  # fmt: skip
     key.chmod(key_mode())
+    # The mark names the new certificate before anything moves, and the old one until the new
+    # one is in place: a renewal that stops part way leaves a certificate the mark still names,
+    # so kia goes on treating it as its own (and remakes a key that doesn't match it).
+    mark, new = tls_dir / MARK, fingerprint(cert)
+    old = fingerprint(tls_dir / CERT) if (tls_dir / CERT).exists() else ""
+    _write_mark(mark, [new, old] if old else [new])
     key.replace(tls_dir / KEY)
     cert.replace(tls_dir / CERT)
-    (tls_dir / MARK).write_text(fingerprint(tls_dir / CERT) + "\n")
+    _write_mark(mark, [new])
+
+
+def _write_mark(mark: Path, fingerprints: list[str]) -> None:
+    tmp = mark.with_name(mark.name + ".tmp")
+    tmp.write_text("".join(f + "\n" for f in fingerprints))
+    tmp.replace(mark)
 
 
 def key_mode() -> int:
@@ -145,12 +157,13 @@ def info(tls_dir: Path) -> dict | None:
             key_ok = _openssl("x509", "-in", str(cert), "-noout", "-pubkey") == _openssl("pkey", "-in", str(key), "-pubout")
         except TlsError:
             key_ok = False
+    ours = fingerprint(cert) in mark.split()  # kia's own: one its mark names (two during a renewal)
     return {
         "subject": subject.group(1).strip() if subject else "",
         "issuer": issuer.group(1).strip() if issuer else "",
         "names": sans,
         "expires": expires.isoformat(timespec="seconds") if expires else None,
-        "generated": bool(mark) and mark == fingerprint(cert),
+        "generated": ours,
         "key_matches": key_ok,
     }
 
@@ -170,6 +183,8 @@ def ensure(tls_dir: Path, hosts: list[str], log=print, now: datetime | None = No
             why = "renewed the secure Dashboard's certificate, which was about to expire"
         elif not set(hosts) <= set(current["names"]):
             why = f"made a new certificate for the secure Dashboard, for {', '.join(hosts)}"
+        elif current["key_matches"] is False:  # a renewal stopped between the key and the certificate
+            why = "made a new certificate for the secure Dashboard, since its key didn't match"
         if why:
             make_self_signed(tls_dir, hosts)
             log(f"TLS: {why} (self-signed, valid {DAYS} days)")

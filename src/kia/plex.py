@@ -152,7 +152,10 @@ class Plex:
                 raise PlexError(f"Plex answered {exc.code} to {method} {path}{hint}") from None
             except OSError as exc:
                 raise PlexError(f"Can't reach Plex at {self.url}: {exc}") from None
-        return json.loads(body) if body.strip().startswith(b"{") else {}
+        try:
+            return json.loads(body) if body.strip().startswith(b"{") else {}
+        except ValueError:  # an answer cut short, or not Plex's
+            raise PlexError(f"Plex's answer to {method} {path} isn't JSON") from None
 
     def text(self, path: str, params: dict | None = None) -> str:
         """A GET that answers with text (a transcoder playlist). Plex picks how to transcode

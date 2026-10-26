@@ -18,6 +18,13 @@ A playlist downloaded from a name like `tuner.example.com` that points at your o
 - `kia restore` gives one line, not a traceback, for a cut-short or odd backup file.
 - Jellyfin times without a time zone are read as UTC, so `kia doctor` and `kia find` don't fail on them.
 - A profile whose title or lists hold a control character is refused on the Dashboard, instead of giving an error and leaving a temporary file behind.
+- `kia_docs` no longer takes a `#` line inside a code block for a heading, which gave assistants links to sections that don't exist.
+- kia doctor and the MCP server hide more logins in addresses: `api_key=`, `X-Plex-Token=`, `access_token=`, `passwd=`, and a login percent-encoded inside another address.
+- kia repairs its own certificate after a renewal that stopped half way (a new key next to the old certificate), instead of leaving the secure Dashboard broken.
+- Plex's "on now" in `kia_whats_on` is only a show that has started. `kia find` finds accented words in any case ("fútbol" finds "FÚTBOL"), and its note about categories appears only when Plex has a guide of its own.
+- `kia doctor jellyfin` accepts the full, uncompressed `guide.xml` as a guide that goes with any playlist.
+- `kia mcp` answers an assistant even when `kia.toml` can't be read, reports the problem when a tool runs, and recovers once it's fixed. A byte that isn't UTF-8 gets an error back instead of stopping it.
+- The MCP guide and SECURITY.md say exactly what reaches an assistant: `kia_pluto` does name the Pluto TV channels playing through kia now, and some tools ask Prometheus, Plex, or Jellyfin in your stack.
 - The kia-stack service keeps its files out of kia's reach. On a Mac its log is now `stack-service/kia-stack.log`, not `work/logs/kia-stack.log`, where a link kia's container planted could send the log into one of your files. The copy of `.env` an apply keeps is now in `stack-service/`, not `state/`, and anything already at its name stops the apply (before, a link to a device was written through). Copies from earlier applies stay in `state/` until you delete them. On a Mac, `scripts/update.sh` installs the service again when its settings change, so the log moves by itself.
 - `scripts/update.sh` no longer stops for good when a folder sits at `state/deployed-rev`.
 - `kia restore` leaves out a file whose folder is a link, so a restore can't write outside the kia folder.
@@ -39,7 +46,7 @@ Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`
 ### Finding shows
 
 - `kia find` searches the TV guides for shows: kia's guide, and the Live TV guides of the Plex and Jellyfin that kia knows, when they have guides of their own (an antenna's channels in Plex, for example). Give it words, a category such as Sports, or both, and how many hours ahead to look (`--hours 0` is on now, and the most is a week). It lists up to 25, the ones with your words in the title first, each with its channel, number, times, and where to watch it ([asking kia for help](docs/ask-kia.md)).
-- AI assistants get the same as a `kia_find_shows` tool, so they can answer "when is the Bears game on, and on which channel?". `kia_whats_on` also covers Plex's own channels now, so "what's on WBBM?" works for an antenna's channels too.
+- AI assistants get the same as a `kia_find_shows` tool, so they can answer "when is the game on, and on which channel?". `kia_whats_on` also covers Plex's own channels now, so "what's on channel 2.1?" works for an antenna's channels too.
 
 ## 0.6.5 (2026-10-25)
 

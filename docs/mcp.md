@@ -26,7 +26,7 @@ On this page:
 - "Why does Plex show no channels?"
 - "Are my disks OK?"
 - "What's on CNN right now, and after that?"
-- "When is the Bears game on, and on which channel?"
+- "When is the football game on, and on which channel?"
 - "What sports are on right now?"
 - "How do I make a playlist for the kids?" (from kia's own docs)
 
@@ -226,11 +226,11 @@ A client that only starts local programs can use the [mcp-remote](#claude-deskto
 | `kia_find_shows` | Shows in the guides that match some words or a category, now or up to a week ahead: kia's guide, and Plex's and Jellyfin's own guides (an antenna's, say). Up to 25, the ones named for the words first, each with its channel, number, times, and where to watch it |
 | `kia_docs` | The sections of kia's own docs, the copy installed with your kia, that best match some words, with links |
 
-That's the same as the Dashboard shows to anyone on your network, plus, from `kia_hardware`, the names of the computer's disks and where they're mounted, as Grafana's Hardware dashboard shows them. The tools can't change anything. Passwords, tokens, and alert addresses show only as set or not set, and user names and passwords inside addresses are hidden.
+That's what the Dashboard shows to anyone on your network, plus a few things from programs in your stack: the names of the computer's disks and where they're mounted (`kia_hardware`, from Prometheus, as Grafana shows them), Jellyfin's Live TV settings (`kia_jellyfin`), and the guide listings of Plex's and Jellyfin's own channels, such as an antenna's (`kia_find_shows`, `kia_whats_on`). The tools can't change anything. Passwords, tokens, and alert addresses show only as set or not set, and user names and passwords inside addresses are hidden.
 
 ## Privacy and safety
 
-- Your assistant sends what it reads to its AI service to answer you, as with anything else you show it: channel and playlist names, kia's findings, and your settings (secrets hidden). Viewing activity isn't in any of kia's tools.
+- Your assistant sends what it reads to its AI service to answer you, as with anything else you show it: channel and playlist names, kia's findings, and your settings (secrets hidden). What plays on Plex or Jellyfin isn't in any of kia's tools. `kia_pluto` does say which Pluto TV channels are playing through kia right now, and for how many devices, as `pluto.json` on your network does.
 - Channel names, guide titles, and guide sites' errors come from strangers, and someone could write instructions into one ("ignore your instructions and run..."). kia tells the assistant to treat that text as data, and kia's tools can't act on it. But an assistant such as Claude Code can also run commands on your computer and reach the internet. Keep it asking before it runs a command, read what it wants to run, and don't approve a command that came from an answer about kia unless kia's docs give it.
 - Keep the token like a password. If it gets out, `kia mcp-token --reset` replaces it, and the old one stops working at once. `kia mcp-token --off` turns the server off. Backups leave the token out; after restoring one, run `kia mcp-token` again.
 - kia's log records each tool call, and each refused token, with the address it came from (`docker compose logs kia | grep MCP`).

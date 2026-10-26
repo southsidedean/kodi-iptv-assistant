@@ -87,7 +87,8 @@ TOOLS = [
      "kia doctor on one channel (or up to 5 that match): whether its stream works and its record of past "
      "checks, or why it was left out of the playlists; and where its guide comes from, or why it has none.", _QUERY),
     ("kia_find_channels", "Find channels",
-     "Channels in kia's playlists whose name or ID contains the text (up to 25): ID, name, and category.", _QUERY),
+     "Channels with an ID (tvg-id) in kia's playlists whose name or ID contains the text (up to 25): ID, name, and "
+     "category.", _QUERY),
     ("kia_playlists", "Playlists",
      "The playlists kia checks, with how many of their streams worked in the last check, and the playlists "
      "kia makes for people and devices (profiles), with their channel counts.", _NO_ARGS),
@@ -128,7 +129,7 @@ TOOLS = [
     ("kia_find_shows", "Find shows",
      "Search the TV guides for shows: kia's own, and the Live TV guides of the Plex (its antenna channels) "
      "and Jellyfin that kia knows. Matches every word in a show's title, episode, or description, and the "
-     "category's words in its categories; up to 25, soonest first, each with its channel, number, start "
+     "category's words in its categories; up to 25, those named for the words first, then the soonest, each with its channel, number, start "
      "and end, and where to watch it (kia's playlists, Plex, or Jellyfin). For questions like \"when is "
      "the game on?\" or \"what sports are on now?\". Times are in this computer's time zone.",
      {"type": "object", "additionalProperties": False,
@@ -220,9 +221,9 @@ def _whats_on(conf: Config, args: dict, _api, now: float | None = None) -> dict:
         # Each slot is start, end (numbers), and a title: anything else is damaged, and left out.
         slots = [s for s in doctor.list_of(listings.get(e.tvg_id), list)
                  if len(s) == 3 and all(isinstance(t, (int, float)) and not isinstance(t, bool) for t in s[:2]) and s[1] > now]  # fmt: skip
-        shows = [{"start": _clock(a), "end": _clock(b), "title": str(t)[:200]} for a, b, t in slots[: WHATS_ON_NEXT + 1]]
+        shows = [{"start": _clock(a), "end": _clock(b), "title": doctor._quote(t, 200)} for a, b, t in slots[: WHATS_ON_NEXT + 1]]
         on_now = shows.pop(0) if slots and slots[0][0] <= now else None
-        out.append({"channel": e.name, "id": e.tvg_id, "on_now": on_now, "next": shows,
+        out.append({"channel": doctor._quote(e.name, 80), "id": e.tvg_id, "on_now": on_now, "next": shows[:WHATS_ON_NEXT],
                     **({} if slots else {"note": "No listings in kia's guide for the next 14 hours: it shows the channel's name."})})  # fmt: skip
     from kia import shows
 
@@ -246,9 +247,12 @@ def _anchor(heading: str) -> str:
 
 def _sections(text: str) -> list[tuple[str, str]]:
     """(heading, text) for each section of a Markdown page, without its images and HTML."""
-    out, heading, lines = [], "", []
+    out, heading, lines, fenced = [], "", [], False
     for line in text.splitlines():
-        if line.startswith("#"):
+        if line.lstrip().startswith(("```", "~~~")):
+            fenced = not fenced  # inside a code block, "# With Docker" is a comment, not a heading
+            lines.append(line)
+        elif not fenced and re.match(r"#{1,6} ", line):
             if lines:
                 out.append((heading, "\n".join(lines).strip()))
             heading, lines = line.lstrip("#").strip(), []
@@ -460,8 +464,10 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
     if method == "prompts/get":
         name, args = params.get("name"), params.get("arguments") or {}
         prompt = next((x for x in PROMPTS if x[0] == name), None)
-        if prompt is None or not isinstance(args, dict):
-            return 200, _error(id_, -32602, f"Unknown prompt: {str(name)[:60]}")
+        if prompt is None:
+            return 200, _error(id_, -32602, f"Unknown prompt: {doctor._quote(name, 60)}")
+        if not isinstance(args, dict):
+            return 200, _error(id_, -32602, "A prompt's arguments are an object, such as {\"channel\": \"CNN\"}")
         missing = [a["name"] for a in prompt[3] if a.get("required") and not isinstance(args.get(a["name"]), str)]
         if missing:
             return 200, _error(id_, -32602, f"The prompt needs {missing[0]!r}.")
@@ -483,7 +489,7 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
         try:
             conf = load_conf()
         except (OSError, ValueError) as exc:
-            return 200, _failed(id_, f"kia's settings couldn't be read: {exc}")
+            return 200, _failed(id_, doctor.hide_logins(f"kia's settings couldn't be read: {exc}"))
         try:
             data = _hide_logins(RUN[name](conf, args, api_cfg))
         except Exception:  # a damaged file, say: an answer the client can show, and details in kia's log
