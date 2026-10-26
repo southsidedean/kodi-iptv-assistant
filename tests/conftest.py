@@ -34,6 +34,8 @@ def clean_environment(monkeypatch):
     # The computer's own name would go into alert titles and setups (kia.name): none, unless
     # a test gives one.
     monkeypatch.setattr(kia_name, "computer_name", lambda: "")
+    # Run under Docker Desktop, every caller would share one address (api.shared_address).
+    monkeypatch.setattr(api, "_docker_desktop", lambda: False)
 
 
 @pytest.fixture(autouse=True)

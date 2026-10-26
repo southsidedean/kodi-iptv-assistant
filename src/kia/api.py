@@ -849,13 +849,71 @@ def _shown(r: dict) -> dict:
     from kia import asks
 
     out = {k: r[k] for k in ("id", "kind", "what", "who", "state", "asked", "auto") if k in r}
-    out["can_allow"] = r["kind"] in asks.AUTO_KINDS  # for the Dashboard's "allow for an hour"
+    # For the Dashboard's "allow for an hour": only a kind that may run by itself, from a
+    # caller kia can tell apart from the others.
+    shared = not _device_of(r) and shared_address(r.get("who", ""))
+    out["can_allow"] = r["kind"] in asks.AUTO_KINDS and not shared
+    if shared:
+        out["shared_caller"] = True
     if r["state"] == "waiting":
         out["minutes_left"] = max(0, round((r["expires"] - time.time()) / 60))
     for k in ("result", "error"):
         if k in r:
             out[k] = r[k]
     return out
+
+
+SHARED_CALLER = ("kia can't tell assistants apart at this address, so allowing one for an hour would allow them all. "
+                 "Approve it on its own, or give each device a key with the gateway, or list the kind in "
+                 "kia.toml's auto_approve.")  # fmt: skip
+
+
+def _device_of(r: dict) -> str:
+    """The gateway device a request came from, or "" (kia wrote it, but state/ is checked)."""
+    device = r.get("device")
+    return device if isinstance(device, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,39}", device) else ""
+
+
+def _docker_desktop() -> bool:
+    """Whether kia runs under Docker Desktop (macOS, Windows): its Linux is LinuxKit."""
+    try:
+        return "linuxkit" in Path("/proc/version").read_text().lower()
+    except OSError:
+        return False
+
+
+def _network_gateways() -> set[str]:
+    """The first address of each network kia's container is on, which Docker gives the
+    network's gateway: calls from the kia computer itself arrive from it. From
+    /proc/net/route, whose addresses are hex in the kernel's (little-endian) byte order."""
+    found = set()
+    try:
+        lines = Path("/proc/net/route").read_text().splitlines()[1:]
+    except OSError:
+        return found
+    for line in lines:
+        cells = line.split()
+        try:
+            dest, mask = int(cells[1], 16), int(cells[7], 16)
+        except (IndexError, ValueError):
+            continue
+        if dest and mask:
+            found.add(str(ipaddress.IPv4Address(int.from_bytes(((dest & mask) + (1 << 24)).to_bytes(4, "little"), "big"))))
+    return found
+
+
+def shared_address(address: str) -> bool:
+    """Whether several devices can reach kia from this one address, so it can't stand for one
+    assistant: every address under Docker Desktop (it shows kia one for everyone), and on
+    Linux the computer's own (loopback, or a Docker network's gateway). "stdio" (kia mcp) and
+    a missing address count as shared too: anything on this computer, or anyone."""
+    if not address or address in ("stdio", "an assistant") or _docker_desktop():
+        return True
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return True  # not an address kia knows
+    return ip.is_loopback or ip.is_unspecified or address in _network_gateways()
 
 
 def get_asks(cfg: ApiConfig) -> dict:
@@ -877,6 +935,8 @@ def answer_ask(cfg: ApiConfig, body: dict, approve: bool) -> dict:
         r = asks.get(cfg.state_dir, ask_id)
         if r is not None and r["kind"] not in asks.AUTO_KINDS:
             raise ApiError(409, f"{asks.KINDS[r['kind']]}: kia always asks you about this one.")
+        if r is not None and not _device_of(r) and shared_address(r["who"]):
+            raise ApiError(409, SHARED_CALLER)
     shown = run_request(cfg, ask_id, approve)
     if hour:
         asks.allow(cfg.state_dir, shown["kind"], shown["who"])

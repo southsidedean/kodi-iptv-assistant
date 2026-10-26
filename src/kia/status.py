@@ -535,6 +535,11 @@ ASKS_SCRIPT = """
             button.addEventListener("click", function () { answer(a.id, b[1]); });
             li.append(" ", button);
           });
+          if (a.shared_caller && KINDS[a.kind]) {
+            li.append(Object.assign(document.createElement("p"), { className: "muted",
+              textContent: "No \u201callow for an hour\u201d here: kia can't tell assistants apart at " + a.who +
+                ". To let these run by themselves, give each device a key with the gateway, or use auto_approve in kia.toml." }));
+          }
         } else if (card.dataset.secureUrl) {
           li.append(" ", Object.assign(document.createElement("a"), { href: new URL("#asks", card.dataset.secureUrl).href, textContent: "Approve it on the secure page" }));
         }
