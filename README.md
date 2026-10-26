@@ -152,7 +152,7 @@ kia is meant for your home network, and each part of it gets only what it needs:
 - The kia-stack service, which lets the Dashboard change what runs, takes only a check or an apply of parts it knows, and treats each request as coming from a stranger.
 - iptv-org's guide downloader, outside code that changes daily, runs in Node.js's sandbox and sees none of kia's passwords or tokens.
 - Changes on the Dashboard need a password and are accepted only over HTTPS.
-- The MCP server for AI assistants is off until you turn it on. Over the network it answers only over HTTPS with its own token; `kia mcp`, for an assistant on the same computer, needs neither. Either way it can only read.
+- The MCP server for AI assistants is off until you turn it on. Over the network it answers only over HTTPS with its own token; `kia mcp`, for an assistant on the same computer, needs neither. Either way it only reads, except that an assistant can ask for a few things, such as a stream test, which happen only once you approve them on the Dashboard with the password.
 - The published images are scanned before they go out, and come with a signed record of how they were built.
 
 [SECURITY.md](SECURITY.md) has the details, including what each optional program can do. Don't open a port for kia on your router; to watch away from home, use a VPN such as Tailscale ([away from home](docs/players.md#away-from-home)).

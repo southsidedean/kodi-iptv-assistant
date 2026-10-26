@@ -35,12 +35,13 @@ EVENTS = {
     "guessing": "someone got the Dashboard's password or the MCP token wrong 10 times in a row",
     "playlist_lan": "a playlist from the internet pointed kia at your own network",
     "daily_summary": "a short summary after every successful run (not an alert)",
+    "assistant_asks": "an AI assistant asks kia to do something you approve on the Dashboard (not an alert)",
 }
 DEFAULT_EVENTS = ("dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing", "part_down", "guessing",
                   "playlist_lan")  # fmt: skip
 # Notices, not alerts: sent only when turned on, and never logged to alerts.log or
 # counted in exit codes.
-NOTICES = {"daily_summary"}
+NOTICES = {"daily_summary", "assistant_asks"}
 URGENT = {"dns_local", "run_failed"}
 
 

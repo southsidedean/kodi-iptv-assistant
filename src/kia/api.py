@@ -772,6 +772,47 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), who)
 
 
+# Requests from AI assistants (kia.asks): what each kind runs once you approve it, with the
+# same code as the Dashboard's own button.
+def _run_ask(cfg: ApiConfig, kind: str, args: dict) -> dict:
+    if kind == "test_channel":
+        return test_channel(cfg, {"key": args.get("key")})
+    raise ApiError(400, "kia doesn't know that kind of request.")
+
+
+def _shown(r: dict) -> dict:
+    """A request as the Dashboard and assistants see it."""
+    out = {k: r[k] for k in ("id", "kind", "what", "who", "state", "asked") if k in r}
+    if r["state"] == "waiting":
+        out["minutes_left"] = max(0, round((r["expires"] - time.time()) / 60))
+    for k in ("result", "error"):
+        if k in r:
+            out[k] = r[k]
+    return out
+
+
+def get_asks(cfg: ApiConfig) -> dict:
+    from kia import asks
+
+    return {"asks": [_shown(r) for r in asks.listing(cfg.state_dir)]}
+
+
+def answer_ask(cfg: ApiConfig, body: dict, approve: bool) -> dict:
+    """Approve (run) or decline a request from an assistant."""
+    from kia import asks
+
+    ask_id = body.get("id") if isinstance(body, dict) else None
+    if not isinstance(ask_id, str):
+        raise ApiError(400, "Expected the request's id.")
+    try:
+        r = asks.answer(cfg.state_dir, ask_id, approve, lambda kind, args: _run_ask(cfg, kind, args))
+    except asks.AskError as exc:
+        raise ApiError(409, str(exc)) from None
+    print(f"Request {r['id']} ({r['kind']}) from {r.get('who')}: {'approved, ' + r['state'] if approve else 'declined'}",
+          flush=True)  # fmt: skip
+    return {"ask": _shown(r)}
+
+
 def get_name(cfg: ApiConfig) -> dict:
     """This kia's name (kia.name), where it comes from, and what it would be without the
     Dashboard's: for the page header and the System page."""
@@ -904,6 +945,14 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["plex", "tuners"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, start_plex_tuners(cfg)
+        if parts == ["asks"] and method == "GET":
+            return 200, get_asks(cfg)
+        if parts == ["asks", "approve"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, answer_ask(cfg, data, approve=True)
+        if parts == ["asks", "decline"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, answer_ask(cfg, data, approve=False)
         if parts == ["name"] and method == "GET":
             return 200, get_name(cfg)
         if parts == ["name"] and method == "PUT":

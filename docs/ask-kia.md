@@ -35,7 +35,7 @@ None of these change anything.
 
 ## 2. Ask your own AI assistant
 
-kia has an MCP server: read-only tools an AI assistant can use to read kia's record and answer you in plain words. It works with assistants that run on your own computers, such as Claude Code, Gemini CLI, Claude Desktop, Codex, VS Code, and Cursor. Assistants that run in a company's cloud, such as ChatGPT and claude.ai, can't reach kia on your home network.
+kia has an MCP server: tools an AI assistant can use to read kia's record and answer you in plain words, and to ask for a few things, such as a stream test, that you approve on the Dashboard. It works with assistants that run on your own computers, such as Claude Code, Gemini CLI, Claude Desktop, Codex, VS Code, and Cursor. Assistants that run in a company's cloud, such as ChatGPT and claude.ai, can't reach kia on your home network.
 
 - On the computer running kia, the assistant starts kia's server itself (`kia mcp`), with nothing to turn on.
 - From another computer, turn it on with `kia mcp-token`, trust kia's certificate, and add kia to your assistant. `kia mcp-token --for <assistant>` prints the setup with your address and token filled in.
