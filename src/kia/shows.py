@@ -46,7 +46,7 @@ class Show:
     def to_dict(self) -> dict:
         out = {"start": _local(self.start), "end": _local(self.end), "title": self.title, "channel": self.channel,
                "number": self.number, "where": self.where}  # fmt: skip
-        if self.episode:
+        if self.episode and self.episode.lower() != self.title.lower():  # some guides repeat the title as the episode
             out["episode"] = self.episode
         return out
 
@@ -215,7 +215,7 @@ def _plex_airings(item: dict, words: list[str], now: datetime, until: datetime) 
         if _airing(start, end, now, until):
             channel = media.get("channelTitle") or media.get("channelCallSign") or "?"
             out.append(Show(start, end, _quote(show or title, 120), _quote(channel, 80), _quote(media.get("channelVcn") or "", 10),
-                            _quote(title if show and title != show else "", 120), "Plex", _has(f"{show} {title}", words)))  # fmt: skip
+                            _quote(title if show else "", 120), "Plex", _has(f"{show} {title}", words)))  # fmt: skip
     return out
 
 

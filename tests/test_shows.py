@@ -40,7 +40,7 @@ def kia(tmp_path: Path):
         + programme("FOX.us", NOW - HOUR, 2, "Pawn Stars", "<desc>A deal on a statue of two bears &amp; a cub</desc>")
         + programme("Stadium.us", NOW - HOUR, 2, "College Football", "<category>Sports</category>")
         + programme("Stadium.us", NOW - HOUR, 2, "College Football", "<category>Sports</category>")  # in two playlists: listed twice
-        + programme("Stadium.us", NOW + 30 * HOUR, 1, "NFL Throwback")
+        + programme("Stadium.us", NOW + 30 * HOUR, 1, "NFL Throwback", "<sub-title>NFL Throwback</sub-title>")  # the title again
         + programme("FOX.us", NOW + 3 * HOUR, 1, "FOX", attrs=' kia-placeholder="1"')  # kia's stand-in: never a show
         + programme("FOX.us", NOW + 4 * HOUR, 1, "The Influencers")  # "nfl" inside a word: not a match
         + "</tv>\n"
@@ -57,7 +57,8 @@ def test_kia_guide_by_words_category_and_time(kia):
     assert titles(r) == ["NFL Football"]  # Throwback is past the next 24 hours; "Influencers" isn't the word
     game = r["shows"][0]
     assert (game["channel"], game["number"], game["episode"], game["where"]) == ("FOX (720p)", "5", "Bears at Packers", "kia")
-    assert titles(shows.search(kia, "NFL", hours=48, now=NOW, env={})) == ["NFL Football", "NFL Throwback"]
+    later = shows.search(kia, "NFL", hours=48, now=NOW, env={})["shows"]
+    assert [s["title"] for s in later] == ["NFL Football", "NFL Throwback"] and "episode" not in later[1]
     assert titles(shows.search(kia, category="sports", hours=0, now=NOW, env={})) == ["College Football"]  # on now, once
     # Named for the words first, then soonest: the game before the show whose description mentions bears.
     assert titles(shows.search(kia, "bears", now=NOW, env={})) == ["NFL Football", "Pawn Stars"]
