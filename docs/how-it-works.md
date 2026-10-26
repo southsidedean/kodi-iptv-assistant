@@ -2,7 +2,7 @@
 
 Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide every few hours in between ([details](#4-build-the-guide-kia-guide)). You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
 
-For more depth: [how the guide gets built](guide-under-the-hood.md), [the Pluto TV relay](pluto-under-the-hood.md), [Plex and Threadfin](plex-under-the-hood.md), and [security](security-under-the-hood.md).
+For more depth: [how the guide gets built](guide-under-the-hood.md), [the Pluto TV relay](pluto-under-the-hood.md), [Plex and Threadfin](plex-under-the-hood.md), [the stack](stack-under-the-hood.md), and [security](security-under-the-hood.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/nightly-steps-dark.svg">

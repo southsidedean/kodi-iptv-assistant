@@ -24,7 +24,7 @@ kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in
 - A Dashboard in your browser says whether everything's working, lists your playlists with Copy buttons, and shows what's on now and next. With Docker, it also has a tile for each program running next to kia. On the secure Dashboard, after a password, you can make smaller playlists for people and devices (such as the kids), pick favorites and channel numbers, choose channel sources, and test a channel.
 - Pluto TV channels keep playing through their ad breaks, where most players freeze or jump back. kia plays them through a relay of its own ([how](docs/how-it-works.md#pluto-tv)).
 - kia can message your phone or email you when something breaks ([alerts](docs/alerts.md)), and Grafana can graph how it's all been running ([graphs for your TV stack](docs/cookbooks/observability.md)).
-- When something's wrong, kia says why: **Ask kia what's wrong** on the Dashboard, **Why?** next to any channel, or `kia doctor` in a terminal. An AI assistant such as Claude Code can ask the same questions in your own words through kia's MCP server ([asking kia for help](docs/ask-kia.md)).
+- When something's wrong, kia says why: **Ask kia what's wrong** on the Dashboard, **Why?** next to any channel, or `kia doctor` in a terminal. `kia find` searches the guides for a show, and an AI assistant such as Claude Code can ask all of it in your own words through kia's MCP server ([asking kia for help](docs/ask-kia.md)).
 
 ## What you need
 
@@ -152,7 +152,7 @@ kia is meant for your home network, and each part of it gets only what it needs:
 - The kia-stack service, which lets the Dashboard change what runs, takes only a check or an apply of parts it knows, and treats each request as coming from a stranger.
 - iptv-org's guide downloader, outside code that changes daily, runs in Node.js's sandbox and sees none of kia's passwords or tokens.
 - Changes on the Dashboard need a password and are accepted only over HTTPS.
-- The MCP server for AI assistants is off until you turn it on, answers only over HTTPS with its own token, and can only read.
+- The MCP server for AI assistants is off until you turn it on. Over the network it answers only over HTTPS with its own token; `kia mcp`, for an assistant on the same computer, needs neither. Either way it can only read.
 - The published images are scanned before they go out, and come with a signed record of how they were built.
 
 [SECURITY.md](SECURITY.md) has the details, including what each optional program can do. Don't open a port for kia on your router; to watch away from home, use a VPN such as Tailscale ([away from home](docs/players.md#away-from-home)).

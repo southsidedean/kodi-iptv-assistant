@@ -18,6 +18,9 @@ profiles_file = "profiles/profiles.toml"
 # .env: KIA_CHECK_CONCURRENCY
 concurrency = 20
 
+# The ffprobe program kia tests streams with, if not the one on the PATH.
+# ffprobe = "ffprobe"
+
 # Streams tested at the same time on any one server. Many servers, radio especially,
 # turn away more than a couple of connections from the same place.
 per_host = 2
@@ -94,6 +97,12 @@ recycle_numbers_after_days = 0
 # Only if your guide is served from somewhere else:
 # epg_url = "http://my-server.lan:8780/guide.xml.gz"
 
+# The secure Dashboard (docs/secure-page.md): its certificate's folder, its port (.env:
+# KIA_HTTPS_PORT), and more names for kia's own certificate to cover (.env: KIA_TLS_NAMES).
+# tls_dir = "tls"
+# https_port = 8743
+# tls_names = ["kia.home.lan"]
+
 
 [dns]
 # When a stream's server name can't be looked up on this machine, kia asks these public
@@ -123,6 +132,7 @@ verify_resolvers = ["8.8.8.8", "1.1.1.1"]
 #   guide_drop     channels with guide data fell sharply since the last run
 #   site_failing   a guide site failed several runs in a row
 #   daily_summary  an "all done" message after each run (off unless you add it)
+#   pluto_fallback a Pluto TV channel played without kia's fix for 5 minutes (off unless you add it)
 events = ["dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing"]
 
 # How big a fall, in percent, counts as sharp for channels_drop and guide_drop.
@@ -130,6 +140,18 @@ drop_percent = 25
 
 # Failed runs in a row before site_failing alerts. You hear about it once per streak.
 site_fail_runs = 3
+
+# Email alerts (docs/alerts.md#email). .env's KIA_SMTP_* and KIA_EMAIL_* settings do the
+# same, and keep the password out of this file. security is starttls (port 587), ssl (465),
+# or none (25); port follows it unless you set one.
+# [alerts.email]
+# host = "smtp.example.com"
+# port = 587
+# security = "starttls"
+# user = "you@example.com"
+# password = "an-app-password"
+# to = "you@example.com"
+# from = "you@example.com"
 
 
 [epg]

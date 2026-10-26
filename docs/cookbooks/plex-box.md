@@ -107,7 +107,7 @@ If you have a NAS or servers with NFS shares, Plex can use the movies, shows, an
    Each one should say `OK` and how many files and folders it sees.
 4. Give the media folder to Plex in `.env`:
 
-   ```sh
+   ```ini
    KIA_MEDIA_DIR=/mnt/media
    ```
 
@@ -122,12 +122,15 @@ When a server is off, its folder is empty (reading it takes about 10 seconds to 
 
 ## Keeping it running
 
-- Everything starts again when the computer restarts.
-- **Updating kia:** follow the steps in the [README](../../README.md#updating-and-stopping), which also update the images, Plex's included. Do it when nobody's watching, because Plex and Threadfin restart.
-- **Updating Plex:** `docker compose pull plex`, then `docker compose up -d`.
-- **Backups:** `docker compose exec kia python3 -m kia backup` saves kia's and Threadfin's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Plex's own settings in `plex/config` can be large; Plex explains [what to back up](https://support.plex.tv/articles/201539237-backing-up-plex-media-server-data/).
+Everything starts again when the computer restarts.
+
+To update kia, follow the steps in the [README](../../README.md#updating-and-stopping), which also update the images, Plex's included. Do it when nobody's watching, because Plex and Threadfin restart. To update only Plex: `docker compose pull plex`, then `docker compose up -d`.
+
+`docker compose exec kia python3 -m kia backup` saves kia's and Threadfin's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Plex's own settings in `plex/config` can be large; Plex explains [what to back up](https://support.plex.tv/articles/201539237-backing-up-plex-media-server-data/).
 
 ## If something's wrong
+
+**Ask kia first.** `docker compose exec kia python3 -m kia doctor plex` checks Threadfin and its playlist, Plex's 480-channel limit, whether kia has added its tuners to Plex, and Plex's codecs, and says what to do about each.
 
 **A share's folder is empty** (`nfs-media.sh` says so, or Plex finds nothing). Check the server is on and the share's path: `showmount -e nas.local` lists what a server shares, and with which addresses. A NAS often allows only the addresses you list, so add this computer's.
 

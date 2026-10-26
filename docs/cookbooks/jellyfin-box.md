@@ -86,9 +86,11 @@ kia's [metrics](../metrics.md) then include `kia_jellyfin_sessions`: live TV and
 
 ## Keeping it running
 
-- Everything starts again when the computer restarts.
-- **Updating kia:** follow the steps in the [README](../../README.md#updating-and-stopping), which also update Jellyfin's image. Do it when nobody's watching, because Jellyfin restarts.
-- **Backups:** `docker compose exec kia python3 -m kia backup` saves kia's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Jellyfin's own settings are in `jellyfin/config`; Jellyfin explains [what to back up](https://jellyfin.org/docs/general/administration/backup-and-restore/).
+Everything starts again when the computer restarts.
+
+To update kia, follow the steps in the [README](../../README.md#updating-and-stopping), which also update Jellyfin's image. Do it when nobody's watching, because Jellyfin restarts.
+
+`docker compose exec kia python3 -m kia backup` saves kia's settings ([backups](../configuration.md#backing-up-and-moving-to-another-computer)). Jellyfin's own settings are in `jellyfin/config`; Jellyfin explains [what to back up](https://jellyfin.org/docs/general/administration/backup-and-restore/).
 
 ## If something's wrong
 

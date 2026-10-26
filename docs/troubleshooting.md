@@ -100,7 +100,7 @@ That's the secure page (`https://…:8743`) and kia's own certificate. The conne
 
 ### There's no Make a playlist or Edit button
 
-Those are on the secure page. On the plain `http://` page, use the link to it. If neither page has them, editing is turned off with `KIA_EDITING=false` in `.env`.
+**Make a playlist** is on the **Playlists** page, not the Dashboard's home page. Both buttons appear only on the secure page: on the plain `http://` page, use the link to it. If the secure page doesn't have them either, editing is turned off with `KIA_EDITING=false` in `.env`.
 
 ### It says the password is wrong, or I've forgotten it
 
@@ -117,7 +117,7 @@ The page you're on is the plain `http://` one. Open the `https://…:8743` addre
 
 ## In other players
 
-Each [player's guide](players.md) ends with its own common problems. If a channel won't play in any app, it's the stream itself; see [a channel won't play](#a-channel-wont-play).
+The [Kodi](kodi.md#troubleshooting), [Plex](plex.md#if-somethings-wrong), and [Jellyfin](jellyfin.md#if-somethings-wrong) guides end with their own common problems. In any player, an empty guide usually means the player hasn't been given the guide address; open the playlist address in a browser on the same network to check kia answers. If a channel won't play in any app, it's the stream itself; see [a channel won't play](#a-channel-wont-play).
 
 ## On the computer running kia
 

@@ -23,7 +23,7 @@ Most of it is ordinary, and some of it is broken. But kia reads thousands of add
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/security-layers-dark.svg">
-  <img alt="kia's layers of protection, from the outside in. Playlists, streams, guide sites, iptv-org's code, and Pluto TV come from the internet. Each enters through a guard: kia's checks on what it reads, ffprobe and ffmpeg with none of kia's settings, and iptv-org's downloader in Node's sandbox. All of them run inside kia's container, which is read-only apart from kia's own folders and has no Docker access. The Dashboard reaches kia through the web server, with the password over HTTPS. Only the kia-stack service, on the computer as you, reaches Docker, and it accepts only a strictly checked request to start or stop parts of the stack." src="../images/diagrams/security-layers-light.svg">
+  <img alt="kia's layers of protection, from the outside in. Playlists, streams, guide sites, iptv-org's code, and Pluto TV come from the internet. Each enters through a guard: kia's checks on what it reads, ffprobe and ffmpeg with none of kia's settings, and iptv-org's downloader in Node's sandbox. All of them run inside kia's container, which is read-only apart from kia's own folders and has no Docker access. The Dashboard reaches kia through the web server, with the password over HTTPS, and so does an AI assistant using kia's read-only MCP server, with its own token over HTTPS. Only the kia-stack service, on the computer as you, reaches Docker, and it accepts only a strictly checked request to start or stop parts of the stack." src="../images/diagrams/security-layers-light.svg">
 </picture>
 
 ## Where untrusted input goes
@@ -42,7 +42,7 @@ ffprobe and ffmpeg are the programs most exposed: they read the streams themselv
 ### Guide sites
 
 - Site names come from iptv-org's files and become file names in `work/`, so kia uses a name only if it looks like a domain, with no `..` or slashes.
-- Guides are read as XML with Python's own reader, which doesn't expand entities, so a small file can't turn into a huge one. They're read a piece at a time, and only the channels in your list are kept.
+- Guides are read as XML with Python's own reader, which loads nothing from outside the file and limits how far entities inside it can grow, so a small file can't turn into a huge one. They're read a piece at a time, and only the channels in your list are kept.
 - A download that fails, stops part way, or runs past its time limit never replaces the last good copy.
 
 ### iptv-org's code

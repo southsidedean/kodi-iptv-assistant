@@ -309,7 +309,7 @@ def _secure_card(s: dict) -> str:
         notes.append("The key in tls/privkey.pem doesn't match the certificate, so the secure page won't work.")
     if expires and not cert.get("generated"):
         left = (datetime.fromisoformat(expires) - datetime.now(datetime.fromisoformat(expires).tzinfo)).days
-        if left < 21:
+        if left < 30:  # as kia doctor setup (doctor.CERT_WARN): one threshold everywhere
             notes.append(f"The certificate expires in {max(left, 0)} days. Replace the files in tls/ with a new one.")
     rows = "".join(f"<li>{escape(k)}<span>{escape(v)}</span></li>" for k, v in [
         ("Address", url), ("Certificate made by", made_by), ("Covers", ", ".join(cert.get("names", []))),
