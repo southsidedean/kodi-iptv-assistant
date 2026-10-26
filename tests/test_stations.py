@@ -139,17 +139,9 @@ def test_kexp_times_stay_in_seattle_time_across_daylight_saving():
 
 
 def test_grab_kexp_writes_the_schedule(tmp_path: Path, monkeypatch):
-    class Resp:
-        def __enter__(self):
-            return self
+    import io
 
-        def __exit__(self, *a):
-            return False
-
-        def read(self, *a):
-            return json.dumps({"results": SLOTS}).encode()
-
-    monkeypatch.setattr(native, "fetch", lambda url, timeout=60: Resp())
+    monkeypatch.setattr(native, "fetch", lambda url, timeout=60: io.BytesIO(json.dumps({"results": SLOTS}).encode()))
     channels = tmp_path / "kexp.org.channels.xml"
     channels.write_text('<channels><channel site="kexp.org" site_id="kexp" xmltv_id="radio.kexp">KEXP</channel></channels>')
     out = tmp_path / "kexp.xml"

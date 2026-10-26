@@ -14,6 +14,7 @@ from pathlib import Path
 
 from kia.config import EpgConfig
 from kia import playlistguide
+from kia.epgmap import is_safe_site
 from kia.native import NATIVE_GRABBERS, grab_imjh
 
 # iptv-org/epg is third-party code: its site configs change every day and come from many
@@ -127,36 +128,53 @@ class GrabResult:
     output: Path
 
 
-def runner_prefix(cfg: EpgConfig, name: str | None = None) -> list[str]:
+def runner_prefix(cfg: EpgConfig, name: str | None = None, reads: tuple[Path, ...] = (),
+                  writes: tuple[Path, ...] = ()) -> list[str]:  # fmt: skip
     """Command prefix that runs a process inside the epg checkout. `name` names the Docker
-    container, so a download that runs too long can be stopped."""
+    container, so a download that runs too long can be stopped.
+
+    The container sees the checkout and only the files a run needs: reads (read-only) and
+    writes (one folder for this site's guide). Never all of work/: kia reads what's there
+    on the host (logs, other sites' guides, the plan of playlists' guides), so code running
+    in the container must not be able to plant files or links in it."""
     if cfg.runner == "local":
         return []
     if cfg.runner != "docker":
         raise ValueError(f"unknown epg runner {cfg.runner!r} (use 'docker' or 'local')")
-    repo, work = cfg.repo_dir.resolve(), cfg.work_dir.resolve()
-    # If the folder doesn't exist, Docker creates it owned by root. Create it first so it
+    repo = cfg.repo_dir.resolve()
+    # If a folder doesn't exist, Docker creates it owned by root. Create it first so it
     # belongs to the user.
-    work.mkdir(parents=True, exist_ok=True)
+    for folder in writes:
+        folder.mkdir(parents=True, exist_ok=True)
     # Run as the calling user so the files it writes belong to them (os.getuid doesn't
     # exist on Windows).
     user = ["-u", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
+    mounts = [f"{p.resolve()}:{p.resolve()}:ro" for p in reads] + [f"{p.resolve()}:{p.resolve()}" for p in writes]
     return [
         "docker", "run", "--rm", *user, *(["--name", name] if name else []),
         "-e", "HOME=/tmp",
         "-v", f"{repo}:{repo}",
-        "-v", f"{work}:{work}",
+        *(a for m in mounts for a in ("-v", m)),
         "-w", str(repo),
         cfg.docker_image,
     ]  # fmt: skip
 
 
-def _git(repo: Path, *args: str) -> None:
-    # The checkout runs third-party code (npm packages) that can write to it. Turning hooks
-    # off means nothing planted in .git/hooks runs when kia updates it, and fsmonitor off
-    # means no program named in the config does either (_reset_git_config covers the rest).
-    subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-C", str(repo), *args],
-                   check=True)  # fmt: skip
+def _git(repo: Path, *args: str, url: str = "") -> None:
+    """Run git on the checkout, which third-party code (npm packages) can write to.
+
+    Hooks and fsmonitor are off, so nothing planted in .git/hooks or named in the config
+    runs (_reset_git_config rewrites the config). GIT_COMMON_DIR pins git's settings to
+    this checkout's own .git: a planted .git/commondir would otherwise point git at a config
+    kia never rewrote. Only kia's own settings count (none from this computer's or your
+    git config), and only https and the kind of address kia's git_url uses, so no
+    "ext::" address can run a command."""
+    scheme = url.split("://", 1)[0].lower() if "://" in url else "file"
+    allow = ["-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", f"protocol.{scheme}.allow=always"]
+    env = {**os.environ, "GIT_COMMON_DIR": str((repo / ".git").resolve()), "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0"}  # fmt: skip
+    subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", *allow, "-C", str(repo), *args],
+                   check=True, env=env)  # fmt: skip
 
 
 def _reset_git_config(repo: Path, url: str) -> None:
@@ -171,7 +189,14 @@ def _reset_git_config(repo: Path, url: str) -> None:
     git_dir = repo / ".git"
     if not git_dir.is_dir() or git_dir.is_symlink():
         raise OSError(f"{git_dir} isn't a folder")
-    (git_dir / "info" / "attributes").unlink(missing_ok=True)
+    # Files that make git read settings, or objects, from somewhere else: commondir (also
+    # pinned by GIT_COMMON_DIR in _git), a worktree config, and alternates. And no links:
+    # a linked objects/, refs/, or info/ could lead anywhere.
+    for name in ("commondir", "config.worktree", "info/attributes", "objects/info/alternates"):
+        (git_dir / name).unlink(missing_ok=True)
+    for part in ("objects", "refs", "info", "HEAD"):
+        if (git_dir / part).is_symlink():
+            raise OSError(f"{git_dir / part} is a link")
     config = git_dir / "config"
     config.unlink(missing_ok=True)  # a link there is replaced, never written through
     config.write_text(
@@ -225,16 +250,16 @@ def _update_repo(cfg: EpgConfig, fresh: bool, log: Callable[[str], None]) -> Non
         if (repo / ".git").exists():
             _reset_git_config(repo, cfg.git_url)  # a first fetch that failed: try it again
         else:
-            _git(repo, "init", "-q")
-            _git(repo, "remote", "add", "origin", cfg.git_url)
+            _git(repo, "init", "-q", url=cfg.git_url)
+            _git(repo, "remote", "add", "origin", cfg.git_url, url=cfg.git_url)
     else:
         log(f"Updating the epg checkout to {cfg.git_ref}...")
         _reset_git_config(repo, cfg.git_url)
     # Fetching by name works the same for branches, tags, and (on GitHub) commit hashes.
     # "latest" is the remote's HEAD: its default branch, whatever it's called.
     ref = "HEAD" if cfg.git_ref in ("", "latest") else cfg.git_ref
-    _git(repo, "fetch", "-q", "--depth", "1", "origin", ref)
-    _git(repo, "checkout", "-q", "--force", "--detach", "FETCH_HEAD")
+    _git(repo, "fetch", "-q", "--depth", "1", "origin", ref, url=cfg.git_url)
+    _git(repo, "checkout", "-q", "--force", "--detach", "FETCH_HEAD", url=cfg.git_url)
     if fresh or lock_before != lock.read_bytes() or not (repo / "node_modules").exists():
         install_deps(cfg, log)
     else:
@@ -253,7 +278,9 @@ def install_deps(cfg: EpgConfig, log: Callable[[str], None]) -> None:
     # image has none), and every package's install scripts, so no third-party code runs
     # here. It also skips the postinstall step, which downloads iptv-org's channel data,
     # so run that separately.
-    subprocess.run([*runner_prefix(cfg), "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+    # On the command line, --git=git beats a git= line in the checkout's own .npmrc, which
+    # would name the program npm runs to fetch a git dependency.
+    subprocess.run([*runner_prefix(cfg), "npm", "ci", "--ignore-scripts", "--git=git", "--no-audit", "--no-fund"],
                    cwd=cfg.repo_dir, check=True, **_env(cfg, home=True))  # fmt: skip
     api_load(cfg, log)
 
@@ -277,8 +304,9 @@ def _deadline(cfg: EpgConfig, start: float) -> float | None:
 def grab_site(cfg: EpgConfig, site: str, channels_file: Path) -> GrabResult:
     work = cfg.work_dir.resolve()
     output = work / "guides" / f"{site}.xml"
-    # Grab into a staging dir and only replace the previous guide if this grab succeeds.
-    staged = work / "guides" / ".staging" / f"{site}.xml"
+    # Grab into a staging folder of its own, and only replace the previous guide if this grab
+    # succeeds. Its own, so one site's grabber can't write another site's guide.
+    staged = work / "guides" / ".staging" / site / f"{site}.xml"
     log_path = work / "logs" / f"{site}.log"
     staged.parent.mkdir(parents=True, exist_ok=True)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -317,7 +345,8 @@ def _run_epg_grab(cfg: EpgConfig, channels_file: Path, staged: Path, log_path: P
     ]  # fmt: skip
     cmd = sandboxed(cfg, "grab", [channels_file], [staged.parent], args)
     if cmd is None:
-        cmd = runner_prefix(cfg, container if cfg.runner == "docker" else None) + ["npm", "run", "grab", "--", *args]
+        cmd = runner_prefix(cfg, container if cfg.runner == "docker" else None, reads=(channels_file,), writes=(staged.parent,))
+        cmd += ["npm", "run", "grab", "--", *args]
     with open(log_path, "w") as logf:
         # Its own process group, so a stop reaches npm's Node.js children too.
         proc = subprocess.Popen(cmd, cwd=cfg.repo_dir, stdout=logf, stderr=subprocess.STDOUT, start_new_session=True, **_env(cfg))
@@ -397,8 +426,11 @@ def grab_playlist_guides(
     for site, info in sorted(spec.items()):
         if quick and useful.get(site):
             info = {**info, "urls": [u for u in info["urls"] if u in useful[site]] or info["urls"]}
+        if not site.startswith("playlist-") or not is_safe_site(site.removeprefix("playlist-")):
+            log(f"  {site[:80]!r}: not a name kia gives a playlist's guide; skipped")
+            continue  # the plan is kia's own, but a name only becomes a file name once checked
         output = work / "guides" / f"{site}.xml"
-        staged = work / "guides" / ".staging" / f"{site}.xml"
+        staged = work / "guides" / ".staging" / site / f"{site}.xml"
         log_path = work / "logs" / f"{site}.log"
         staged.parent.mkdir(parents=True, exist_ok=True)
         log_path.parent.mkdir(parents=True, exist_ok=True)

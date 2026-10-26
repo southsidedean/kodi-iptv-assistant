@@ -31,17 +31,9 @@ def test_parse_kink_schedule():
 def test_grab_kink_writes_the_schedule(tmp_path: Path, monkeypatch):
     page = kink_page([slot("2026-10-19T21:00:00+02:00", "2026-10-20T00:00:00+02:00", "KINK 1500", "Diane Kok")])
 
-    class Resp:
-        def __enter__(self):
-            return self
+    import io
 
-        def __exit__(self, *a):
-            return False
-
-        def read(self):
-            return page.encode()
-
-    monkeypatch.setattr(native, "fetch", lambda url, timeout=60: Resp())
+    monkeypatch.setattr(native, "fetch", lambda url, timeout=60: io.BytesIO(page.encode()))
     channels = tmp_path / "kink.nl.channels.xml"
     channels.write_text('<channels><channel site="kink.nl" site_id="kink" xmltv_id="radio.kink">KINK</channel></channels>')
     out = tmp_path / "kink.xml"

@@ -203,7 +203,7 @@ def test_a_site_that_runs_too_long_is_stopped(tmp_path: Path, monkeypatch):
 
     marker = tmp_path / "child-alive"
     # Like npm: a parent that starts a child, both of which would run for a minute.
-    monkeypatch.setattr(grab, "runner_prefix", lambda cfg, name=None: ["sh", "-c", f"(sleep 60; touch {marker}) & sleep 60", "sh"])
+    monkeypatch.setattr(grab, "runner_prefix", lambda cfg, name=None, **kw: ["sh", "-c", f"(sleep 60; touch {marker}) & sleep 60", "sh"])
     cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=tmp_path, runner="local", native_grabbers=False, site_time_limit=0.02)
     previous = tmp_path / "work" / "guides" / "slow.tv.xml"
     previous.parent.mkdir(parents=True)
@@ -248,7 +248,7 @@ def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):
 
 def test_per_site_connections_and_delay(tmp_path: Path, monkeypatch):
     seen = []
-    monkeypatch.setattr(grab, "runner_prefix", lambda cfg, name=None: ["sh", "-c", 'echo "$@" > "$0"', str(tmp_path / "args")])
+    monkeypatch.setattr(grab, "runner_prefix", lambda cfg, name=None, **kw: ["sh", "-c", 'echo "$@" > "$0"', str(tmp_path / "args")])
     cfg = EpgConfig(work_dir=tmp_path / "work", repo_dir=tmp_path, runner="local", native_grabbers=False,
                     site_connections={"tvpassport.com": 100}, site_delay_ms={"tvpassport.com": 100})  # fmt: skip
     for site in ("tvpassport.com", "other.tv"):

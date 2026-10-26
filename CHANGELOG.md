@@ -18,6 +18,7 @@ A playlist downloaded from a name like `tuner.example.com` that points at your o
 - `kia restore` gives one line, not a traceback, for a cut-short or odd backup file.
 - Jellyfin times without a time zone are read as UTC, so `kia doctor` and `kia find` don't fail on them.
 - A profile whose title or lists hold a control character is refused on the Dashboard, instead of giving an error and leaving a temporary file behind.
+- With the Docker runner for iptv-org's downloaders (`runner = "docker"`, used without kia's own image), code in that container could make git run a command on this computer at kia's next update, by planting a `.git/commondir`. Git now takes its settings only from the checkout's own folder, ignores your git settings, and allows only https and kia's own kind of address. The container also no longer sees all of `work/`: only the checkout, the site's channel list, and that site's guide folder. Each site's guide has a staging folder of its own, the kink.nl and kexp.org downloads have a size and time limit, and `npm ci` can't be pointed at another git program by the checkout's `.npmrc`.
 
 ## 0.6.6 (2026-10-25)
 
