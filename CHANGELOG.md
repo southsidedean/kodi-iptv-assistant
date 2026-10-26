@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.7.4 (unreleased)
+## 0.7.4 (2026-10-26)
+
+### Upgrading from 0.7.3
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change. The new guide sources take effect with the next nightly refresh, which matches channels again; until then the guide is last night's.
 
 ### A better guide
 
