@@ -966,6 +966,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         reports = doctor.channel(cfg, " ".join(words))
     elif topic == "guide":
         reports = [doctor.guide(cfg)]
+    elif topic == "pluto":
+        reports = [doctor.pluto(cfg)]
+    elif topic == "setup":
+        reports = [doctor.setup(cfg)]
     elif topic == "plex":
         reports = [doctor.plex(cfg)]
     elif topic == "hardware":
@@ -975,7 +979,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     elif not topic:
         reports = [doctor.overview(cfg)]
     else:
-        log(f"kia doctor doesn't know {topic!r}. Try: kia doctor, kia doctor channel <name>, kia doctor guide, kia doctor plex, kia doctor hardware, or kia doctor jellyfin")
+        log(f"kia doctor doesn't know {topic!r}. Try: kia doctor, kia doctor channel <name>, kia doctor guide, kia doctor pluto, kia doctor setup, kia doctor plex, kia doctor hardware, or kia doctor jellyfin")
         return 2
     if args.json:
         print(json.dumps([r.to_dict() for r in reports], indent=1))

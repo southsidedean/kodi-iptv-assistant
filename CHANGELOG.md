@@ -2,6 +2,12 @@
 
 ## 0.6.6 (unreleased)
 
+### Asking kia why
+
+- `kia doctor pluto` explains Pluto TV through kia's fix: how many channels use it, what's playing now and for how many devices, any channel playing Pluto's plain link instead (a problem after 5 minutes, when the alert goes off), each playing channel's last problems, and how often Pluto fell back in the last week. It replaces the overview's single Pluto note, and names the channel.
+- `kia doctor setup` checks kia's own setup: your own certificate for the secure Dashboard expiring or expired (kia renews the one it made), a certificate and key that don't match, the first password kia made still in use, nowhere to send alerts, under 1 GB free for kia's folders, an address only this computer can use, and every playlist's streams failing at once (usually the network or ffprobe).
+- **Ask kia what's wrong** includes the problems of both. Scripts can ask `GET /api/doctor/pluto` and `GET /api/doctor/setup`, and AI assistants get `kia_pluto` and `kia_setup` tools ([asking kia for help](docs/ask-kia.md)).
+
 ## 0.6.5 (2026-10-25)
 
 ### Upgrading from 0.6.4

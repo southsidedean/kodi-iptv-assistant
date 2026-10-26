@@ -10,6 +10,8 @@ The commands on this page run in a terminal, in the kia folder, on the computer 
 docker compose exec kia python3 -m kia doctor
 docker compose exec kia python3 -m kia doctor channel "CNN"
 docker compose exec kia python3 -m kia doctor guide
+docker compose exec kia python3 -m kia doctor pluto
+docker compose exec kia python3 -m kia doctor setup
 docker compose exec kia python3 -m kia doctor plex
 docker compose exec kia python3 -m kia doctor jellyfin
 docker compose exec kia python3 -m kia doctor hardware
@@ -61,6 +63,7 @@ Pluto TV's streams break most players at ad breaks: the picture goes black or fr
 
 If a Pluto channel still misbehaves:
 
+- Ask kia: `kia doctor pluto` says how many channels go through kia's fix, which are playing now, any playing Pluto's plain link instead, their last problems, and how often that happened in the last week.
 - Open the playlist URL in a browser and look for the channel. Its address should be `http://<your address>:8780/pluto/<id>.m3u8`. If it still starts with `https://jmp2.uk/`, the relay is off, or the playlist was made before you turned it on; it changes at the next refresh.
 - Look at **Pluto TV** on the Dashboard's **System** page while the channel plays. It shows each channel playing through kia and any recent problems, such as Pluto's servers not answering.
 - If the home page says Pluto channels are playing without kia's fix, kia couldn't open a Pluto session of its own, so it's using Pluto's plain link for now. kia tries again every five minutes. Turn on the `pluto_fallback` [alert](alerts.md) to hear about it.

@@ -12,6 +12,8 @@ computer's numbers, and jellyfin asks Jellyfin, with kia's API key, what it has 
     kia doctor                  how kia is doing, and anything that needs you
     kia doctor channel <name>   one channel: its stream, and its guide
     kia doctor guide            the whole guide: how old, where it comes from, what's missing
+    kia doctor pluto            Pluto TV through kia's fix: what's playing, what fell back
+    kia doctor setup            kia's own setup: certificate, password, alerts, space, address
     kia doctor plex             why Plex shows no channels, or too few
     kia doctor hardware         the computer: disks, RAID, memory, heat, power
     kia doctor jellyfin         why Jellyfin shows no channels, or no guide
@@ -25,6 +27,7 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 from collections import Counter
 import os
 import re
@@ -154,12 +157,9 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
         report.findings.append(Finding(PROBLEM, ".env can be read by other users on this computer",
                                        "It holds kia's passwords and tokens.", ["state/settings.json"],
                                        "In the kia folder: chmod 600 .env"))  # fmt: skip
-    pluto = _json(out / "pluto.json")
-    if isinstance(pluto, dict) and pluto.get("fallback"):
-        report.findings.append(Finding(NOTE, "A Pluto TV channel is playing without kia's fix",
-                                       "Pluto wouldn't open a session, so kia is passing on its plain link, which can freeze at ad breaks. kia tries again every 5 minutes.",
-                                       ["output/pluto.json"], "docs/pluto-under-the-hood.md#when-pluto-wont-play-along"))  # fmt: skip
     report.findings += [f for f in guide(cfg, now).findings if f.level == PROBLEM]
+    report.findings += [f for f in pluto(cfg, now).findings if f.level == PROBLEM]
+    report.findings += [f for f in setup(cfg, now).findings if f.level == PROBLEM]
     # Plex's problems too, when kia feeds a Plex (its notes and all-clear stay in `kia doctor plex`),
     # and the hardware's, when Prometheus answered kia's last check of the stack.
     report.findings += [f for f in plex(cfg).findings if f.level == PROBLEM]
@@ -470,6 +470,153 @@ def _failing_sites(cfg: Config) -> list[Finding]:
                              + ("Its log says: " + " / ".join(lines) + ". " if lines else "")
                              + "If it stays broken, add it to KIA_EXCLUDE_SITES.",
                              ["state/alert-state.json", f"work/logs/{_quote(site, 60)}.log"], "docs/configuration.md"))  # fmt: skip
+    return found
+
+
+# Pluto TV
+
+
+FALLBACK_MINUTES = 5  # kia.pluto.FALLBACK_ALERT, in minutes: on the plain link this long raises the alert
+STALE_PLUTO = timedelta(minutes=10)  # the relay rewrites pluto.json every minute while kia runs
+RECENT = timedelta(days=7)  # how far back the alert log counts
+
+
+def pluto(cfg: Config, now: datetime | None = None) -> Report:
+    """Pluto TV through kia's fix (the relay): how many channels use it, what's playing now and on
+    which session, channels on Pluto's plain link, and the fallback alerts of the last week. From
+    output/status.json, output/pluto.json (written every minute), and state/alerts.log."""
+    now = now or datetime.now(timezone.utc)
+    report = Report("Pluto TV")
+    if not cfg.pluto_relay:
+        report.findings.append(Finding(NOTE, "kia's Pluto TV fix is off",
+                                       "Pluto TV channels play Pluto's plain links, which can freeze or jump at ad breaks.",
+                                       [".env"], "docs/pluto-under-the-hood.md"))  # fmt: skip
+        return report
+    status = _json(cfg.output_dir / "status.json") or {}
+    names = status.get("pluto_channels") if isinstance(status.get("pluto_channels"), dict) else {}
+    if not names:
+        report.findings.append(Finding(NOTE, "No Pluto TV channels go through kia",
+                                       "kia's playlists have no Pluto TV channels, so its fix has nothing to do.",
+                                       ["output/status.json"], "docs/pluto-under-the-hood.md#which-channels-go-through-kia"))  # fmt: skip
+        return report
+    report.findings.append(Finding(OK, f"{len(names)} Pluto TV channel{' goes' if len(names) == 1 else 's go'} through kia's fix",
+                                   "kia opens its own session with Pluto for each, so ads don't freeze or rewind them.", ["output/status.json"]))  # fmt: skip
+    state = _json(cfg.output_dir / "pluto.json")
+    updated = _when(state.get("updated")) if state else None
+    if updated and now - updated > STALE_PLUTO:
+        report.findings.append(Finding(NOTE, f"pluto.json was last written on {readable(updated.isoformat())}",
+                                       "kia rewrites it every minute while it runs, so kia may have stopped.",
+                                       ["output/pluto.json"], "Check that kia is running: docker compose ps, in the kia folder."))  # fmt: skip
+    playing = list_of(state.get("channels"), dict) if state and not (updated and now - updated > STALE_PLUTO) else []
+    if playing:
+        viewers = sum(c.get("viewers") for c in playing if isinstance(c.get("viewers"), int))
+        watching = (f"{viewers} device{' is' if viewers == 1 else 's are'} watching (they asked in the last 30 seconds)." if viewers
+                    else "No device asked in the last 30 seconds; kia lets a channel go 2 minutes after the last request.")
+        report.findings.append(Finding(OK, f"{len(playing)} playing now", watching, ["output/pluto.json"]))
+    for c in playing:
+        name = _quote(names.get(c.get("id")) or c.get("id") or "?", 80)
+        minutes = c.get("fallback_minutes")
+        if isinstance(minutes, int):
+            report.findings.append(Finding(PROBLEM if minutes >= FALLBACK_MINUTES else NOTE,
+                                           f"{name} is playing without kia's fix",
+                                           f"For {minutes} minute{'' if minutes == 1 else 's'}: Pluto wouldn't open a session, so kia is passing on "
+                                           "its plain link, which can freeze at ad breaks. kia tries again every 5 minutes.",
+                                           ["output/pluto.json"], "docs/pluto-under-the-hood.md#when-pluto-wont-play-along"))  # fmt: skip
+        problems = [_quote(p.get("text")) for p in list_of(c.get("problems"), dict) if p.get("text")][-LOG_LINES:]
+        if c.get("suspicious") or problems:
+            flagged = "Pluto flagged kia's session as suspicious. " if c.get("suspicious") else ""
+            report.findings.append(Finding(NOTE, f"{name} had problems", flagged + ("Last: " + " / ".join(problems) if problems else ""),
+                                           ["output/pluto.json"], "docs/pluto-under-the-hood.md#when-pluto-wont-play-along"))  # fmt: skip
+    fell_back = [t for t, event in _alert_log(cfg) if event == "pluto_fallback" and now - t <= RECENT]
+    if fell_back:
+        report.findings.append(Finding(NOTE, f"Pluto TV fell back to its plain links {len(fell_back)} time{'' if len(fell_back) == 1 else 's'} in the last week",
+                                       f"The last on {readable(max(fell_back).isoformat())}. Now and then is normal; every day means Pluto is "
+                                       "refusing kia's sessions.", ["state/alerts.log"], "docs/pluto-under-the-hood.md#when-pluto-wont-play-along"))  # fmt: skip
+    return report
+
+
+def _alert_log(cfg: Config) -> list[tuple[datetime, str]]:
+    """Each alert in state/alerts.log (time, tab, event, tab, ...): its time and event."""
+    try:
+        lines = (cfg.state_dir / "alerts.log").read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in lines:
+        parts = line.split("\t")
+        when = _when(parts[0]) if len(parts) > 1 else None
+        if when and when.tzinfo:
+            out.append((when, parts[1]))
+    return out
+
+
+# kia's own setup
+
+
+LOW_DISK = 1024**3  # bytes free for kia's folders: under 1 GB, the nightly run can't save what it makes
+CERT_WARN = timedelta(days=30)  # kia renews its own certificate this long before it expires; yours, you renew
+
+
+def setup(cfg: Config, now: datetime | None = None) -> Report:
+    """kia's own setup: the secure Dashboard's certificate, the first password, where alerts go,
+    free space for kia's folders, the address players are given, and stream tests that all fail."""
+    now = now or datetime.now(timezone.utc)
+    report = Report("kia's setup")
+    status = _json(cfg.output_dir / "status.json") or {}
+    secure = status.get("secure") if isinstance(status.get("secure"), dict) else {}
+    tls = secure.get("tls") if isinstance(secure.get("tls"), dict) else None
+    if tls:
+        report.findings += _certificate(tls, now)
+    if (cfg.state_dir / "admin-password.txt").exists():
+        report.findings.append(Finding(NOTE, "The Dashboard still has the password kia made",
+                                       "It's still saved in state/admin-password.txt. Choose your own on the secure Dashboard's "
+                                       "System page, and kia deletes that file.",
+                                       ["state/admin-password.txt"], "docs/secure-page.md#changing-it"))  # fmt: skip
+    if not cfg.alerts.ntfy_url and not cfg.alerts.email:
+        report.findings.append(Finding(NOTE, "kia has nowhere to send alerts",
+                                       "A failed refresh or a guide site that keeps failing shows only on the Dashboard. "
+                                       "ntfy sends them to your phone; email works too.",
+                                       [".env"], "docs/alerts.md#getting-alerts-on-your-phone-ntfy"))  # fmt: skip
+    try:
+        free = shutil.disk_usage(cfg.output_dir).free
+    except OSError:
+        free = None
+    if free is not None and free < LOW_DISK:
+        report.findings.append(Finding(PROBLEM, f"Only {free / 1024**2:.0f} MB free for kia's folders",
+                                       "The nightly refresh needs room for the playlists, the guide, and the guide sites' downloads.",
+                                       ["output/"], "Delete what you don't need on that disk."))  # fmt: skip
+    host = urllib.parse.urlparse(cfg.public_url or "").hostname or ""
+    if host in ("", "localhost") or host.startswith("127."):
+        report.findings.append(Finding(NOTE, "kia's address is this computer only",
+                                       "KIA_PUBLIC_URL isn't set to an address other devices can reach, so the guide link inside the "
+                                       "playlist only works on this computer. Fine for Kodi on the same computer.",
+                                       [".env"], f"{DOCS}#changing-kias-address"))  # fmt: skip
+    sources = list_of(status.get("sources"), dict)
+    tested = [x for x in sources if isinstance(x.get("dead"), int) and x.get("dead")]
+    if len(tested) >= 2 and not any(x.get("ok") for x in sources):
+        report.findings.append(Finding(PROBLEM, "Every playlist's streams failed their test",
+                                       "When all of them fail at once, the cause is usually this computer's network, or ffprobe, "
+                                       "not the playlists.", ["output/status.json"], f"{DOCS}#the-dashboard-says-the-refresh-failed"))  # fmt: skip
+    if not report.findings or all(f.level == OK for f in report.findings):
+        report.findings.append(Finding(OK, "kia's setup looks right", "Its certificate, password, alerts, free space, and address.", []))
+    return report
+
+
+def _certificate(tls: dict, now: datetime) -> list[Finding]:
+    """The secure Dashboard's certificate, as status.json records it (kia.tls.info)."""
+    found, evidence = [], ["output/status.json", "tls/"]
+    expires = _when(tls.get("expires"))
+    if tls.get("key_matches") is False:
+        found.append(Finding(PROBLEM, "The secure Dashboard's certificate and key don't match",
+                             "Browsers can't open the secure page.", evidence, "docs/secure-page.md#using-your-own-certificate"))  # fmt: skip
+    if expires and not tls.get("generated"):
+        if expires < now:
+            found.append(Finding(PROBLEM, f"Your certificate for the secure Dashboard expired on {readable(expires.isoformat())}",
+                                 "kia renews only the certificate it made itself.", evidence, "docs/secure-page.md#using-your-own-certificate"))  # fmt: skip
+        elif expires - now < CERT_WARN:
+            found.append(Finding(NOTE, f"Your certificate for the secure Dashboard expires on {readable(expires.isoformat())}",
+                                 "kia renews only the certificate it made itself, so renew this one before then.",
+                                 evidence, "docs/secure-page.md#using-your-own-certificate"))  # fmt: skip
     return found
 
 

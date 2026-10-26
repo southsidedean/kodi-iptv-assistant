@@ -69,4 +69,5 @@ Every problem goes to kia's log, as `Pluto <channel id>: ...`, and to the channe
 
 - The System page, on the secure Dashboard, lists each channel playing: viewers (devices that asked in the last 30 seconds), whether kia is on its own session or the plain link, the session's age and the hours until its refresh, and counts of rewinds, sessions, errors, and fallbacks, with the last few problems.
 - `pluto.json` has the same, for scripts ([fields](how-it-works.md#plutojson)). kia rewrites it every minute, and when a player asks (at most every 15 seconds).
+- `kia doctor pluto` (and **Ask kia what's wrong** on the Dashboard) explains it: the channels playing now, any on the plain link and for how long, their last problems, and the `pluto_fallback` alerts of the last week.
 - `/metrics` has the channels playing, the viewers on each, and running totals of pieces, bytes, sessions, rewinds, errors, and fallbacks ([metrics](metrics.md)). The update and stack scripts read it to see whether anyone's watching before they restart kia.

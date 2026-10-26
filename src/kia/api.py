@@ -158,7 +158,7 @@ def search_channels(cfg: ApiConfig, query: str) -> dict:
 
 def ask_doctor(cfg: ApiConfig, query: str | None = None, topic: str | None = None) -> dict:
     """kia doctor's answers (kia.doctor): the overview, one channel's (query: its ID or part
-    of its name), or a topic's ("guide", "plex", "hardware", "jellyfin"). A read, open like the Dashboard's: it
+    of its name), or a topic's ("guide", "pluto", "setup", "plex", "hardware", "jellyfin"). A read, open like the Dashboard's: it
     shows what the pages and Grafana already show, with logins in addresses hidden."""
     from kia import doctor
     from kia.config import load
@@ -173,6 +173,10 @@ def ask_doctor(cfg: ApiConfig, query: str | None = None, topic: str | None = Non
         raise ApiError(500, f"kia's settings couldn't be read: {exc}") from None
     if topic == "guide":
         reports = [doctor.guide(conf)]
+    elif topic == "pluto":
+        reports = [doctor.pluto(conf)]
+    elif topic == "setup":
+        reports = [doctor.setup(conf)]
     elif topic == "plex":
         reports = [doctor.plex(conf)]
     elif topic == "hardware":
@@ -740,6 +744,10 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             return 200, ask_doctor(cfg, parse_qs(url.query).get("q", [""])[0])
         if parts == ["doctor", "guide"] and method == "GET":
             return 200, ask_doctor(cfg, topic="guide")
+        if parts == ["doctor", "pluto"] and method == "GET":
+            return 200, ask_doctor(cfg, topic="pluto")
+        if parts == ["doctor", "setup"] and method == "GET":
+            return 200, ask_doctor(cfg, topic="setup")
         if parts == ["doctor", "plex"] and method == "GET":
             return 200, ask_doctor(cfg, topic="plex")
         if parts == ["doctor", "hardware"] and method == "GET":
