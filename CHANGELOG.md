@@ -4,7 +4,7 @@
 
 ### Upgrading from 0.6.5
 
-Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). If your assistant uses kia's MCP server, it picks up the new tools (`kia_pluto`, `kia_setup`, and `kia_find_shows`) the next time it connects. **Ask kia what's wrong** may now show a problem it didn't before, such as low disk space or a certificate of your own that's about to expire; `kia doctor setup` explains each.
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). If your assistant uses kia's MCP server, it picks up the new tools (`kia_pluto`, `kia_setup`, and `kia_find_shows`) the next time it connects. **Ask kia what's wrong** may now show a problem it didn't before, such as low disk space or an expired certificate of your own; `kia doctor setup` explains each.
 
 ### Asking kia why
 
