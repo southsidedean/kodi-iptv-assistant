@@ -156,6 +156,7 @@ def test_downloads_follow_redirects_only_through_the_guard(site):
     with g.ticket() as ticket:
         with native.fetch(f"http://tv.example:{port}/hello.txt", proxy=ticket.url) as r:
             assert r.read() == b"hello"
+        assert Handler.seen[-1][1]["Host"] == f"tv.example:{port}"  # the server's name, never the guard's
         # A redirect is a new connection, checked like the first: one onto your network fails.
         with pytest.raises(urllib.error.HTTPError) as e:
             native.fetch(f"http://tv.example:{port}/to-router", proxy=ticket.url)

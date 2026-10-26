@@ -127,6 +127,11 @@ class _ThroughTheGuard(urllib.request.BaseHandler):
         self._login = "Basic " + base64.b64encode(f"{p.username}:{p.password}".encode()).decode()
 
     def http_request(self, req):
+        # The server's own name, before set_proxy swaps req.host for the guard's address:
+        # urllib fills Host in from req.host later, and a server (Cloudflare's, say)
+        # refuses a request that names 127.0.0.1.
+        if not req.has_header("Host"):
+            req.add_unredirected_header("Host", req.host)
         req.set_proxy(self._proxy, "http")
         # urllib moves this header to the tunnel's own request for https, so it reaches
         # only the guard, never the server.
