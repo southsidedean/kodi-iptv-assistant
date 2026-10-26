@@ -313,6 +313,7 @@ PROTECTED = [
     ("PUT", "/api/name", {"name": "den"}),
     ("POST", "/api/asks/approve", {"id": "0123456789abcdef"}),
     ("POST", "/api/asks/decline", {"id": "0123456789abcdef"}),
+    ("POST", "/api/asks/stop-allowing", {}),
 ]
 PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
           ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"),

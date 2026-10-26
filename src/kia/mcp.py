@@ -188,24 +188,24 @@ TOOLS = [
     # approves or declines on kia's Dashboard. kia_request_status reads how it went.
     ("kia_test_channel", "Test a channel (asks the person first)",
      "Ask kia to test one channel's stream now, as the Dashboard's Test button does. Nothing happens until "
-     "the person approves it on kia's Dashboard: tell them, and give them the link in the answer. Then read "
+     "the person approves it on kia's Dashboard, unless they let this kind run by itself (the answer says): tell them, and give them the link in the answer. Then read "
      "how it went with kia_request_status. The channel is its ID (tvg-id) or part of its name, and must match "
      "just one channel.", _QUERY),
     ("kia_refresh_guide", "Refresh the guide (asks the person first)",
      "Ask kia to refresh its guide now from the quick sources (the guides it downloads itself, in seconds "
      "to a few minutes), as it does every few hours by itself; the guide sites it grabs stay as they were "
-     "last night. Nothing happens until the person approves it on kia's Dashboard: tell them, and give them "
+     "last night. Nothing happens until the person approves it on kia's Dashboard, unless they let this kind run by itself (the answer says): tell them, and give them "
      "the link in the answer. Then read how it went with kia_request_status.", _NO_ARGS),
     ("kia_add_to_plex", "Add kia's channels to Plex (asks the person first)",
      "Ask kia to add its channels to Plex as Live TV now, as the Stack page's button does (kia does it by "
      "itself after each guide refresh too). It can take a few minutes. Only with Plex in kia's stack or a "
-     "Plex kia knows (KIA_PLEX_URL). Nothing happens until the person approves it on kia's Dashboard: tell "
+     "Plex kia knows (KIA_PLEX_URL). Nothing happens until the person approves it on kia's Dashboard, unless they let this kind run by itself (the answer says): tell "
      "them, and give them the link in the answer. Then read how it went with kia_request_status.", _NO_ARGS),
     ("kia_check_stack", "Check a choice of parts (asks the person first)",
      "Ask kia to check whether a choice of parts for its stack would work, as the Stack page's Check does: "
      "the ports, the settings each part needs, and the computer. It only checks; applying a choice stays "
      "with the person, on the Dashboard. With Docker and the kia-stack service only (kia_stack says what "
-     "runs now). Nothing happens until the person approves it on kia's Dashboard: tell them, and give them "
+     "runs now). Nothing happens until the person approves it on kia's Dashboard, unless they let this kind run by itself (the answer says): tell them, and give them "
      "the link in the answer. Then read how it went with kia_request_status.",
      {"type": "object", "additionalProperties": False, "required": ["parts"],
       "properties": {"parts": {"type": "array", "maxItems": 10, "items": {"type": "string", "enum": [n for n, _ in stack.PARTS]},
@@ -219,6 +219,9 @@ TOOLS = [
 # The tools that ask, rather than only read (MCP's readOnlyHint is false for them).
 ASKING = {"kia_test_channel", "kia_refresh_guide", "kia_add_to_plex", "kia_check_stack"}
 _WHO: contextvars.ContextVar[str] = contextvars.ContextVar("who", default="")  # who called the tool, for a request
+# The gateway device that called, "" otherwise: set only with the gateway's token, for
+# [asks] auto_devices.
+_DEVICE: contextvars.ContextVar[str] = contextvars.ContextVar("device", default="")
 
 
 # Each tool's input schema, by name.
@@ -441,8 +444,9 @@ def _check_stack(conf: Config, args: dict, api_cfg) -> dict:
 
 def _ask(conf: Config, api_cfg, kind: str, args: dict, what: str) -> dict:
     """Leave a request for the person to approve (kia.asks), tell them if they get the
-    assistant_asks notice, and give the assistant the link to pass on. what is kia's own
-    words, with anything from a playlist quoted."""
+    assistant_asks notice, and give the assistant the link to pass on; or run it now, when
+    the person lets this kind run by itself (asks.why_auto). what is kia's own words, with
+    anything from a playlist quoted."""
     from kia import asks
 
     try:
@@ -452,6 +456,10 @@ def _ask(conf: Config, api_cfg, kind: str, args: dict, what: str) -> dict:
         return {"asked": False, "why": str(exc)}
     where = (_json(conf.output_dir / "status.json").get("secure") or {}).get("url") or ""
     link = f"{where.rstrip('/')}/#asks" if where.startswith("https://") else "the secure Dashboard's front page"
+    reason = "" if r.get("already") else asks.why_auto(api_cfg.state_dir, kind, r["who"], _DEVICE.get(), conf.asks_auto,
+                                                         conf.asks_devices, conf.asks_per_hour)  # fmt: skip
+    if reason:
+        return _ran_by_itself(api_cfg, r, reason, link)
     if not r.get("already") and getattr(api_cfg, "alert", None):
         api_cfg.alert("assistant_asks", f"kia: an assistant asks: {what}",
                       f"{r['who']} asks kia to: {what}. Approve or decline it on the Dashboard: {link}")  # fmt: skip
@@ -460,6 +468,25 @@ def _ask(conf: Config, api_cfg, kind: str, args: dict, what: str) -> dict:
     return {"asked": True, "id": r["id"], "what": r["what"], "state": r["state"], "approve_at": link,
             "next": "Nothing happens until the person approves it on kia's Dashboard. Ask them to, then read how it "
                     "went with kia_request_status." + already}  # fmt: skip
+
+
+def _ran_by_itself(api_cfg, r: dict, reason: str, link: str) -> dict:
+    """A request the person let run without them: run it now, tell them if they get the
+    assistant_asks notice, and give the assistant how it went (or that it's running)."""
+    from kia import api
+
+    try:
+        shown = api.run_request(api_cfg, r["id"], auto=reason)
+    except api.ApiError as exc:  # taken meanwhile, from the Dashboard
+        return {"asked": True, "id": r["id"], "what": r["what"], "state": "waiting", "why": str(exc)}
+    if getattr(api_cfg, "alert", None):
+        api_cfg.alert("assistant_asks", f"kia: an assistant's request ran by itself: {r['what']}",
+                      f"{r['who']} asked kia to: {r['what']}. It ran without asking you ({reason}). "
+                      f"The Dashboard has it: {link}")  # fmt: skip
+    done = shown["state"] != "running"
+    return {"asked": True, **shown, "approved": f"automatically: {reason}",
+            "next": "It ran without the person's approval, as they chose. " + ("Here's how it went." if done else
+                    "It's running: read how it went with kia_request_status.")}  # fmt: skip
 
 
 def _request_status(conf: Config, args: dict, api_cfg) -> dict:
@@ -571,7 +598,8 @@ def _args_ok(schema: dict, args: object) -> str | None:
     return None
 
 
-def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=print, who: str = "") -> tuple[int, dict | None]:
+def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=print, who: str = "",
+           device: str = "") -> tuple[int, dict | None]:  # fmt: skip
     """One POST to /api/mcp, already checked for HTTPS and the token. Returns (HTTP status,
     JSON-RPC answer), or (202, None) for a notification or response, which gets no answer.
     load_conf reads kia's settings, only when a tool runs: a problem there mustn't stop the
@@ -649,6 +677,7 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
             return 429, _error(id_, -32000, f"More than {CALLS_PER_MINUTE} tool calls in a minute; wait a little.")
         log(f"MCP: {name} for {who or 'a client'}")  # what an assistant asked, in kia's log
         _WHO.set(who or "")
+        _DEVICE.set(device if DEVICE.fullmatch(device or "") else "")
         try:
             conf = load_conf()
         except (OSError, ValueError) as exc:

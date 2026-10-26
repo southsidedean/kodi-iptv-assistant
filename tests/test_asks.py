@@ -82,3 +82,58 @@ def test_how_long_a_request_waits_is_the_callers(tmp_path: Path):
     r = asks.ask(tmp_path, "test_channel", {"key": "k"}, "one", now=T, expires=3600)
     assert asks.get(tmp_path, r["id"], now=T + asks.EXPIRES + 1)["state"] == "waiting"
     assert asks.get(tmp_path, r["id"], now=T + 3601)["state"] == "expired"
+
+
+def test_what_runs_without_you(tmp_path: Path):
+    def why(kind="test_channel", who="192.0.2.5", device="", kinds=(), devices=(), per_hour=20, now=T):
+        return asks.why_auto(tmp_path, kind, who, device, kinds, devices, per_hour, now)
+
+    assert why() == ""  # off until you choose
+    assert why(kinds=("test_channel",)) == "kia.toml's auto_approve"
+    assert why(kind="refresh_guide", kinds=("test_channel",)) == ""
+    assert why(kind="add_to_plex", kinds=("add_to_plex",)) == ""  # never, even if a setting slipped through
+    assert why(kinds=("test_channel",), devices=("laptop",)) == ""  # not through the gateway
+    assert why(kinds=("test_channel",), devices=("laptop",), device="phone") == ""
+    assert why(kinds=("test_channel",), devices=("laptop",), device="laptop") == "kia.toml's auto_approve for laptop"
+
+
+def test_at_most_so_many_an_hour(tmp_path: Path):
+    for i in range(3):
+        r = asks.ask(tmp_path, "test_channel", {"key": f"k{i}"}, "a test", now=T + i)
+        asks.answer(tmp_path, r["id"], True, lambda *a: {}, now=T + i)
+    assert asks.why_auto(tmp_path, "test_channel", "x", "", ("test_channel",), (), 3, now=T + 10) != ""  # none were automatic
+    for i in range(3):
+        r = asks.ask(tmp_path, "test_channel", {"key": f"a{i}"}, "a test", now=T + 20 + i)
+        asks.finish(tmp_path, asks.take(tmp_path, r["id"], True, now=T + 20 + i, auto="kia.toml's auto_approve"), lambda *a: {},
+                    now=T + 20 + i)  # fmt: skip
+    assert asks.why_auto(tmp_path, "test_channel", "x", "", ("test_channel",), (), 3, now=T + 30) == ""  # the fourth waits
+    assert asks.why_auto(tmp_path, "refresh_guide", "x", "", ("refresh_guide",), (), 3, now=T + 30) != ""  # a kind each
+    assert asks.why_auto(tmp_path, "test_channel", "x", "", ("test_channel",), (), 3, now=T + 3700) != ""  # an hour on
+
+
+def test_allowed_for_an_hour(tmp_path: Path):
+    with pytest.raises(asks.AskError, match="always asks you"):
+        asks.allow(tmp_path, "add_to_plex", "laptop (through the gateway)", now=T)
+    asks.allow(tmp_path, "test_channel", "laptop (through the gateway)", now=T)
+    asks.allow(tmp_path, "test_channel", "laptop (through the gateway)", now=T + 60)  # again: one entry, a new hour
+    assert asks.allowed(tmp_path, now=T + 60) == [{"kind": "test_channel", "who": "laptop (through the gateway)", "minutes_left": 60}]
+    why = asks.why_auto(tmp_path, "test_channel", "laptop (through the gateway)", "laptop", now=T + 120)
+    assert why == "allowed for an hour on the Dashboard"
+    assert asks.why_auto(tmp_path, "test_channel", "phone (through the gateway)", "phone", now=T + 120) == ""  # that caller only
+    assert asks.why_auto(tmp_path, "refresh_guide", "laptop (through the gateway)", "laptop", now=T + 120) == ""  # that kind only
+    assert asks.why_auto(tmp_path, "test_channel", "laptop (through the gateway)", "laptop", now=T + 60 + 3601) == ""
+    asks.allow(tmp_path, "check_stack", "stdio", now=T)
+    asks.stop_allowing(tmp_path)
+    assert asks.allowed(tmp_path, now=T) == [] and not (tmp_path / asks.ALLOWED).exists()
+
+
+def test_a_planted_allowance_counts_for_nothing(tmp_path: Path):
+    # state/ is kia's to write, and a taken-over kia container's too: only an entry kia could
+    # have written counts, and none for longer than an hour.
+    entries = [{"kind": "add_to_plex", "who": "x", "until": T + 60}, {"kind": "test_channel", "who": "x", "until": T + 86400},
+               {"kind": "test_channel", "who": "", "until": T + 60}, {"kind": "test_channel", "who": "x" * 101, "until": T + 60},
+               {"kind": "test_channel", "who": "x", "until": "later"}, "test_channel"]  # fmt: skip
+    (tmp_path / asks.ALLOWED).write_text(json.dumps({"allowed": entries}))
+    assert asks.allowed(tmp_path, now=T) == [] and asks.why_auto(tmp_path, "test_channel", "x", "", now=T) == ""
+    (tmp_path / asks.ALLOWED).write_text("[1, 2]")
+    assert asks.allowed(tmp_path, now=T) == []

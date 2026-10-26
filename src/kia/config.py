@@ -136,6 +136,11 @@ class Config:
     # can wait at once.
     asks_minutes: int = 10
     asks_waiting: int = 5
+    # The kinds that run without you, only from these gateway devices (empty: any caller),
+    # at most asks_per_hour a kind (kia.asks.why_auto).
+    asks_auto: tuple[str, ...] = ()
+    asks_devices: tuple[str, ...] = ()
+    asks_per_hour: int = 20
     epg: EpgConfig = field(default_factory=EpgConfig)
 
 
@@ -273,6 +278,9 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         dns_resolvers=_texts("[dns] verify_resolvers", data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
         asks_minutes=_within("[asks] expires_minutes", data.get("asks", {}).get("expires_minutes", 10), 1, 1440),
         asks_waiting=_within("[asks] waiting", data.get("asks", {}).get("waiting", 5), 1, 20),
+        asks_auto=_auto_kinds(data.get("asks", {}).get("auto_approve", [])),
+        asks_devices=_devices(data.get("asks", {}).get("auto_devices", [])),
+        asks_per_hour=_within("[asks] auto_per_hour", data.get("asks", {}).get("auto_per_hour", 20), 1, 200),
         epg=_load_epg(data.get("epg", {}), base),
     )
 
@@ -304,6 +312,25 @@ def _within(name: str, value: object, least: int, most: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not least <= value <= most:
         raise ValueError(f"{name} = {value!r}: expected a whole number from {least} to {most}")
     return value
+
+
+def _auto_kinds(value: object) -> tuple[str, ...]:
+    """[asks] auto_approve: request kinds that run without you. Only those that test, refresh,
+    or check qualify (kia.asks.AUTO_KINDS); add_to_plex always waits."""
+    from kia.asks import AUTO_KINDS
+
+    kinds = _texts("[asks] auto_approve", value, '["test_channel"]')
+    if bad := [k for k in kinds if k not in AUTO_KINDS]:
+        raise ValueError(f"[asks] auto_approve: {bad[0]!r} can't run without you; choose from {', '.join(AUTO_KINDS)}")
+    return kinds
+
+
+def _devices(value: object) -> tuple[str, ...]:
+    """[asks] auto_devices: gateway device names, as scripts/gateway.sh allows them."""
+    names = _texts("[asks] auto_devices", value, '["laptop"]')
+    if bad := [n for n in names if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,39}", n)]:
+        raise ValueError(f"[asks] auto_devices: {bad[0]!r} isn't a device name (lowercase letters, digits, and dashes)")
+    return names
 
 
 def _number(name: str, value: object, above: float, most: float | None = None) -> float:
@@ -343,10 +370,10 @@ def _switch(name: str, value: object) -> bool:
     return value
 
 
-def _texts(name: str, value: object) -> tuple[str, ...]:
+def _texts(name: str, value: object, like: str = '["8.8.8.8", "1.1.1.1"]') -> tuple[str, ...]:
     """A list of text from kia.toml: a single "8.8.8.8" would otherwise be read letter by letter."""
     if not isinstance(value, (list, tuple)) or not all(isinstance(v, str) for v in value):
-        raise ValueError(f"{name} = {value!r}: expected a list, like [\"8.8.8.8\", \"1.1.1.1\"]")
+        raise ValueError(f"{name} = {value!r}: expected a list, like {like}")
     return tuple(value)
 
 

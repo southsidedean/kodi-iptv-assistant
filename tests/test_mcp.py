@@ -594,3 +594,59 @@ def test_a_stack_service_that_never_answers(kia, monkeypatch):
     monkeypatch.setattr(api.time, "sleep", refused)
     done = api._check_stack(kia, [])
     assert done["ok"] is False and done["output"] == "An old request"
+
+
+def test_a_request_you_let_run_by_itself(kia, monkeypatch):
+    tested, said = [], []
+    monkeypatch.setattr(api, "test_channel", lambda cfg, body: tested.append(body) or {"ok": True, "height": 720, "error": None})
+    kia.alert = lambda event, title, message: said.append(title)
+    kia.config_file.write_text('[asks]\nauto_approve = ["test_channel"]\n')
+    ran = call_tool(kia, "kia_test_channel", {"query": "CNN"})["structuredContent"]
+    assert ran["state"] == "done" and ran["result"]["height"] == 720 and ran["approved"] == "automatically: kia.toml's auto_approve"
+    assert len(tested) == 1 and said == ["kia: an assistant's request ran by itself: Test the stream of CNN (CNN.us) now"]
+    listed = api.handle(kia, "GET", "/api/asks", {"Host": "tv.lan:8743"}, b"", False)[1]["asks"]
+    assert listed[0]["auto"] == "kia.toml's auto_approve"  # on the Dashboard too
+    # Only for the devices named: the same request from kia's own token waits.
+    kia.config_file.write_text('[asks]\nauto_approve = ["test_channel"]\nauto_devices = ["laptop"]\n')
+    waits = call_tool(kia, "kia_test_channel", {"query": "CNN"})["structuredContent"]
+    assert waits["state"] == "waiting" and "approved" not in waits and len(tested) == 1
+
+
+def test_the_device_comes_only_with_the_gateways_token(kia, tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "test_channel", lambda cfg, body: {"ok": True})
+    kia.config_file.write_text('[asks]\nauto_approve = ["test_channel"]\nauto_devices = ["laptop"]\n')
+    gateway_token = "g" * 43
+    (tmp_path / "gateway").mkdir()
+    (tmp_path / "gateway" / "kia-token").write_text(gateway_token + "\n")
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "gateway")
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "kia_test_channel", "arguments": {"query": "CNN"}}}
+    _, answer = rpc(kia, body, headers={"X-Kia-Device": "laptop"})  # kia's own token: anyone could send that name
+    first = answer["result"]["structuredContent"]
+    assert first["state"] == "waiting"
+    asks.take(kia.state_dir, first["id"], False)  # declined, so the next one is a new request
+    _, answer = rpc(kia, body, token=gateway_token, headers={"X-Kia-Device": "laptop"})
+    assert answer["result"]["structuredContent"]["state"] == "done"
+
+
+def test_approve_and_allow_for_an_hour(kia, monkeypatch):
+    tested = []
+    monkeypatch.setattr(api, "test_channel", lambda cfg, body: tested.append(body) or {"ok": True})
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}
+    first = call_tool(kia, "kia_test_channel", {"query": "CNN"})["structuredContent"]
+    status, answer = api.handle(kia, "POST", "/api/asks/approve", headers, json.dumps({"id": first["id"], "allow_hour": True}).encode(), True)
+    assert status == 200 and answer["ask"]["state"] == "done"
+    allowed = api.handle(kia, "GET", "/api/asks", headers, b"", False)[1]["allowed"]
+    assert allowed == [{"kind": "test_channel", "who": "192.0.2.5", "minutes_left": 60}]
+    again = call_tool(kia, "kia_test_channel", {"query": "CNN"})["structuredContent"]
+    assert again["approved"] == "automatically: allowed for an hour on the Dashboard" and len(tested) == 2
+    other = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                      "params": {"name": "kia_test_channel", "arguments": {"query": "CNN"}}}, client="192.0.2.99")[1]  # fmt: skip
+    assert other["result"]["structuredContent"]["state"] == "waiting"  # another caller still asks
+    assert api.handle(kia, "POST", "/api/asks/stop-allowing", {"Host": "tv.lan:8743"}, b"{}", True)[0] == 401
+    assert api.handle(kia, "POST", "/api/asks/stop-allowing", headers, b"{}", True)[1]["allowed"] == []
+    # Plex's tuners always ask: no hour for them.
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    plex = call_tool(kia, "kia_add_to_plex")["structuredContent"]
+    status, answer = api.handle(kia, "POST", "/api/asks/approve", headers, json.dumps({"id": plex["id"], "allow_hour": True}).encode(), True)
+    assert status == 409 and "always asks you" in answer["error"]
+    assert asks.get(kia.state_dir, plex["id"])["state"] == "waiting"  # not run either

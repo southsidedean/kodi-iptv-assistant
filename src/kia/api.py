@@ -772,9 +772,11 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     # The device's name counts only with the gateway's token: the gateway sets it from the
     # device's key. With kia's own token, anyone could send any name.
     gateway_token = mcp.gateway_token(project) if gateway else None
+    device = ""
     if gateway_token and hmac.compare_digest(given.encode(), gateway_token.encode()):
         who = mcp.via_gateway(headers.get("X-Kia-Device"), who)
-    return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), who)
+        device = headers.get("X-Kia-Device") or ""
+    return mcp.handle(lambda: load(cfg.config_file), cfg, headers, body, lambda m: print(m, flush=True), who, device)
 
 
 # Requests from AI assistants (kia.asks): what each kind runs once you approve it, with the
@@ -844,7 +846,10 @@ def _run_ask(cfg: ApiConfig, kind: str, args: dict) -> dict:
 
 def _shown(r: dict) -> dict:
     """A request as the Dashboard and assistants see it."""
-    out = {k: r[k] for k in ("id", "kind", "what", "who", "state", "asked") if k in r}
+    from kia import asks
+
+    out = {k: r[k] for k in ("id", "kind", "what", "who", "state", "asked", "auto") if k in r}
+    out["can_allow"] = r["kind"] in asks.AUTO_KINDS  # for the Dashboard's "allow for an hour"
     if r["state"] == "waiting":
         out["minutes_left"] = max(0, round((r["expires"] - time.time()) / 60))
     for k in ("result", "error"):
@@ -856,21 +861,49 @@ def _shown(r: dict) -> dict:
 def get_asks(cfg: ApiConfig) -> dict:
     from kia import asks
 
-    return {"asks": [_shown(r) for r in asks.listing(cfg.state_dir)]}
+    return {"asks": [_shown(r) for r in asks.listing(cfg.state_dir)], "allowed": asks.allowed(cfg.state_dir)}
 
 
 def answer_ask(cfg: ApiConfig, body: dict, approve: bool) -> dict:
-    """Approve (run) or decline a request from an assistant."""
+    """Approve (run) or decline a request from an assistant. {"allow_hour": true} with an
+    approval also lets that kind from that caller run without you for the next hour."""
     from kia import asks
 
     ask_id = body.get("id") if isinstance(body, dict) else None
     if not isinstance(ask_id, str):
         raise ApiError(400, "Expected the request's id.")
+    hour = approve and body.get("allow_hour") is True
+    if hour:
+        r = asks.get(cfg.state_dir, ask_id)
+        if r is not None and r["kind"] not in asks.AUTO_KINDS:
+            raise ApiError(409, f"{asks.KINDS[r['kind']]}: kia always asks you about this one.")
+    shown = run_request(cfg, ask_id, approve)
+    if hour:
+        asks.allow(cfg.state_dir, shown["kind"], shown["who"])
+        print(f"Requests to {shown['kind']} from {shown['who']}: allowed for an hour", flush=True)
+    return {"ask": shown}
+
+
+def stop_allowing(cfg: ApiConfig) -> dict:
+    """End the Dashboard's allowances: requests wait for you again."""
+    from kia import asks
+
+    asks.stop_allowing(cfg.state_dir)
+    print("Requests from assistants: allowances stopped", flush=True)
+    return get_asks(cfg)
+
+
+def run_request(cfg: ApiConfig, ask_id: str, approve: bool = True, auto: str = "") -> dict:
+    """Approve and run a waiting request, or decline it, as the Dashboard shows it. A slow
+    kind runs on a thread, and answers "running". auto: why it runs without you."""
+    from kia import asks
+
     try:
-        r = asks.take(cfg.state_dir, ask_id, approve)
+        r = asks.take(cfg.state_dir, ask_id, approve, auto=auto)
     except asks.AskError as exc:
         raise ApiError(409, str(exc)) from None
-    print(f"Request {r['id']} ({r['kind']}) from {r.get('who')}: {'approved' if approve else 'declined'}", flush=True)
+    said = f"approved automatically ({auto})" if auto else "approved" if approve else "declined"
+    print(f"Request {r['id']} ({r['kind']}) from {r.get('who')}: {said}", flush=True)
 
     def run() -> dict:
         done = asks.finish(cfg.state_dir, r, lambda kind, args: _run_ask(cfg, kind, args))
@@ -878,11 +911,11 @@ def answer_ask(cfg: ApiConfig, body: dict, approve: bool) -> dict:
         return done
 
     if not approve:
-        return {"ask": _shown(r)}
+        return _shown(r)
     if r["kind"] in SLOW_ASKS:
         threading.Thread(target=run, daemon=True, name=f"kia-ask-{r['kind']}").start()
-        return {"ask": _shown(r)}
-    return {"ask": _shown(run())}
+        return _shown(r)
+    return _shown(run())
 
 
 def get_name(cfg: ApiConfig) -> dict:
@@ -1025,6 +1058,9 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["asks", "decline"] and method == "POST":
             check_password(cfg, headers.get("X-Kia-Password"), secure)
             return 200, answer_ask(cfg, data, approve=False)
+        if parts == ["asks", "stop-allowing"] and method == "POST":
+            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            return 200, stop_allowing(cfg)
         if parts == ["name"] and method == "GET":
             return 200, get_name(cfg)
         if parts == ["name"] and method == "PUT":

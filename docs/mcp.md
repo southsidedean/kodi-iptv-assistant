@@ -14,6 +14,7 @@ On this page:
 - [More than one kia](#more-than-one-kia): every kia in one assistant
 - [What the assistant can see](#what-the-assistant-can-see)
 - [Asking kia to act](#asking-kia-to-act): requests you approve on the Dashboard
+- [Letting requests run by themselves](#letting-requests-run-by-themselves): for an hour, or always
 - [Privacy and safety](#privacy-and-safety)
 - [When it doesn't work](#when-it-doesnt-work)
 - [For developers](#for-developers)
@@ -315,6 +316,29 @@ waiting = 5            # 1 to 20
 ```
 
 Restart kia afterwards (`docker compose restart kia`). To hear about each request on your phone, turn on the `assistant_asks` notice ([alerts](alerts.md#choosing-events)); tapping it opens the Dashboard.
+
+## Letting requests run by themselves
+
+Approving every stream test gets old while you work through channels with an assistant. You can let some requests run without asking you. All of this is off until you turn it on, and only three kinds can: stream tests (`test_channel`), guide refreshes (`refresh_guide`), and stack checks (`check_stack`). Adding kia's channels to Plex always waits for you, since it changes Plex's settings.
+
+**For an hour.** On the Dashboard, a waiting request has a third button, **Approve, and allow these for an hour**. It runs the request, and for the next hour the same kind of request from the same assistant runs by itself. The card says what's allowed and for how long, with a **Stop allowing** button.
+
+**Always.** List the kinds in `kia.toml`, then restart kia:
+
+```toml
+[asks]
+auto_approve = ["test_channel", "refresh_guide"]
+```
+
+With the [gateway](#several-devices-the-gateway), you can limit that to some devices, by the names `scripts/gateway.sh list` shows. Requests from other devices, and from kia's own token, still wait for you:
+
+```toml
+auto_devices = ["laptop"]
+```
+
+Either way, each one still shows on the Dashboard, marked approved automatically, and the `assistant_asks` notice tells you it ran. At most 20 of a kind run by themselves in an hour (`auto_per_hour`, 1 to 200); after that they wait for you, so an assistant stuck in a loop stops there.
+
+Think about who holds the token before you turn this on. Without the gateway, `auto_approve` covers any assistant with kia's token. And an assistant can be steered by text it reads, such as a planted channel name. The kinds that can run by themselves only test, refresh, or check, as kia does by itself every night, so the worst case is extra work for kia and the streams' servers, within the hourly limit.
 
 ## Privacy and safety
 
