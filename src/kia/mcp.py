@@ -399,8 +399,14 @@ def _args_ok(schema: dict, args: object) -> str | None:
         if name not in args:
             return f"missing {name!r}"
     for name, value in args.items():
-        if not isinstance(value, str) or len(value) > allowed[name].get("maxLength", 200):
-            return f"{name!r} must be text of at most {allowed[name].get('maxLength', 200)} characters"
+        rule = allowed[name]
+        if rule.get("type") == "number":
+            # True and False are numbers to Python (1 and 0); to JSON, and so here, they aren't.
+            low, high = rule.get("minimum", 0), rule.get("maximum", 0)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+                return f"{name!r} must be a number from {low} to {high}"
+        elif not isinstance(value, str) or len(value) > rule.get("maxLength", 200):
+            return f"{name!r} must be text of at most {rule.get('maxLength', 200)} characters"
     return None
 
 
