@@ -100,7 +100,9 @@ fi
 if [ "$STACK" = yes ]; then
     command -v docker >/dev/null 2>&1 || die "Docker isn't installed. The kia-stack service is for kia with Docker."
     [ -f "$DIR/.env" ] || die "there's no .env in $DIR. Install kia first (docs/install.md)."
-    mkdir -p "$DIR/state" "$DIR/work/logs" "$(dirname "$target")"
+    # stack-service/ is the service's own folder (kia's container can only read it), so its log
+    # goes there: in work/logs, a link kia planted could send the log into one of your files.
+    (umask 077 && mkdir -p "$DIR/state" "$DIR/stack-service" "$(dirname "$target")")
     render "$template" >"$target.tmp"
     mv "$target.tmp" "$target"
     if [ "$OS" = Darwin ]; then
@@ -111,7 +113,7 @@ if [ "$STACK" = yes ]; then
             [ $tries -lt 10 ] || die "launchd didn't start kia-stack. Try: launchctl bootstrap gui/$(id -u) $target"
             sleep 1
         done
-        say "Installed $target and started it. It starts again when you log in. Log: $DIR/work/logs/kia-stack.log"
+        say "Installed $target and started it. It starts again when you log in. Log: $DIR/stack-service/kia-stack.log"
     else
         systemctl --user daemon-reload
         systemctl --user enable kia-stack >/dev/null 2>&1

@@ -14,6 +14,10 @@ A playlist downloaded from a name like `tuner.example.com` that points at your o
 - **Test** on a channel refuses an address on your network when the channel's playlist comes from the internet, as the nightly check does. **Check now** keeps a playlist's `lan` word, so it tests the playlist as the nightly check does.
 - SomaFM's channel list can only point kia at https playlists off your network, and one odd channel no longer loses all of SomaFM's channels.
 - Another kia server's guide (an upstream) is downloaded up to 500 MB, so one that never stops sending can't fill the disk.
+- The kia-stack service keeps its files out of kia's reach. On a Mac its log is now `stack-service/kia-stack.log`, not `work/logs/kia-stack.log`, where a link kia's container planted could send the log into one of your files. The copy of `.env` an apply keeps is now in `stack-service/`, not `state/`, and anything already at its name stops the apply (before, a link to a device was written through). Copies from earlier applies stay in `state/` until you delete them. On a Mac, `scripts/update.sh` installs the service again when its settings change, so the log moves by itself.
+- `scripts/update.sh` no longer stops for good when a folder sits at `state/deployed-rev`.
+- `kia restore` leaves out a file whose folder is a link, so a restore can't write outside the kia folder.
+- The Stack page's **Check** and **Apply** no longer fail for good after a crash left the request's temporary file behind.
 
 ## 0.6.6 (2026-10-25)
 

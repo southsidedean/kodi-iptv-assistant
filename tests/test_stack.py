@@ -160,6 +160,16 @@ def test_asking_writes_one_request_at_a_time(tmp_path: Path):
     assert stack.waiting(state, service) is None and stack.ask(state, service, "apply", ["plex"])
 
 
+def test_a_leftover_request_temp_file_doesnt_block_asking(tmp_path: Path):
+    # After a crash between writing and renaming, the same temp name can come back (the same
+    # process id after a restart): it used to be a lasting 500 for Check and Apply.
+    from kia.files import temp_name
+
+    _, state, service = project(tmp_path)
+    temp_name(state / "stack-request").write_text("from a crash")
+    assert stack.ask(state, service, "check", ["plex"])
+
+
 def test_an_old_request_doesnt_block_new_ones(tmp_path: Path):
     import os
     import time

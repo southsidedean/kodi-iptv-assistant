@@ -64,7 +64,7 @@ It also works out the Compose profiles, the names `compose.yaml` groups its cont
 
 1. Runs `check`, and stops on a problem.
 2. Asks first if someone is watching Pluto TV, Plex, or Jellyfin through kia, and if parts that run now would stop because `KIA_STACK` leaves them out (`--yes` skips both).
-3. Keeps a copy of `.env` in `state/env.before-stack-<date>`, then sets `COMPOSE_PROFILES` from `KIA_STACK`, and `KIA_PLEX_URL` or `KIA_JELLYFIN_URL` for a server in the stack if they're empty.
+3. Keeps a copy of `.env` in `stack-service/env.before-stack-<date>`, then sets `COMPOSE_PROFILES` from `KIA_STACK`, and `KIA_PLEX_URL` or `KIA_JELLYFIN_URL` for a server in the stack if they're empty.
 4. Runs `docker compose up -d`, and stops and removes the containers of parts you took out.
 
 Running it again with nothing changed restarts nothing.
@@ -79,7 +79,7 @@ The Dashboard's **Stack** page can check and apply a new choice for you. kia can
 scripts/install-service.sh --stack
 ```
 
-(Or add `--stack-service` when you run the installer.) On Linux it's a systemd user service (`systemctl --user status kia-stack`), which runs only while you're logged in unless you let it keep running: `sudo loginctl enable-linger "$(id -un)"`, once. On a Mac, it's a launchd agent (log: `work/logs/kia-stack.log`). `scripts/install-service.sh --stack --uninstall` removes it. Without it, the Stack page shows the command to run instead.
+(Or add `--stack-service` when you run the installer.) On Linux it's a systemd user service (`systemctl --user status kia-stack`), which runs only while you're logged in unless you let it keep running: `sudo loginctl enable-linger "$(id -un)"`, once. On a Mac, it's a launchd agent (log: `stack-service/kia-stack.log`). `scripts/install-service.sh --stack --uninstall` removes it. Without it, the Stack page shows the command to run instead.
 
 On the page, choose a preset's card, or the parts yourself, then **Check**, then **Apply**. The page also asks for Plex's claim code, offers to make Plex's playlist, and says what each new part needs after the apply. [Your stack from the Dashboard](stack-dashboard.md) walks through it the first time, and [the stack under the hood](stack-under-the-hood.md) shows how the page and the service talk. [Security](../SECURITY.md#the-kia-stack-service) explains what the service guards against.
 

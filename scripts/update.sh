@@ -55,7 +55,8 @@ if [ ! -s "$deployed" ] && [ -f state/deployed-rev ] && [ ! -L state/deployed-re
     old=$(commit_or_empty state/deployed-rev)
     if [ -n "$old" ]; then echo "$old" >"$deployed"; fi
 fi
-rm -f state/deployed-rev
+# -r, so a folder kia's container made there can't stop every update (rm -r doesn't follow links).
+rm -rf state/deployed-rev
 if [ "$restart" = yes ] && [ ! -s "$deployed" ]; then
     git rev-parse HEAD >"$deployed"
 fi
@@ -153,10 +154,16 @@ if [ -n "$restart" ]; then
     done
 fi
 # The kia-stack service keeps running the stack.sh it started with: restart it for the new one.
-if echo "$changed" | grep -qx 'scripts/stack.sh'; then
+# On a Mac, launchd also keeps the service's settings file as installed (where its log goes,
+# say), so a new one is installed again rather than only restarted.
+if echo "$changed" | grep -qx -e 'scripts/stack.sh' -e 'deploy/kia-stack.plist'; then
     if [ "$(uname -s)" = Darwin ]; then
-        if launchctl kickstart -k "gui/$(id -u)/io.github.southsidedean.kia-stack" 2>/dev/null; then
-            echo "Restarted the kia-stack service, for its new version."
+        if launchctl print "gui/$(id -u)/io.github.southsidedean.kia-stack" >/dev/null 2>&1; then
+            if echo "$changed" | grep -qx 'deploy/kia-stack.plist'; then
+                scripts/install-service.sh --stack >/dev/null && echo "Installed the kia-stack service again, for its new settings."
+            elif launchctl kickstart -k "gui/$(id -u)/io.github.southsidedean.kia-stack" 2>/dev/null; then
+                echo "Restarted the kia-stack service, for its new version."
+            fi
         fi
     elif systemctl --user is-active --quiet kia-stack 2>/dev/null; then
         systemctl --user restart kia-stack && echo "Restarted the kia-stack service, for its new version."
