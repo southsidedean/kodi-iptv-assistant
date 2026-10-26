@@ -412,13 +412,75 @@ def grab_kexp(
         out.write("</tv>\n")
 
 
+# NTS Radio, London: two live channels, with a schedule two weeks ahead in its public API.
+NTS_SCHEDULE = "https://www.nts.live/api/v2/radio/schedule/{channel}"
+NTS_CHANNELS = ("1", "2")
+
+
+def nts_programmes(days_list: object, now: datetime, days: int) -> list[tuple[datetime, datetime, str]]:
+    """(start, stop, show) for each show in the days ahead, from NTS's schedule: a list of
+    days, each with its broadcasts. Text from NTS is cut short, and anything in another
+    shape is skipped."""
+    end = now + timedelta(days=days)
+    out = []
+    for day in days_list if isinstance(days_list, list) else []:
+        for b in (day.get("broadcasts") if isinstance(day, dict) else None) or []:
+            if not isinstance(b, dict) or not isinstance(b.get("broadcast_title"), str):
+                continue
+            try:
+                a = datetime.fromisoformat(str(b.get("start_timestamp")).replace("Z", "+00:00"))
+                z = datetime.fromisoformat(str(b.get("end_timestamp")).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            title = " ".join(b["broadcast_title"].split())[:200]
+            if a.tzinfo and z > a and z > now and a < end and title:
+                out.append((a, z, title))
+    return sorted(out)
+
+
+def grab_nts(
+    channels_file: Path,
+    output: Path,
+    days: int,
+    log: Callable[[str], None],
+    url: str = NTS_SCHEDULE,
+    now: datetime | None = None,
+) -> None:
+    """NTS's schedule, for each station in channels_file (site_id 1 or 2: NTS Radio 1 or 2)."""
+    now = now or datetime.now(timezone.utc)
+    rows = [(sid, tid, name) for sid, tid, name in read_channel_list(channels_file) if sid in NTS_CHANNELS and tid]
+    output.parent.mkdir(parents=True, exist_ok=True)
+    total = 0
+    with open(output, "w", encoding="utf-8") as out:
+        out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
+        for _, tid, name in rows:
+            out.write(f"  <channel id={xml_attr(tid)}><display-name>{xml_text(name or 'NTS')}</display-name></channel>\n")
+        for channel in sorted({sid for sid, _, _ in rows}):
+            with fetch(url.format(channel=channel), timeout=60) as resp:
+                data = json.loads(read_page(resp))
+            shows = nts_programmes(data.get("results") if isinstance(data, dict) else None, now, days)
+            if not shows:
+                raise RuntimeError(f"no shows found in NTS {channel}'s schedule; nts.live may have changed")
+            total += len(shows)
+            for _, tid, _ in [r for r in rows if r[0] == channel]:
+                for a, b, title in shows:
+                    out.write(f"  <programme start={xml_attr(format_time(a))} stop={xml_attr(format_time(b))} "
+                              f"channel={xml_attr(tid)}><title>{xml_text(title)}</title></programme>\n")  # fmt: skip
+        out.write("</tv>\n")
+    log(f"nts.live: {total} shows in the next {days} days, for {len(rows)} station(s)")
+
+
 # site name -> grabber(channels_file, output, days, log)
 NATIVE_GRABBERS: dict[str, Callable[..., None]] = {"i.mjh.nz": grab_imjh, "kink.nl": grab_kink, "kexp.org": grab_kexp,
-                                                   "epgshare01.online": grab_epgshare01}  # fmt: skip
+                                                   "nts.live": grab_nts, "epgshare01.online": grab_epgshare01}  # fmt: skip
 # The ones the quick refreshes between nights download again (kia refresh-guide). Not
 # epgshare01: it changes once a day, and one person pays for its traffic.
-QUICK_GRABBERS = frozenset({"i.mjh.nz", "kink.nl", "kexp.org"})
+QUICK_GRABBERS = frozenset({"i.mjh.nz", "kink.nl", "kexp.org", "nts.live"})
 
 # Radio stations with a schedule kia can read itself: station name (see epgmap.name_key)
 # -> (site, site_id). Almost no radio station is on iptv-org's guide sites.
-RADIO_SCHEDULES: dict[str, tuple[str, str]] = {"kink": ("kink.nl", "kink"), "kexp": ("kexp.org", "kexp")}
+RADIO_SCHEDULES: dict[str, tuple[str, str]] = {
+    "kink": ("kink.nl", "kink"), "kexp": ("kexp.org", "kexp"),
+    # NTS's two live channels, as radio-browser names them; its mixtape streams have no schedule.
+    "ntsradio1": ("nts.live", "1"), "nts1": ("nts.live", "1"), "ntsradio2": ("nts.live", "2"), "nts2": ("nts.live", "2"),
+}

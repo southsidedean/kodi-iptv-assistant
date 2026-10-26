@@ -97,7 +97,7 @@ https://iptv-org.github.io/iptv/countries/us.m3u               # USA            
 # radio-browser: station=kcrw top=2 name=kcrw                      # KCRW, Santa Monica: live and Eclectic 24
 # radio-browser: station=kutx top=1 name=kutx                      # KUTX, Austin's music station
 # radio-browser: station=nightride top=6 name=nightride            # Nightride FM's synthwave streams
-# radio-browser: station=nts country=GB top=2 name=nts             # NTS Radio 1 and 2, London
+# radio-browser: station=nts country=GB top=2 name=nts             # NTS Radio 1 and 2, London, with their show schedules
 # radio-browser: station=fip country=FR top=8 name=fip             # FIP and its themed streams, Paris
 #
 # Bigger genre lists, gathered from many station directories (github.com/junguler).
