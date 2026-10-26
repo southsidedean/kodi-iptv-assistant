@@ -157,6 +157,17 @@ site_fail_runs = 3
 # from = "you@example.com"
 
 
+[asks]
+# Requests from AI assistants: tools such as kia_test_channel ask, and nothing happens until
+# you approve on the Dashboard (docs/mcp.md#asking-kia-to-act).
+
+# Minutes a request waits for you before it expires (1 to 1440, a day).
+expires_minutes = 10
+
+# How many requests can wait at once (1 to 20). Only one of each kind waits at a time.
+waiting = 5
+
+
 [epg]
 # Building the program guide. See docs/how-it-works.md.
 

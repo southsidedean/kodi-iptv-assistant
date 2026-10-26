@@ -602,7 +602,9 @@ def plex_tuners_state() -> dict:
     return dict(PLEX_TUNERS)
 
 
-def start_plex_tuners(cfg: ApiConfig) -> dict:
+def start_plex_tuners(cfg: ApiConfig, wait: bool = False) -> dict:
+    """Start adding kia's channels to Plex; wait: run it here and return when it's done (an
+    assistant's request, which already runs on a thread of its own)."""
     if not os.environ.get("KIA_PLEX_URL"):
         raise ApiError(409, "kia doesn't know where Plex is yet (KIA_PLEX_URL). Apply a choice with Plex first.")
     with _TUNERS_LOCK:
@@ -610,7 +612,10 @@ def start_plex_tuners(cfg: ApiConfig) -> dict:
             raise ApiError(409, "kia is already adding its channels to Plex. Wait for it to finish.")
         PLEX_TUNERS.clear()
         PLEX_TUNERS.update({"running": True, "started": time.time()})
-    threading.Thread(target=_run_plex_tuners, args=(cfg,), daemon=True, name="kia-plex-tuners").start()
+    if wait:
+        _run_plex_tuners(cfg)
+    else:
+        threading.Thread(target=_run_plex_tuners, args=(cfg,), daemon=True, name="kia-plex-tuners").start()
     return {"plex": plex_tuners_state()}
 
 
@@ -773,10 +778,67 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
 
 
 # Requests from AI assistants (kia.asks): what each kind runs once you approve it, with the
-# same code as the Dashboard's own button.
+# same code as the Dashboard's own button, or the same kia command the server runs by itself.
+# Each slow kind runs on a thread of its own, so Approve answers at once; the page and the
+# assistant read how it went later.
+SLOW_ASKS = {"refresh_guide", "add_to_plex", "check_stack"}
+STACK_CHECK_UP_TO = stack.REQUEST_EXPIRES + 120  # seconds to wait for the kia-stack service's answer
+
+
+def _last_lines(text: str, n: int = 20) -> str:
+    return "\n".join(text.strip().splitlines()[-n:])[-3000:]
+
+
+def _refresh_guide(cfg: ApiConfig) -> dict:
+    """kia refresh-guide, as the server runs it every few hours. It takes kia's refresh lock
+    (kia.locks): while the nightly refresh runs, it stops at once and says why."""
+    cmd = [sys.executable, "-m", "kia", "refresh-guide", "-c", str(cfg.config_file)]
+    try:
+        done = subprocess.run(cmd, capture_output=True, text=True, timeout=900, check=False)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "summary": "The guide refresh took more than 15 minutes and was stopped."}
+    out = _last_lines(done.stdout + done.stderr)
+    said = next((line for line in reversed(out.splitlines()) if "quick guide sources" in line), "")
+    if done.returncode == 0:
+        summary = f"{said}, and the guide was rebuilt." if said else "The guide was rebuilt."
+    else:
+        summary = "The guide refresh didn't finish: " + (out.splitlines()[-1:] or ["no reason given"])[0][:200]
+    return {"ok": done.returncode == 0, "summary": summary, "output": out}
+
+
+def _add_to_plex(cfg: ApiConfig) -> dict:
+    """The Stack page's button: kia plex-tuners, then what it said."""
+    state = start_plex_tuners(cfg, wait=True)["plex"]
+    ok = bool(state.get("ok"))
+    return {"ok": ok, "summary": "kia's channels are in Plex." if ok else "Adding kia's channels to Plex didn't work.",
+            "output": _last_lines(state.get("output", ""))}  # fmt: skip
+
+
+def _check_stack(cfg: ApiConfig, parts: list) -> dict:
+    """The Stack page's Check: the kia-stack service checks the parts and answers in its own
+    folder, which kia reads until the answer to this request comes."""
+    rid = ask_stack(cfg, "check", {"parts": parts})["id"]
+    service_dir = _project_dir(cfg) / stack.SERVICE_DIR
+    end = time.monotonic() + STACK_CHECK_UP_TO
+    while time.monotonic() < end:
+        res = stack.result(service_dir) or {}
+        if res.get("id") == rid and res.get("state") in ("finished", "refused"):
+            ok = res.get("state") == "finished" and res.get("exit") == "0"
+            return {"ok": ok, "summary": "The check passed: these parts can run together." if ok else
+                    "The check found problems; its output says which.", "output": _last_lines(res.get("output", ""), 40)}  # fmt: skip
+        time.sleep(2)
+    return {"ok": False, "summary": "The kia-stack service didn't answer. Is it running? (docs/stack.md)"}
+
+
 def _run_ask(cfg: ApiConfig, kind: str, args: dict) -> dict:
     if kind == "test_channel":
         return test_channel(cfg, {"key": args.get("key")})
+    if kind == "refresh_guide":
+        return _refresh_guide(cfg)
+    if kind == "add_to_plex":
+        return _add_to_plex(cfg)
+    if kind == "check_stack":
+        return _check_stack(cfg, args.get("parts"))
     raise ApiError(400, "kia doesn't know that kind of request.")
 
 
@@ -805,12 +867,22 @@ def answer_ask(cfg: ApiConfig, body: dict, approve: bool) -> dict:
     if not isinstance(ask_id, str):
         raise ApiError(400, "Expected the request's id.")
     try:
-        r = asks.answer(cfg.state_dir, ask_id, approve, lambda kind, args: _run_ask(cfg, kind, args))
+        r = asks.take(cfg.state_dir, ask_id, approve)
     except asks.AskError as exc:
         raise ApiError(409, str(exc)) from None
-    print(f"Request {r['id']} ({r['kind']}) from {r.get('who')}: {'approved, ' + r['state'] if approve else 'declined'}",
-          flush=True)  # fmt: skip
-    return {"ask": _shown(r)}
+    print(f"Request {r['id']} ({r['kind']}) from {r.get('who')}: {'approved' if approve else 'declined'}", flush=True)
+
+    def run() -> dict:
+        done = asks.finish(cfg.state_dir, r, lambda kind, args: _run_ask(cfg, kind, args))
+        print(f"Request {done['id']} ({done['kind']}): {done['state']}", flush=True)
+        return done
+
+    if not approve:
+        return {"ask": _shown(r)}
+    if r["kind"] in SLOW_ASKS:
+        threading.Thread(target=run, daemon=True, name=f"kia-ask-{r['kind']}").start()
+        return {"ask": _shown(r)}
+    return {"ask": _shown(run())}
 
 
 def get_name(cfg: ApiConfig) -> dict:

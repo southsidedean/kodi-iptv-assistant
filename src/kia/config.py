@@ -132,6 +132,10 @@ class Config:
     upstream_fallback: str = "grab"
     # Pluto TV channels play through kia (kia.pluto), so they keep going across ad breaks.
     pluto_relay: bool = True
+    # Requests from AI assistants (kia.asks, [asks]): minutes one waits for you, and how many
+    # can wait at once.
+    asks_minutes: int = 10
+    asks_waiting: int = 5
     epg: EpgConfig = field(default_factory=EpgConfig)
 
 
@@ -267,6 +271,8 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         upstream_fallback=_upstream_fallback(data.get("upstream", {})),
         pluto_relay=env_bool("KIA_PLUTO_RELAY", data.get("pluto", {}).get("relay", True)),
         dns_resolvers=_texts("[dns] verify_resolvers", data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
+        asks_minutes=_within("[asks] expires_minutes", data.get("asks", {}).get("expires_minutes", 10), 1, 1440),
+        asks_waiting=_within("[asks] waiting", data.get("asks", {}).get("waiting", 5), 1, 20),
         epg=_load_epg(data.get("epg", {}), base),
     )
 
@@ -291,6 +297,12 @@ def _whole(name: str, value: object, least: int) -> int:
     otherwise stop the refresh hours later, part way through."""
     if isinstance(value, bool) or not isinstance(value, int) or value < least:
         raise ValueError(f"{name} = {value!r}: expected a whole number, {least} or more")
+    return value
+
+
+def _within(name: str, value: object, least: int, most: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not least <= value <= most:
+        raise ValueError(f"{name} = {value!r}: expected a whole number from {least} to {most}")
     return value
 
 

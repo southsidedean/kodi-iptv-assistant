@@ -29,7 +29,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from kia import __version__, doctor
+from kia import __version__, doctor, stack
 from kia import name as kia_name
 from kia.config import Config
 from kia.files import temp_name
@@ -191,14 +191,33 @@ TOOLS = [
      "the person approves it on kia's Dashboard: tell them, and give them the link in the answer. Then read "
      "how it went with kia_request_status. The channel is its ID (tvg-id) or part of its name, and must match "
      "just one channel.", _QUERY),
+    ("kia_refresh_guide", "Refresh the guide (asks the person first)",
+     "Ask kia to refresh its guide now from the quick sources (the guides it downloads itself, in seconds "
+     "to a few minutes), as it does every few hours by itself; the guide sites it grabs stay as they were "
+     "last night. Nothing happens until the person approves it on kia's Dashboard: tell them, and give them "
+     "the link in the answer. Then read how it went with kia_request_status.", _NO_ARGS),
+    ("kia_add_to_plex", "Add kia's channels to Plex (asks the person first)",
+     "Ask kia to add its channels to Plex as Live TV now, as the Stack page's button does (kia does it by "
+     "itself after each guide refresh too). It can take a few minutes. Only with Plex in kia's stack or a "
+     "Plex kia knows (KIA_PLEX_URL). Nothing happens until the person approves it on kia's Dashboard: tell "
+     "them, and give them the link in the answer. Then read how it went with kia_request_status.", _NO_ARGS),
+    ("kia_check_stack", "Check a choice of parts (asks the person first)",
+     "Ask kia to check whether a choice of parts for its stack would work, as the Stack page's Check does: "
+     "the ports, the settings each part needs, and the computer. It only checks; applying a choice stays "
+     "with the person, on the Dashboard. With Docker and the kia-stack service only (kia_stack says what "
+     "runs now). Nothing happens until the person approves it on kia's Dashboard: tell them, and give them "
+     "the link in the answer. Then read how it went with kia_request_status.",
+     {"type": "object", "additionalProperties": False, "required": ["parts"],
+      "properties": {"parts": {"type": "array", "maxItems": 10, "items": {"type": "string", "enum": [n for n, _ in stack.PARTS]},
+                               "description": "The whole choice of parts, as KIA_STACK lists them; an empty list for kia alone"}}}),
     ("kia_request_status", "A request's status",
      "How a request made by a tool that asks (such as kia_test_channel) went: waiting for the person, "
-     "declined, expired, or done, with its result.",
+     "running, declined, expired, or done or failed, with its result.",
      {"type": "object", "additionalProperties": False, "required": ["id"],
       "properties": {"id": {"type": "string", "maxLength": 16, "description": "The request's id, from the tool that asked"}}}),
 ]  # fmt: skip
 # The tools that ask, rather than only read (MCP's readOnlyHint is false for them).
-ASKING = {"kia_test_channel"}
+ASKING = {"kia_test_channel", "kia_refresh_guide", "kia_add_to_plex", "kia_check_stack"}
 _WHO: contextvars.ContextVar[str] = contextvars.ContextVar("who", default="")  # who called the tool, for a request
 
 
@@ -378,7 +397,7 @@ def _jellyfin(conf: Config, _args: dict, _api) -> dict:
 
 
 def _test_channel(conf: Config, args: dict, api_cfg) -> dict:
-    from kia import api, asks
+    from kia import api
 
     q = args["query"].strip().casefold()
     items = [e for e, _ in api._items(api_cfg)]
@@ -391,8 +410,44 @@ def _test_channel(conf: Config, args: dict, api_cfg) -> dict:
     e = found[0]
     # The channel's name and ID come from a playlist: quoted, one line, as kia doctor's are.
     what = f"Test the stream of {doctor._quote(e.name, 80)} ({doctor._quote(e.tvg_id or e.key, 80)}) now"
+    return _ask(conf, api_cfg, "test_channel", {"key": e.key}, what)
+
+
+def _refresh_guide(conf: Config, _args: dict, api_cfg) -> dict:
+    what = ("Copy the guide from the upstream kia server again now" if conf.upstream_url else
+            "Refresh the guide now from the quick sources, and rebuild it")  # fmt: skip
+    return _ask(conf, api_cfg, "refresh_guide", {}, what)
+
+
+def _add_to_plex(conf: Config, _args: dict, api_cfg) -> dict:
+    if not os.environ.get("KIA_PLEX_URL"):
+        return {"asked": False, "why": "kia doesn't know where Plex is (KIA_PLEX_URL): add Plex to the stack, or "
+                                      "set KIA_PLEX_URL for a Plex on another computer (docs/plex.md)."}  # fmt: skip
+    return _ask(conf, api_cfg, "add_to_plex", {}, "Add kia's channels to Plex as Live TV now (kia plex-tuners)")
+
+
+def _check_stack(conf: Config, args: dict, api_cfg) -> dict:
+    from kia import api
+
+    if stack.profiles() is None:
+        return {"asked": False, "why": "This kia runs without Docker, so there are no parts to choose."}
+    if not stack.service_running(api._project_dir(api_cfg) / stack.SERVICE_DIR):
+        return {"asked": False, "why": "The kia-stack service isn't running, so kia can't check a choice of parts "
+                                      "(docs/stack.md has how to start it)."}  # fmt: skip
+    parts = stack.parts_from(args["parts"])  # known names only, each once, in kia's order
+    what = f"Check the stack with {', '.join(parts) or 'kia alone'} (it only checks; nothing changes)"
+    return _ask(conf, api_cfg, "check_stack", {"parts": parts}, what)
+
+
+def _ask(conf: Config, api_cfg, kind: str, args: dict, what: str) -> dict:
+    """Leave a request for the person to approve (kia.asks), tell them if they get the
+    assistant_asks notice, and give the assistant the link to pass on. what is kia's own
+    words, with anything from a playlist quoted."""
+    from kia import asks
+
     try:
-        r = asks.ask(api_cfg.state_dir, "test_channel", {"key": e.key}, what, _WHO.get())
+        r = asks.ask(api_cfg.state_dir, kind, args, what, _WHO.get(), expires=conf.asks_minutes * 60,
+                     waiting=conf.asks_waiting)  # fmt: skip
     except asks.AskError as exc:
         return {"asked": False, "why": str(exc)}
     where = (_json(conf.output_dir / "status.json").get("secure") or {}).get("url") or ""
@@ -400,9 +455,11 @@ def _test_channel(conf: Config, args: dict, api_cfg) -> dict:
     if not r.get("already") and getattr(api_cfg, "alert", None):
         api_cfg.alert("assistant_asks", f"kia: an assistant asks: {what}",
                       f"{r['who']} asks kia to: {what}. Approve or decline it on the Dashboard: {link}")  # fmt: skip
-    return {"asked": True, "id": r["id"], "what": what, "state": r["state"], "approve_at": link,
+    # One of each kind waits: a second ask gets the first one, which may be for another channel.
+    already = " (A request of this kind was already waiting: this is that one.)" if r.get("already") else ""
+    return {"asked": True, "id": r["id"], "what": r["what"], "state": r["state"], "approve_at": link,
             "next": "Nothing happens until the person approves it on kia's Dashboard. Ask them to, then read how it "
-                    "went with kia_request_status." + (" (This was already asked for, and is still waiting.)" if r.get("already") else "")}  # fmt: skip
+                    "went with kia_request_status." + already}  # fmt: skip
 
 
 def _request_status(conf: Config, args: dict, api_cfg) -> dict:
@@ -416,7 +473,8 @@ RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": 
        "kia_hardware": _hardware, "kia_jellyfin": _jellyfin,
        "kia_playlists": _playlists, "kia_stack": _stack, "kia_settings": _settings,
        "kia_whats_on": _whats_on, "kia_find_shows": _find_shows, "kia_docs": _docs,
-       "kia_test_channel": _test_channel, "kia_request_status": _request_status}  # fmt: skip
+       "kia_test_channel": _test_channel, "kia_refresh_guide": _refresh_guide, "kia_add_to_plex": _add_to_plex,
+       "kia_check_stack": _check_stack, "kia_request_status": _request_status}  # fmt: skip
 
 
 # Starter prompts: MCP prompts, which assistants offer as ready-made questions (Claude Code shows
@@ -498,7 +556,12 @@ def _args_ok(schema: dict, args: object) -> str | None:
             return f"missing {name!r}"
     for name, value in args.items():
         rule = allowed[name]
-        if rule.get("type") == "number":
+        if rule.get("type") == "array":
+            items, most = rule.get("items", {}), rule.get("maxItems", 10)
+            if not isinstance(value, list) or len(value) > most or not all(
+                    isinstance(v, str) and v in items.get("enum", ()) for v in value):  # fmt: skip
+                return f"{name!r} must be a list of at most {most} of {', '.join(items.get('enum', ()))}"
+        elif rule.get("type") == "number":
             # True and False are numbers to Python (1 and 0); to JSON, and so here, they aren't.
             low, high = rule.get("minimum", 0), rule.get("maximum", 0)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
