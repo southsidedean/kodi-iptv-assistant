@@ -2,6 +2,11 @@
 
 ## 0.7.2 (unreleased)
 
+### Fixes
+
+- `scripts/update.sh` finishes an update with the new version's own copy of itself, when that's different. Until now the old version's script did the whole update, so updating from 0.7.0 to 0.7.1 didn't add `KIA_NAME` until a second run. That second run is still needed once for 0.7.1; from this version on, the new script takes over by itself.
+- `scripts/update.sh` no longer waits for a movie or show playing on a Plex or Jellyfin outside kia's stack, which kia's restart doesn't touch. Live TV and Pluto TV through kia still make it ask first, and so do movies and shows when Plex or Jellyfin runs in kia's stack.
+
 ## 0.7.1 (2026-10-26)
 
 ### Upgrading from 0.7.0
