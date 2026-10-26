@@ -9,6 +9,7 @@ it gives the same programmes in seconds with almost no memory.
 from __future__ import annotations
 
 import base64
+import html
 import gzip
 import http.client
 import json
@@ -419,8 +420,9 @@ NTS_CHANNELS = ("1", "2")
 
 def nts_programmes(days_list: object, now: datetime, days: int) -> list[tuple[datetime, datetime, str]]:
     """(start, stop, show) for each show in the days ahead, from NTS's schedule: a list of
-    days, each with its broadcasts. Text from NTS is cut short, and anything in another
-    shape is skipped."""
+    days, each with its broadcasts. NTS sends titles HTML-escaped (Valis &amp; Sheiva):
+    unescaped once here, since the guide escapes them for XML. Text from NTS is cut short,
+    and anything in another shape is skipped."""
     end = now + timedelta(days=days)
     out = []
     for day in days_list if isinstance(days_list, list) else []:
@@ -432,7 +434,7 @@ def nts_programmes(days_list: object, now: datetime, days: int) -> list[tuple[da
                 z = datetime.fromisoformat(str(b.get("end_timestamp")).replace("Z", "+00:00"))
             except ValueError:
                 continue
-            title = " ".join(b["broadcast_title"].split())[:200]
+            title = " ".join(html.unescape(b["broadcast_title"]).split())[:200]
             if a.tzinfo and z > a and z > now and a < end and title:
                 out.append((a, z, title))
     return sorted(out)

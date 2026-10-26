@@ -15,7 +15,7 @@ def day(*shows) -> dict:
 
 SCHEDULE = {"results": [
     day(("Earlier", "2026-10-26T10:00:00Z", "2026-10-26T11:00:00Z"),  # over: left out
-        ("On now  w/  Guests", "2026-10-26T11:00:00Z", "2026-10-26T13:00:00Z"),
+        ("On now  w/  Guests &amp; Friends&#039;", "2026-10-26T11:00:00Z", "2026-10-26T13:00:00Z"),
         ("Bad time", "soon", "later"), ("", "2026-10-26T13:00:00Z", "2026-10-26T14:00:00Z")),
     day(("Tomorrow", "2026-10-27T09:00:00Z", "2026-10-27T10:00:00Z"), ("Too far", "2026-11-05T09:00:00Z", "2026-11-05T10:00:00Z")),
     "not a day", {"broadcasts": [{"broadcast_title": 5}]},
@@ -24,7 +24,7 @@ SCHEDULE = {"results": [
 
 def test_the_shows_ahead():
     shows = native.nts_programmes(SCHEDULE["results"], NOW, 3)
-    assert [s[2] for s in shows] == ["On now w/ Guests", "Tomorrow"]
+    assert [s[2] for s in shows] == ["On now w/ Guests & Friends'", "Tomorrow"]  # NTS's HTML escapes undone once
     assert native.nts_programmes("nope", NOW, 3) == []
 
 
@@ -38,7 +38,7 @@ def test_each_station_gets_its_channels_schedule(tmp_path: Path):
     out, said = tmp_path / "out.xml", []
     native.grab_nts(chans, out, 3, said.append, url=tmp_path.as_uri() + "/nts{channel}.json", now=NOW)
     text = out.read_text()
-    assert text.count("On now w/ Guests") == 2 and 'channel="radio.a"' in text and 'channel="radio.b"' in text
+    assert text.count("On now w/ Guests &amp; Friends'") == 2  # escaped once, for XML and 'channel="radio.a"' in text and 'channel="radio.b"' in text
     assert "radio.c" not in text and said == ["nts.live: 4 shows in the next 3 days, for 2 station(s)"]
 
 
