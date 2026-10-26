@@ -43,7 +43,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_SMTP_USER`, `KIA_SMTP_PASSWORD` | | The account kia signs in to the email server with. Many providers want an app password here. |
 | `KIA_EMAIL_TO`, `KIA_EMAIL_FROM` | , `KIA_SMTP_USER` | Who gets email alerts (comma-separated), and the address they come from. |
 | `KIA_ALERT_COMMAND` | | A command to run for each alert. |
-| `KIA_ALERT_EVENTS` | all but `daily_summary` and `pluto_fallback` | Which events notify you, comma-separated. |
+| `KIA_ALERT_EVENTS` | the alerts but `pluto_fallback`; no notices | Which events notify you, comma-separated ([choosing events](alerts.md#choosing-events)). |
 | `KIA_EPG_DAYS` | 3 | Days of program guide. |
 | `KIA_PARALLEL_SITES` | 4 | Guide sites downloaded at once. Each peaks around 0.7 GB of memory. |
 | `KIA_CHECK_CONCURRENCY` | 20 | Streams tested at once. |
@@ -235,7 +235,7 @@ Most settings are explained by a comment in the file; the rest are described her
 - `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).
 - `[output]`: where files go (`dir`, `state_dir`, and `tls_dir`, the secure Dashboard's certificate folder; with Docker, leave these as they are: kia's container can write only the folders `compose.yaml` gives it), `channel_numbers` (steady channel numbers), `recycle_numbers_after_days` ([reusing old numbers](#gaps-in-the-numbers-and-renumbering)), `https_port` and `tls_names` (the same as `KIA_HTTPS_PORT` and `KIA_TLS_NAMES`), and `public_url` / `epg_url` for setups without Docker.
 - `[dns]`: `verify_resolvers`, the public DNS servers used to double-check lookup failures.
-- `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`, and `[alerts.email]` with `host`, `port`, `security`, `user`, `password`, `to`, `from` (the same as the `.env` settings). See [alerts](alerts.md).
+- `[alerts]`: `ntfy_url`, `command`, `events`, `drop_percent`, `site_fail_runs`, `new_channels_with_guide` and `new_channels_categories` ([new and gone channels](alerts.md#new-and-gone-channels)), and `[alerts.email]` with `host`, `port`, `security`, `user`, `password`, `to`, `from` (the same as the `.env` settings). See [alerts](alerts.md).
 - `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `site_connections`, `site_delay_ms`, `site_time_limit`, `accept_name_matches`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `playlist_guides`, `git_url`, `git_ref`, `runner`.
 - `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.
 - `[pluto]`: `relay`, the same as `KIA_PLUTO_RELAY` above.

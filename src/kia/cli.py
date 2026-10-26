@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, channels, lan, locks, pluto, settings, stack, tls
+from kia import alerts, auth, channels, lan, locks, newchannels, pluto, settings, stack, tls
 from kia import name as kia_name
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -449,6 +449,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         write_atomic(out / "curated.m3u", m3u.write(players, cfg.epg_url))
         if not partial:
             write_profiles(cfg, chosen)
+            # What's new and gone tonight; the nightly run sends it once the guide is built.
+            newchannels.track(cfg.state_dir, [c.entry for c in chosen], set(choices["removed"]), generated, cfg.history_days)
     write_atomic(
         out / "report.json",
         json.dumps(
@@ -840,7 +842,8 @@ def update_status(cfg: Config, **run: object) -> None:
 
 
 def run_and_report(config: str, update_epg: bool) -> int:
-    """Run the pipeline, alert if it fails or crashes, and send the summary if it's turned on."""
+    """Run the pipeline, alert if it fails or crashes, and send the summary and the night's
+    new and gone channels if they're turned on."""
     cfg = load(Path(config))
     start = time.monotonic()
     started = now_iso()
@@ -871,6 +874,10 @@ def run_and_report(config: str, update_epg: bool) -> int:
             cfg.alerts,
             log,
         )
+        # Which channels found guide data tonight, for [alerts] new_channels_with_guide.
+        guided = {k: bool(v.get("site")) for k, v in read_object(cfg.epg.work_dir / "guide-choices.json").items() if isinstance(v, dict)}
+        newchannels.notify(cfg.state_dir, guided, lambda event, title, message: alerts.notify(
+            event, title, message, cfg.state_dir, cfg.alerts, log), cfg.alerts.new_with_guide, cfg.alerts.new_categories)  # fmt: skip
     return rc
 
 

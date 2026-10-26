@@ -285,3 +285,36 @@ def test_the_shipped_kia_toml_turns_on_the_default_events():
     # has to be on that list too, or every install has it off (as 0.7.1's three were, at first).
     shipped = load(Path(__file__).resolve().parent.parent / "kia.toml")
     assert shipped.alerts.events == alerts.DEFAULT_EVENTS
+
+
+def test_the_nightly_run_sends_new_and_gone_channels(tmp_path: Path, monkeypatch, ntfy):
+    import json
+
+    from kia import newchannels
+    from kia.m3u import Entry
+
+    url, received = ntfy
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    cfg_path = tmp_path / "kia.toml"
+    cfg_path.write_text(f'[output]\nstate_dir = "state"\n[alerts]\nntfy_url = "{url}"\nevents = ["new_channels", "channels_gone"]\n'
+                        "new_channels_with_guide = true\n")  # fmt: skip
+    for name in ("KIA_ALERT_EVENTS", "KIA_ALERT_COMMAND", "KIA_NTFY_URL"):
+        monkeypatch.delenv(name, raising=False)
+    state = tmp_path / "state"
+
+    def entry(tvg_id):
+        return Entry(tvg_id.split(".")[0], "http://a/" + tvg_id, {"tvg-id": tvg_id, "group-title": "News"})
+
+    def pipeline(config, update):  # the check notes tonight's channels; the guide follows
+        newchannels.track(state, [entry("CNN.us"), entry("Bloomberg.us"), entry("Weather.us")], set(),
+                          "2026-10-02T09:00:00+00:00", 30)  # fmt: skip
+        (tmp_path / "work").mkdir(exist_ok=True)
+        (tmp_path / "work" / "guide-choices.json").write_text(json.dumps({"Bloomberg.us": {"site": "i.mjh.nz"}, "Weather.us": {"site": None}}))
+        return 0
+
+    newchannels.track(state, [entry("CNN.us"), entry("BBC.uk")], set(), "2026-10-01T09:00:00+00:00", 30)
+    monkeypatch.setattr(cli, "run_pipeline", pipeline)
+    assert cli.run_and_report(str(cfg_path), False) == 0
+    titles = [r["Title"] for r in received]
+    assert titles == ["kia: 1 new channel"] and received[0]["body"] == "New in your playlists: Bloomberg."  # Weather has no guide
+    assert not (state / "alerts.log").exists() or "Bloomberg" not in (state / "alerts.log").read_text()  # a notice, not an alert

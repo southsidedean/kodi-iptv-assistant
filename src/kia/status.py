@@ -15,7 +15,7 @@ from html import escape
 from pathlib import Path
 
 from kia import __version__, channeleditor, editor, guideview, sourceeditor, stackeditor
-from kia import doctorview
+from kia import doctorview, newchannels
 from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
 from kia.channels import FAVORITES
@@ -106,6 +106,7 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "pluto_channels": _pluto_channels(entries),
         # How many Plex players /metrics has seen (their names are on the secure page only).
         "plex_players": len(_load(state_dir / "plex-players.json")),
+        "whats_new": newchannels.this_week(state_dir),
         "files": [n for name, _ in FILES for n in (name, markdown_twin(name)) if n and (output_dir / n).exists()],
     }
 
@@ -263,6 +264,28 @@ def _profiles_error(s: dict) -> str:
     return (
         "<p class=\"bad-note\">The profiles file has a mistake, so the profile playlists weren't updated: "
         f"{escape(s['profiles_error'])}</p>"
+    )
+
+
+def _whats_new_card(s: dict) -> str:
+    """New this week: channels new to the playlists in the last week, and those gone
+    (kia.newchannels). Shown only when there are any."""
+    news = s.get("whats_new") or {}
+    rows = []
+    for key, label in (("new", "New"), ("gone", "Gone")):
+        found = news.get(key) or []
+        if found:
+            names = ", ".join(escape(c["name"][:60]) for c in found[:40])
+            more = f", and {len(found) - 40} more" if len(found) > 40 else ""
+            rows.append(f"<p><strong>{label}:</strong> {names}{more}</p>")
+    if not rows:
+        return ""
+    return (
+        '<section class="card" id="whats-new"><h2>New this week</h2>'
+        '<p class="muted">Channels new to your playlists in the last 7 days, and those gone because their streams '
+        'stopped working. To hear about them each night, turn on the new_channels and channels_gone notices '
+        f'(<a href="{escape(DOCS_URL)}/alerts.md#new-and-gone-channels">how</a>).</p>'
+        f'{"".join(rows)}</section>'
     )
 
 
@@ -469,7 +492,7 @@ def _asks_card(s: dict) -> str:
     return (
         f'<section class="card" id="asks"{_secure_attr(s)} hidden><h2>Requests from assistants</h2>'
         '<p class="muted">An AI assistant using kia asked for these. Nothing happens until you approve one, unless you let '
-        'that kind run by itself (<a href="https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/mcp.md#letting-requests-run-by-themselves">how</a>).</p>'
+        f'that kind run by itself (<a href="{escape(DOCS_URL)}/mcp.md#letting-requests-run-by-themselves">how</a>).</p>'
         # The password first: it's needed before Approve or Decline.
         '<form class="editor asks-form" hidden><label class="field" for="asks-pass"><strong>Password</strong></label>'
         '<input type="password" id="asks-pass" autocomplete="current-password"></form>'
@@ -891,7 +914,7 @@ WHY_SCRIPT = """
 
 def render_playlists(s: dict) -> str:
     """Playlists: every playlist, Make a playlist, and a link to each one's page."""
-    body = f"<main><h1>Playlists</h1>{_playlists_card(s)}</main>"
+    body = f"<main><h1>Playlists</h1>{_playlists_card(s)}{_whats_new_card(s)}</main>"
     return page("Playlists - kia", body, _footer(s), COPY_SCRIPT + editor.SCRIPT, editor.STYLE, current="playlists.html")
 
 
