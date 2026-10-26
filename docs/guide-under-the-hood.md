@@ -37,6 +37,8 @@ For each channel, in this order:
 
 Radio stations named exactly KINK or KEXP get their station's own schedule. A channel whose playlist names its own guide gets that guide too, placed first.
 
+A Pluto TV channel's stream address carries Pluto's own ID for it (`jmp2.uk/plu-<id>`, or `/pluto/<id>.m3u8` once it plays through kia), and i.mjh.nz's Pluto guides list channels by that ID. So every Pluto channel also gets i.mjh.nz's guide for its country, by that ID, after its other sources, whatever name or `tvg-id` the playlist gives it. The country comes from the `tvg-id` (`.us` is the US guide), for the 14 countries i.mjh.nz covers. This one doesn't count toward `max_sites_per_channel`.
+
 Each channel keeps up to three sources (`max_sites_per_channel`). When there are more, the sites in `prefer_sites` go first, then the sites that cover the most of your channels: those tend to be the big, well-kept ones. kia writes one channel list per site into `work/channels/`, with each site's channel IDs written under your `tvg-id`s, so the downloaded listings already carry the IDs your playlist uses.
 
 ## Downloading (`kia grab`)

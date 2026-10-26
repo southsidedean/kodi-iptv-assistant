@@ -571,6 +571,11 @@ def cmd_map(args: argparse.Namespace) -> int:
     if epg.native_grabbers:
         radio = {e.tvg_id: xmltv.display_name(e) for e in entries if e.is_radio}
         candidates.update(epgmap.radio_schedule_candidates(radio, broken | set(epg.exclude_sites)))
+    # Pluto TV channels carry Pluto's channel id in their address: i.mjh.nz's Pluto guide by
+    # that id, whatever name or id the playlist gives the channel.
+    pluto_ids = {e.tvg_id: (cid, xmltv.display_name(e)) for e in entries
+                 if not e.is_radio and (cid := pluto.any_channel_id(e.url, cfg.public_url))}  # fmt: skip
+    epgmap.pluto_candidates(pluto_ids, candidates, broken | set(epg.exclude_sites))
     suggestions = (
         epgmap.suggest_by_name(tvg_ids, names, epgmap.usable_channels(site_channels, epg, broken), set(candidates),
                                set(epg.ignore_name_matches))

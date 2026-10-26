@@ -80,6 +80,15 @@ def channel_id(url: str) -> str | None:
     return m.group(1).lower() if m else None
 
 
+def any_channel_id(url: str, base_url: str | None) -> str | None:
+    """A Pluto channel's id from its address as a playlist has it, or as kia's playlists do
+    once it plays through kia's relay (base_url/pluto/<id>.m3u8, see for_players)."""
+    if base_url and url.startswith(f"{base_url}/pluto/"):
+        cid = url[len(base_url) + len("/pluto/"):].removesuffix(".m3u8").lower()
+        return cid if _ID_RE.fullmatch(cid) else None
+    return channel_id(url)
+
+
 _PARTNER_RE = re.compile(r"jmp2\.uk/stvp-", re.I)  # Samsung TV Plus, which also carries Pluto TV channels
 
 

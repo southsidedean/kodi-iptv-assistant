@@ -1,7 +1,10 @@
 import gzip
+import json
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 from kia import epgmap, xmltv
 from kia.config import EpgConfig
@@ -280,3 +283,50 @@ def test_namespaced_attributes_in_a_sites_channel_list_are_left_out(tmp_path: Pa
 
 def test_a_site_name_with_a_line_break_isnt_safe():
     assert epgmap.is_safe_site("pluto.tv") and not epgmap.is_safe_site("pluto.tv\n")
+
+
+def test_pluto_channels_get_plutos_own_guide_by_id(tmp_path: Path, monkeypatch):
+    from kia import cli
+
+    repo = tmp_path / "epg"
+    path = repo / "sites" / "tvp" / "tvpassport.com.channels.xml"
+    path.parent.mkdir(parents=True)
+    path.write_text('<channels><channel site="tvpassport.com" site_id="c1" xmltv_id="Known.us@SD">Known</channel></channels>')
+    (repo / ".git").mkdir()
+    out = tmp_path / "output"
+    out.mkdir()
+    pid, other, gone = "68757c45759366af05b3b199", "65244c403fd33c0008ffff31", "5cf96b1c4f1ca3f0629f4bf0"
+    (out / "curated.m3u").write_text(
+        "#EXTM3U\n"
+        f'#EXTINF:-1 tvg-id="TopModel.us@SD",Top Model\nhttp://192.0.2.5:8780/pluto/{pid}.m3u8\n'  # through kia's relay
+        f'#EXTINF:-1 tvg-id="Known.us@SD",Known\nhttps://jmp2.uk/plu-{other}.m3u8\n'  # iptv-org knows it too
+        f'#EXTINF:-1 tvg-id="Kino.jp@SD",Kino\nhttps://jmp2.uk/plu-{gone}.m3u8\n'  # no Pluto guide for Japan
+        f'#EXTINF:-1 tvg-id="Elsewhere.us@SD",Elsewhere\nhttp://192.0.2.9/pluto/{gone}.m3u8\n')  # not kia's relay
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    cfg = tmp_path / "kia.toml"
+    cfg.write_text(f'[output]\npublic_url = "http://192.0.2.5:8780"\n[epg]\nrepo_dir = "{repo}"\nexclude_sites = []\n')
+    monkeypatch.delenv("KIA_EXCLUDE_SITES", raising=False)
+    monkeypatch.delenv("KIA_PUBLIC_URL", raising=False)
+    assert cli.main(["map", "-c", str(cfg)]) == 0
+    mapping = json.loads((tmp_path / "work" / "mapping.json").read_text())
+    assert mapping["TopModel.us@SD"] == ["i.mjh.nz"] and mapping["Known.us@SD"] == ["tvpassport.com", "i.mjh.nz"]
+    assert "Kino.jp@SD" not in mapping and "Elsewhere.us@SD" not in mapping
+    imjh = (tmp_path / "work" / "channels" / "i.mjh.nz.channels.xml").read_text()
+    assert f'site_id="PlutoTV/us#{pid}"' in imjh and f'site_id="PlutoTV/us#{other}"' in imjh and gone not in imjh
+    assert "| Matched by their Pluto TV id only | 1 |" in (out / "mapping-report.md").read_text()
+    cfg.write_text(f'[output]\npublic_url = "http://192.0.2.5:8780"\n[epg]\nrepo_dir = "{repo}"\nexclude_sites = ["i.mjh.nz"]\n')
+    assert cli.main(["map", "-c", str(cfg)]) == 0
+    assert "TopModel.us@SD" not in json.loads((tmp_path / "work" / "mapping.json").read_text())
+
+
+@pytest.mark.parametrize("url, base, cid", [
+    ("http://192.0.2.5:8780/pluto/68757C45759366AF05B3B199.m3u8", "http://192.0.2.5:8780", "68757c45759366af05b3b199"),
+    ("https://jmp2.uk/plu-68757c45759366af05b3b199.m3u8", None, "68757c45759366af05b3b199"),
+    ("http://192.0.2.5:8780/pluto/../x.m3u8", "http://192.0.2.5:8780", None),
+    ("http://192.0.2.5:8780/pluto/68757c45759366af05b3b199.m3u8?x", "http://192.0.2.5:8780", None),
+    ("http://192.0.2.5:8780/pluto/68757c45759366af05b3b199.m3u8", None, None),
+])  # fmt: skip
+def test_a_pluto_id_from_either_address(url, base, cid):
+    from kia import pluto
+
+    assert pluto.any_channel_id(url, base) == cid
