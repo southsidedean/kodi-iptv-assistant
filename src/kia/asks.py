@@ -117,9 +117,10 @@ def _stamp(t: float) -> str:
 
 
 def ask(state_dir: Path, kind: str, args: dict, what: str, who: str = "", now: float | None = None,
-        expires: float = EXPIRES, waiting: int = WAITING) -> dict:  # fmt: skip
+        expires: float = EXPIRES, waiting: int = WAITING, device: str = "") -> dict:  # fmt: skip
     """A new request, waiting for you; or the one of the same kind already waiting. Raises
-    AskError when `waiting` are waiting. expires: seconds it waits."""
+    AskError when `waiting` are waiting. expires: seconds it waits; device: the gateway
+    device that asked, if one did."""
     now = time.time() if now is None else now
     with _LOCK:
         pending = [r for r in _all(state_dir, now) if r["state"] == "waiting"]
@@ -131,6 +132,8 @@ def ask(state_dir: Path, kind: str, args: dict, what: str, who: str = "", now: f
             raise AskError(f"{many} already waiting for the person to approve on the Dashboard.")
         r = {"id": secrets.token_hex(8), "kind": kind, "args": args, "what": what, "who": who or "an assistant",
              "state": "waiting", "asked": _stamp(now), "expires": now + expires}  # fmt: skip
+        if device:
+            r["device"] = device
         _write(state_dir, r)
         return r
 
