@@ -463,6 +463,78 @@ CHECKLIST_SCRIPT = """
 """
 
 
+def _asks_card(s: dict) -> str:
+    """Requests from AI assistants (kia.asks), for the person to approve or decline: shown by
+    ASKS_SCRIPT when there are any."""
+    return (
+        f'<section class="card" id="asks"{_secure_attr(s)} hidden><h2>Requests from assistants</h2>'
+        '<p class="muted">An AI assistant using kia asked for these. Nothing happens until you approve one.</p>'
+        '<ul class="links asks-list"></ul>'
+        '<form class="editor asks-form" hidden><label class="field" for="asks-pass"><strong>Password</strong></label>'
+        '<input type="password" id="asks-pass" autocomplete="current-password"></form>'
+        '<p role="status" class="asks-say"></p></section>'
+    )
+
+
+ASKS_SCRIPT = """
+<script>
+(function () {
+  var card = document.getElementById("asks");
+  if (!card) return;
+  var list = card.querySelector(".asks-list"), say = card.querySelector(".asks-say");
+  var pass = card.querySelector("#asks-pass"), KEY = "kia-password", secure = location.protocol === "https:";
+  var SAID = { waiting: "waiting for you", running: "running", done: "done", failed: "failed", declined: "declined", expired: "expired" };
+  if (secure) { card.querySelector(".asks-form").hidden = false; try { pass.value = sessionStorage.getItem(KEY) || ""; } catch (e) {} }
+  function outcome(a) {
+    if (a.error) return "Didn't work: " + a.error;
+    var r = a.result || {};
+    if (a.kind === "test_channel" && "ok" in r) return r.ok ? "The stream works" + (r.height ? ", " + r.height + "p" : "") + "." : "The stream failed: " + (r.error || "no reason given") + ".";
+    return "";
+  }
+  function show(asks) {
+    list.textContent = "";
+    asks.forEach(function (a) {
+      var li = document.createElement("li"), what = document.createElement("strong"), more = document.createElement("span");
+      what.textContent = a.what;
+      more.textContent = " " + a.who + ", " + (SAID[a.state] || a.state) + (a.state === "waiting" ? " (" + a.minutes_left + " min left)" : "") + ". " + outcome(a);
+      li.append(what, more);
+      if (a.state === "waiting") {
+        if (secure) {
+          [["Approve", "approve", "primary"], ["Decline", "decline", ""]].forEach(function (b) {
+            var button = Object.assign(document.createElement("button"), { type: "button", textContent: b[0], className: b[2] });
+            button.addEventListener("click", function () { answer(a.id, b[1]); });
+            li.append(" ", button);
+          });
+        } else if (card.dataset.secureUrl) {
+          li.append(" ", Object.assign(document.createElement("a"), { href: new URL("#asks", card.dataset.secureUrl).href, textContent: "Approve it on the secure page" }));
+        }
+      }
+      list.appendChild(li);
+    });
+    card.hidden = !asks.length;
+  }
+  function load() {
+    fetch("api/asks").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) show(d.asks || []); }).catch(function () {});
+  }
+  function answer(id, how) {
+    say.className = "asks-say"; say.textContent = how === "approve" ? "Running it..." : "";
+    fetch("api/asks/" + how, { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": pass.value },
+                               body: JSON.stringify({ id: id }) }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
+    }).then(function (r) {
+      if (r._status !== 200) { say.className = "asks-say error"; say.textContent = r.error || "Something went wrong."; return; }
+      try { sessionStorage.setItem(KEY, pass.value); } catch (e) {}
+      say.textContent = how === "approve" ? "Done. The assistant can read how it went." : "Declined.";
+      load();
+    }, function () { say.className = "asks-say error"; say.textContent = "kia didn't answer. Is it running?"; });
+  }
+  load();
+  setInterval(load, 20000);  // a request an assistant makes while the page is open shows up
+})();
+</script>
+"""
+
+
 def _name_card(s: dict) -> str:
     """This kia's name (kia.name), changed after the password; filled in by NAME_CARD_SCRIPT."""
     return (
@@ -762,11 +834,12 @@ def render_html(s: dict) -> str:
     why = ('<section class="card"><div class="actions"><button type="button" id="ask-why">Ask kia what\'s wrong</button></div>'
            '<div class="why-answer" id="why-answer" aria-live="polite" hidden></div></section>')
     body = (
-        f'<main>{_banner(s)}{why}{_env_warning(s)}{_pluto_warning(s)}{_STACK_CARD}{_checklist_card(s)}{tiles}{alerts}'
+        f'<main>{_banner(s)}{_asks_card(s)}{why}{_env_warning(s)}{_pluto_warning(s)}{_STACK_CARD}{_checklist_card(s)}{tiles}{alerts}'
         f'{_short_playlists_card(s)}{again}</main>'
     )
-    script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT + STACK_SCRIPT + doctorview.SCRIPT + WHY_SCRIPT
-    return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE + STACK_STYLE + doctorview.STYLE, current="index.html")
+    script = COPY_SCRIPT + PLUTO_SCRIPT + CHECKLIST_SCRIPT + STACK_SCRIPT + doctorview.SCRIPT + WHY_SCRIPT + ASKS_SCRIPT
+    return page("kia Dashboard", body, _footer(s), script, CHECKLIST_STYLE + STACK_STYLE + doctorview.STYLE + editor.STYLE,
+                current="index.html")  # fmt: skip
 
 
 WHY_SCRIPT = """

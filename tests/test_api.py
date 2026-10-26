@@ -311,6 +311,8 @@ PROTECTED = [
     ("POST", "/api/stack/apply", {"parts": ["plex"]}),
     ("POST", "/api/plex/tuners", None),
     ("PUT", "/api/name", {"name": "den"}),
+    ("POST", "/api/asks/approve", {"id": "0123456789abcdef"}),
+    ("POST", "/api/asks/decline", {"id": "0123456789abcdef"}),
 ]
 PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
           ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"),
@@ -318,7 +320,7 @@ PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/chan
           ("GET", "/api/doctor/hardware"),
           ("GET", "/api/doctor/jellyfin"),
           ("GET", "/api/doctor/guide"),
-          ("GET", "/api/doctor/pluto"), ("GET", "/api/doctor/setup"), ("GET", "/api/name")]  # fmt: skip
+          ("GET", "/api/doctor/pluto"), ("GET", "/api/doctor/setup"), ("GET", "/api/name"), ("GET", "/api/asks")]  # fmt: skip
 # Routes with a credential of their own: the MCP server's token (tests/test_mcp.py checks it).
 TOKEN_ROUTES = [("POST", "/api/mcp")]
 

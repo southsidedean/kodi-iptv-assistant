@@ -135,16 +135,24 @@ def test_bad_messages(kia):
     assert call_tool(kia, "kia_overview", {"surprise": "1"})["isError"] is True
 
 
-def test_every_tool_only_reads_and_answers(kia):
+def args_for(name: str) -> dict:
+    """Arguments a tool accepts, for calling each one."""
+    properties = dict(mcp.RUN_SCHEMAS)[name].get("properties", {})
+    return {"query": "CNN"} if "query" in properties else {"id": "0" * 16} if "id" in properties else {}
+
+
+def test_every_tool_but_those_that_ask_only_reads_and_answers(kia):
     status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert status == 200
     tools = body["result"]["tools"]
-    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 15
-    assert all(t["annotations"]["readOnlyHint"] and not t["annotations"]["destructiveHint"] for t in tools)
+    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 17
+    assert not any(t["annotations"]["destructiveHint"] for t in tools)
+    assert {t["name"] for t in tools if not t["annotations"]["readOnlyHint"]} == mcp.ASKING == {"kia_test_channel"}
     before = sorted(p.name for p in kia.state_dir.parent.rglob("*"))
     for t in tools:
-        args = {"query": "CNN"} if "query" in t["inputSchema"].get("properties", {}) else {}
-        result = call_tool(kia, t["name"], args)
+        if t["name"] in mcp.ASKING:
+            continue  # it leaves a request (tests/test_asks.py)
+        result = call_tool(kia, t["name"], args_for(t["name"]))
         assert result.get("isError") is not True, (t["name"], result)
         assert json.loads(result["content"][0]["text"]) == result["structuredContent"]
     assert sorted(p.name for p in kia.state_dir.parent.rglob("*")) == before  # nothing written
@@ -187,7 +195,7 @@ def test_no_secret_reaches_an_answer(kia, monkeypatch):
     cli.write_settings(load(kia.config_file), "04:00", 4.0)  # the real settings.json, from the real settings
     (kia.output_dir / "report.json").write_text(json.dumps({"streams": [{"source": "us", "name": "CNN", "tvg_id": "CNN.us", "url": "x",
         "status": "dead", "selected": False, "error": "403 from https://me:s3cret-pw@example.com/live.m3u8"}]}))  # fmt: skip
-    answers = "".join(json.dumps(call_tool(kia, n, {"query": "CNN"} if "query" in dict(mcp.RUN_SCHEMAS)[n].get("properties", {}) else {}), ensure_ascii=False)
+    answers = "".join(json.dumps(call_tool(kia, n, args_for(n)), ensure_ascii=False)
                       for n in mcp.RUN)  # fmt: skip
     assert not [s for s in secrets if s in answers]
     assert "•••@example.com" in answers and "Guide from another kia server" in answers
@@ -301,7 +309,7 @@ def test_a_damaged_file_or_a_failing_tool_still_answers(kia, monkeypatch):
     (kia.output_dir / "report.json").write_text("[1, 2, 3]")  # damaged into a list
     (kia.output_dir / "stack.json").write_text('{"services": "nope"}')
     for name in mcp.RUN:
-        result = call_tool(kia, name, {"query": "CNN"} if "query" in dict(mcp.RUN_SCHEMAS)[name].get("properties", {}) else {})
+        result = call_tool(kia, name, args_for(name))
         assert not result.get("isError"), (name, result)
     monkeypatch.setitem(mcp.RUN, "kia_stack", lambda *a: 1 / 0)
     assert call_tool(kia, "kia_stack") == {"content": [{"type": "text", "text": "kia_stack failed; kia's log has the details."}],
@@ -433,3 +441,40 @@ def test_starter_prompts(kia):
     assert "'CNN'" in text and "kia_whats_on" in text
     assert rpc(kia, {"jsonrpc": "2.0", "id": 4, "method": "prompts/get", "params": {"name": "kia-channel"}})[1]["error"]["code"] == -32602
     assert rpc(kia, {"jsonrpc": "2.0", "id": 5, "method": "prompts/get", "params": {"name": "nope"}})[1]["error"]["code"] == -32602
+
+
+# Tools that ask (kia.asks)
+
+
+def test_an_assistant_asks_and_only_the_password_makes_kia_act(kia, monkeypatch):
+    tested, said = [], []
+    monkeypatch.setattr(api, "test_channel", lambda cfg, body: tested.append(body) or {"ok": True, "height": 1080, "error": None})
+    kia.alert = lambda event, title, message: said.append((event, title))
+    (kia.output_dir / "status.json").write_text(json.dumps({"secure": {"url": "https://tv.lan:8743/"}}))
+    asked = call_tool(kia, "kia_test_channel", {"query": "cnn"})["structuredContent"]
+    assert asked["asked"] and asked["approve_at"] == "https://tv.lan:8743/#asks" and not tested
+    assert asked["what"] == "Test the stream of CNN (CNN.us) now" and said == [("assistant_asks", "kia: an assistant asks: Test the stream of CNN (CNN.us) now")]
+    again = call_tool(kia, "kia_test_channel", {"query": "CNN.us"})["structuredContent"]
+    assert again["id"] == asked["id"] and "already" in again["next"] and len(said) == 1
+    status = call_tool(kia, "kia_request_status", {"id": asked["id"]})["structuredContent"]
+    assert status["state"] == "waiting" and status["who"] == "192.0.2.5"
+    # The Dashboard: anyone can see it; approving takes the password, on the secure page.
+    headers = {"Host": "tv.lan:8743"}
+    listed = api.handle(kia, "GET", "/api/asks", headers, b"", False)[1]["asks"]
+    assert [a["what"] for a in listed] == ["Test the stream of CNN (CNN.us) now"]
+    body = json.dumps({"id": asked["id"]}).encode()
+    assert api.handle(kia, "POST", "/api/asks/approve", headers, body, True)[0] == 401
+    assert api.handle(kia, "POST", "/api/asks/approve", {**headers, "X-Kia-Password": "secret"}, body, False)[0] == 403
+    assert not tested
+    status, answer = api.handle(kia, "POST", "/api/asks/approve", {**headers, "X-Kia-Password": "secret"}, body, True)
+    assert status == 200 and answer["ask"]["state"] == "done" and len(tested) == 1 and tested[0]["key"]
+    assert api.handle(kia, "POST", "/api/asks/approve", {**headers, "X-Kia-Password": "secret"}, body, True)[0] == 409
+    done = call_tool(kia, "kia_request_status", {"id": asked["id"]})["structuredContent"]
+    assert done["state"] == "done" and done["result"]["height"] == 1080
+    assert call_tool(kia, "kia_request_status", {"id": "0" * 16})["structuredContent"] == {"found": False}
+
+
+def test_a_request_names_just_one_channel(kia):
+    none = call_tool(kia, "kia_test_channel", {"query": "nothing like it"})["structuredContent"]
+    assert not none["asked"] and none["why"] == "No channel matches that."
+    assert not (kia.state_dir / "asks").exists()

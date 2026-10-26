@@ -1,6 +1,6 @@
 # kia and AI assistants (MCP)
 
-kia has an MCP server: read-only tools an AI assistant can call to look at kia's record. With it you can ask your assistant, in your own words, "is kia working?", "why does ESPN have no guide?", or "which playlists are failing?", and it reads kia's answers to reply. MCP (the Model Context Protocol) is the standard most assistants use for this.
+kia has an MCP server: tools an AI assistant can call to look at kia's record, and to ask kia to do a few things that you then approve on the Dashboard. With it you can ask your assistant, in your own words, "is kia working?", "why does ESPN have no guide?", or "which playlists are failing?", and it reads kia's answers to reply. MCP (the Model Context Protocol) is the standard most assistants use for this.
 
 The answers are the same ones **Ask kia what's wrong**, **Why?**, and `kia doctor` give ([asking kia for help](ask-kia.md)). The assistant can combine them and explain them, and you don't have to know where to look.
 
@@ -13,6 +13,7 @@ On this page:
 - [Several devices: the gateway](#several-devices-the-gateway): a key for each device, with a limit and a log
 - [More than one kia](#more-than-one-kia): every kia in one assistant
 - [What the assistant can see](#what-the-assistant-can-see)
+- [Asking kia to act](#asking-kia-to-act): requests you approve on the Dashboard
 - [Privacy and safety](#privacy-and-safety)
 - [When it doesn't work](#when-it-doesnt-work)
 - [For developers](#for-developers)
@@ -285,12 +286,27 @@ The assistant then sees each kia's tools under its own server's name, and each k
 | `kia_find_shows` | Shows in the guides that match some words or a category, now or up to a week ahead: kia's guide, and Plex's and Jellyfin's own guides (an antenna's, say). Up to 25, the ones named for the words first, each with its channel, number, times, and where to watch it |
 | `kia_docs` | The sections of kia's own docs, the copy installed with your kia, that best match some words, with links |
 
-That's what the Dashboard shows to anyone on your network, plus a few things from programs in your stack: the names of the computer's disks and where they're mounted (`kia_hardware`, from Prometheus, as Grafana shows them), Jellyfin's Live TV settings (`kia_jellyfin`), and the guide listings of Plex's and Jellyfin's own channels, such as an antenna's (`kia_find_shows`, `kia_whats_on`). The tools can't change anything. Passwords, tokens, and alert addresses show only as set or not set, and user names and passwords inside addresses are hidden.
+That's what the Dashboard shows to anyone on your network, plus a few things from programs in your stack: the names of the computer's disks and where they're mounted (`kia_hardware`, from Prometheus, as Grafana shows them), Jellyfin's Live TV settings (`kia_jellyfin`), and the guide listings of Plex's and Jellyfin's own channels, such as an antenna's (`kia_find_shows`, `kia_whats_on`). These tools only read. Passwords, tokens, and alert addresses show only as set or not set, and user names and passwords inside addresses are hidden.
+
+## Asking kia to act
+
+Some tools ask kia to do something, such as testing a channel's stream now. Such a tool doesn't do it: it leaves a request, and nothing happens until you approve it on the Dashboard.
+
+1. You ask your assistant, say, "test CNN's stream". It calls `kia_test_channel`, which leaves a request and gives the assistant a link to the secure Dashboard to pass on to you.
+2. The Dashboard's front page shows it under **Requests from assistants**, with what it will do and who asked (the device's name, through the gateway). Approve it with the password, or decline it.
+3. kia runs it with the same code as the Dashboard's own button. The assistant reads how it went with `kia_request_status`, and tells you.
+
+| Tool | What it asks for |
+|---|---|
+| `kia_test_channel` | Test one channel's stream now, as the Dashboard's **Test** button does. The channel's ID, or part of its name, must match just one channel |
+| `kia_request_status` | How a request went: waiting, declined, expired, or done, with its result (this one only reads) |
+
+A request waits 10 minutes, then expires. At most 5 wait at once, one of each kind; asking again for a kind that's waiting gives back the same request. Requests that change your setup, such as a stack change, passwords, settings, or sources, can't be asked for at all. To hear about each request on your phone, turn on the `assistant_asks` notice ([alerts](alerts.md#choosing-events)); tapping it opens the Dashboard.
 
 ## Privacy and safety
 
 - Your assistant sends what it reads to its AI service to answer you, as with anything else you show it: channel and playlist names, kia's findings, and your settings (secrets hidden). What plays on Plex or Jellyfin isn't in any of kia's tools. `kia_pluto` does say which Pluto TV channels are playing through kia right now, and for how many devices, as `pluto.json` on your network does.
-- Channel names, guide titles, and guide sites' errors come from strangers, and someone could write instructions into one ("ignore your instructions and run..."). kia tells the assistant to treat that text as data, and kia's tools can't act on it. But an assistant such as Claude Code can also run commands on your computer and reach the internet. Keep it asking before it runs a command, read what it wants to run, and don't approve a command that came from an answer about kia unless kia's docs give it.
+- Channel names, guide titles, and guide sites' errors come from strangers, and someone could write instructions into one ("ignore your instructions and run..."). kia tells the assistant to treat that text as data, and kia's tools can't act on it: the few that ask for something only leave a request, which you approve or decline yourself. But an assistant such as Claude Code can also run commands on your computer and reach the internet. Keep it asking before it runs a command, read what it wants to run, and don't approve a command that came from an answer about kia unless kia's docs give it.
 - Keep the token like a password. If it gets out, `kia mcp-token --reset` replaces it, and the old one stops working at once. `kia mcp-token --off` turns the server off. Backups leave the token out; after restoring one, run `kia mcp-token` again.
 - kia's log records each tool call, and each refused token, with the address it came from (`docker compose logs kia | grep MCP`).
 

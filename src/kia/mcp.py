@@ -16,6 +16,7 @@ address are hidden, and the instructions kia sends at the start say that this te
 
 from __future__ import annotations
 
+import contextvars
 import json
 import os
 import re
@@ -183,7 +184,22 @@ TOOLS = [
      "Use it to give the person kia's own steps and links.",
      {"type": "object", "additionalProperties": False, "required": ["query"],
       "properties": {"query": {"type": "string", "maxLength": 200, "description": "A few words to look for"}}}),
+    # Tools that ask (kia.asks): they do nothing themselves, but leave a request the person
+    # approves or declines on kia's Dashboard. kia_request_status reads how it went.
+    ("kia_test_channel", "Test a channel (asks the person first)",
+     "Ask kia to test one channel's stream now, as the Dashboard's Test button does. Nothing happens until "
+     "the person approves it on kia's Dashboard: tell them, and give them the link in the answer. Then read "
+     "how it went with kia_request_status. The channel is its ID (tvg-id) or part of its name, and must match "
+     "just one channel.", _QUERY),
+    ("kia_request_status", "A request's status",
+     "How a request made by a tool that asks (such as kia_test_channel) went: waiting for the person, "
+     "declined, expired, or done, with its result.",
+     {"type": "object", "additionalProperties": False, "required": ["id"],
+      "properties": {"id": {"type": "string", "maxLength": 16, "description": "The request's id, from the tool that asked"}}}),
 ]  # fmt: skip
+# The tools that ask, rather than only read (MCP's readOnlyHint is false for them).
+ASKING = {"kia_test_channel"}
+_WHO: contextvars.ContextVar[str] = contextvars.ContextVar("who", default="")  # who called the tool, for a request
 
 
 # Each tool's input schema, by name.
@@ -361,10 +377,46 @@ def _jellyfin(conf: Config, _args: dict, _api) -> dict:
     return doctor.jellyfin(conf).to_dict()
 
 
+def _test_channel(conf: Config, args: dict, api_cfg) -> dict:
+    from kia import api, asks
+
+    q = args["query"].strip().casefold()
+    items = [e for e, _ in api._items(api_cfg)]
+    found = [e for e in items if e.tvg_id and e.tvg_id.casefold() == q] or [
+        e for e in items if q and (q in e.name.casefold() or q in (e.tvg_id or "").casefold())]  # fmt: skip
+    if len(found) != 1:
+        return {"asked": False, "why": "No channel matches that." if not found else
+                f"{len(found)} channels match: say which one, by its ID.",
+                "channels": [{"id": e.tvg_id, "name": e.name} for e in found[:10]]}  # fmt: skip
+    e = found[0]
+    # The channel's name and ID come from a playlist: quoted, one line, as kia doctor's are.
+    what = f"Test the stream of {doctor._quote(e.name, 80)} ({doctor._quote(e.tvg_id or e.key, 80)}) now"
+    try:
+        r = asks.ask(api_cfg.state_dir, "test_channel", {"key": e.key}, what, _WHO.get())
+    except asks.AskError as exc:
+        return {"asked": False, "why": str(exc)}
+    where = (_json(conf.output_dir / "status.json").get("secure") or {}).get("url") or ""
+    link = f"{where.rstrip('/')}/#asks" if where.startswith("https://") else "the secure Dashboard's front page"
+    if not r.get("already") and getattr(api_cfg, "alert", None):
+        api_cfg.alert("assistant_asks", f"kia: an assistant asks: {what}",
+                      f"{r['who']} asks kia to: {what}. Approve or decline it on the Dashboard: {link}")  # fmt: skip
+    return {"asked": True, "id": r["id"], "what": what, "state": r["state"], "approve_at": link,
+            "next": "Nothing happens until the person approves it on kia's Dashboard. Ask them to, then read how it "
+                    "went with kia_request_status." + (" (This was already asked for, and is still waiting.)" if r.get("already") else "")}  # fmt: skip
+
+
+def _request_status(conf: Config, args: dict, api_cfg) -> dict:
+    from kia import api, asks
+
+    r = asks.get(api_cfg.state_dir, args["id"])
+    return {"found": False} if r is None else {"found": True, **api._shown(r)}
+
+
 RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": _find, "kia_plex": _plex, "kia_guide": _guide, "kia_pluto": _pluto, "kia_setup": _setup,
        "kia_hardware": _hardware, "kia_jellyfin": _jellyfin,
        "kia_playlists": _playlists, "kia_stack": _stack, "kia_settings": _settings,
-       "kia_whats_on": _whats_on, "kia_find_shows": _find_shows, "kia_docs": _docs}  # fmt: skip
+       "kia_whats_on": _whats_on, "kia_find_shows": _find_shows, "kia_docs": _docs,
+       "kia_test_channel": _test_channel, "kia_request_status": _request_status}  # fmt: skip
 
 
 # Starter prompts: MCP prompts, which assistants offer as ready-made questions (Claude Code shows
@@ -498,8 +550,11 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
     if method == "ping":
         return 200, {"jsonrpc": "2.0", "id": id_, "result": {}}
     if method == "tools/list":
+        # A tool that asks only leaves a request, which asking again returns: idempotent, and
+        # not destructive; the test it asks for reaches the stream's server (open world).
         tools = [{"name": n, "title": t, "description": d, "inputSchema": s,
-                  "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}}
+                  "annotations": {"readOnlyHint": n not in ASKING, "destructiveHint": False, "idempotentHint": True,
+                                  "openWorldHint": n in ASKING}}
                  for n, t, d, s in TOOLS]  # fmt: skip
         return 200, {"jsonrpc": "2.0", "id": id_, "result": {"tools": tools}}
     if method == "prompts/list":
@@ -530,6 +585,7 @@ def handle(load_conf: Callable[[], Config], api_cfg, headers, body: bytes, log=p
         if not _allowed(who):
             return 429, _error(id_, -32000, f"More than {CALLS_PER_MINUTE} tool calls in a minute; wait a little.")
         log(f"MCP: {name} for {who or 'a client'}")  # what an assistant asked, in kia's log
+        _WHO.set(who or "")
         try:
             conf = load_conf()
         except (OSError, ValueError) as exc:
