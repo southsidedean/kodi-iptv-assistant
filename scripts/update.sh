@@ -42,9 +42,10 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     die "kia's own files above were changed here. Move your changes to sources.local.txt or .env (or run git stash), then try again."
 fi
 
-echo "Looking for kia's releases..."
+if [ -z "${KIA_UPDATE_AGAIN:-}" ]; then echo "Looking for kia's releases..."; fi
 git fetch --quiet --tags --force origin
 before=$(git describe --tags --always)
+before_head=$(git rev-parse HEAD)
 # What the containers last started with, kept until they've restarted, so a run that stops
 # before that (Docker not running, a failed build) isn't forgotten. It's kept in git's own
 # folder, which the kia container can't write (it sees the kia folder read-only), and read
@@ -87,21 +88,41 @@ else
     git -c advice.detachedHead=false checkout --quiet "$target"
 fi
 after=$(git describe --tags --always)
-if [ "$before" = "$after" ]; then
+if [ -n "${KIA_UPDATE_AGAIN:-}" ]; then
+    :  # the first run said where it went
+elif [ "$before" = "$after" ]; then
     echo "kia is already at $after."
 else
     echo "kia: $before -> $after. Read the changelog's \"Upgrading\" notes for it: CHANGELOG.md"
+fi
+# This script is still the old version's, read from before the move. When the new version's
+# is different, the rest is its job: it may update in a new way (0.7.1's adds KIA_NAME, which
+# 0.7.0's, running the update to 0.7.1, never did). Once only: KIA_UPDATE_AGAIN.
+if [ -z "${KIA_UPDATE_AGAIN:-}" ] && ! git diff --quiet "$before_head" HEAD -- scripts/update.sh; then
+    if [ "$target" = main ]; then set -- --main; else set -- "$target"; fi
+    if [ "$docker" = no ]; then set -- "$@" --no-docker; fi
+    if [ "$restart" = no ]; then set -- "$@" --no-restart; fi
+    if [ "$ask" = no ]; then set -- "$@" --yes; fi
+    KIA_UPDATE_AGAIN=1 exec sh scripts/update.sh "$@"
 fi
 
 [ "$restart" = yes ] || exit 0
 
 # Nobody watching? A restart cuts off Pluto TV through kia, and Live TV through Threadfin
-# (Plex) or kia's playlist (Jellyfin).
+# (Plex) or kia's playlist (Jellyfin). Movies and shows only when that Plex or Jellyfin is in
+# kia's stack, which the update may restart too; one on its own keeps playing them.
 port=$(get KIA_PORT)
+in_stack=""
+if [ "$docker" = yes ]; then
+    in_stack=$(docker compose ps --services --status running 2>/dev/null | grep -x -e plex -e jellyfin | tr '\n' ' ' || true)
+fi
 if numbers=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null); then
-    watching=$(printf '%s\n' "$numbers" | awk '
+    watching=$(printf '%s\n' "$numbers" | awk -v in_stack=" $in_stack" '
         /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
-        /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
+        /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ {
+            server = $0; sub(/^kia_/, "", server); sub(/_sessions.*/, "", server)
+            if ($0 ~ /kind="live"/ || index(in_stack, " " server " ")) n += $NF
+        }
         /^kia_refresh_running 1/ { r = 1 }
         END { if (n > 0) print n " playing"; else if (r) print "a refresh is running" }')
 elif [ "$docker" = yes ] && ! docker compose ps --services --status running 2>/dev/null | grep -qx kia; then

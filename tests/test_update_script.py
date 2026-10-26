@@ -58,6 +58,7 @@ def test_moves_to_the_newest_release_and_restarts(copy: Path):
     assert r.returncode == 0, r.stderr
     assert git(copy, "describe", "--tags") == "v0.2.0"  # not the test release, not main
     assert (copy.parent / "docker.log").read_text().splitlines() == [
+        "compose ps --services --status running",  # which servers run, for who's watching
         "compose build --pull", "compose pull --ignore-buildable", "compose up -d"]  # fmt: skip
 
 
@@ -122,7 +123,21 @@ def test_asks_first_while_someone_watches_through_jellyfin(copy: Path):
     (copy.parent / "bin" / "curl").chmod(0o755)
     r = update(copy)  # no terminal to answer: not restarted
     assert r.returncode == 0 and "kia says: 1 playing" in r.stdout and "Not restarted" in r.stdout
-    assert not (copy.parent / "docker.log").exists()
+    assert "up -d" not in (copy.parent / "docker.log").read_text()  # only asked which servers run
+
+
+@pytest.mark.parametrize("in_stack, asks", [("", False), ("plex", True)])
+def test_a_movie_holds_the_update_only_on_a_plex_in_kias_stack(copy: Path, in_stack: str, asks: bool):
+    # A restart of kia doesn't touch a Plex of its own (a server's native one): its movies
+    # keep playing. A Plex in kia's stack may be restarted by the update too.
+    bin_dir = copy.parent / "bin"
+    (bin_dir / "curl").write_text("#!/bin/sh\nprintf 'kia_plex_sessions{kind=\"movie\",video=\"directplay\",hw=\"none\",location=\"wan\"} 1\\n'\n")
+    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$*" >> {copy.parent / "docker.log"}\n'
+                                    f'case "$*" in *"ps --services --status running"*) printf "kia\\n{in_stack}\\n" ;; esac\n')  # fmt: skip
+    r = update(copy)
+    assert r.returncode == 0
+    assert ("Not restarted" in r.stdout) == asks, r.stdout
+    assert ("compose up -d" in (copy.parent / "docker.log").read_text()) != asks
 
 
 def test_a_failed_run_still_restarts_what_changed_on_the_next_one(copy: Path):
@@ -150,7 +165,8 @@ def test_a_published_image_follows_the_release(copy: Path):
     r = update(copy)
     assert r.returncode == 0, r.stderr
     assert "KIA_IMAGE=ghcr.io/example/kia:0.2.0\n" in (copy / ".env").read_text()
-    assert (copy.parent / "docker.log").read_text().splitlines() == ["compose pull", "compose up -d"]
+    assert (copy.parent / "docker.log").read_text().splitlines() == ["compose ps --services --status running", "compose pull",
+                                                                     "compose up -d"]  # fmt: skip
 
 
 def test_what_was_deployed_is_kept_where_kia_cant_write(copy: Path):
@@ -290,3 +306,23 @@ def test_kias_name_is_filled_in_once(copy: Path):
         git(copy, "-c", "advice.detachedHead=false", "checkout", "-q", "v0.1.0")
         assert update(copy).returncode == 0
         assert (copy / ".env").read_text() == "KIA_PORT=1\n" + kept
+
+
+def test_the_new_versions_update_script_finishes_the_update(copy: Path):
+    # The script that starts an update is the old version's. When the new version's is
+    # different, it takes over after the move, once, and the move is said once.
+    origin = copy.parent / "origin"
+    script = (origin / "scripts" / "update.sh").read_text()
+    (origin / "scripts" / "update.sh").write_text(script.replace("set -eu\n", 'set -eu\necho "the new update.sh, from $(git describe --tags)"\n', 1))
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "a new update.sh")
+    git(origin, "tag", "v0.4.0")
+    r = update(copy, "v0.4.0", "--yes")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.count("the new update.sh, from v0.4.0") == 1
+    assert r.stdout.count("kia: v0.1.0 -> v0.4.0") == 1 and "already at" not in r.stdout
+    assert (copy.parent / "docker.log").read_text().count("compose up -d") == 1
+    # The same script on both sides: no second run.
+    (copy.parent / "docker.log").unlink()
+    r = update(copy, "v0.4.0")
+    assert "the new update.sh" in r.stdout and r.stdout.count("Looking for kia's releases") == 1
