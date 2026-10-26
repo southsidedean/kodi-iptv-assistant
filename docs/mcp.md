@@ -12,6 +12,7 @@ On this page:
 - [From another computer](#from-another-computer): turn it on, trust kia's certificate, then [your assistant](#set-up-your-assistant)
 - [Several devices: the gateway](#several-devices-the-gateway): a key for each device, with a limit and a log
 - [More than one kia](#more-than-one-kia): every kia in one assistant
+- [If a device is lost or stolen](#if-a-device-is-lost-or-stolen): what to change, and where
 - [What the assistant can see](#what-the-assistant-can-see)
 - [Asking kia to act](#asking-kia-to-act): requests you approve on the Dashboard
 - [Letting requests run by themselves](#letting-requests-run-by-themselves): for an hour, or always
@@ -264,8 +265,52 @@ An assistant can use several kia installs at once, such as one in the den and on
    ```
 
    Claude Code, Gemini CLI, Claude Desktop, and Codex each read a single file, and trust every certificate in it. Skip this for a kia whose certificate every computer already trusts.
+3. For an assistant set up in a file (Claude Desktop, VS Code, Cursor, and Codex), add each kia's server next to the ones already there, rather than pasting over the file. With two kias, Claude Desktop's `claude_desktop_config.json` holds both, each pointing at the joined certificate file:
+
+   ```json
+   {
+     "mcpServers": {
+       "kia-den": {
+         "command": "npx",
+         "args": ["-y", "mcp-remote", "https://192.168.1.20:8743/api/mcp", "--transport", "http-only",
+                  "--header", "Authorization:${KIA_AUTH}"],
+         "env": {"KIA_AUTH": "Bearer <den's token>", "NODE_EXTRA_CA_CERTS": "/full/path/to/kia-cert.pem"}
+       },
+       "kia-cabin-pi": {
+         "command": "npx",
+         "args": ["-y", "mcp-remote", "https://192.0.2.10:8743/api/mcp", "--transport", "http-only",
+                  "--header", "Authorization:${KIA_AUTH}"],
+         "env": {"KIA_AUTH": "Bearer <cabin-pi's token>", "NODE_EXTRA_CA_CERTS": "/full/path/to/kia-cert.pem"}
+       }
+     }
+   }
+   ```
+
+   VS Code is the same, with each kia's entry under `inputs` too. For Codex and Cursor, set every kia's token variable, such as `KIA_MCP_TOKEN_DEN=... KIA_MCP_TOKEN_CABIN_PI=... codex`.
 
 The assistant then sees each kia's tools under its own server's name, and each kia tells it its name, so you can ask "is the guide working on cabin-pi?". With the gateway part, each kia has its own gateway, and a device needs a key from each.
+
+## If a device is lost or stolen
+
+An assistant's setup on that device holds what it needs to reach kia: a token or a gateway key. Change what it had, on each kia it used. kia's certificate needs nothing: it isn't a secret.
+
+1. **A gateway key** (the device has a name in `scripts/gateway.sh list`): remove it, on each kia whose gateway it used. It stops working at once, and no other device is affected.
+
+   ```sh
+   scripts/gateway.sh remove laptop
+   ```
+
+2. **kia's own token** (set up with `kia mcp-token`): make a new one, on each kia. The old one stops working at once. Every other device using kia's token then needs the new one, so run `kia mcp-token --for <assistant>` again for each. With the gateway, each device has its own key and this step isn't needed.
+
+   ```sh
+   docker compose exec kia python3 -m kia mcp-token --reset
+   ```
+
+3. **Requests that run by themselves:** take the device's name out of `auto_devices` in `kia.toml` and restart kia, and press **Stop allowing** on the Dashboard if the card lists anything ([letting requests run by themselves](#letting-requests-run-by-themselves)).
+4. **The Dashboard's password**, if the device's browser had it saved: change it on the secure page's **System** page ([changing it](secure-page.md#changing-it)).
+5. **Alerts on ntfy**, if the device had the app subscribed: anyone with the topic's name can read your alerts. Make a new topic, and put it in `KIA_NTFY_URL` in `.env` ([alerts](alerts.md#getting-alerts-on-your-phone-ntfy)).
+
+Afterwards, kia's log shows whether anything still tries the old token or key: `docker compose logs kia | grep MCP`, and on the gateway, `docker compose logs gateway`.
 
 ## What the assistant can see
 
