@@ -167,6 +167,23 @@ expires_minutes = 10
 # How many requests can wait at once (1 to 20). Only one of each kind waits at a time.
 waiting = 5
 
+# Requests that run without asking you, all off until you list them. Only these kinds can:
+#   test_channel   test a channel's stream
+#   refresh_guide  refresh the guide from the quick sources
+#   check_stack    check a choice of parts (it never applies one)
+# Adding kia's channels to Plex always waits for you. Each one still shows on the Dashboard,
+# marked approved automatically. docs/mcp.md#letting-requests-run-by-themselves
+# auto_approve = ["test_channel"]
+
+# Only for these devices on the gateway (scripts/gateway.sh list); empty means any assistant
+# with kia's token or a gateway key.
+# auto_devices = ["laptop"]
+
+# At most this many a kind run by themselves in an hour (1 to 200); after that they wait for
+# you, so an assistant stuck in a loop stops there. It counts the Dashboard's "allow for an
+# hour" approvals too.
+auto_per_hour = 20
+
 
 [epg]
 # Building the program guide. See docs/how-it-works.md.

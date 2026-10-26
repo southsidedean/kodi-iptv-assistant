@@ -8,6 +8,8 @@ kia's MCP server has its first tool that acts: `kia_test_channel` asks kia to te
 
 Three more tools ask the same way: `kia_refresh_guide` refreshes the guide from the quick sources, `kia_add_to_plex` adds kia's channels to Plex as the Stack page's button does, and `kia_check_stack` checks a choice of parts without applying it. They can take a few minutes, so Approve starts them, and the card shows how it went when they finish. How long a request waits, and how many can wait, are now settings: `[asks]` in `kia.toml`.
 
+You can let stream tests, guide refreshes, and stack checks run without asking you. **Approve, and allow these for an hour** on the Dashboard covers that kind from that assistant for an hour; `auto_approve` in `kia.toml` covers it always, and `auto_devices` limits that to some gateway devices. Each one still shows on the Dashboard, at most 20 of a kind run by themselves an hour, and adding channels to Plex always waits for you. All of it is off until you turn it on ([letting requests run by themselves](docs/mcp.md#letting-requests-run-by-themselves)).
+
 ### Fixes
 
 - `scripts/update.sh` finishes an update with the new version's own copy of itself, when that's different. Until now the old version's script did the whole update, so updating from 0.7.0 to 0.7.1 didn't add `KIA_NAME` until a second run. That second run is still needed once for 0.7.1; from this version on, the new script takes over by itself.

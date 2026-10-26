@@ -473,6 +473,7 @@ def _asks_card(s: dict) -> str:
         '<form class="editor asks-form" hidden><label class="field" for="asks-pass"><strong>Password</strong></label>'
         '<input type="password" id="asks-pass" autocomplete="current-password"></form>'
         '<ul class="links asks-list"></ul>'
+        '<p class="asks-allowed" hidden></p>'
         '<p role="status" class="asks-say"></p></section>'
     )
 
@@ -482,7 +483,8 @@ ASKS_SCRIPT = """
 (function () {
   var card = document.getElementById("asks");
   if (!card) return;
-  var list = card.querySelector(".asks-list"), say = card.querySelector(".asks-say");
+  var list = card.querySelector(".asks-list"), say = card.querySelector(".asks-say"), allowedLine = card.querySelector(".asks-allowed");
+  var KINDS = { test_channel: "stream tests", refresh_guide: "guide refreshes", check_stack: "stack checks" };
   var pass = card.querySelector("#asks-pass"), KEY = "kia-password", secure = location.protocol === "https:";
   var SAID = { waiting: "waiting for you", running: "running", done: "done", failed: "failed", declined: "declined", expired: "expired" };
   if (secure) { card.querySelector(".asks-form").hidden = false; try { pass.value = sessionStorage.getItem(KEY) || ""; } catch (e) {} }
@@ -492,16 +494,19 @@ ASKS_SCRIPT = """
     if (a.kind === "test_channel" && "ok" in r) return r.ok ? "The stream works" + (r.height ? ", " + r.height + "p" : "") + "." : "The stream failed: " + (r.error || "no reason given") + ".";
     return r.summary || "";
   }
-  function show(asks) {
+  function show(asks, allowed) {
     list.textContent = "";
     asks.forEach(function (a) {
       var li = document.createElement("li"), what = document.createElement("strong"), more = document.createElement("span");
       what.textContent = a.what;
-      more.textContent = " " + a.who + ", " + (SAID[a.state] || a.state) + (a.state === "waiting" ? " (" + a.minutes_left + " min left)" : "") + ". " + outcome(a);
+      more.textContent = " " + a.who + ", " + (SAID[a.state] || a.state) + (a.state === "waiting" ? " (" + a.minutes_left + " min left)" : "") +
+        (a.auto ? ", approved automatically (" + a.auto + ")" : "") + ". " + outcome(a);
       li.append(what, more);
       if (a.state === "waiting") {
         if (secure) {
-          [["Approve", "approve", "primary"], ["Decline", "decline", ""]].forEach(function (b) {
+          var buttons = [["Approve", "approve", "primary"], ["Decline", "decline", ""]];
+          if (a.can_allow) buttons.splice(1, 0, ["Approve, and allow these for an hour", "hour", ""]);
+          buttons.forEach(function (b) {
             var button = Object.assign(document.createElement("button"), { type: "button", textContent: b[0], className: b[2] });
             button.addEventListener("click", function () { answer(a.id, b[1]); });
             li.append(" ", button);
@@ -512,26 +517,44 @@ ASKS_SCRIPT = """
       }
       list.appendChild(li);
     });
-    card.hidden = !asks.length;
+    allowedLine.textContent = "";
+    allowedLine.hidden = !allowed.length;
+    if (allowed.length) {
+      allowedLine.append("Running without asking you: " + allowed.map(function (x) {
+        return (KINDS[x.kind] || x.kind) + " from " + x.who + " (" + x.minutes_left + " min left)";
+      }).join("; ") + ". ");
+      if (secure) {
+        var stop = Object.assign(document.createElement("button"), { type: "button", textContent: "Stop allowing" });
+        stop.addEventListener("click", function () { post("api/asks/stop-allowing", {}, "Stopped: requests wait for you again."); });
+        allowedLine.append(stop);
+      }
+    }
+    card.hidden = !asks.length && !allowed.length;
     // While one runs (a guide refresh, say), look again soon for how it went.
     clearTimeout(soon);
     if (asks.some(function (a) { return a.state === "running"; })) soon = setTimeout(load, 3000);
   }
   var soon;
   function load() {
-    fetch("api/asks").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) show(d.asks || []); }).catch(function () {});
+    fetch("api/asks").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) show(d.asks || [], d.allowed || []); }).catch(function () {});
   }
   function answer(id, how) {
-    say.className = "asks-say"; say.textContent = how === "approve" ? "Running it..." : "";
-    fetch("api/asks/" + how, { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": pass.value },
-                               body: JSON.stringify({ id: id }) }).then(function (r) {
+    var hour = how === "hour", path = hour ? "approve" : how;
+    say.className = "asks-say"; say.textContent = path === "approve" ? "Running it..." : "";
+    post("api/asks/" + path, hour ? { id: id, allow_hour: true } : { id: id }, function (r) {
+      var running = r.ask && r.ask.state === "running";
+      return (path !== "approve" ? "Declined." : running ? "Started. It shows here when it's done, and the assistant can read how it went." :
+        "Done. The assistant can read how it went.") + (hour ? " Requests like it from the same caller run without asking you for the next hour." : "");
+    });
+  }
+  function post(url, body, said) {
+    fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Kia-Password": pass.value },
+                 body: JSON.stringify(body) }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
     }).then(function (r) {
       if (r._status !== 200) { say.className = "asks-say error"; say.textContent = r.error || "Something went wrong."; return; }
       try { sessionStorage.setItem(KEY, pass.value); } catch (e) {}
-      var running = r.ask && r.ask.state === "running";
-      say.textContent = how !== "approve" ? "Declined." : running ? "Started. It shows here when it's done, and the assistant can read how it went." :
-        "Done. The assistant can read how it went.";
+      say.textContent = typeof said === "function" ? said(r) : said;
       load();
     }, function () { say.className = "asks-say error"; say.textContent = "kia didn't answer. Is it running?"; });
   }

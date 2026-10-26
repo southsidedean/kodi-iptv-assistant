@@ -239,6 +239,6 @@ Most settings are explained by a comment in the file; the rest are described her
 - `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `site_connections`, `site_delay_ms`, `site_time_limit`, `accept_name_matches`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `playlist_guides`, `git_url`, `git_ref`, `runner`.
 - `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.
 - `[pluto]`: `relay`, the same as `KIA_PLUTO_RELAY` above.
-- `[asks]`: requests from AI assistants: `expires_minutes`, how long one waits for you (10), and `waiting`, how many can wait at once (5). See [asking kia to act](mcp.md#asking-kia-to-act).
+- `[asks]`: requests from AI assistants: `expires_minutes`, how long one waits for you (10), and `waiting`, how many can wait at once (5). See [asking kia to act](mcp.md#asking-kia-to-act). `auto_approve`, `auto_devices`, and `auto_per_hour` let some run without you ([letting requests run by themselves](mcp.md#letting-requests-run-by-themselves)).
 
 kia reads `kia.toml` when it starts, and again for each refresh. A number in quotes (`days = "3"`), a number out of range (`timeout = 0`), or a pattern that isn't a valid regular expression stops kia at the start, or that refresh later on, with one line that names the setting. With Docker, `docker compose logs kia` shows that line.

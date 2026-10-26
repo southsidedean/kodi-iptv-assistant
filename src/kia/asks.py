@@ -12,6 +12,14 @@ asked for, and again just before it runs. It waits at most EXPIRES seconds, at m
 WAITING are waiting at once, and one of each kind: an assistant can't pile them up.
 kia.toml's [asks] section can change both numbers (config.load checks them).
 
+You can let some requests run without you, all off until you choose to (why_auto):
+kia.toml's [asks] auto_approve lists kinds, and auto_devices can narrow those to some
+gateway devices; or Approve, and allow for an hour, on the Dashboard, for that kind from
+that caller. Only AUTO_KINDS qualify, at most per_hour a kind, and each still becomes a
+request, marked approved automatically, so the Dashboard and the assistant_asks notice
+show it. The settings live in kia.toml, which kia's container can read but not write; the
+hour's allowance lives in state/, needs the password to start, and lasts at most an hour.
+
 The files are kia's own (state/ is kia's to write), named by an id kia makes, and read back
 through files.read_object: one damaged into another shape counts as missing.
 """
@@ -45,6 +53,12 @@ KINDS = {
     "add_to_plex": "Add kia's channels to Plex as Live TV now",
     "check_stack": "Check a choice of parts for the stack (nothing changes)",
 }
+# The kinds that may run without you: they test, refresh, or check, as kia does by itself.
+# Not add_to_plex, which changes Plex's settings: that one always waits for you.
+AUTO_KINDS = ("test_channel", "refresh_guide", "check_stack")
+AUTO_PER_HOUR = 20  # automatic approvals a kind, an hour, unless [asks] says otherwise
+ALLOWED = "asks-allowed.json"  # in state/, beside asks/ (whose files must all be requests)
+ALLOW_FOR = 3600  # seconds the Dashboard's "allow for an hour" lasts
 # waiting for you; running once approved; done or failed after; declined; expired unanswered
 STATES = ("waiting", "running", "done", "failed", "declined", "expired")
 _LOCK = threading.Lock()
@@ -138,9 +152,10 @@ def get(state_dir: Path, ask_id: str, now: float | None = None) -> dict | None:
         return next((r for r in _all(state_dir, now) if r["id"] == ask_id), None)
 
 
-def take(state_dir: Path, ask_id: str, approve: bool, now: float | None = None) -> dict:
+def take(state_dir: Path, ask_id: str, approve: bool, now: float | None = None, auto: str = "") -> dict:
     """Answer a waiting request: it's running once approved (finish runs it), or declined.
-    Raises AskError for one that isn't waiting any more."""
+    Raises AskError for one that isn't waiting any more. auto: why it was approved without
+    you, kept with it."""
     now = time.time() if now is None else now
     with _LOCK:
         r = next((x for x in _all(state_dir, now) if x["id"] == ask_id), None) if ID.fullmatch(ask_id or "") else None
@@ -150,6 +165,8 @@ def take(state_dir: Path, ask_id: str, approve: bool, now: float | None = None) 
             raise AskError(f"That request is {r['state']} already.")
         # Marked before it runs, so a second click can't run it twice.
         r["state"], r["answered_at"] = ("running" if approve else "declined"), now
+        if auto:
+            r["auto"] = auto
         _write(state_dir, r)
     return r
 
@@ -172,3 +189,73 @@ def answer(state_dir: Path, ask_id: str, approve: bool, run: Callable[[str, dict
     """take and finish in one go: approve (run it, and keep how it went) or decline."""
     r = take(state_dir, ask_id, approve, now)
     return finish(state_dir, r, run, now) if approve else r
+
+
+def _allowances(state_dir: Path, now: float) -> list[dict]:
+    """The Dashboard's allowances still running. The file is in state/, so each entry is
+    checked: a kind that may run without you, the caller as kia names them, and an end no
+    more than an hour away."""
+    found = read_object(state_dir / ALLOWED).get("allowed")
+    out = []
+    for a in found if isinstance(found, list) else []:
+        if (isinstance(a, dict) and a.get("kind") in AUTO_KINDS and isinstance(a.get("who"), str)
+                and 0 < len(a["who"]) <= 100 and isinstance(a.get("until"), (int, float))
+                and now < a["until"] <= now + ALLOW_FOR):  # fmt: skip
+            out.append({"kind": a["kind"], "who": a["who"], "until": a["until"]})
+    return out
+
+
+def allowed(state_dir: Path, now: float | None = None) -> list[dict]:
+    """What the Dashboard allows for now: each kind and caller, and minutes left."""
+    now = time.time() if now is None else now
+    with _LOCK:
+        found = _allowances(state_dir, now)
+    return [{"kind": a["kind"], "who": a["who"], "minutes_left": max(1, round((a["until"] - now) / 60))} for a in found]
+
+
+def _save_allowances(state_dir: Path, found: list[dict]) -> None:
+    path = state_dir / ALLOWED
+    if not found:
+        path.unlink(missing_ok=True)
+        return
+    tmp = temp_name(path)
+    tmp.write_text(json.dumps({"allowed": found}, indent=1, ensure_ascii=False))
+    tmp.replace(path)
+
+
+def allow(state_dir: Path, kind: str, who: str, now: float | None = None) -> None:
+    """Let this kind from this caller run without you for the next hour. Raises AskError for a
+    kind that always waits for you."""
+    if kind not in AUTO_KINDS:
+        raise AskError(f"{KINDS.get(kind, 'That')}: kia always asks you about this one.")
+    now = time.time() if now is None else now
+    with _LOCK:
+        found = [a for a in _allowances(state_dir, now) if (a["kind"], a["who"]) != (kind, who)]
+        _save_allowances(state_dir, [*found, {"kind": kind, "who": who, "until": now + ALLOW_FOR}])
+
+
+def stop_allowing(state_dir: Path) -> None:
+    """End every allowance now: requests wait for you again."""
+    with _LOCK:
+        _save_allowances(state_dir, [])
+
+
+def why_auto(state_dir: Path, kind: str, who: str, device: str, kinds: tuple[str, ...] = (),
+             devices: tuple[str, ...] = (), per_hour: int = AUTO_PER_HOUR, now: float | None = None) -> str:  # fmt: skip
+    """Why a new request may run without you, in the Dashboard's words, or "" when it waits.
+    kinds and devices: kia.toml's auto_approve and auto_devices (devices empty: any caller);
+    device: the gateway device that asked, "" otherwise. A kind past per_hour automatic
+    approvals in the last hour waits for you, so an assistant stuck in a loop stops there."""
+    if kind not in AUTO_KINDS:
+        return ""
+    now = time.time() if now is None else now
+    with _LOCK:
+        recent = sum(1 for r in _all(state_dir, now)
+                     if r["kind"] == kind and r.get("auto") and now - r.get("answered_at", 0) < 3600)  # fmt: skip
+        if recent >= per_hour:
+            return ""
+        if kind in kinds and (not devices or device in devices):
+            return "kia.toml's auto_approve" + (f" for {device}" if devices else "")
+        if any((a["kind"], a["who"]) == (kind, who) for a in _allowances(state_dir, now)):
+            return "allowed for an hour on the Dashboard"
+    return ""
