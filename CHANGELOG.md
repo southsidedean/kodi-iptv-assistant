@@ -10,6 +10,10 @@ Three more tools ask the same way: `kia_refresh_guide` refreshes the guide from 
 
 You can let stream tests, guide refreshes, and stack checks run without asking you. **Approve, and allow these for an hour** on the Dashboard covers that kind from that assistant for an hour; `auto_approve` in `kia.toml` covers it always, and `auto_devices` limits that to some gateway devices. Each one still shows on the Dashboard, at most 20 of a kind run by themselves an hour, and adding channels to Plex always waits for you. All of it is off until you turn it on ([letting requests run by themselves](docs/mcp.md#letting-requests-run-by-themselves)).
 
+### New and gone channels
+
+Two new notices, off until you add them to your events: `new_channels` names the channels new to your playlists after each nightly run, and `channels_gone` the ones whose streams stopped working. Each is one message a night, naming up to 10. A channel counts as new only when it hasn't been in your playlists for 30 days (`history_days`), and kia starts the night after you update, so the first night doesn't announce every channel. `new_channels_with_guide` and `new_channels_categories` under `[alerts]` in `kia.toml` limit them to channels with guide data or to some categories. The Playlists page lists the week's new and gone channels under **New this week**, and assistants can ask with the new read-only `kia_whats_new` tool ([new and gone channels](docs/alerts.md#new-and-gone-channels)).
+
 ### Fixes
 
 - `scripts/update.sh` finishes an update with the new version's own copy of itself, when that's different. Until now the old version's script did the whole update, so updating from 0.7.0 to 0.7.1 didn't add `KIA_NAME` until a second run. That second run is still needed once for 0.7.1; from this version on, the new script takes over by itself.

@@ -178,6 +178,10 @@ TOOLS = [
                      "category": {"type": "string", "maxLength": 50, "description": "A guide category, such as Sports (kia's and Jellyfin's guides)"},
                      "hours": {"type": "number", "minimum": 0, "maximum": 168,
                                "description": "How far ahead to look: 0 for on now; 24 if left out"}}}),
+    ("kia_whats_new", "New and gone channels",
+     "Channels new to kia's playlists in the last 7 days, and channels gone from them because their streams "
+     "stopped working, newest first: each one's ID (or name key), name, category, and when. A channel is new "
+     "only when it wasn't in the playlists for the days kia keeps each stream's record.", _NO_ARGS),
     ("kia_docs", "kia's docs",
      "Search kia's own documentation (the copy installed with this kia, so it matches its version) for "
      "the sections that best match some words: setup steps, settings, troubleshooting, how things work. "
@@ -489,6 +493,15 @@ def _ran_by_itself(api_cfg, r: dict, reason: str, link: str) -> dict:
                     "It's running: read how it went with kia_request_status.")}  # fmt: skip
 
 
+def _whats_new(conf: Config, _args: dict, _api) -> dict:
+    from kia import newchannels
+
+    news = newchannels.this_week(conf.state_dir)
+    if not news["new"] and not news["gone"]:
+        news["note"] = "Nothing new or gone in the last 7 days (kia starts noting them the night after it's updated)."
+    return news
+
+
 def _request_status(conf: Config, args: dict, api_cfg) -> dict:
     from kia import api, asks
 
@@ -499,7 +512,7 @@ def _request_status(conf: Config, args: dict, api_cfg) -> dict:
 RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": _find, "kia_plex": _plex, "kia_guide": _guide, "kia_pluto": _pluto, "kia_setup": _setup,
        "kia_hardware": _hardware, "kia_jellyfin": _jellyfin,
        "kia_playlists": _playlists, "kia_stack": _stack, "kia_settings": _settings,
-       "kia_whats_on": _whats_on, "kia_find_shows": _find_shows, "kia_docs": _docs,
+       "kia_whats_on": _whats_on, "kia_find_shows": _find_shows, "kia_docs": _docs, "kia_whats_new": _whats_new,
        "kia_test_channel": _test_channel, "kia_refresh_guide": _refresh_guide, "kia_add_to_plex": _add_to_plex,
        "kia_check_stack": _check_stack, "kia_request_status": _request_status}  # fmt: skip
 

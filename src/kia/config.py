@@ -430,6 +430,8 @@ def _load_alerts(alerts: dict) -> AlertConfig:
         events=tuple(chosen),
         drop_percent=_number("[alerts] drop_percent", alerts.get("drop_percent", 25), above=0, most=100),
         site_fail_runs=_whole("[alerts] site_fail_runs", alerts.get("site_fail_runs", 3), 1),
+        new_with_guide=_switch("[alerts] new_channels_with_guide", alerts.get("new_channels_with_guide", False)),
+        new_categories=_texts("[alerts] new_channels_categories", alerts.get("new_channels_categories", []), '["News", "Sports"]'),
         email=_load_email(alerts.get("email", {})),
     )
 

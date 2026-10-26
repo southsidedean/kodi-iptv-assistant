@@ -19,6 +19,8 @@ Alerts are off until you choose where to send them. Until then they're written t
 | `pluto_fallback` | no | kia couldn't open a session of its own with Pluto TV for 5 minutes, so a Pluto channel is playing without kia's fix and may freeze at ad breaks. You hear about each channel at most once an hour. |
 | `assistant_asks` | no | An AI assistant asked kia to do something, such as test a stream, which waits for you to approve it on the Dashboard ([asking kia to act](mcp.md#asking-kia-to-act)). Tapping it on ntfy opens the Dashboard. A notice, not an alert. |
 | `daily_summary` | no | A short "all done" message after each run, e.g. "1174 working channels, 541 with guide data". It's handy at first, to see that everything works. |
+| `new_channels` | no | Channels new to your playlists, once a night after the run, naming up to 10 ([new and gone channels](#new-and-gone-channels)). A notice, not an alert. |
+| `channels_gone` | no | Channels gone from your playlists because their streams stopped working, once a night after the run. A notice, not an alert. |
 
 Each alert's title has the kia's name, such as `kia (den): nightly run failed`, so with more than one kia sending to the same place you know which one it is. The name is this computer's unless you change it on the Dashboard's **System** page or with `KIA_NAME` in `.env` ([settings](configuration.md)). On ntfy, tapping the alert opens that kia's Dashboard.
 
@@ -76,6 +78,22 @@ The settings view on the Dashboard shows only whether email is set up, never the
 
 `KIA_ALERT_COMMAND` runs any shell command for each alert, inside the kia container, with `$KIA_ALERT_EVENT`, `$KIA_ALERT_TITLE`, and `$KIA_ALERT_MESSAGE` set. The container includes `curl`, so anything with a simple web address for posting messages works. In `.env`, put the command in single quotes, such as `KIA_ALERT_COMMAND='curl -d "$KIA_ALERT_MESSAGE" https://example.com/hook'`: without them, Docker fills in `$KIA_ALERT_MESSAGE` itself, from `.env`, before kia ever sees it, and it comes out empty. You can use ntfy, email, and a command together.
 
+## New and gone channels
+
+Free playlists change. To hear about new channels, add `new_channels` to your events ([choosing events](#choosing-events)), and `channels_gone` for the ones that stop working. After each nightly run you get at most one message of each, such as "kia: 3 new channels" with their names (up to 10, then a count).
+
+A channel is new when it hasn't been in your playlists for 30 days (`history_days` in `kia.toml`), so one that drops out for a night or two and comes back isn't new again. A channel is gone when its stream stopped working past kia's grace nights (`grace_failures`, 2 by default). Channels you remove on the Dashboard aren't counted as gone. On kia's first night, everything is new, so kia says nothing; it starts the night after.
+
+To hear only about some channels, add filters under `[alerts]` in `kia.toml`:
+
+```toml
+[alerts]
+new_channels_with_guide = true                  # only channels with guide data
+new_channels_categories = ["News", "Sports"]    # only these categories
+```
+
+The Dashboard's **Playlists** page lists the channels new and gone in the last week under **New this week**, with or without the notices. An AI assistant can ask the same with `kia_whats_new` ([kia's MCP server](mcp.md)).
+
 ## Choosing events
 
 `KIA_ALERT_EVENTS` in `.env` picks which events notify you, comma-separated. For example, to add the nightly summary to the defaults:
@@ -86,4 +104,4 @@ KIA_ALERT_EVENTS=dns_local,run_failed,channels_drop,guide_drop,site_failing,part
 
 The thresholds are in `kia.toml` under `[alerts]`: `drop_percent` (default 25) and `site_fail_runs` (default 3).
 
-Alerts for the events you've turned on are also recorded in `state/alerts.log`, whether or not notifications are set up, and a run that raised one exits with code 3 (the daily summary isn't an alert, so it's neither), in case you monitor kia with other tools.
+Alerts for the events you've turned on are also recorded in `state/alerts.log`, whether or not notifications are set up, and a run that raised one exits with code 3, in case you monitor kia with other tools. Notices (`daily_summary`, `assistant_asks`, `new_channels`, `channels_gone`) aren't alerts, so they're neither.

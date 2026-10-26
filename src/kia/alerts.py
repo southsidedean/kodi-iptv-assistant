@@ -36,12 +36,14 @@ EVENTS = {
     "playlist_lan": "a playlist from the internet pointed kia at your own network",
     "daily_summary": "a short summary after every successful run (not an alert)",
     "assistant_asks": "an AI assistant asks kia to do something you approve on the Dashboard (not an alert)",
+    "new_channels": "channels new to your playlists, after the nightly run (not an alert)",
+    "channels_gone": "channels gone from your playlists, as their streams stopped working (not an alert)",
 }
 DEFAULT_EVENTS = ("dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing", "part_down", "guessing",
                   "playlist_lan")  # fmt: skip
 # Notices, not alerts: sent only when turned on, and never logged to alerts.log or
 # counted in exit codes.
-NOTICES = {"daily_summary", "assistant_asks"}
+NOTICES = {"daily_summary", "assistant_asks", "new_channels", "channels_gone"}
 URGENT = {"dns_local", "run_failed"}
 
 
@@ -66,6 +68,10 @@ class AlertConfig:
     events: tuple[str, ...] = DEFAULT_EVENTS
     drop_percent: int = 25
     site_fail_runs: int = 3
+    # new_channels and channels_gone name only channels with guide data, or in these
+    # categories (kia.newchannels).
+    new_with_guide: bool = False
+    new_categories: tuple[str, ...] = ()
 
 
 def sharp_drop(previous: int | None, current: int, percent: int) -> bool:

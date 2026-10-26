@@ -110,7 +110,7 @@ claude mcp add --scope user --transport http kia https://192.168.1.20:8743/api/m
 NODE_EXTRA_CA_CERTS=~/kia-cert.pem claude
 ```
 
-To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with twenty tools.
+To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with twenty-one tools.
 
 Claude Code saves the token in its settings (`~/.claude.json`), and your shell keeps the command in its history: keep both private.
 
@@ -285,6 +285,7 @@ The assistant then sees each kia's tools under its own server's name, and each k
 | `kia_settings` | The settings kia is running with, and where each is changed |
 | `kia_whats_on` | What's on a channel (or up to 5 that match) now and next, from kia's guide for the next 14 hours. With Plex, also Plex's own channels (an antenna's), by name, call sign, or number |
 | `kia_find_shows` | Shows in the guides that match some words or a category, now or up to a week ahead: kia's guide, and Plex's and Jellyfin's own guides (an antenna's, say). Up to 25, the ones named for the words first, each with its channel, number, times, and where to watch it |
+| `kia_whats_new` | Channels new to your playlists in the last week, and those gone because their streams stopped working ([new and gone channels](alerts.md#new-and-gone-channels)) |
 | `kia_docs` | The sections of kia's own docs, the copy installed with your kia, that best match some words, with links |
 
 That's what the Dashboard shows to anyone on your network, plus a few things from programs in your stack: the names of the computer's disks and where they're mounted (`kia_hardware`, from Prometheus, as Grafana shows them), Jellyfin's Live TV settings (`kia_jellyfin`), and the guide listings of Plex's and Jellyfin's own channels, such as an antenna's (`kia_find_shows`, `kia_whats_on`). These tools only read. Passwords, tokens, and alert addresses show only as set or not set, and user names and passwords inside addresses are hidden.
@@ -372,7 +373,7 @@ Think about who holds the token before you turn this on. Without the gateway, `a
 - **Endpoint:** `POST https://<address>:<secure port>/api/mcp`, MCP's Streamable HTTP transport in its simplest form: one JSON answer per request (no event stream), `202` with no body for a notification or response, `405` for `GET`, no sessions, no JSON-RPC batches. With Docker, nginx terminates HTTPS and passes `/api/` to kia.
 - **Versions:** `2025-11-25` and `2025-06-18`. A request with another `MCP-Protocol-Version` gets `400`; `initialize` answers with the client's version if kia has it, else `2025-11-25`.
 - **Authentication:** `Authorization: Bearer <token>`, the token from `kia mcp-token` (in `state/mcp-token.txt`). Wrong tokens are slowed down per address, apart from wrong Dashboard passwords; each address can make 60 tool calls a minute. Requests whose `Origin` is another site are refused.
-- **Tools:** the twenty above. The sixteen that only read have `readOnlyHint: true`; the four that ask have `readOnlyHint: false` and `openWorldHint: true`, and none is `destructiveHint`; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
+- **Tools:** the twenty-one above. The seventeen that only read have `readOnlyHint: true`; the four that ask have `readOnlyHint: false` and `openWorldHint: true`, and none is `destructiveHint`; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
 - **Through the gateway:** `POST https://<address>:8745/mcp` with `Authorization: Bearer <device key>`. agentgateway checks the key against its SHA-256 in `gateway/config.yaml`, limits each device, logs the call, and passes it to kia's `/api/mcp` on a network of its own, with its own token (`gateway/kia-token`) and the device's name in `X-Kia-Device`, which kia uses for its limit and log only with that token. It keeps no sessions, as kia doesn't. Over its limit, it answers with JSON-RPC error `-32003`.
 - **Locally:** `kia mcp` speaks the same over standard input and output (MCP's stdio transport), one JSON message per line, with kia's own lines on standard error.
 - **By hand:**

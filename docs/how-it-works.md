@@ -136,6 +136,7 @@ The same information, for scripts and monitoring tools such as Uptime Kuma or Ho
 | `env_private` | Whether `.env` is readable only by you: `false` puts a warning on the Dashboard, and `null` means there's no `.env` |
 | `pluto_channels` | The Pluto TV channels in the playlist that play through kia, by Pluto channel ID, with their names |
 | `plex_players` | How many Plex and Jellyfin players kia has seen; which is which is on the secure System page |
+| `whats_new` | Channels `new` to the playlists in the last week, and `gone` from them, newest first: each one's `key`, `name`, `group`, `radio`, and `since` (UTC) ([new and gone channels](alerts.md#new-and-gone-channels)) |
 | `files` | The files in the output folder |
 | `version` | kia's version |
 

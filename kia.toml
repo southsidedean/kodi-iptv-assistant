@@ -135,6 +135,9 @@ verify_resolvers = ["8.8.8.8", "1.1.1.1"]
 #   guessing       10 wrong tries at the Dashboard's password or the MCP token from one address
 #   playlist_lan   a playlist from the internet pointed kia at your own network
 #   daily_summary  an "all done" message after each run (off unless you add it)
+#   assistant_asks an AI assistant asks kia to do something (off unless you add it)
+#   new_channels   channels new to your playlists, after each run (off unless you add it)
+#   channels_gone  channels gone because their streams stopped working (off unless you add it)
 #   pluto_fallback a Pluto TV channel played without kia's fix for 5 minutes (off unless you add it)
 events = ["dns_local", "run_failed", "channels_drop", "guide_drop", "site_failing", "part_down", "guessing", "playlist_lan"]
 
@@ -143,6 +146,11 @@ drop_percent = 25
 
 # Failed runs in a row before site_failing alerts. You hear about it once per streak.
 site_fail_runs = 3
+
+# new_channels and channels_gone name only channels with guide data, or only these
+# categories (the playlists' group-title), when you set these.
+# new_channels_with_guide = true
+# new_channels_categories = ["News", "Sports"]
 
 # Email alerts (docs/alerts.md#email). .env's KIA_SMTP_* and KIA_EMAIL_* settings do the
 # same, and keep the password out of this file. security is starttls (port 587), ssl (465),

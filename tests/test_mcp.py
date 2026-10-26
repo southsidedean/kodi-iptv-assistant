@@ -146,7 +146,7 @@ def test_every_tool_but_those_that_ask_only_reads_and_answers(kia):
     status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert status == 200
     tools = body["result"]["tools"]
-    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 20
+    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 21
     assert not any(t["annotations"]["destructiveHint"] for t in tools)
     assert {t["name"] for t in tools if not t["annotations"]["readOnlyHint"]} == mcp.ASKING == {
         "kia_test_channel", "kia_refresh_guide", "kia_add_to_plex", "kia_check_stack"}
