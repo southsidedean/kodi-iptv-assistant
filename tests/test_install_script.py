@@ -1,6 +1,7 @@
 """scripts/install.sh, run for real in a kia folder: it makes .env, sets the preset, and starts
 what the preset needs. Docker, uname, and nc are stand-ins; there's no terminal to answer."""
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -165,7 +166,8 @@ def test_the_preset_uses_your_plex_port_and_a_url_with_a_slash(kia: Path):
     r = install(kia, "--preset", "plex-box", "--yes")
     assert r.returncode == 0, r.stdout + r.stderr
     assert "KIA_PLEX_ADVERTISE=http://my-server.lan:32401/\n" in env(kia)
-    assert "https://my-server.lan:8743/" in r.stdout and ":8780:" not in r.stdout  # not my-server.lan:8780:8743
+    # The whole line, so a host such as my-server.lan:8780 (port left on) can't pass.
+    assert re.search(r"^Secure Dashboard: +https://my-server\.lan:8743/ ", r.stdout, flags=re.M), r.stdout
 
 
 def test_the_preset_menu_says_what_each_one_asks_of_you(kia: Path):
