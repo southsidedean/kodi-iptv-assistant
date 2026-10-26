@@ -6,6 +6,8 @@
 
 kia's MCP server has its first tool that acts: `kia_test_channel` asks kia to test a channel's stream now. It doesn't run the test; it leaves a request, and the Dashboard's front page shows it under **Requests from assistants**, with what it will do and who asked. Nothing happens until you approve it there with the password, and kia then runs the same code as the Dashboard's **Test** button. The assistant reads how it went with `kia_request_status`. Requests expire after 10 minutes, at most 5 wait at once, and none can change your setup. The `assistant_asks` notice, off by default, tells you about each one on your phone ([asking kia to act](docs/mcp.md#asking-kia-to-act)).
 
+Three more tools ask the same way: `kia_refresh_guide` refreshes the guide from the quick sources, `kia_add_to_plex` adds kia's channels to Plex as the Stack page's button does, and `kia_check_stack` checks a choice of parts without applying it. They can take a few minutes, so Approve starts them, and the card shows how it went when they finish. How long a request waits, and how many can wait, are now settings: `[asks]` in `kia.toml`.
+
 ### Fixes
 
 - `scripts/update.sh` finishes an update with the new version's own copy of itself, when that's different. Until now the old version's script did the whole update, so updating from 0.7.0 to 0.7.1 didn't add `KIA_NAME` until a second run. That second run is still needed once for 0.7.1; from this version on, the new script takes over by itself.

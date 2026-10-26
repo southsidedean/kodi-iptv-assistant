@@ -45,11 +45,10 @@ def test_an_assistant_cant_pile_them_up(tmp_path: Path, monkeypatch):
     again = asks.ask(tmp_path, "test_channel", {"key": "k2"}, "two", now=T)
     assert again["id"] == first["id"] and again["already"]  # one of each kind waiting
     monkeypatch.setitem(asks.KINDS, "other", "Something else")
-    monkeypatch.setattr(asks, "WAITING", 2)
-    asks.ask(tmp_path, "other", {}, "other", now=T)
+    asks.ask(tmp_path, "other", {}, "other", now=T, waiting=2)
     monkeypatch.setitem(asks.KINDS, "third", "A third")
     with pytest.raises(asks.AskError, match="2 requests are already waiting"):
-        asks.ask(tmp_path, "third", {}, "third", now=T)
+        asks.ask(tmp_path, "third", {}, "third", now=T, waiting=2)
 
 
 @pytest.mark.parametrize("ask_id", ["", "../x", "0123456789abcdeG", "0" * 17, "0" * 15])
@@ -69,3 +68,17 @@ def test_a_damaged_or_planted_file_is_never_a_request(tmp_path: Path):
     (folder / "aaaaaaaaaaaaaaaa.json").write_text(json.dumps(good))  # its name isn't its id
     (folder / "bbbbbbbbbbbbbbbb.json").write_text("[1, 2]")
     assert asks.listing(tmp_path, now=T) == [] and not list(folder.glob("*.json"))
+
+
+def test_a_request_kia_restarted_under_is_failed_not_running_for_ever(tmp_path: Path):
+    r = asks.ask(tmp_path, "refresh_guide", {}, "Refresh the guide", now=T)
+    assert asks.take(tmp_path, r["id"], True, now=T)["state"] == "running"  # then kia restarted
+    assert asks.get(tmp_path, r["id"], now=T + 60)["state"] == "running"
+    gone = asks.get(tmp_path, r["id"], now=T + asks.RUNNING_UP_TO + 1)
+    assert gone["state"] == "failed" and "restarted" in gone["error"]
+
+
+def test_how_long_a_request_waits_is_the_callers(tmp_path: Path):
+    r = asks.ask(tmp_path, "test_channel", {"key": "k"}, "one", now=T, expires=3600)
+    assert asks.get(tmp_path, r["id"], now=T + asks.EXPIRES + 1)["state"] == "waiting"
+    assert asks.get(tmp_path, r["id"], now=T + 3601)["state"] == "expired"

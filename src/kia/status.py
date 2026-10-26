@@ -490,7 +490,7 @@ ASKS_SCRIPT = """
     if (a.error) return "Didn't work: " + a.error;
     var r = a.result || {};
     if (a.kind === "test_channel" && "ok" in r) return r.ok ? "The stream works" + (r.height ? ", " + r.height + "p" : "") + "." : "The stream failed: " + (r.error || "no reason given") + ".";
-    return "";
+    return r.summary || "";
   }
   function show(asks) {
     list.textContent = "";
@@ -513,7 +513,11 @@ ASKS_SCRIPT = """
       list.appendChild(li);
     });
     card.hidden = !asks.length;
+    // While one runs (a guide refresh, say), look again soon for how it went.
+    clearTimeout(soon);
+    if (asks.some(function (a) { return a.state === "running"; })) soon = setTimeout(load, 3000);
   }
+  var soon;
   function load() {
     fetch("api/asks").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) show(d.asks || []); }).catch(function () {});
   }
@@ -525,7 +529,9 @@ ASKS_SCRIPT = """
     }).then(function (r) {
       if (r._status !== 200) { say.className = "asks-say error"; say.textContent = r.error || "Something went wrong."; return; }
       try { sessionStorage.setItem(KEY, pass.value); } catch (e) {}
-      say.textContent = how === "approve" ? "Done. The assistant can read how it went." : "Declined.";
+      var running = r.ask && r.ask.state === "running";
+      say.textContent = how !== "approve" ? "Declined." : running ? "Started. It shows here when it's done, and the assistant can read how it went." :
+        "Done. The assistant can read how it went.";
       load();
     }, function () { say.className = "asks-say error"; say.textContent = "kia didn't answer. Is it running?"; });
   }

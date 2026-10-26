@@ -109,7 +109,7 @@ claude mcp add --scope user --transport http kia https://192.168.1.20:8743/api/m
 NODE_EXTRA_CA_CERTS=~/kia-cert.pem claude
 ```
 
-To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with fifteen tools.
+To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with twenty tools.
 
 Claude Code saves the token in its settings (`~/.claude.json`), and your shell keeps the command in its history: keep both private.
 
@@ -290,18 +290,31 @@ That's what the Dashboard shows to anyone on your network, plus a few things fro
 
 ## Asking kia to act
 
-Some tools ask kia to do something, such as testing a channel's stream now. Such a tool doesn't do it: it leaves a request, and nothing happens until you approve it on the Dashboard.
+Some tools ask kia to do something, such as testing a channel's stream or refreshing the guide now. Such a tool doesn't do it: it leaves a request, and nothing happens until you approve it on the Dashboard.
 
 1. You ask your assistant, say, "test CNN's stream". It calls `kia_test_channel`, which leaves a request and gives the assistant a link to the secure Dashboard to pass on to you.
 2. The Dashboard's front page shows it under **Requests from assistants**, with what it will do and who asked (the device's name, through the gateway). Approve it with the password, or decline it.
-3. kia runs it with the same code as the Dashboard's own button. The assistant reads how it went with `kia_request_status`, and tells you.
+3. kia runs it with the same code as the Dashboard's own button, or the same command kia runs by itself. A stream test answers at once; the others take from a few seconds to a few minutes, and the card shows how it went when it's done. The assistant reads how it went with `kia_request_status`, and tells you.
 
 | Tool | What it asks for |
 |---|---|
 | `kia_test_channel` | Test one channel's stream now, as the Dashboard's **Test** button does. The channel's ID, or part of its name, must match just one channel |
-| `kia_request_status` | How a request went: waiting, declined, expired, or done, with its result (this one only reads) |
+| `kia_refresh_guide` | Refresh the guide now from the quick sources, as kia does every few hours by itself. With an [upstream kia](guide-under-the-hood.md#with-an-upstream-server), it copies that one's guide again |
+| `kia_add_to_plex` | Add kia's channels to Plex as Live TV now, as the **Stack** page's button does. Only once kia knows where Plex is (`KIA_PLEX_URL`) |
+| `kia_check_stack` | Check a choice of parts, as the **Stack** page's **Check** does. It only checks: applying a choice stays on the Dashboard. Needs Docker and the kia-stack service |
+| `kia_request_status` | How a request went: waiting, running, declined, expired, or done or failed, with its result (this one only reads) |
 
-A request waits 10 minutes, then expires. At most 5 wait at once, one of each kind; asking again for a kind that's waiting gives back the same request. Requests that change your setup, such as a stack change, passwords, settings, or sources, can't be asked for at all. To hear about each request on your phone, turn on the `assistant_asks` notice ([alerts](alerts.md#choosing-events)); tapping it opens the Dashboard.
+A request waits 10 minutes, then expires. At most 5 wait at once, one of each kind; asking again for a kind that's waiting gives back the request already waiting. Requests that change your setup, such as applying a stack change, passwords, settings, or sources, can't be asked for at all.
+
+To change how long a request waits, or how many can wait, set them in `kia.toml`:
+
+```toml
+[asks]
+expires_minutes = 60   # 1 to 1440, a day
+waiting = 5            # 1 to 20
+```
+
+Restart kia afterwards (`docker compose restart kia`). To hear about each request on your phone, turn on the `assistant_asks` notice ([alerts](alerts.md#choosing-events)); tapping it opens the Dashboard.
 
 ## Privacy and safety
 
@@ -335,7 +348,7 @@ A request waits 10 minutes, then expires. At most 5 wait at once, one of each ki
 - **Endpoint:** `POST https://<address>:<secure port>/api/mcp`, MCP's Streamable HTTP transport in its simplest form: one JSON answer per request (no event stream), `202` with no body for a notification or response, `405` for `GET`, no sessions, no JSON-RPC batches. With Docker, nginx terminates HTTPS and passes `/api/` to kia.
 - **Versions:** `2025-11-25` and `2025-06-18`. A request with another `MCP-Protocol-Version` gets `400`; `initialize` answers with the client's version if kia has it, else `2025-11-25`.
 - **Authentication:** `Authorization: Bearer <token>`, the token from `kia mcp-token` (in `state/mcp-token.txt`). Wrong tokens are slowed down per address, apart from wrong Dashboard passwords; each address can make 60 tool calls a minute. Requests whose `Origin` is another site are refused.
-- **Tools:** the fifteen above, each with `readOnlyHint` set; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
+- **Tools:** the twenty above. The sixteen that only read have `readOnlyHint: true`; the four that ask have `readOnlyHint: false` and `openWorldHint: true`, and none is `destructiveHint`; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
 - **Through the gateway:** `POST https://<address>:8745/mcp` with `Authorization: Bearer <device key>`. agentgateway checks the key against its SHA-256 in `gateway/config.yaml`, limits each device, logs the call, and passes it to kia's `/api/mcp` on a network of its own, with its own token (`gateway/kia-token`) and the device's name in `X-Kia-Device`, which kia uses for its limit and log only with that token. It keeps no sessions, as kia doesn't. Over its limit, it answers with JSON-RPC error `-32003`.
 - **Locally:** `kia mcp` speaks the same over standard input and output (MCP's stdio transport), one JSON message per line, with kia's own lines on standard error.
 - **By hand:**

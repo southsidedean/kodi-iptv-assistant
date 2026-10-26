@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from kia import api, auth, cli, mcp, serve, tls
+from kia import api, asks, auth, cli, mcp, serve, tls
 from kia.m3u import Entry, write
 
 TOKEN = "t0ken-for-tests"
@@ -138,16 +138,18 @@ def test_bad_messages(kia):
 def args_for(name: str) -> dict:
     """Arguments a tool accepts, for calling each one."""
     properties = dict(mcp.RUN_SCHEMAS)[name].get("properties", {})
-    return {"query": "CNN"} if "query" in properties else {"id": "0" * 16} if "id" in properties else {}
+    return ({"query": "CNN"} if "query" in properties else {"id": "0" * 16} if "id" in properties
+            else {"parts": []} if "parts" in properties else {})  # fmt: skip
 
 
 def test_every_tool_but_those_that_ask_only_reads_and_answers(kia):
     status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert status == 200
     tools = body["result"]["tools"]
-    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 17
+    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 20
     assert not any(t["annotations"]["destructiveHint"] for t in tools)
-    assert {t["name"] for t in tools if not t["annotations"]["readOnlyHint"]} == mcp.ASKING == {"kia_test_channel"}
+    assert {t["name"] for t in tools if not t["annotations"]["readOnlyHint"]} == mcp.ASKING == {
+        "kia_test_channel", "kia_refresh_guide", "kia_add_to_plex", "kia_check_stack"}
     before = sorted(p.name for p in kia.state_dir.parent.rglob("*"))
     for t in tools:
         if t["name"] in mcp.ASKING:
@@ -478,3 +480,117 @@ def test_a_request_names_just_one_channel(kia):
     none = call_tool(kia, "kia_test_channel", {"query": "nothing like it"})["structuredContent"]
     assert not none["asked"] and none["why"] == "No channel matches that."
     assert not (kia.state_dir / "asks").exists()
+
+
+def approve(kia, ask_id):
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}
+    return api.handle(kia, "POST", "/api/asks/approve", headers, json.dumps({"id": ask_id}).encode(), True)
+
+
+def finished(kia, ask_id):
+    """The request once its thread is done: slow kinds run after Approve has answered."""
+    for _ in range(200):
+        r = api._shown(asks.get(kia.state_dir, ask_id))  # not the tool: 60 calls a minute
+        if r["state"] != "running":
+            return r
+        threading.Event().wait(0.01)  # not time.sleep: the tests stand in for it
+    pytest.fail("still running")
+
+
+def test_the_slow_kinds_start_on_approve_and_answer_later(kia, monkeypatch):
+    ran = []
+    monkeypatch.setattr(api, "_refresh_guide", lambda cfg: ran.append("guide") or {"ok": True, "summary": "Refreshed 3 of 3 quick guide sources"})
+    asked = call_tool(kia, "kia_refresh_guide")["structuredContent"]
+    assert asked["asked"] and asked["what"] == "Refresh the guide now from the quick sources, and rebuild it" and not ran
+    status, answer = approve(kia, asked["id"])
+    assert status == 200 and answer["ask"]["state"] in ("running", "done")
+    done = finished(kia, asked["id"])
+    assert done["state"] == "done" and done["result"]["summary"].startswith("Refreshed") and ran == ["guide"]
+    # With an upstream kia, a guide refresh copies that one's again, and says so.
+    kia.config_file.write_text('[upstream]\nurl = "http://192.0.2.7:8742/guide.xml"\n')
+    assert call_tool(kia, "kia_refresh_guide")["structuredContent"]["what"].startswith("Copy the guide from the upstream")
+
+
+def test_add_to_plex_needs_a_plex(kia, monkeypatch):
+    monkeypatch.delenv("KIA_PLEX_URL", raising=False)
+    nope = call_tool(kia, "kia_add_to_plex")["structuredContent"]
+    assert not nope["asked"] and "KIA_PLEX_URL" in nope["why"] and not (kia.state_dir / "asks").exists()
+    monkeypatch.setenv("KIA_PLEX_URL", "http://plex:32400")
+    monkeypatch.setattr(api, "_run_plex_tuners", lambda cfg: api.PLEX_TUNERS.update({"ok": True, "output": "Added 2 tuners"}))
+    asked = call_tool(kia, "kia_add_to_plex")["structuredContent"]
+    approve(kia, asked["id"])
+    done = finished(kia, asked["id"])
+    assert done["result"] == {"ok": True, "summary": "kia's channels are in Plex.", "output": "Added 2 tuners"}
+    assert not api.PLEX_TUNERS["running"] or api.PLEX_TUNERS.get("ok")  # the Stack page's button sees it too
+
+
+def test_check_stack_only_checks_and_only_known_parts(kia, monkeypatch):
+    from kia import stack
+
+    monkeypatch.delenv("KIA_COMPOSE_PROFILES", raising=False)
+    assert "without Docker" in call_tool(kia, "kia_check_stack", {"parts": []})["structuredContent"]["why"]
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "")
+    service = kia.config_file.parent / stack.SERVICE_DIR
+    assert "isn't running" in call_tool(kia, "kia_check_stack", {"parts": []})["structuredContent"]["why"]
+    service.mkdir()
+    (service / stack.CONTAINERS).write_text("kia\trunning\thealthy\tUp\n")  # the service is there
+    for bad in (["plex", "nope"], "plex", ["plex"] * 11):
+        _, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "kia_check_stack", "arguments": {"parts": bad}}})
+        assert body["result"]["isError"], bad
+    asked = call_tool(kia, "kia_check_stack", {"parts": ["jellyfin", "plex", "plex"]})["structuredContent"]
+    assert asked["what"] == "Check the stack with plex, jellyfin (it only checks; nothing changes)"
+    assert not (kia.state_dir / stack.REQUEST).exists()  # nothing for the service until it's approved
+
+    def service_answers(seconds):  # the kia-stack service takes the request and answers
+        rid = stack._request_id(kia.state_dir / stack.REQUEST)
+        (service / stack.RESULT).write_text(f"id={rid}\naction=check\nstate=finished\nexit=0\n\nAll good\n")
+
+    monkeypatch.setattr(api.time, "sleep", service_answers)
+    approve(kia, asked["id"])
+    done = finished(kia, asked["id"])
+    assert done["result"]["ok"] and done["result"]["output"] == "All good"
+    assert "action=check\nstack=plex,jellyfin\n" in (kia.state_dir / stack.REQUEST).read_text()  # never apply
+
+
+def test_the_settings_limits_are_used(kia):
+    kia.config_file.write_text("[asks]\nexpires_minutes = 90\nwaiting = 1\n")
+    asked = call_tool(kia, "kia_test_channel", {"query": "CNN"})["structuredContent"]
+    assert call_tool(kia, "kia_request_status", {"id": asked["id"]})["structuredContent"]["minutes_left"] in (89, 90)
+    full = call_tool(kia, "kia_refresh_guide")["structuredContent"]
+    assert not full["asked"] and "1 request is already waiting" in full["why"]
+
+
+def test_what_a_guide_refresh_says(kia, monkeypatch):
+    import subprocess
+
+    def run(cmd, **kw):
+        assert cmd[-3:] == ["refresh-guide", "-c", str(kia.config_file)]
+        return subprocess.CompletedProcess(cmd, code, "", said)
+
+    monkeypatch.setattr(api.subprocess, "run", run)
+    code, said = 0, "Downloading i.mjh.nz\nRefreshed 3 of 4 quick guide sources\nWrote output/guide.xml\n"
+    assert api._refresh_guide(kia)["summary"] == "Refreshed 3 of 4 quick guide sources, and the guide was rebuilt."
+    code, said = 75, "A refresh is already running (the nightly refresh). Try again when it's done.\n"
+    done = api._refresh_guide(kia)
+    assert not done["ok"] and done["summary"] == "The guide refresh didn't finish: " + said.strip()
+
+
+def test_a_stack_service_that_never_answers(kia, monkeypatch):
+    from kia import stack
+
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "")
+    monkeypatch.setattr(api, "STACK_CHECK_UP_TO", 0)
+    assert "didn't answer" in api._check_stack(kia, [])["summary"]
+    service = kia.config_file.parent / stack.SERVICE_DIR
+    service.mkdir()
+
+    def refused(seconds):  # the service takes the request, and refuses it
+        rid = stack._request_id(kia.state_dir / stack.REQUEST)
+        (kia.state_dir / stack.REQUEST).unlink()
+        (service / stack.RESULT).write_text(f"id={rid}\naction=check\nstate=refused\nexit=2\n\nAn old request\n")
+
+    (kia.state_dir / stack.REQUEST).unlink()  # the first one, which nobody took
+    monkeypatch.setattr(api, "STACK_CHECK_UP_TO", 60)
+    monkeypatch.setattr(api.time, "sleep", refused)
+    done = api._check_stack(kia, [])
+    assert done["ok"] is False and done["output"] == "An old request"

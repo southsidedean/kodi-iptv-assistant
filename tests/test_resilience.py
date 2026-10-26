@@ -350,6 +350,10 @@ def test_kia_always_uses_its_own_esbuild(tmp_path: Path, monkeypatch):
     ("[epg]\nmax_connections = 0\n", "max_connections"),
     ('[epg]\nsite_time_limit = "30"\n', "site_time_limit"),
     ('[epg]\ndays = "3"\n', "days"),
+    ("[asks]\nexpires_minutes = 0\n", "expires_minutes"),
+    ("[asks]\nexpires_minutes = 1441\n", "expires_minutes"),
+    ("[asks]\nwaiting = 21\n", "waiting"),
+    ("[asks]\nwaiting = true\n", "waiting"),
 ])  # fmt: skip
 def test_a_bad_value_in_kia_toml_is_named_at_the_start(tmp_path: Path, monkeypatch, capsys, extra, named):
     monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
@@ -366,8 +370,9 @@ def test_good_values_in_kia_toml_still_load(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
     (tmp_path / "list.m3u").write_text("#EXTM3U\n")
     cfg = load(make_cfg(tmp_path, 'timeout = 7.5\nhistory_days = 10\n[filters]\nexclude_name_patterns = ["(?i)adult"]\n'
-                                  "[alerts]\ndrop_percent = 12.5\n"))  # fmt: skip
+                                  "[alerts]\ndrop_percent = 12.5\n[asks]\nexpires_minutes = 120\nwaiting = 2\n"))  # fmt: skip
     assert cfg.timeout == 7.5 and cfg.history_days == 10 and cfg.alerts.drop_percent == 12.5
+    assert (cfg.asks_minutes, cfg.asks_waiting) == (120, 2)
 
 
 @pytest.mark.parametrize("name, value", [("KIA_PORT", "eighty"), ("KIA_API_PORT", "-1"), ("KIA_GUIDE_REFRESH_HOURS", "4h"),
