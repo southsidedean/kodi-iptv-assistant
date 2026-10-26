@@ -26,6 +26,8 @@ On this page:
 - "Why does Plex show no channels?"
 - "Are my disks OK?"
 - "What's on CNN right now, and after that?"
+- "When is the Bears game on, and on which channel?"
+- "What sports are on right now?"
 - "How do I make a playlist for the kids?" (from kia's own docs)
 
 Two of these come ready-made, as starter prompts: **kia checkup** asks for a check of kia and an explanation of anything that needs you, and **explain a channel** asks about one channel's stream, guide, and what's on. In Claude Code, type `/` to find them (`/kia:kia-checkup`), or run `/mcp__kia__kia-checkup` and `/mcp__kia__kia-channel CNN`. Claude Code splits what follows at spaces, so give one word of the channel's name, or its ID. Other assistants list them with their MCP server's prompts.
@@ -104,7 +106,7 @@ claude mcp add --scope user --transport http kia https://192.168.1.20:8743/api/m
 NODE_EXTRA_CA_CERTS=~/kia-cert.pem claude
 ```
 
-To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with fourteen tools.
+To trust the certificate every time, add `export NODE_EXTRA_CA_CERTS=~/kia-cert.pem` to your shell's startup file (`~/.zshrc` on a Mac). Claude Code also trusts the certificates your computer trusts, so adding kia's there (Keychain Access on a Mac) works too. In Claude Code, `/mcp` shows kia as connected, with fifteen tools.
 
 Claude Code saves the token in its settings (`~/.claude.json`), and your shell keeps the command in its history: keep both private.
 
@@ -220,7 +222,8 @@ A client that only starts local programs can use the [mcp-remote](#claude-deskto
 | `kia_playlists` | The playlists kia checks and how their streams did, and the playlists it makes for people and devices |
 | `kia_stack` | Each program running next to kia, and whether it answered kia's last check |
 | `kia_settings` | The settings kia is running with, and where each is changed |
-| `kia_whats_on` | What's on a channel (or up to 5 that match) now and next, from kia's guide for the next 14 hours |
+| `kia_whats_on` | What's on a channel (or up to 5 that match) now and next, from kia's guide for the next 14 hours. With Plex, also Plex's own channels (an antenna's), by name, call sign, or number |
+| `kia_find_shows` | Shows in the guides that match some words or a category, now or up to a week ahead: kia's guide, and Plex's and Jellyfin's own guides (an antenna's, say). Up to 25, the ones named for the words first, each with its channel, number, times, and where to watch it |
 | `kia_docs` | The sections of kia's own docs, the copy installed with your kia, that best match some words, with links |
 
 That's the same as the Dashboard shows to anyone on your network, plus, from `kia_hardware`, the names of the computer's disks and where they're mounted, as Grafana's Hardware dashboard shows them. The tools can't change anything. Passwords, tokens, and alert addresses show only as set or not set, and user names and passwords inside addresses are hidden.
@@ -254,7 +257,7 @@ That's the same as the Dashboard shows to anyone on your network, plus, from `ki
 - **Endpoint:** `POST https://<address>:<secure port>/api/mcp`, MCP's Streamable HTTP transport in its simplest form: one JSON answer per request (no event stream), `202` with no body for a notification or response, `405` for `GET`, no sessions, no JSON-RPC batches. With Docker, nginx terminates HTTPS and passes `/api/` to kia.
 - **Versions:** `2025-11-25` and `2025-06-18`. A request with another `MCP-Protocol-Version` gets `400`; `initialize` answers with the client's version if kia has it, else `2025-11-25`.
 - **Authentication:** `Authorization: Bearer <token>`, the token from `kia mcp-token` (in `state/mcp-token.txt`). Wrong tokens are slowed down per address, apart from wrong Dashboard passwords; each address can make 60 tool calls a minute. Requests whose `Origin` is another site are refused.
-- **Tools:** the fourteen above, each with `readOnlyHint` set; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
+- **Tools:** the fifteen above, each with `readOnlyHint` set; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
 - **Locally:** `kia mcp` speaks the same over standard input and output (MCP's stdio transport), one JSON message per line, with kia's own lines on standard error.
 - **By hand:**
 

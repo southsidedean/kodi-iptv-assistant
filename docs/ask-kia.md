@@ -22,6 +22,15 @@ Start with the first. The second asks the same questions in plain words, and can
 
   Without Docker, run `PYTHONPATH=src python3 -m kia doctor` instead.
 
+To find a show in the guide, `kia find` searches kia's guide, and Plex's and Jellyfin's own guides when kia knows them (an antenna's channels in Plex, say). It looks a day ahead unless you say otherwise, and puts shows named for your words first:
+
+```sh
+docker compose exec kia python3 -m kia find Bears
+docker compose exec kia python3 -m kia find --category Sports --hours 0
+```
+
+`--hours 0` means on now, and `--hours 168` looks a week ahead.
+
 None of these change anything.
 
 ## 2. Ask your own AI assistant
