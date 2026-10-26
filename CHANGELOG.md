@@ -2,6 +2,10 @@
 
 ## 0.7.4 (unreleased)
 
+### A better guide
+
+- Pluto TV channels get Pluto's own listings, found by the ID in their stream address, even when the playlist's name or ID for the channel isn't one iptv-org knows. On a test install with the US playlist, 17 of the 25 Pluto channels without a guide got one ([how kia matches channels](docs/guide-under-the-hood.md#matching-kia-map)).
+
 ## 0.7.3 (2026-10-26)
 
 ### Upgrading from 0.7.2
