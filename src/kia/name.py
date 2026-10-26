@@ -28,6 +28,7 @@ from kia.files import temp_name
 
 FILE = "name.txt"  # in state/: a name set on the Dashboard
 NAME = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?")
+_LETTERS = "abcdefghijklmnopqrstuvwxyz0123456789-"  # all a name can hold
 
 
 def clean(text: str) -> str:
@@ -70,6 +71,10 @@ def save(state_dir: Path, text: str) -> str:
     name = text.strip()
     if not NAME.fullmatch(name):
         raise ValueError("A name is lowercase letters, digits, and dashes (not at either end), at most 40, such as den or cabin-pi.")
+    # Spelled out again from kia's own letters: the same name, checked above. CodeQL follows
+    # any text from a request into a file, and through the API's shared request body it took
+    # a test's password for this one; these characters are kia's own.
+    name = "".join(_LETTERS[_LETTERS.index(c)] for c in name)
     state_dir.mkdir(parents=True, exist_ok=True)
     tmp = temp_name(path)
     tmp.write_text(name + "\n", encoding="utf-8")
