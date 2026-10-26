@@ -6,6 +6,11 @@
 
 - **Approve, and allow these for an hour** isn't offered any more where kia can't tell assistants apart. Without the gateway, the hour covers the address an assistant calls from, and under Docker Desktop (a Mac or Windows) every device reaches kia from one address, as does anything on the kia computer itself. There, allowing one assistant for an hour allowed them all. The card now says so; give each device a key with the gateway, or use `auto_approve` ([letting requests run by themselves](docs/mcp.md#letting-requests-run-by-themselves)).
 
+### Docs
+
+- [More than one kia](docs/mcp.md#more-than-one-kia) shows an assistant's settings file with two kias in it, for Claude Desktop, VS Code, Cursor, and Codex.
+- A new checklist, [if a device is lost or stolen](docs/mcp.md#if-a-device-is-lost-or-stolen), lists what to change on each kia it used: its gateway key or kia's token, automatic approvals, the Dashboard password, and the ntfy topic.
+
 ## 0.7.2 (2026-10-26)
 
 ### Upgrading from 0.7.1
