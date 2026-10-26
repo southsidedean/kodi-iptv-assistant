@@ -436,11 +436,13 @@ if [ -n "$dropped" ] && [ "$ask" = yes ]; then
     case "$answer" in [yY]*) ;; *) echo "Not changed. Add what you want to keep to KIA_STACK (scripts/stack.sh list)."; exit 0 ;; esac
 fi
 
-mkdir -p state
-# A copy of .env first, made as a new file only you can read: set -C refuses to write
-# through anything already at that name (a link the kia container left in state/, say).
-backup="state/env.before-stack-$(date +%Y%m%d-%H%M%S)"
-if ! (umask 077 && set -C && cat .env >"$backup") 2>/dev/null; then
+# A copy of .env first, made as a new file only you can read, in the kia-stack service's own
+# folder: kia's container can only read stack-service/, never plant anything in it (state/
+# it can write). Anything already at the name is refused: set -C alone would still write
+# through a link to a device or a FIFO.
+(umask 077 && mkdir -p stack-service)
+backup="stack-service/env.before-stack-$(date +%Y%m%d-%H%M%S)"
+if [ -e "$backup" ] || [ -L "$backup" ] || ! (umask 077 && set -C && cat .env >"$backup") 2>/dev/null; then
     echo "stack: couldn't save a copy of .env as $backup (something is already there); nothing changed" >&2
     exit 1
 fi
@@ -477,6 +479,6 @@ for service in $(COMPOSE_PROFILES='*' docker compose ps --all --services 2>/dev/
         COMPOSE_PROFILES='*' docker compose rm --stop --force "$service" && echo "Stopped $service: it isn't in KIA_STACK any more."
     fi
 done
-echo "Done. Your old .env is in state/env.before-stack-*. scripts/stack.sh shows what runs."
+echo "Done. Your old .env is in stack-service/env.before-stack-*. scripts/stack.sh shows what runs."
 if has plex; then echo "Next for Plex: docker compose exec kia python3 -m kia plex-tuners (docs/cookbooks/plex-box.md)"; fi
 if has jellyfin; then echo "Next for Jellyfin: open it on port $(get KIA_JELLYFIN_PORT | grep . || echo 8096) and follow docs/cookbooks/jellyfin-box.md, step 3"; fi

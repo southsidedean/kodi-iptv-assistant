@@ -49,7 +49,7 @@ It exits with 1 when there's a problem, and with 0 otherwise. Warnings never sto
 `scripts/stack.sh apply` runs the check, and stops on a problem. Then:
 
 1. It asks, unless you add `--yes`. It reads kia's `/metrics` to see whether anyone is watching Pluto TV, Plex, or Jellyfin, or whether a refresh is running. Then it lists the profiles that would stop. Each question defaults to no.
-2. It keeps a copy of `.env` in `state/env.before-stack-<date>`, readable only by you. `set -C` makes the shell refuse to write through anything already at that name, such as a link.
+2. It keeps a copy of `.env` in `stack-service/env.before-stack-<date>`, readable only by you. That's the kia-stack service's own folder, which kia's container can read but not write. Anything already at that name, a file or a link, makes the apply stop without changing anything.
 3. It writes `.env`. It sets `KIA_STACK` (only now, after the check and the questions, so a refused or cancelled apply leaves `.env` as it was). Then it sets `PLEX_CLAIM` from `--claim`, and fills in whichever of these are empty:
    - `KIA_PLEX_ADVERTISE` and `KIA_JELLYFIN_ADVERTISE`, from the host in `KIA_PUBLIC_URL` (not `localhost`, and nothing with characters an address can't have)
    - `KIA_PLEX_URL` and `KIA_JELLYFIN_URL`, set to the containers' own addresses
@@ -92,7 +92,7 @@ kia's container has no Docker socket, on purpose: kia runs other people's code (
    - The claim code is `claim-` and letters, digits, dashes, and underscores, 80 characters at most, and comes only with an apply.
    - The request is less than 5 minutes old.
 
-   A request that fails any of these is refused without running anything. The service deletes its copy of the request as soon as it has read it.
+   A request that fails any of these is refused without running anything. The service keeps the request only while it works on it.
 4. It answers `running` straight away, then runs `scripts/stack.sh check --stack ...` or `apply --stack ... --yes`. An apply doesn't stop to ask about viewers, since nobody is at a terminal to answer. The page asks before it sends the request instead.
 5. It writes the containers' states to `containers.tsv` first, so the page shows what runs now, then its answer to `stack-service/result`: a few lines, a blank line, then the last 200 lines the script printed:
 

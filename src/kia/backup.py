@@ -123,6 +123,12 @@ def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[
         restored = []
         for m in allowed:
             target = base / m.name
+            # A link in a folder along the way (state/d -> somewhere else) would put the file
+            # outside the kia folder: kia's container can write state/ and could have planted one.
+            linked = next((p for p in target.parents if p != base and base in p.parents and p.is_symlink()), None)
+            if linked is not None:
+                log(f"Left {m.name} out: {linked.relative_to(base)} is a link")
+                continue
             if target.is_symlink():
                 # Such as tls/cert.pem linked to Let's Encrypt's: replacing the link with the
                 # backup's copy would keep kia on that copy after the next renewal.

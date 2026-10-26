@@ -349,7 +349,9 @@ def ask(state_dir: Path, service_dir: Path, action: str, parts: list[str], claim
     tmp = temp_name(path)
     text = f"id={rid}\naction={action}\nstack={','.join(parts)}\n" + (f"claim={claim}\n" if claim else "")
     # Readable by its owner only, since it can hold a claim code: kia and the service run as
-    # the same user (PUID), so the service can still read it.
+    # the same user (PUID), so the service can still read it. A leftover from a crash goes
+    # first: the temp name can repeat after a restart (the same process id).
+    tmp.unlink(missing_ok=True)
     with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as f:
         f.write(text)
     tmp.replace(path)  # whole, at once: the service never reads half a request

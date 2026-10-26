@@ -168,7 +168,7 @@ One command saves everything you've set up in one file: `.env`, `kia.toml`, your
 docker compose exec kia python3 -m kia backup
 ```
 
-The file goes in `work/backups/` in the kia folder, named with the date, such as `kia-backup-20261020-221500.tar.gz`. It holds your password and the certificate's private key (not the [MCP server](mcp.md)'s token, which you make again after a restore), so keep copies somewhere private. Without Docker, run `PYTHONPATH=src python3 -m kia backup` in the kia folder.
+The file goes in `work/backups/` in the kia folder, named with the date, such as `kia-backup-20261020-221500.tar.gz`. It holds your password and the certificate's private key (not the [MCP server](mcp.md)'s token, which you make again after a restore), so keep copies somewhere private. Copy each one out of the kia folder too: kia can write `work/`, so a backup there is only as safe as kia itself. Without Docker, run `PYTHONPATH=src python3 -m kia backup` in the kia folder.
 
 To restore, for example on a new computer after [installing kia](install.md): copy the file into the kia folder, then run
 
@@ -178,7 +178,7 @@ docker compose run --rm --no-deps -v "$PWD:/restore" kia restore /restore/kia-ba
 docker compose up -d
 ```
 
-A restore first saves the settings that are there now, in `work/backups/before-restore-<date>.tar.gz`, so you can undo it the same way. If the new computer has a different address, check `KIA_PUBLIC_URL` in `.env` afterwards.
+A restore puts files only inside the kia folder: one under a folder that's a link (such as a `state/` linked elsewhere) is left out, and so is a file that's itself a link, such as a certificate linked to Let's Encrypt's. It first saves the settings that are there now, in `work/backups/before-restore-<date>.tar.gz`, so you can undo it the same way. If the new computer has a different address, check `KIA_PUBLIC_URL` in `.env` afterwards.
 
 ## Uninstalling
 

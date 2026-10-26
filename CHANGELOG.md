@@ -18,6 +18,10 @@ A playlist downloaded from a name like `tuner.example.com` that points at your o
 - `kia restore` gives one line, not a traceback, for a cut-short or odd backup file.
 - Jellyfin times without a time zone are read as UTC, so `kia doctor` and `kia find` don't fail on them.
 - A profile whose title or lists hold a control character is refused on the Dashboard, instead of giving an error and leaving a temporary file behind.
+- The kia-stack service keeps its files out of kia's reach. On a Mac its log is now `stack-service/kia-stack.log`, not `work/logs/kia-stack.log`, where a link kia's container planted could send the log into one of your files. The copy of `.env` an apply keeps is now in `stack-service/`, not `state/`, and anything already at its name stops the apply (before, a link to a device was written through). Copies from earlier applies stay in `state/` until you delete them. On a Mac, `scripts/update.sh` installs the service again when its settings change, so the log moves by itself.
+- `scripts/update.sh` no longer stops for good when a folder sits at `state/deployed-rev`.
+- `kia restore` leaves out a file whose folder is a link, so a restore can't write outside the kia folder.
+- The Stack page's **Check** and **Apply** no longer fail for good after a crash left the request's temporary file behind.
 - With the Docker runner for iptv-org's downloaders (`runner = "docker"`, used without kia's own image), code in that container could make git run a command on this computer at kia's next update, by planting a `.git/commondir`. Git now takes its settings only from the checkout's own folder, ignores your git settings, and allows only https and kia's own kind of address. The container also no longer sees all of `work/`: only the checkout, the site's channel list, and that site's guide folder. Each site's guide has a staging folder of its own, the kink.nl and kexp.org downloads have a size and time limit, and `npm ci` can't be pointed at another git program by the checkout's `.npmrc`.
 
 ## 0.6.6 (2026-10-25)

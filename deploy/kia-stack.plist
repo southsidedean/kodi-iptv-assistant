@@ -3,7 +3,7 @@
 <!-- The kia-stack service for macOS, a launchd agent: scripts/stack.sh watch, which carries
      out the changes you make on the Dashboard's Stack page (docs/stack.md). It runs as you,
      because changing the stack needs Docker, which the kia container can't reach.
-     scripts/install-service.sh --stack fills in the paths. Log: work/logs/kia-stack.log. -->
+     scripts/install-service.sh --stack fills in the paths. Log: stack-service/kia-stack.log. -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
@@ -32,8 +32,8 @@
   <key>ThrottleInterval</key>
   <integer>30</integer>
   <key>StandardOutPath</key>
-  <string>@DIR@/work/logs/kia-stack.log</string>
+  <string>@DIR@/stack-service/kia-stack.log</string>
   <key>StandardErrorPath</key>
-  <string>@DIR@/work/logs/kia-stack.log</string>
+  <string>@DIR@/stack-service/kia-stack.log</string>
 </dict>
 </plist>
