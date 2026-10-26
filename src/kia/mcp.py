@@ -455,7 +455,7 @@ def _ask(conf: Config, api_cfg, kind: str, args: dict, what: str) -> dict:
 
     try:
         r = asks.ask(api_cfg.state_dir, kind, args, what, _WHO.get(), expires=conf.asks_minutes * 60,
-                     waiting=conf.asks_waiting)  # fmt: skip
+                     waiting=conf.asks_waiting, device=_DEVICE.get())  # fmt: skip
     except asks.AskError as exc:
         return {"asked": False, "why": str(exc)}
     where = (_json(conf.output_dir / "status.json").get("secure") or {}).get("url") or ""

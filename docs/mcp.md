@@ -369,6 +369,8 @@ Approving every stream test gets old while you work through channels with an ass
 
 **For an hour.** On the Dashboard, a waiting request has a third button, **Approve, and allow these for an hour**. It runs the request, and for the next hour the same kind of request from the same assistant runs by itself. The card says what's allowed and for how long, with a **Stop allowing** button.
 
+Without the gateway, kia tells assistants apart by the address they call from. Where every device shares one address, kia can't, so the button isn't offered: under Docker Desktop (a Mac or Windows), which shows kia one address for everyone, and for assistants on the kia computer itself. There, give each device a key with the [gateway](#several-devices-the-gateway), or use `auto_approve` below.
+
 **Always.** List the kinds in `kia.toml`, then restart kia:
 
 ```toml

@@ -2,6 +2,10 @@
 
 ## 0.7.3 (unreleased)
 
+### Fixes
+
+- **Approve, and allow these for an hour** isn't offered any more where kia can't tell assistants apart. Without the gateway, the hour covers the address an assistant calls from, and under Docker Desktop (a Mac or Windows) every device reaches kia from one address, as does anything on the kia computer itself. There, allowing one assistant for an hour allowed them all. The card now says so; give each device a key with the gateway, or use `auto_approve` ([letting requests run by themselves](docs/mcp.md#letting-requests-run-by-themselves)).
+
 ## 0.7.2 (2026-10-26)
 
 ### Upgrading from 0.7.1

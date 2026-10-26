@@ -650,3 +650,41 @@ def test_approve_and_allow_for_an_hour(kia, monkeypatch):
     status, answer = api.handle(kia, "POST", "/api/asks/approve", headers, json.dumps({"id": plex["id"], "allow_hour": True}).encode(), True)
     assert status == 409 and "always asks you" in answer["error"]
     assert asks.get(kia.state_dir, plex["id"])["state"] == "waiting"  # not run either
+
+
+@pytest.mark.parametrize("who", ["127.0.0.1", "::1", "192.0.2.1", "stdio", ""])
+def test_no_hour_for_an_address_many_share(kia, monkeypatch, who):
+    monkeypatch.setattr(api, "test_channel", lambda cfg, body: {"ok": True})
+    monkeypatch.setattr(api, "_network_gateways", lambda: {"192.0.2.1"})
+    r = asks.ask(kia.state_dir, "test_channel", {"key": "CNN.us"}, "Test CNN", who)
+    shown = api.get_asks(kia)["asks"][0]
+    assert not shown["can_allow"] and shown["shared_caller"]
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}
+    status, answer = api.handle(kia, "POST", "/api/asks/approve", headers, json.dumps({"id": r["id"], "allow_hour": True}).encode(), True)
+    assert status == 409 and "can't tell assistants apart" in answer["error"]
+    assert asks.get(kia.state_dir, r["id"])["state"] == "waiting" and api.get_asks(kia)["allowed"] == []
+    assert api.handle(kia, "POST", "/api/asks/approve", headers, json.dumps({"id": r["id"]}).encode(), True)[0] == 200  # alone, fine
+
+
+def test_under_docker_desktop_every_address_is_shared_but_a_gateway_device_isnt(kia, monkeypatch):
+    monkeypatch.setattr(api, "test_channel", lambda cfg, body: {"ok": True})
+    assert not api.shared_address("192.0.2.5")
+    monkeypatch.setattr(api, "_docker_desktop", lambda: True)  # conftest: False
+    assert api.shared_address("192.0.2.5")
+    r = asks.ask(kia.state_dir, "test_channel", {"key": "CNN.us"}, "Test CNN", "laptop (through the gateway)", device="laptop")
+    assert api.get_asks(kia)["asks"][0]["can_allow"]
+    headers = {"Host": "tv.lan:8743", "X-Kia-Password": "secret"}
+    assert api.handle(kia, "POST", "/api/asks/approve", headers, json.dumps({"id": r["id"], "allow_hour": True}).encode(), True)[0] == 200
+    assert api.get_asks(kia)["allowed"][0]["who"] == "laptop (through the gateway)"
+
+
+def test_network_gateways_from_the_route_table(tmp_path: Path, monkeypatch):
+    route = tmp_path / "route"
+    route.write_text("Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"
+                     "eth0\t00000000\t010200C0\t0003\t0\t0\t0\t00000000\t0\t0\t0\n"
+                     "eth0\t000200C0\t00000000\t0001\t0\t0\t0\t80FFFFFF\t0\t0\t0\n"
+                     "eth1\t800200C0\t00000000\t0001\t0\t0\t0\t80FFFFFF\t0\t0\t0\n")  # fmt: skip
+    real = Path
+
+    monkeypatch.setattr(api, "Path", lambda p: route if p == "/proc/net/route" else real(p))
+    assert api._network_gateways() == {"192.0.2.1", "192.0.2.129"}  # two /25 networks
