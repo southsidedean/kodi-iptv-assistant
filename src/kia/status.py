@@ -468,7 +468,8 @@ def _asks_card(s: dict) -> str:
     ASKS_SCRIPT when there are any."""
     return (
         f'<section class="card" id="asks"{_secure_attr(s)} hidden><h2>Requests from assistants</h2>'
-        '<p class="muted">An AI assistant using kia asked for these. Nothing happens until you approve one.</p>'
+        '<p class="muted">An AI assistant using kia asked for these. Nothing happens until you approve one, unless you let '
+        'that kind run by itself (<a href="https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/mcp.md#letting-requests-run-by-themselves">how</a>).</p>'
         # The password first: it's needed before Approve or Decline.
         '<form class="editor asks-form" hidden><label class="field" for="asks-pass"><strong>Password</strong></label>'
         '<input type="password" id="asks-pass" autocomplete="current-password"></form>'
