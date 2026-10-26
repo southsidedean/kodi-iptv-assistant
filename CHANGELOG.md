@@ -1,61 +1,69 @@
 # Changelog
 
-## 0.6.7 (unreleased)
+## 0.6.7 (2026-10-25)
 
 ### Upgrading from 0.6.6
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). Two changes may need you.
 
 A playlist downloaded from a name like `tuner.example.com` that points at your own network no longer counts as yours, because kia now goes by how its address is written, not by looking the name up. If its streams stop being tested ("on your own network, and the playlist comes from the internet"), add the word `lan` to its line in the sources file, or use its local IP address or a name like `my-server.lan`.
 
 kia now checks a few more settings when it starts. In `kia.toml`, a switch in quotes (`require_video = "false"`) or a single resolver in `verify_resolvers` without brackets stops kia with a line saying what to change; before, `"false"` counted as on and the resolver was read one letter at a time. A name you give a playlist in `sources.txt` may hold only letters, digits, dots, dashes, and underscores. In `.env`, ports go up to 65535 and `KIA_GUIDE_REFRESH_HOURS` up to 168.
 
-### Fixes
+### Security
 
-- One stream address Python can't read, such as `http://[x/a.m3u8`, in any playlist stopped the whole nightly check. Now that stream is marked dead and the rest carry on. A playlist server that cuts its answer short is retried, and kia falls back to last night's copy, as it does for a dropped connection.
+- With the Docker runner for iptv-org's downloaders (`runner = "docker"`, used without kia's own image), code in that container could make git run a command on this computer at kia's next update, by planting a `.git/commondir`. Git now takes its settings only from the checkout's own folder, ignores your git settings, and allows only https and kia's own kind of address. The container also no longer sees all of `work/`: only the checkout, the site's channel list, and that site's guide folder. Each site's guide has a staging folder of its own, the kink.nl and kexp.org downloads have a size and time limit, and `npm ci` can't be pointed at another git program by the checkout's `.npmrc`.
 - Playlists from the internet can't reach your network in four more ways. An address with no host (`http://:9090/x`), which made ffmpeg connect to this computer itself, is never tested. A playlist named `lan` or `radio` on the Dashboard no longer switches that on: kia refuses those names. An IPv6 address carrying a local IPv4 address (NAT64, 6to4) counts as local. And whether a playlist is yours no longer depends on a DNS answer its owner controls.
 - Guide downloads refuse a redirect from the internet onto your network, or to anything other than http or https.
 - **Test** on a channel refuses an address on your network when the channel's playlist comes from the internet, as the nightly check does. **Check now** keeps a playlist's `lan` word, so it tests the playlist as the nightly check does.
 - SomaFM's channel list can only point kia at https playlists off your network, and one odd channel no longer loses all of SomaFM's channels.
 - Another kia server's guide (an upstream) is downloaded up to 500 MB, so one that never stops sending can't fill the disk.
+- kia doctor and the MCP server hide more logins in addresses: `api_key=`, `X-Plex-Token=`, `access_token=`, `passwd=`, and a login percent-encoded inside another address.
+- The Pluto TV relay keeps only encryption keys of the right size and at most 32 MB of pieces per channel, so a misbehaving server can't fill kia's memory. A redirect away from https isn't asked for twice, a playlist with a piece length that isn't a number is refused with a clear problem, and two viewers arriving at once can't trip it up.
+- The kia-stack service keeps its files out of kia's reach. On a Mac its log is now `stack-service/kia-stack.log`, not `work/logs/kia-stack.log`, where a link kia's container planted could send the log into one of your files. The copy of `.env` an apply keeps is now in `stack-service/`, not `state/`, and anything already at its name stops the apply (before, a link to a device was written through). Copies from earlier applies stay in `state/` until you delete them. On a Mac, `scripts/update.sh` installs the service again when its settings change, so the log moves by itself.
+- When `KIA_NTFY_URL` isn't a web address, kia's log says so without quoting it, so the private topic stays out of the log.
+- Wrong password guesses from IPv6 count by network (the /64), so one computer can't get around the slowdown by switching to a new address for each guess.
+- Playlist addresses on the Dashboard hide their folders as well (`https://example.org/•••/m3u_plus`), since some providers put the login in the path. IPv6 addresses keep their brackets.
+- The Guide page can't be tripped up by a playlist channel ID such as `constructor`, and the Why? button says kia didn't answer while kia restarts, instead of showing nothing.
+- The secure Dashboard's error pages (a 502 while kia restarts) carry the same security headers as its other pages.
+- kia's own web server (used without Docker) no longer follows a link inside `output/`, as nginx already didn't, so a planted link can't hand out another file.
+- `kia restore` leaves out a file whose folder is a link, so a restore can't write outside the kia folder.
+
+### Fixes
+
+- One stream address Python can't read, such as `http://[x/a.m3u8`, in any playlist stopped the whole nightly check. Now that stream is marked dead and the rest carry on. A playlist server that cuts its answer short is retried, and kia falls back to last night's copy, as it does for a dropped connection.
 - A file kia keeps that's damaged into another shape (a hand edit, a full disk) no longer stops kia. The playlist, channel, alert, player, profile, and settings records, the saved password, a backup's list of files, and the files kia doctor and the MCP tools read are all treated as missing when they don't hold what kia wrote. Before, one such file could stop every refresh, the Dashboard's updates, `/metrics`, or the editors until someone fixed it by hand. A damaged channel-numbers file is set aside as `channel-numbers.json.bad`, as stream history is, and a damaged password file is replaced with a new password in `state/admin-password.txt`.
 - `kia restore` gives one line, not a traceback, for a cut-short or odd backup file.
 - Jellyfin times without a time zone are read as UTC, so `kia doctor` and `kia find` don't fail on them.
 - A profile whose title or lists hold a control character is refused on the Dashboard, instead of giving an error and leaving a temporary file behind.
 - `kia_docs` no longer takes a `#` line inside a code block for a heading, which gave assistants links to sections that don't exist.
-- kia doctor and the MCP server hide more logins in addresses: `api_key=`, `X-Plex-Token=`, `access_token=`, `passwd=`, and a login percent-encoded inside another address.
 - kia repairs its own certificate after a renewal that stopped half way (a new key next to the old certificate), instead of leaving the secure Dashboard broken.
 - Plex's "on now" in `kia_whats_on` is only a show that has started. `kia find` finds accented words in any case ("fútbol" finds "FÚTBOL"), and its note about categories appears only when Plex has a guide of its own.
 - `kia doctor jellyfin` accepts the full, uncompressed `guide.xml` as a guide that goes with any playlist.
 - `kia mcp` answers an assistant even when `kia.toml` can't be read, reports the problem when a tool runs, and recovers once it's fixed. A byte that isn't UTF-8 gets an error back instead of stopping it.
-- The MCP guide and SECURITY.md say exactly what reaches an assistant: `kia_pluto` does name the Pluto TV channels playing through kia now, and some tools ask Prometheus, Plex, or Jellyfin in your stack.
 - `kia plex-tuners --remove` finds kia's DVR when its Threadfins are stopped, or when kia's address has changed since they were added. Before, taking Plex Live TV out with Threadfin stopped left the DVR in place.
 - Turning off the login on Threadfin's own page now stays off. Before, kia turned it back on at every start.
-- The Pluto TV relay keeps only encryption keys of the right size and at most 32 MB of pieces per channel, so a misbehaving server can't fill kia's memory. A redirect away from https isn't asked for twice, a playlist with a piece length that isn't a number is refused with a clear problem, and two viewers arriving at once can't trip it up.
 - The Stack page's tiles keep updating after an odd answer from Prometheus, and `kia check-dashboards` says Prometheus didn't answer instead of printing a traceback.
 - The Hardware dashboard and `kia doctor hardware` count a RAID array's monthly check as busy, and leave out the batteries of wireless keyboards and remotes when they look for a UPS or laptop battery. The Plex and Jellyfin dashboards' **Playing now** tables say how many players share a row.
-- The kia-stack service keeps its files out of kia's reach. On a Mac its log is now `stack-service/kia-stack.log`, not `work/logs/kia-stack.log`, where a link kia's container planted could send the log into one of your files. The copy of `.env` an apply keeps is now in `stack-service/`, not `state/`, and anything already at its name stops the apply (before, a link to a device was written through). Copies from earlier applies stay in `state/` until you delete them. On a Mac, `scripts/update.sh` installs the service again when its settings change, so the log moves by itself.
 - `scripts/update.sh` no longer stops for good when a folder sits at `state/deployed-rev`.
 - A night when a guide download failed and a stream check raised an alert now counts as failed, not "working, with alerts".
 - A number written as `inf`, `nan`, or far too large in `kia.toml` or `.env` is refused at start, instead of a traceback later.
-- When `KIA_NTFY_URL` isn't a web address, kia's log says so without quoting it, so the private topic stays out of the log.
 - The Dashboard refuses a new password that starts or ends with a space, since a browser drops those spaces when it signs in. kia also warns when `KIA_ADMIN_PASSWORD` has them.
-- Wrong password guesses from IPv6 count by network (the /64), so one computer can't get around the slowdown by switching to a new address for each guess.
-- Playlist addresses on the Dashboard hide their folders as well (`https://example.org/•••/m3u_plus`), since some providers put the login in the path. IPv6 addresses keep their brackets.
 - A channel number from your own playlist file wins over one chosen on the Dashboard whatever order the channels come in, as docs/configuration.md says.
 - Channels listed in `ignore_name_matches` are no longer suggested as name matches in the guide report, and a `|` or line break in a channel's name no longer breaks the report's tables.
 - Guide times that stop early, like `202610241200` or `20261024`, are read as XMLTV allows.
-- The Guide page can't be tripped up by a playlist channel ID such as `constructor`, and the Why? button says kia didn't answer while kia restarts, instead of showing nothing.
 - The installer finds the right host name in an address with a port and a path, and gives Plex and Jellyfin the ports set in `.env`. It lists the presets in the same order as the Dashboard.
 - `scripts/update.sh --no-docker` no longer asks about viewers when kia's service isn't running, and restarts Grafana when its data source settings change.
 - `scripts/install-service.sh` stops with a message when systemd can't turn a service on, instead of saying it worked.
 - `scripts/stack.sh` lists the presets in the Dashboard's order, and a `*` in `KIA_STACK` or `COMPOSE_PROFILES` no longer turns into file names.
-- The secure Dashboard's error pages (a 502 while kia restarts) carry the same security headers as its other pages.
 - The Pluto TV panel in Grafana says when the relay is off, instead of only "No Pluto TV channels watched".
-- kia's own web server (used without Docker) no longer follows a link inside `output/`, as nginx already didn't, so a planted link can't hand out another file.
 - The Dashboard warns about your own certificate 30 days before it expires, the same as `kia doctor setup`. Before, it waited until 21 days.
-- The docs caught up with 0.6: `kia find` and `kia mcp` in the README, Jellyfin in the cookbooks, the AI assistant in the security diagram, all of `kia.toml`'s settings in its comments, and what the API's fields mean. The Playlists page's button is called **Make a playlist** everywhere, and removing kia now also says how to remove it from your assistant.
-- `kia restore` leaves out a file whose folder is a link, so a restore can't write outside the kia folder.
 - The Stack page's **Check** and **Apply** no longer fail for good after a crash left the request's temporary file behind.
-- With the Docker runner for iptv-org's downloaders (`runner = "docker"`, used without kia's own image), code in that container could make git run a command on this computer at kia's next update, by planting a `.git/commondir`. Git now takes its settings only from the checkout's own folder, ignores your git settings, and allows only https and kia's own kind of address. The container also no longer sees all of `work/`: only the checkout, the site's channel list, and that site's guide folder. Each site's guide has a staging folder of its own, the kink.nl and kexp.org downloads have a size and time limit, and `npm ci` can't be pointed at another git program by the checkout's `.npmrc`.
+
+### Docs
+
+- The MCP guide and SECURITY.md say exactly what reaches an assistant: `kia_pluto` does name the Pluto TV channels playing through kia now, and some tools ask Prometheus, Plex, or Jellyfin in your stack.
+- The docs caught up with 0.6: `kia find` and `kia mcp` in the README, Jellyfin in the cookbooks, the AI assistant in the security diagram, all of `kia.toml`'s settings in its comments, and what the API's fields mean. The Playlists page's button is called **Make a playlist** everywhere, and removing kia now also says how to remove it from your assistant.
 
 ## 0.6.6 (2026-10-25)
 
