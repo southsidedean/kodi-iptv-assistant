@@ -59,7 +59,12 @@ DOCS = "docs/troubleshooting.md"
 # - any of these percent-encoded inside another address ("%3A%2F%2Fme%3Asecret%40host").
 _LOGIN_RES = (
     (re.compile(r"(?i)((?:[a-z][a-z0-9+.-]*:)?//)[^/\s?#]*@"), r"\1•••@"),
-    (re.compile(r"(?i)([?&;](?:user(?:name)?|login|pass(?:word)?|pwd|token|key|auth)=)[^&\s#]*"), r"\1•••"),
+    # (Also with a prefix: api_key, X-Plex-Token, access_token, apikey.)
+    (re.compile(r"(?i)([?&;](?:[\w-]*[_-])?(?:user(?:name)?|login|pass(?:wd|word)?|pwd|token|key|apikey|auth|secret)=)[^&\s#]*"),
+     r"\1•••"),
+    # The same, percent-encoded inside another address ("%3Fusername%3Dme%26password%3Dsecret").
+    (re.compile(r"(?i)((?:%3F|%26|%3B)(?:[\w-]*[_-])?(?:user(?:name)?|login|pass(?:wd|word)?|pwd|token|key|apikey|auth|secret)%3D)"
+                r".*?(?=%26|%3B|&|\s|#|$)"), r"\1•••"),
     (re.compile(r"(?i)(/(?:live|movie|series|timeshift)/)[^/\s?#]+/[^/\s?#]+/"), r"\1•••/•••/"),
     (re.compile(r"(?i)(%3A%2F%2F)[^/\s?#]*?%40"), r"\1•••%40"),
     # Without a scheme, "me:secret@host:8080/...": a name, a colon, no space, then @ and a
@@ -207,7 +212,7 @@ def _sources(status: dict) -> list[Finding]:
         if ok + flaky == 0 and dead:
             found.append(Finding(PROBLEM, f"None of the streams in {s.get('name')} work",
                                  f"All {dead} failed in the last check. The playlist may be out of date, or its server may be turning kia away.",
-                                 ["output/report.json"], f"{DOCS}#a-channel-wont-play"))  # fmt: skip
+                                 ["output/status.json"], f"{DOCS}#a-channel-wont-play"))  # fmt: skip
     return found
 
 
@@ -373,10 +378,11 @@ def _choice(e: m3u.Entry, choices: object, candidates: list[str], evidence: list
     streaks = (_json(cfg.state_dir / "alert-state.json") or {}).get("site_failures")
     streaks = streaks if isinstance(streaks, dict) else {}
     for site in candidates:
-        lines = _log_errors(cfg.epg.work_dir / "logs" / f"{site}.log")
+        # The site's name comes from a guide source; it's only a file name here if it's a plain one.
+        lines = _log_errors(cfg.epg.work_dir / "logs" / f"{site}.log") if re.fullmatch(r"[\w.-]+", site) else []
         if streaks.get(site) or lines:
             failed = f"It has failed {streaks[site]} refreshes in a row. " if streaks.get(site) else ""
-            found.append(Finding(NOTE, f"{site} had errors", failed + ("Its log says: " + " / ".join(lines) if lines else ""),
+            found.append(Finding(NOTE, f"{_quote(site, 60)} had errors", failed + ("Its log says: " + " / ".join(lines) if lines else ""),
                                  [f"work/logs/{site}.log", "state/alert-state.json"]))  # fmt: skip
     return found
 
@@ -594,7 +600,7 @@ def setup(cfg: Config, now: datetime | None = None) -> Report:
                                        "The nightly refresh needs room for the playlists, the guide, and the guide sites' downloads.",
                                        ["output/"], "Delete what you don't need on that disk."))  # fmt: skip
     host = urllib.parse.urlparse(cfg.public_url or "").hostname or ""
-    if host in ("", "localhost") or host.startswith("127."):
+    if host in ("", "localhost", "::1") or host.startswith("127."):
         report.findings.append(Finding(NOTE, "kia's address is this computer only",
                                        "KIA_PUBLIC_URL isn't set to an address other devices can reach, so the guide link inside the "
                                        "playlist only works on this computer. Fine for Kodi on the same computer.",
@@ -1042,7 +1048,7 @@ def _jellyfin_guides(names: list[str], playlists: list[str], cfg: Config, eviden
                                  evidence, "docs/jellyfin.md#jellyfin"))  # fmt: skip
     # guide.xml.gz has every channel, so it fits any playlist; otherwise each needs its own.
     for playlist in playlists:
-        if _guide_for(playlist) not in names and "guide.xml.gz" not in names:
+        if _guide_for(playlist) not in names and not {"guide.xml.gz", "guide.xml"} & set(names):
             found.append(Finding(PROBLEM, f"Jellyfin's guide doesn't go with {playlist}",
                                  f"Its channels' shows are in {_guide_for(playlist)}, which Jellyfin doesn't read, so they show only their names.",
                                  evidence, "docs/jellyfin.md#jellyfin"))  # fmt: skip

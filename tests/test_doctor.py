@@ -755,6 +755,7 @@ def test_every_docs_link_in_doctors_answers_exists():
     root = Path(__file__).resolve().parent.parent
     source = (root / "src" / "kia" / "doctor.py").read_text()
     links = set(re.findall(r"(docs/[\w/.-]+\.md)(?:#([\w-]+))?", source))
+    links |= {(doctor.DOCS, anchor) for anchor in re.findall(r"\{DOCS\}#([\w-]+)", source)}  # f"{DOCS}#..." links too
     assert len(links) > 10
     for page, anchor in links:
         assert (root / page).exists(), page

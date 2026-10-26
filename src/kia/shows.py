@@ -79,8 +79,8 @@ def search(cfg: Config, query: str = "", category: str = "", hours: float = 24, 
     found = _kia(cfg, words, kinds, now, until)
     found += _from_plex(env, plex, words, kinds, now, until, notes)
     found += _from_jellyfin(env, jellyfin, words, kinds, now, until, notes, found, cfg.output_dir)
-    # Shows named for the words first ("Bears" finds the games before a show whose description
-    # mentions bears), then the soonest.
+    # Shows named for the words first ("football" finds the games before a show whose
+    # description mentions football), then the soonest.
     found.sort(key=lambda s: (not s.in_title, s.start, s.where != "kia", s.channel))
     out = {"from": _local(now), "until": _local(until), "shows": [s.to_dict() for s in found[:MAX_RESULTS]]}
     if len(found) > MAX_RESULTS:
@@ -121,7 +121,9 @@ def _kia(cfg: Config, words: list[str], kinds: list[str], now: datetime, until: 
     except OSError:
         return []
     channels = _kia_channels(cfg.output_dir / "curated.m3u")
-    needles = [w.encode() for w in words + kinds]
+    # A quick look for the words in each programme's raw bytes. bytes.lower() folds only ASCII,
+    # so a word with any other letter ("fútbol") is left to the full check after parsing.
+    needles = [w.encode() for w in words + kinds if w.isascii()]
     found, seen = [], set()
     for m in _PROGRAMME.finditer(data):
         if needles and not all(n in m.group(2).lower() for n in needles):
@@ -187,17 +189,19 @@ def _from_plex(env: dict, plex, words: list[str], kinds: list[str], now: datetim
     client = _plex_client(env, plex)
     if client is None or not words:
         return []  # Plex searches by words; it can't list a category's shows
-    if kinds:
-        notes.append("Plex's guide search doesn't say shows' categories, so Plex's shows are left out when you ask for one.")
-        return []
     found = []
     try:
-        for guide in _plex_guides(client):
+        guides = _plex_guides(client)
+        if kinds:
+            if guides:  # only worth saying when Plex has a guide of its own to leave out
+                notes.append("Plex's guide search doesn't say shows' categories, so Plex's shows are left out when you ask for one.")
+            return []
+        for guide in guides:
             answer = client.call("GET", f"/{guide}/hubs/search", {"query": " ".join(words), "limit": 50})
             for hub in _container(answer, "Hub"):
                 for item in list_of(hub.get("Metadata"), dict):
                     found += _plex_airings(item, words, now, until)
-    except PlexError as exc:
+    except (PlexError, ValueError, TypeError, AttributeError) as exc:  # down, or an answer in another shape
         notes.append(f"Plex didn't answer: {_quote(exc)}")
     return found
 
@@ -237,24 +241,27 @@ def plex_on_now(env: dict, query: str, now: datetime | None = None, plex=None) -
             answer = client.call("GET", f"/{guide}/grid?type=1,4&beginsAt<={ts + 3 * 3600}&endsAt>={ts}")
             for item in _container(answer, "Metadata"):
                 for media in list_of(item.get("Media"), dict):
-                    if not isinstance(media.get("beginsAt"), int):
+                    if not isinstance(media.get("beginsAt"), int) or not isinstance(media.get("endsAt"), int):
                         continue
                     name = str(media.get("channelTitle") or media.get("channelCallSign") or "")
                     if not _has(" ".join([name, str(media.get("channelCallSign") or ""), str(media.get("channelVcn") or "")]), words):
                         continue
                     slot = {"start": _local(datetime.fromtimestamp(media["beginsAt"], timezone.utc)),
-                            "end": _local(datetime.fromtimestamp(media.get("endsAt") or media["beginsAt"], timezone.utc)),
-                            "title": _quote(item.get("grandparentTitle") or item.get("title") or "", 120), "_at": media["beginsAt"]}  # fmt: skip
+                            "end": _local(datetime.fromtimestamp(media["endsAt"], timezone.utc)),
+                            "title": _quote(item.get("grandparentTitle") or item.get("title") or "", 120),
+                            "_at": media["beginsAt"], "_on": media["beginsAt"] <= ts < media["endsAt"]}  # fmt: skip
                     channels.setdefault(name, {"channel": _quote(name, 80), "number": _quote(media.get("channelVcn") or "", 10),
                                                "where": "Plex", "slots": []})["slots"].append(slot)  # fmt: skip
-    except PlexError:
+    except (PlexError, ValueError, TypeError, AttributeError):  # down, or an answer in another shape
         return []
     out = []
     for ch in list(channels.values())[:5]:
         slots = sorted(ch.pop("slots"), key=lambda s: s["_at"])
+        on = [s for s in slots if s["_on"]]  # the first slot can start later: a gap between listings
         for s in slots:
-            s.pop("_at")
-        ch["on_now"], ch["next"] = (slots[0] if slots else None), slots[1:4]
+            s.pop("_at"), s.pop("_on")
+        ch["on_now"] = on[0] if on else None
+        ch["next"] = [s for s in slots if s is not ch["on_now"]][:3]
         out.append(ch)
     return out
 

@@ -145,12 +145,16 @@ def info(tls_dir: Path) -> dict | None:
             key_ok = _openssl("x509", "-in", str(cert), "-noout", "-pubkey") == _openssl("pkey", "-in", str(key), "-pubout")
         except TlsError:
             key_ok = False
+    # kia's own: the one its mark names, or one kia made by its subject (O=kia, signed by
+    # itself), for a renewal stopped between moving the certificate in and writing the mark.
+    named = subject.group(1).strip() if subject else ""
+    ours = (bool(mark) and mark == fingerprint(cert)) or ("O=kia" in named and issuer is not None and issuer.group(1).strip() == named)
     return {
         "subject": subject.group(1).strip() if subject else "",
         "issuer": issuer.group(1).strip() if issuer else "",
         "names": sans,
         "expires": expires.isoformat(timespec="seconds") if expires else None,
-        "generated": bool(mark) and mark == fingerprint(cert),
+        "generated": ours,
         "key_matches": key_ok,
     }
 
@@ -170,6 +174,8 @@ def ensure(tls_dir: Path, hosts: list[str], log=print, now: datetime | None = No
             why = "renewed the secure Dashboard's certificate, which was about to expire"
         elif not set(hosts) <= set(current["names"]):
             why = f"made a new certificate for the secure Dashboard, for {', '.join(hosts)}"
+        elif current["key_matches"] is False:  # a renewal stopped between the key and the certificate
+            why = "made a new certificate for the secure Dashboard, since its key didn't match"
         if why:
             make_self_signed(tls_dir, hosts)
             log(f"TLS: {why} (self-signed, valid {DAYS} days)")
