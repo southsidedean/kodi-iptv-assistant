@@ -49,10 +49,10 @@ ffprobe and ffmpeg are the programs most exposed: they read the streams themselv
 
 iptv-org/epg is a large project with many contributors, and kia runs its downloaders every night. So:
 
-- Its Node.js packages are installed without running any of their install scripts.
-- Its downloader runs in Node's sandbox: it reads only its own folder and the channel list, writes only its guide and a temporary folder, can't start other programs, and sees none of kia's settings.
+- Its Node.js packages are installed without running any of their install scripts, and npm's own setting for which program fetches git packages is fixed on the command line, so the checkout's `.npmrc` can't change it.
+- Its downloader runs in Node's sandbox: it reads only its own folder and the channel list, writes only its guide (each site has a folder of its own) and a temporary folder, can't start other programs, and sees none of kia's settings. With the Docker runner (`runner = "docker"` in `kia.toml`, for kia without its own image), its container likewise sees only the checkout, that channel list (read-only), and that guide's folder, never the rest of `work/`, which kia reads afterwards.
 - kia compiles iptv-org's scripts for the sandbox with its own copy of esbuild, a fixed version, since compiling runs outside the sandbox.
-- Before each update, kia rewrites that copy's git settings from scratch and turns off git's hooks, so nothing planted there runs when git updates it.
+- Before each update, kia rewrites that copy's git settings from scratch, removes the files that would send git to settings elsewhere (such as `.git/commondir`), turns off git's hooks, ignores your own git settings, and allows only https and the kind of address kia fetches from. So nothing planted there runs when git updates it.
 
 What the downloader writes is a guide file, which kia then reads as untrusted like any other.
 

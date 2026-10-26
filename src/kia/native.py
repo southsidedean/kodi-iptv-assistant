@@ -113,6 +113,24 @@ class _StayOffYourNetwork(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_StayOffYourNetwork)
 
 
+MAX_PAGE = 20 * 1024 * 1024  # bytes: a schedule page or API answer; real ones are a few hundred KB
+PAGE_TIME = 120  # seconds for the whole page: a timeout alone limits each read, not the download
+
+
+def read_page(resp, limit: int = MAX_PAGE, seconds: float = PAGE_TIME) -> bytes:
+    """A whole answer, up to limit bytes and seconds: a server that trickles a byte at a time
+    or never stops can't hold a download slot, or kia's memory, for long."""
+    give_up, parts, size = time.monotonic() + seconds, [], 0
+    while chunk := resp.read(1 << 16):
+        size += len(chunk)
+        if size > limit:
+            raise OSError(f"the answer is over {limit // 1024**2} MB")
+        if time.monotonic() > give_up:
+            raise TimeoutError(f"the answer took over {seconds:.0f} seconds")
+        parts.append(chunk)
+    return b"".join(parts)
+
+
 def fetch(url: str, timeout: float = 120):
     req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
     return _OPENER.open(req, timeout=timeout)
@@ -219,7 +237,7 @@ def grab_kink(
     """KINK's program schedule, for each channel in channels_file (the main KINK station)."""
     tvg_ids = [tvg_id for _, tvg_id, _ in read_channel_list(channels_file) if tvg_id]
     with fetch(url, timeout=60) as resp:
-        slots = parse_kink_schedule(resp.read().decode("utf-8", errors="replace"))
+        slots = parse_kink_schedule(read_page(resp).decode("utf-8", errors="replace"))
     if not slots:
         raise RuntimeError("no time slots found on the schedule page; kink.nl may have changed")
     now = now or datetime.now(timezone.utc)
@@ -298,7 +316,7 @@ def grab_kexp(
     """KEXP's show schedule, for each channel in channels_file (the station KEXP)."""
     tvg_ids = [tvg_id for _, tvg_id, _ in read_channel_list(channels_file) if tvg_id]
     with fetch(url, timeout=60) as resp:
-        slots = json.load(resp).get("results", [])
+        slots = json.loads(read_page(resp)).get("results", [])
     shows = kexp_programmes(slots, now or datetime.now(timezone.utc), days)
     if not shows:
         raise RuntimeError("no shows found in KEXP's schedule; api.kexp.org may have changed")

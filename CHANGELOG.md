@@ -14,6 +14,7 @@ A playlist downloaded from a name like `tuner.example.com` that points at your o
 - **Test** on a channel refuses an address on your network when the channel's playlist comes from the internet, as the nightly check does. **Check now** keeps a playlist's `lan` word, so it tests the playlist as the nightly check does.
 - SomaFM's channel list can only point kia at https playlists off your network, and one odd channel no longer loses all of SomaFM's channels.
 - Another kia server's guide (an upstream) is downloaded up to 500 MB, so one that never stops sending can't fill the disk.
+- With the Docker runner for iptv-org's downloaders (`runner = "docker"`, used without kia's own image), code in that container could make git run a command on this computer at kia's next update, by planting a `.git/commondir`. Git now takes its settings only from the checkout's own folder, ignores your git settings, and allows only https and kia's own kind of address. The container also no longer sees all of `work/`: only the checkout, the site's channel list, and that site's guide folder. Each site's guide has a staging folder of its own, the kink.nl and kexp.org downloads have a size and time limit, and `npm ci` can't be pointed at another git program by the checkout's `.npmrc`.
 
 ## 0.6.6 (2026-10-25)
 
