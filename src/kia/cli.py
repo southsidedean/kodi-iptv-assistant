@@ -988,6 +988,26 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if any(r.worst == doctor.PROBLEM for r in reports) else 0
 
 
+def cmd_find(args: argparse.Namespace) -> int:
+    """Shows in the guides (kia.shows), soonest first. 1 when nothing matches."""
+    from kia import shows
+
+    if not args.words and not args.category:
+        log("kia find needs some words, a --category, or both. Example: kia find NFL")
+        return 2
+    found = shows.search(load_config(args), " ".join(args.words), args.category, args.hours)
+    if args.json:
+        print(json.dumps(found, indent=1))
+    else:
+        for s in found["shows"]:
+            number = f" {s['number']}" if s["number"] else ""
+            episode = f": {s['episode']}" if s.get("episode") else ""
+            print(f"{s['start'][:16].replace('T', ' ')} to {s['end'][11:16]}  {s['title']}{episode}  ({s['channel']}{number}, {s['where']})")
+        for note in found.get("notes", []):
+            print(note)
+    return 0 if found["shows"] else 1
+
+
 def cmd_settings(args: argparse.Namespace) -> int:
     cfg = load_config(args)
     try:  # the schedule is the running daemon's, which this command can't see otherwise
@@ -1596,9 +1616,16 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("doctor", help="explain what's wrong, from what kia has written down: kia doctor, or kia doctor channel <name>")
     p.add_argument("-c", "--config", default="kia.toml")
-    p.add_argument("what", nargs="*", help="nothing for an overview, or: channel <name or ID>, or plex")
+    p.add_argument("what", nargs="*", help="nothing for an overview, or a topic: channel <name or ID>, guide, pluto, setup, plex, jellyfin, hardware")
     p.add_argument("--json", action="store_true", help="the answer as JSON, for scripts")
     p.set_defaults(func=cmd_doctor)
+    p = sub.add_parser("find", help="find shows in the TV guides: kia's, and Plex's and Jellyfin's Live TV (docs/ask-kia.md)")
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("words", nargs="*", help="words in the show's title or description, such as NFL")
+    p.add_argument("--category", default="", help="a guide category, such as Sports")
+    p.add_argument("--hours", type=float, default=24, help="how far ahead to look (0: on now; at most 168)")
+    p.add_argument("--json", action="store_true", help="the answer as JSON, for scripts")
+    p.set_defaults(func=cmd_find)
     p = sub.add_parser("mcp", help="kia's MCP server over standard input and output, for an AI assistant on this computer (docs/mcp.md)")
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_mcp)

@@ -126,6 +126,7 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 | `sync` | Takes the guide from another kia server (`KIA_UPSTREAM_URL`) |
 | `probe <address>` | Tests one stream address and prints what ffprobe found: the same test as the nightly check, for a stream that isn't in a playlist yet |
 | `doctor` | Explains what's wrong, using the files kia keeps, and says what to do. `doctor channel <name>` explains one channel's stream and guide; `doctor guide`, the whole guide; `doctor pluto`, Pluto TV through kia's fix; `doctor setup`, kia's own setup; `doctor plex`, why Plex shows no channels or too few; `doctor jellyfin`, why Jellyfin shows no channels or no guide; `doctor hardware`, the computer's disks, RAID, memory, heat, and power. `--json` gives the same for scripts |
+| `find` | Finds shows in the TV guides: kia's, and Plex's and Jellyfin's own (an antenna's, say). Words to look for, `--category` (such as Sports), and `--hours` (0 for on now; 24 if left out; at most 168). `--json` gives the same for scripts |
 | `settings` | The settings kia is running with, and where each is changed |
 | `password` | Where the Dashboard's password is. `--reset` makes a new one |
 | `tls` | The secure Dashboard's certificate. `--self-signed` makes a new one of kia's own |

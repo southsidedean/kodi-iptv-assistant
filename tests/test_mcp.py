@@ -97,7 +97,7 @@ def test_every_tool_only_reads_and_answers(kia):
     status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert status == 200
     tools = body["result"]["tools"]
-    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 14
+    assert {t["name"] for t in tools} == set(mcp.RUN) and len(tools) == 15
     assert all(t["annotations"]["readOnlyHint"] and not t["annotations"]["destructiveHint"] for t in tools)
     before = sorted(p.name for p in kia.state_dir.parent.rglob("*"))
     for t in tools:
@@ -109,6 +109,29 @@ def test_every_tool_only_reads_and_answers(kia):
     assert call_tool(kia, "kia_channel", {"query": "CNN"})["structuredContent"]["channels"][0]["subject"] == "CNN (CNN.us)"
     assert call_tool(kia, "kia_overview")["structuredContent"]["status"]["result"] == "ok"
     assert call_tool(kia, "kia_find_channels", {"query": "cnn"})["structuredContent"]["channels"][0]["id"] == "CNN.us"
+
+
+def test_find_shows_and_its_arguments(kia, monkeypatch):
+    from kia import shows
+
+    asked = []
+    monkeypatch.setattr(shows, "search", lambda conf, q, cat, hours: asked.append((q, cat, hours)) or {"shows": []})
+    assert call_tool(kia, "kia_find_shows", {"query": "NFL", "hours": 0})["structuredContent"] == {"shows": []}
+    assert call_tool(kia, "kia_find_shows", {"category": "Sports"})["structuredContent"] == {"shows": []}
+    assert asked == [("NFL", "", 0), ("", "Sports", 24)]
+    assert "Give some words" in call_tool(kia, "kia_find_shows", {})["structuredContent"]["note"]
+    for hours in (-1, 169, True, "24", float("nan")):
+        _, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                 "params": {"name": "kia_find_shows", "arguments": {"query": "NFL", "hours": hours}}})  # fmt: skip
+        assert "must be a number from 0 to 168" in json.dumps(body), hours
+
+
+def test_whats_on_includes_plex_channels(kia, monkeypatch):
+    from kia import shows
+
+    monkeypatch.setattr(shows, "plex_on_now", lambda env, q: [{"channel": "2.1 WBBMDT (CBS)", "where": "Plex"}] if q == "wbbm" else [])
+    found = call_tool(kia, "kia_whats_on", {"query": "WBBM"})["structuredContent"]
+    assert found["channels"] == [{"channel": "2.1 WBBMDT (CBS)", "where": "Plex"}] and "note" not in found
 
 
 def test_no_secret_reaches_an_answer(kia, monkeypatch):

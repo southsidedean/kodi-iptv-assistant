@@ -8,6 +8,11 @@
 - `kia doctor setup` checks kia's own setup: your own certificate for the secure Dashboard expiring or expired (kia renews the one it made), a certificate and key that don't match, the first password kia made still in use, nowhere to send alerts, under 1 GB free for kia's folders, an address only this computer can use, and every playlist's streams failing at once (usually the network or ffprobe).
 - **Ask kia what's wrong** includes the problems of both. Scripts can ask `GET /api/doctor/pluto` and `GET /api/doctor/setup`, and AI assistants get `kia_pluto` and `kia_setup` tools ([asking kia for help](docs/ask-kia.md)).
 
+### Finding shows
+
+- `kia find` searches the TV guides for shows: kia's guide, and the Live TV guides of the Plex and Jellyfin that kia knows, when they have guides of their own (an antenna's channels in Plex, for example). Give it words, a category such as Sports, or both, and how many hours ahead to look (`--hours 0` is on now, and the most is a week). It lists up to 25, the ones with your words in the title first, each with its channel, number, times, and where to watch it ([asking kia for help](docs/ask-kia.md)).
+- AI assistants get the same as a `kia_find_shows` tool, so they can answer "when is the Bears game on, and on which channel?". `kia_whats_on` also covers Plex's own channels now, so "what's on WBBM?" works for an antenna's channels too.
+
 ## 0.6.5 (2026-10-25)
 
 ### Upgrading from 0.6.4
