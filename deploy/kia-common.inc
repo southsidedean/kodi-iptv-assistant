@@ -12,14 +12,15 @@ gzip_types application/json text/css application/javascript;
 
 # Clients should always re-check; the guide changes several times a day.
 add_header Cache-Control "no-cache";
+# always: nginx's own error pages (a 404, a 502 while kia restarts) get these too.
 # kia's pages are never shown inside another site's page.
-add_header X-Frame-Options "DENY";
+add_header X-Frame-Options "DENY" always;
 # Channel names and shows come from other people's playlists and guides. kia escapes them,
 # and if something got through anyway, a page could still load and send nothing outside
 # kia itself (the secure page keeps your password in the browser while it's open).
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
-add_header X-Content-Type-Options "nosniff";
-add_header Referrer-Policy "no-referrer";
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "no-referrer" always;
 
 # Don't serve files that a run is still writing.
 location ~ \.tmp$ {

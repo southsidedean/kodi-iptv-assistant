@@ -36,8 +36,6 @@ profiles/*
 .env
 .env.bak*
 .env.new
-.coverage
-.hypothesis/
 sources.local.txt
 # Your own playlist files (see the end of sources.txt).
 playlists/

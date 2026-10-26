@@ -4,8 +4,6 @@
 #   journalctl --user -u kia -f        its log
 [Unit]
 Description=kia (kodi-iptv-assistant): checks streams, builds the guide, serves both
-After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=simple

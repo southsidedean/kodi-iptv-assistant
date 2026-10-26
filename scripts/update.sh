@@ -101,6 +101,9 @@ if numbers=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/
         END { if (n > 0) print n " playing"; else if (r) print "a refresh is running" }')
 elif [ "$docker" = yes ] && ! docker compose ps --services --status running 2>/dev/null | grep -qx kia; then
     watching=""  # kia isn't running, so nobody is watching through it
+elif [ "$docker" = no ] && ! systemctl --user is-active --quiet kia 2>/dev/null \
+        && ! launchctl print "gui/$(id -u)/io.github.southsidedean.kia" >/dev/null 2>&1; then
+    watching=""  # without Docker: kia's service isn't running, so nobody is watching through it
 else
     # kia runs but didn't answer (busy, or a port that isn't KIA_PORT): that's not the
     # same as nobody watching.
@@ -145,6 +148,8 @@ changed=$(git diff --name-only "$before_rev" HEAD -- deploy/ scripts/stack.sh 2>
 restart=""
 if echo "$changed" | grep -q -E '^deploy/(nginx\.conf|kia-common\.inc|kia-api\.inc|nginx-tls\.sh)$'; then restart="web"; fi
 if echo "$changed" | grep -q '^deploy/monitoring/prometheus\.yml$'; then restart="$restart prometheus"; fi
+# Grafana reads its provisioned data source only when it starts.
+if echo "$changed" | grep -q '^deploy/monitoring/grafana/'; then restart="$restart grafana"; fi
 if [ -n "$restart" ]; then
     running=$(docker compose ps --services --status running 2>/dev/null || true)
     for service in $restart; do

@@ -55,10 +55,10 @@ def test_pages_cant_be_framed_or_load_from_elsewhere(server):
     with urllib.request.urlopen(f"http://127.0.0.1:{port}/curated.m3u", timeout=5) as r:
         assert r.headers["X-Frame-Options"] == "DENY" and r.headers["X-Content-Type-Options"] == "nosniff"
         assert "connect-src 'self'" in r.headers["Content-Security-Policy"]
-    # nginx sends the same ones.
+    # nginx sends the same ones, on its own error pages too (always).
     nginx = (Path(__file__).resolve().parent.parent / "deploy" / "kia-common.inc").read_text()
     for name, value in serve.SECURITY_HEADERS.items():
-        assert f'add_header {name} "{value}";' in nginx, name
+        assert f'add_header {name} "{value}" always;' in nginx, name
 
 
 def test_third_party_text_cant_add_playlist_lines():

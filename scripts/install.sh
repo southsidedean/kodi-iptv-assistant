@@ -202,7 +202,8 @@ else
     fi
     if [ -z "$PRESET" ]; then
         say "What is this kia for? (docs/stack.md)"
-        for f in stacks/*.env; do
+        # In the presets' "# order:" lines' order, as the Dashboard shows them: kodi first.
+        for f in $(for p in stacks/*.env; do printf '%s %s\n' "$(sed -n 's/^# order: *\([0-9][0-9]*\).*/\1/p' "$p" | grep . || echo 99)" "$p"; done | sort -n | cut -d' ' -f2); do
             say "  $(basename "$f" .env): $(sed -n 's/^# title: *//p' "$f"). $(sed -n 's/^# needs: *//p' "$f")"
             asks=$(sed -n 's/^# asks: *//p' "$f")  # what it asks of you once chosen, said before
             case "$asks" in "" | "Nothing more.") ;; *) say "      Asks you for: $asks" ;; esac
@@ -232,8 +233,11 @@ if [ -n "$PRESET" ]; then
     fi
     # The addresses Plex and Jellyfin apps on your network use, from this computer's.
     if [ -n "$address" ]; then
-        case ",$stack," in *,plex,*) (umask 077 && sed -e "s|^KIA_PLEX_ADVERTISE=$|KIA_PLEX_ADVERTISE=http://$address:32400/|" .env >.env.tmp) && mv .env.tmp .env ;; esac
-        case ",$stack," in *,jellyfin,*) (umask 077 && sed -e "s|^KIA_JELLYFIN_ADVERTISE=$|KIA_JELLYFIN_ADVERTISE=http://$address:8096|" .env >.env.tmp) && mv .env.tmp .env ;; esac
+        # On the ports .env publishes them on, as scripts/stack.sh uses.
+        plex_port=$(sed -n 's/^KIA_PLEX_PORT=\([0-9][0-9]*\)$/\1/p' .env | tail -n 1)
+        jellyfin_port=$(sed -n 's/^KIA_JELLYFIN_PORT=\([0-9][0-9]*\)$/\1/p' .env | tail -n 1)
+        case ",$stack," in *,plex,*) (umask 077 && sed -e "s|^KIA_PLEX_ADVERTISE=$|KIA_PLEX_ADVERTISE=http://$address:${plex_port:-32400}/|" .env >.env.tmp) && mv .env.tmp .env ;; esac
+        case ",$stack," in *,jellyfin,*) (umask 077 && sed -e "s|^KIA_JELLYFIN_ADVERTISE=$|KIA_JELLYFIN_ADVERTISE=http://$address:${jellyfin_port:-8096}|" .env >.env.tmp) && mv .env.tmp .env ;; esac
     fi
     say "Preset $PRESET: KIA_STACK=${stack:-(kia and its web server only)}."
 fi
@@ -273,7 +277,8 @@ else
 fi
 
 url=$(sed -n 's/^KIA_PUBLIC_URL=//p' .env)
-host=$(printf '%s' "$url" | sed -e 's|^[a-z]*://||' -e 's|:[0-9]*$||' -e 's|/.*||')
+# The path first, then the port: "http://my-server.lan:8780/" is my-server.lan.
+host=$(printf '%s' "$url" | sed -e 's|^[a-z]*://||' -e 's|/.*||' -e 's|:[0-9]*$||')
 https_port=$(sed -n 's/^KIA_HTTPS_PORT=//p' .env)
 password=""
 i=0

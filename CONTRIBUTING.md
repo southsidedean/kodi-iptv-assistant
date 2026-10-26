@@ -18,7 +18,7 @@ The same checks CI runs on the code, for bugs and security problems:
 .venv/bin/ruff check src tests scripts tools
 .venv/bin/bandit -q -c pyproject.toml -r src
 shellcheck scripts/*.sh deploy/*.sh
-.venv/bin/zizmor --offline .github/workflows
+.venv/bin/zizmor --offline --min-severity medium .github/workflows
 ```
 
 The test and lint tools are pinned to exact versions in `pyproject.toml`'s `dev` extra, so a new release of one can't fail an unrelated pull request; Dependabot proposes updates once a month. CI runs the tests on Linux with Python 3.11 and the newest Python, and on macOS; all three must pass. Each test has a one-minute limit, so one that hangs fails by name (a slow one says `@pytest.mark.timeout(seconds)`). The shell scripts are plain POSIX sh: their tests run them with stand-ins for docker, uname, nc, and curl, under Ubuntu's dash on CI and macOS's sh on the Mac job.

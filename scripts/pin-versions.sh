@@ -45,7 +45,8 @@ case "$base_image" in *@sha256:*) ;; *)
     fi
     rm -f "$manifest"
     case "$remote" in
-      [0-9a-f]*[0-9a-f]) base="${base_image%:*}@sha256:$remote"
+      # The tag is after the last ":" of the name's last part (my-server.lan:5000/x has a port, not a tag).
+      [0-9a-f]*[0-9a-f]) case "${base_image##*/}" in *:*) base="${base_image%:*}@sha256:$remote" ;; *) base="$base_image@sha256:$remote" ;; esac
         echo "The base image kia was built on isn't kept on this computer, so this pins today's newest;"
         echo "docker compose up -d --build rebuilds kia on it." ;;
       *) echo "Couldn't find the base image's digest ($base_image), so it isn't pinned." >&2 ;;

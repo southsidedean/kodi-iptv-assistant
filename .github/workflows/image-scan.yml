@@ -36,4 +36,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           sarif_file: trivy.sarif
-          category: image
+          category: image-release  # :latest, weekly; images.yml's scans of main have their own

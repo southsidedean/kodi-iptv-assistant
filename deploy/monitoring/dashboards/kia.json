@@ -899,7 +899,7 @@
        "mode": "off"
       }
      },
-     "noValue": "No Pluto TV channels watched in this time"
+     "noValue": "No Pluto TV channels watched in this time, or the relay is off (KIA_PLUTO_RELAY=false)"
     },
     "overrides": []
    },
