@@ -78,9 +78,11 @@ def gateway_token(project_dir: Path | None) -> str | None:
     return value if 32 <= len(value) <= 100 else None
 
 
-def tokens(state_dir: Path, project_dir: Path | None) -> list[str]:
-    """Every token kia accepts: its own (kia mcp-token) and the gateway's. None: it's off."""
-    return [t for t in (token(state_dir), gateway_token(project_dir)) if t]
+def tokens(state_dir: Path, project_dir: Path | None, gateway: bool) -> list[str]:
+    """Every token kia accepts: its own (kia mcp-token), and the gateway's while the gateway
+    part is chosen. Taking the part out stops its token working, though the file stays. An
+    empty list: the server is off."""
+    return [t for t in (token(state_dir), gateway_token(project_dir) if gateway else None) if t]
 
 
 def make_token(state_dir: Path) -> str:

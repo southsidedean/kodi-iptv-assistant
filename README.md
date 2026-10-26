@@ -113,7 +113,7 @@ scripts/stack.sh apply     # start what's chosen and stop the rest, asking first
 scripts/stack.sh           # what runs now, and which graphs have data
 ```
 
-The parts are `plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, and `observability-disks`. [Choosing the parts](docs/stack.md) explains each one, and [the stack under the hood](docs/stack-under-the-hood.md) shows how it all works.
+The parts are `plex`, `plex-tuner`, `plex-tuner-2`, `jellyfin`, `observability`, `observability-gpu`, `observability-disks`, and `gateway`. [Choosing the parts](docs/stack.md) explains each one, and [the stack under the hood](docs/stack-under-the-hood.md) shows how it all works.
 
 ## Players
 

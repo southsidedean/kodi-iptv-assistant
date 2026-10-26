@@ -718,8 +718,10 @@ def mcp_request(cfg: ApiConfig, method: str, headers, body: bytes, secure: bool)
     from kia import mcp
     from kia.config import load
 
-    # kia's own token, and the gateway part's when it's in use (scripts/gateway.sh).
-    expected = mcp.tokens(cfg.state_dir, cfg.config_file.parent if cfg.config_file else None)
+    # kia's own token, and the gateway part's while it's chosen (scripts/gateway.sh).
+    from kia import stack
+
+    expected = mcp.tokens(cfg.state_dir, cfg.config_file.parent if cfg.config_file else None, "gateway" in (stack.profiles() or []))
     if not expected:
         raise ApiError(404, "kia's MCP server is off. Turn it on with: kia mcp-token")
     if method != "POST":

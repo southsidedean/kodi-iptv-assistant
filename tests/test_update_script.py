@@ -252,3 +252,23 @@ def test_an_image_by_digest_or_on_a_registry_port_is_left_alone(copy: Path, imag
     r = update(copy)
     assert r.returncode == 0, r.stderr
     assert f"KIA_IMAGE={image}\n" in (copy / ".env").read_text()
+
+
+def test_the_gateways_settings_are_written_again_before_it_starts(copy: Path):
+    # A new version of scripts/gateway.sh may write them differently, and the gateway reads
+    # them only from gateway/config.yaml.
+    origin = copy.parent / "origin"
+    log = copy.parent / "docker.log"
+    (origin / "scripts" / "gateway.sh").write_text(f'#!/bin/sh\necho "gateway.sh $*" >> {log}\n')
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "the gateway part")
+    git(origin, "tag", "v0.4.0")
+    assert update(copy, "v0.4.0").returncode == 0
+    assert "gateway.sh write" not in log.read_text()  # the gateway part isn't in use here
+    log.unlink()
+    git(copy, "-c", "advice.detachedHead=false", "checkout", "-q", "v0.1.0")
+    (copy / "gateway").mkdir()
+    (copy / "gateway" / "config.yaml").write_text("binds: []\n")
+    assert update(copy, "v0.4.0").returncode == 0
+    calls = log.read_text().splitlines()
+    assert calls.index("gateway.sh write") < calls.index("compose up -d")

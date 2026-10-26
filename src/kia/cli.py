@@ -1245,7 +1245,8 @@ def _gateway_setup(cfg: Config, assistant: str) -> int:
     key = given if _DEVICE_KEY.fullmatch(given) else "YOUR-DEVICE-KEY"
     port = os.environ.get("KIA_GATEWAY_PORT", "").strip() or "8745"
     if not port.isdigit() or not 0 < int(port) < 65536:
-        raise ValueError(f"KIA_GATEWAY_PORT={port!r}: expected a port number")
+        log(f"KIA_GATEWAY_PORT={port[:20]!r}: expected a port number, such as 8745")
+        return 2
     host = tls.names(cfg.public_url, cfg.tls_names)[0]
     address = f"https://{tls.in_url(host)}:{port}/mcp"
     print(f"The gateway is at {address}")

@@ -10,6 +10,7 @@ On this page:
 - [Which assistants can use it](#which-assistants-can-use-it)
 - [On the same computer as kia](#on-the-same-computer-as-kia)
 - [From another computer](#from-another-computer): turn it on, trust kia's certificate, then [your assistant](#set-up-your-assistant)
+- [Several devices: the gateway](#several-devices-the-gateway): a key for each device, with a limit and a log
 - [What the assistant can see](#what-the-assistant-can-see)
 - [Privacy and safety](#privacy-and-safety)
 - [When it doesn't work](#when-it-doesnt-work)
@@ -206,6 +207,48 @@ kia speaks MCP's Streamable HTTP transport. Give your client:
 
 A client that only starts local programs can use the [mcp-remote](#claude-desktop) bridge, as Claude Desktop does.
 
+## Several devices: the gateway
+
+kia's own token is enough for one or two assistants. When several people or devices use kia's MCP server, the gateway part gives each device a key of its own. You can see which device asked what, limit each one, and turn off one device's key without changing the others. It's [agentgateway](https://agentgateway.dev), an open-source gateway for AI tools, running next to kia. It's optional, and it needs Docker; without it, kia's own protections stay as they are.
+
+### 1. Add the gateway part
+
+In the kia folder, add `gateway` to `KIA_STACK` in `.env`, such as `KIA_STACK=plex,gateway`, then:
+
+```sh
+scripts/stack.sh apply
+```
+
+Or choose **Gateway** on the Dashboard's Stack page ([choosing the parts](stack.md)). The gateway answers on port 8745 (`KIA_GATEWAY_PORT`), over HTTPS with kia's certificate, at `/mcp`.
+
+### 2. Give each device a key
+
+```sh
+scripts/gateway.sh add laptop
+```
+
+It prints the device's key, once, and the setup for Claude Code with the gateway's address and that key filled in. For another assistant, add `--for` and its name, as with `kia mcp-token`: `scripts/gateway.sh add office-pc --for gemini`. Name each device so you'll know it in the log, with lowercase letters, digits, and dashes. The device also needs [kia's certificate](#2-trust-kias-certificate), as before.
+
+`scripts/gateway.sh list` shows the devices that have a key. `scripts/gateway.sh remove laptop` turns that device's key off within seconds, with no restart. A key can't be shown again: if one is lost, remove the device and add it again for a new key.
+
+### 3. Turn kia's own token off (optional)
+
+Once your devices use the gateway, kia's own token is needed only by assistants you set up before. Turn it off, and every call has to come through the gateway:
+
+```sh
+docker compose exec kia python3 -m kia mcp-token --off
+```
+
+The gateway keeps working: it has a token of its own for kia, in `gateway/kia-token`, which no device ever sees. `kia mcp`, [on kia's own computer](#on-the-same-computer-as-kia), needs no token either way.
+
+### What the gateway adds
+
+`docker compose logs gateway` shows a line for each call, with the time, the device, the tool, the answer's status, and how long it took. It never shows a key or a token.
+
+Each device can make 120 requests a minute (`KIA_GATEWAY_RATE`), and an assistant's start-up takes a few of them. Over the limit, that device's assistant gets "rate limit exceeded" for a moment while the others carry on. kia's own limit of 60 tool calls a minute still covers all the devices together, since they all reach kia through the gateway.
+
+The gateway keeps each key only as its SHA-256, in `gateway/`, so its settings can't give a key away. Backups keep the list of devices and leave the gateway's token out; after restoring one, `scripts/stack.sh apply` makes a new token.
+
 ## What the assistant can see
 
 | Tool | What it returns |
@@ -250,6 +293,9 @@ That's what the Dashboard shows to anyone on your network, plus a few things fro
 | 429 "Too many wrong MCP tokens" | Wrong tokens were sent; wait a minute, then use the right one |
 | 429 "More than 60 tool calls in a minute" | The assistant is calling kia in a loop. Wait a moment; if it keeps happening, start a new conversation |
 | Gemini CLI shows kia as "Disabled" | Gemini CLI turns MCP servers on only in folders you trust |
+| 401 "api key authentication failure" (through the gateway) | The device's key is missing, wrong, or removed. `scripts/gateway.sh list` shows the devices; remove the device and add it again for a new key |
+| "rate limit exceeded" (through the gateway) | That device made more than `KIA_GATEWAY_RATE` requests in a minute. Wait a moment, or raise the limit and run `scripts/gateway.sh write` |
+| 500 "upstream" errors (through the gateway) | The gateway can't reach kia: kia isn't running, or `gateway/kia-token` is missing (run `scripts/gateway.sh write`). `docker compose logs gateway` says which |
 | A channel's guide answer says "not recorded yet" | kia hasn't built the guide since it was updated. It does within a few hours |
 
 ## For developers
@@ -258,6 +304,7 @@ That's what the Dashboard shows to anyone on your network, plus a few things fro
 - **Versions:** `2025-11-25` and `2025-06-18`. A request with another `MCP-Protocol-Version` gets `400`; `initialize` answers with the client's version if kia has it, else `2025-11-25`.
 - **Authentication:** `Authorization: Bearer <token>`, the token from `kia mcp-token` (in `state/mcp-token.txt`). Wrong tokens are slowed down per address, apart from wrong Dashboard passwords; each address can make 60 tool calls a minute. Requests whose `Origin` is another site are refused.
 - **Tools:** the fifteen above, each with `readOnlyHint` set; two prompts, `kia-checkup` and `kia-channel` (argument `channel`). Results come as JSON text and as `structuredContent`; a tool that fails returns `isError`.
+- **Through the gateway:** `POST https://<address>:8745/mcp` with `Authorization: Bearer <device key>`. agentgateway checks the key against its SHA-256 in `gateway/config.yaml`, limits each device, logs the call, and passes it to kia's `/api/mcp` on a network of its own, with its own token (`gateway/kia-token`). It keeps no sessions, as kia doesn't. Over its limit, it answers with JSON-RPC error `-32003`.
 - **Locally:** `kia mcp` speaks the same over standard input and output (MCP's stdio transport), one JSON message per line, with kia's own lines on standard error.
 - **By hand:**
 

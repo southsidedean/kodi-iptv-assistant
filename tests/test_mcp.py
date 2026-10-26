@@ -69,6 +69,48 @@ def test_https_and_the_token_only(kia):
     assert rpc(kia, ping, headers={"Origin": "https://evil.example"}, client="192.0.2.6")[0] == 403
 
 
+def test_the_gateways_token_works_too(kia, tmp_path, monkeypatch):
+    # The gateway part's own token (scripts/gateway.sh), in the kia folder. With kia's own
+    # token turned off, it's the only way in: devices hold keys only the gateway knows.
+    ping = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
+    gateway_token = "g" * 43
+    (tmp_path / "gateway").mkdir()
+    (tmp_path / "gateway" / "kia-token").write_text(gateway_token + "\n")
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")
+    assert rpc(kia, ping, token=gateway_token)[0] == 401  # the gateway part isn't chosen: its token doesn't work
+    api._WRONG.clear()
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex,gateway")
+    assert rpc(kia, ping, token=gateway_token)[0] == 200 and rpc(kia, ping)[0] == 200  # either one
+    (kia.state_dir / mcp.TOKEN_FILE).unlink()
+    assert rpc(kia, ping, token=gateway_token)[0] == 200  # on, with the gateway's alone
+    assert rpc(kia, ping, client="192.0.2.7")[0] == 401  # kia's own is gone
+    # Anything but one short line kia's script would write isn't a token.
+    for bad in ("short\n", "", "x" * 300):
+        (tmp_path / "gateway" / "kia-token").write_text(bad)
+        assert mcp.gateway_token(tmp_path) is None, bad
+    assert rpc(kia, ping, token="short", client="192.0.2.8")[0] == 404  # off: no token at all
+    assert mcp.gateway_token(None) is None  # no settings file, no kia folder
+
+
+def test_mcp_token_prints_the_gateways_setup(kia, capsys, monkeypatch):
+    import io
+
+    config = str(kia.config_file)
+    key = "k" * 43
+    monkeypatch.setenv("KIA_GATEWAY_PORT", "8746")
+    monkeypatch.setattr("sys.stdin", io.StringIO(key + "\n"))  # as scripts/gateway.sh add passes it
+    assert cli.main(["mcp-token", "-c", config, "--gateway"]) == 0
+    out = capsys.readouterr().out
+    assert f"Authorization: Bearer {key}" in out and ":8746/mcp" in out and "/api/mcp" not in out
+    assert mcp.token(kia.state_dir) == TOKEN  # kia's own token isn't made, shown, or changed
+    assert TOKEN not in out
+    monkeypatch.setattr("sys.stdin", io.StringIO("not a key; rm -rf /\n"))
+    assert cli.main(["mcp-token", "-c", config, "--gateway", "--for", "curl"]) == 0
+    assert "Bearer YOUR-DEVICE-KEY" in capsys.readouterr().out  # anything else isn't passed on
+    monkeypatch.setenv("KIA_GATEWAY_PORT", "99999")
+    assert cli.main(["mcp-token", "-c", config, "--gateway"]) != 0
+
+
 # The protocol
 
 
@@ -279,8 +321,13 @@ def test_the_address_it_prints_is_one_the_certificate_covers(kia, capsys, monkey
 def test_backups_leave_the_token_out(kia, tmp_path):
     from kia import backup
 
+    gateway = kia.state_dir.parent / "gateway"
+    gateway.mkdir()
+    (gateway / "kia-token").write_text("g" * 43 + "\n")
+    (gateway / "devices").write_text("laptop " + "0" * 64 + "\n")  # hashes only: no use as keys
     names = backup.make(kia.state_dir.parent, tmp_path / "b.tar.gz")
     assert "state/mcp-token.txt" not in names and any(n.startswith("state/") for n in [*names, "state/x"])
+    assert "gateway/kia-token" not in names and "gateway/devices" in names
 
 
 # kia mcp: the same server over standard input and output, for an assistant on this computer
