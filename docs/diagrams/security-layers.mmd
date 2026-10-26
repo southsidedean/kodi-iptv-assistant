@@ -9,6 +9,7 @@ flowchart TB
   net --> media
   net --> sandbox
   you["You, on the Dashboard"] -->|"password, HTTPS"| webserver["The web server"]
+  ai["An AI assistant<br>(MCP), read-only"] -->|"its own token, HTTPS"| webserver
   webserver --> checks
   checks -->|"a request file"| svc["kia-stack service<br>on the computer, as you"]
   svc -->|"checked: start or stop parts"| docker["Docker"]

@@ -230,3 +230,30 @@ def test_a_leftover_temp_file_cant_make_the_password_file_public(tmp_path: Path)
     leftover.chmod(0o644)
     auth._write_private(target, "{}")
     assert target.stat().st_mode & 0o077 == 0
+
+
+def test_the_built_in_server_wont_follow_a_link(tmp_path: Path):
+    # Without Docker, kia serves output/ itself: like nginx, it serves nothing through a link.
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    out = tmp_path / "output"
+    out.mkdir()
+    (out / "curated.m3u").write_text("#EXTM3U\n")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("private")
+    (out / "leak.txt").symlink_to(secret)
+    (out / "dir").symlink_to(tmp_path)
+    handler = lambda *a, **k: serve.OutputHandler(*a, directory=str(out), **k)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        assert urllib.request.urlopen(f"{base}/curated.m3u", timeout=5).read() == b"#EXTM3U\n"
+        for path in ("/leak.txt", "/dir/secret.txt"):
+            with pytest.raises(urllib.error.HTTPError) as err:
+                urllib.request.urlopen(base + path, timeout=5)
+            err.value.close()
+            assert err.value.code == 404
+    finally:
+        httpd.shutdown()

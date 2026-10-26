@@ -66,6 +66,13 @@ class OutputHandler(SimpleHTTPRequestHandler):
         if urllib.parse.unquote(self.path.split("?", 1)[0]).endswith(".tmp"):
             self.send_error(404)
             return None
+        # Nor anything through a link, as nginx (disable_symlinks on) doesn't: a link put in
+        # output/ could otherwise hand out a file from anywhere this computer lets kia read.
+        path = Path(self.translate_path(self.path))
+        root = Path(self.directory)
+        if any(p.is_symlink() for p in (path, *path.parents) if p != root and root in p.parents):
+            self.send_error(404)
+            return None
         return super().send_head()
 
     # A client that connects and goes quiet doesn't hold a thread forever.

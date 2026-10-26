@@ -44,6 +44,7 @@ In each device's player, use the playlist for that room or person:
 | Android TV, Google TV, Nvidia Shield | TiviMate | [TiviMate](../tivimate.md) |
 | iPhone, iPad, Apple TV, Android phones and tablets | UHF or Televizo | [Phones and tablets](../phones.md) |
 | Any TV or phone with Plex | Plex, through Threadfin | [Plex](../plex.md), or [a home TV box](plex-box.md) to run Plex on the same server |
+| Any TV or phone with Jellyfin | Jellyfin | [Jellyfin](../jellyfin.md), or [a Jellyfin TV box](jellyfin-box.md) to run Jellyfin on the same server |
 
 kia tells Kodi where each playlist's guide is. Other apps ask for it: use the guide address on the playlist's page, such as `http://192.168.1.20:8780/kids.guide.xml.gz`.
 
@@ -61,13 +62,11 @@ The nightly refresh is the busy part: up to an hour of checking streams and down
 
 ## Keeping it running
 
-- **Alerts.** Have kia send a message to your phone when the nightly refresh fails, so you hear about it before anyone else in the house: [alerts](../alerts.md).
-- **Backups.** Save kia's settings, playlists, and favorites: [backing up](../configuration.md#backing-up-and-moving-to-another-computer).
-- **Updating kia.** Follow the steps in the [README](../../README.md#updating-and-stopping), which also update the images.
+Have kia send a message to your phone when the nightly refresh fails, so you hear about it before anyone else in the house ([alerts](../alerts.md)). Back up kia's settings, playlists, and favorites now and then ([backing up](../configuration.md#backing-up-and-moving-to-another-computer)). To update kia, follow the steps in the [README](../../README.md#updating-and-stopping), which also update the images.
 
 ## If something's wrong
 
-**One device has no channels.** Open the playlist's address in a browser on a device on the same network. If it doesn't load, the device can't reach the server: check the address, and that the server's firewall lets other devices in ([troubleshooting](../troubleshooting.md)).
+**One device has no channels.** Open the playlist's address in a browser on a device on the same network. If it doesn't load, the device can't reach the server: check the address, and that a firewall on the router or the device isn't blocking it ([troubleshooting](../troubleshooting.md#other-devices-cant-connect)).
 
 **Every device lost its channels at once.** The server is off, or its address changed. See step 1 about a fixed address.
 

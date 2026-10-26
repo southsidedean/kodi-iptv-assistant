@@ -24,7 +24,7 @@ Plex says watching through a tuner is free, and recording (DVR) needs [Plex Pass
 
 ## 1. Make a playlist for Plex
 
-A shorter list is quicker for Plex to load and easier to browse. On kia's secure page ([how to open it](secure-page.md)), choose **Make a playlist**:
+A shorter list is quicker for Plex to load and easier to browse. On kia's secure page ([how to open it](secure-page.md)), choose **Playlists** in the menu, then **Make a playlist**:
 
 1. Name it `plex`.
 2. Choose **Only the channels I pick** and tick the categories you watch, such as News, Movies, and Sports.
@@ -108,7 +108,7 @@ There are two ways. kia can add the tuners for you, which works whether or not P
 1. Find a Plex token by following Plex's [Finding an authentication token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/). The token works like your Plex password, so keep it to yourself.
 2. In kia's `.env`, set Plex's address and the token:
 
-   ```sh
+   ```ini
    KIA_PLEX_URL=http://192.168.1.20:32400
    KIA_PLEX_TOKEN=your-token
    ```

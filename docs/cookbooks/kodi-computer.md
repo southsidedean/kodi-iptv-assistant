@@ -73,10 +73,10 @@ Leave the guide address (**XMLTV URL**) empty; the playlist tells Kodi where the
 
 On the secure Dashboard, `https://localhost:8743/` (your browser warns about kia's own certificate the first time; it's safe to continue):
 
-- **Star your favorites.** On a playlist's page, the star puts a channel in Kodi's Favorites group.
-- **Choose channel numbers.** Turn on **Use channel numbers from backend** in Kodi (step 5 of the Kodi guide), then change numbers on the **Everything** playlist's page.
-- **Add other countries or streaming services** on the **Sources** page.
-- **Make a smaller playlist**, such as news and sports only, on the **Playlists** page. Then use its address in Kodi instead of `curated.m3u`.
+- On a playlist's page, the star puts a channel in Kodi's Favorites group.
+- To choose channel numbers, turn on **Use channel numbers from backend** in Kodi (step 5 of the Kodi guide), then change numbers on the **Everything** playlist's page.
+- The **Sources** page adds other countries or streaming services.
+- The **Playlists** page makes a smaller playlist, such as news and sports only. Use its address in Kodi instead of `curated.m3u`.
 
 ## Living with it
 

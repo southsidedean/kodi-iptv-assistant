@@ -72,7 +72,7 @@ chmod 644 tls/fullchain.pem
 chmod 640 tls/privkey.pem
 ```
 
-The web server picks up the new files within a minute. kia never replaces a certificate it didn't make, so renewing yours is up to you; the Dashboard warns three weeks before it expires. To check what's installed:
+The web server picks up the new files within a minute. kia never replaces a certificate it didn't make, so renewing yours is up to you; the Dashboard warns 30 days before it expires. To check what's installed:
 
 ```sh
 docker compose exec kia python3 -m kia tls

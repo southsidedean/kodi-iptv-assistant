@@ -26,7 +26,7 @@ New here? Begin with [start here](start-here.md).
 - [Playlists for people and devices](profiles.md): smaller playlists for the kids, a room, or a phone.
 - [The secure Dashboard and your password](secure-page.md)
 - [Alerts](alerts.md): a message on your phone when something needs you.
-- [Asking kia for help](ask-kia.md): plain answers from the Dashboard, or your own AI assistant reading kia's record.
+- [Asking kia for help](ask-kia.md): plain answers from the Dashboard, `kia doctor`, and `kia find` for shows in the guide, or your own AI assistant reading kia's record.
 - [kia and AI assistants (MCP)](mcp.md): setting up Claude Code, Gemini CLI, Claude Desktop, Codex, VS Code, or Cursor to ask kia.
 - [Troubleshooting](troubleshooting.md)
 

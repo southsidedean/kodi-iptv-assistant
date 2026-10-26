@@ -10,7 +10,7 @@ kia's Dashboard tells you how things are now. Add Prometheus and Grafana, and yo
 | Dashboard | What it shows |
 |---|---|
 | **kia** | The nightly refresh (OK or failed, how long it took), the guide's age, channels and guide coverage, working and dead streams per source, channels per playlist, the Pluto TV relay's viewers and problems, and kia's own processor and memory use |
-| **TV stack** | Processor, memory, and network for each container (kia, the web server, the Threadfins, Plex in the stack), and the computer's processor, memory, disk, and network |
+| **TV stack** | Processor, memory, and network for each container (kia, the web server, the Threadfins, Plex and Jellyfin in the stack), and the computer's processor, memory, disk, and network |
 | **Plex** | What's playing now (Live TV, movies, episodes) on each player, whether Plex copies or converts the video (and on the graphics card or the processor), and players away from home. Players show by a pseudonym; the System page tells you which is which |
 | **Jellyfin** | The same for Jellyfin, and what Jellyfin in the stack sends to players |
 | **Hardware** | The graphics card (load, video encoder and decoder, temperature), each disk's health, temperatures and fans, software RAID, free space, and a UPS or laptop battery. Each section needs its source: [step 6](#6-the-hardware-dashboard-optional) |
@@ -122,10 +122,11 @@ Prometheus picks new files up within a few minutes, without a restart.
 
 ## Good to know
 
-- **Ports.** Grafana is on 8788 (`KIA_GRAFANA_PORT`), over HTTPS only. Prometheus is on 8789 (`KIA_PROMETHEUS_PORT`), open to this computer only, because its page has no password. Both stay off the common ports 3000 and 9090, which other programs often use.
-- **How long it keeps.** 30 days (`KIA_PROMETHEUS_RETENTION`, such as `90d`). The numbers are in `monitoring/prometheus`, and Grafana's settings in `monitoring/grafana`, in the kia folder (on a Mac, in the Docker volume `grafana-data`).
-- **kia's numbers on their own.** kia publishes them at `http://192.168.1.20:8780/metrics` for any Prometheus you already have; [metrics](../metrics.md) lists them.
-- **Turning it off.** Remove `observability` (and `observability-gpu`, `observability-disks`) from `KIA_STACK`, then `scripts/stack.sh apply`, which stops them. Without `KIA_STACK`, remove `monitoring` and the other `monitoring-` profiles from `COMPOSE_PROFILES`, then `docker compose rm -sf prometheus grafana cadvisor node-exporter dcgm-exporter smartctl-exporter`. On a Mac, `brew services stop node_exporter` too. The numbers stay in `monitoring/` until you delete them.
+Grafana is on port 8788 (`KIA_GRAFANA_PORT`), over HTTPS only. Prometheus is on 8789 (`KIA_PROMETHEUS_PORT`), open to this computer only, because its page has no password. Both stay off the common ports 3000 and 9090, which other programs often use.
+
+Prometheus keeps 30 days of numbers (`KIA_PROMETHEUS_RETENTION`, such as `90d`). They're in `monitoring/prometheus`, and Grafana's settings in `monitoring/grafana`, in the kia folder (on a Mac, in the Docker volume `grafana-data`). kia also publishes its own numbers at `http://192.168.1.20:8780/metrics` for any Prometheus you already have; [metrics](../metrics.md) lists them.
+
+To turn it off, remove `observability` (and `observability-gpu`, `observability-disks`) from `KIA_STACK`, then `scripts/stack.sh apply`, which stops them. Without `KIA_STACK`, remove `monitoring` and the other `monitoring-` profiles from `COMPOSE_PROFILES`, then `docker compose rm -sf prometheus grafana cadvisor node-exporter dcgm-exporter smartctl-exporter`. On a Mac, `brew services stop node_exporter` too. The numbers stay in `monitoring/` until you delete them.
 
 ## If something's wrong
 

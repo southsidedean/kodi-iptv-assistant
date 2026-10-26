@@ -89,9 +89,9 @@ After changing `.env`, apply it with `docker compose up -d`. Add `--build` if yo
 
 Docker on a Mac runs in a small Linux machine of its own, and reaches folders on the Mac through a file share. Plex's database doesn't survive that share: within minutes of scanning a library, Plex logs errors and its database is damaged. So on a Mac, the installer sets `KIA_PLEX_CONFIG=plex-config`, `KIA_JELLYFIN_CONFIG=jellyfin-config`, and `KIA_GRAFANA_DATA=grafana-data`, which keep Plex's, Jellyfin's, and Grafana's data in Docker volumes, inside Docker's own machine. Nothing changes on Linux.
 
-- **Grafana's password**, if you didn't choose one: `docker compose exec grafana cat /var/lib/grafana/admin-password.txt`.
-- **Backups:** Docker Desktop's **Volumes** page can export a volume to a file. `kia backup` doesn't include them, the same as Plex's folder on Linux.
-- **Installed on a Mac before kia 0.5.4**, with Plex in the stack? Plex there keeps its data in `plex/config`. If Plex works, you can leave it. To move Plex to a volume, keeping its link to your Plex account (it then scans your libraries again from the start), run this in the kia folder:
+- If you didn't choose a Grafana password, `docker compose exec grafana cat /var/lib/grafana/admin-password.txt` shows the one it made.
+- Docker Desktop's **Volumes** page can export a volume to a file, for a backup. `kia backup` doesn't include them, the same as Plex's folder on Linux.
+- Installed on a Mac before kia 0.5.4, with Plex in the stack? Plex there keeps its data in `plex/config`. If Plex works, you can leave it. To move Plex to a volume, keeping its link to your Plex account (it then scans your libraries again from the start), run this in the kia folder:
 
   ```sh
   sed -i '' 's|^KIA_PLEX_CONFIG=.*|KIA_PLEX_CONFIG=plex-config|' .env
@@ -107,7 +107,7 @@ Docker on a Mac runs in a small Linux machine of its own, and reaches folders on
 
 The secure Dashboard's **Sources** page has a **Channel sources** card: the playlists kia reads channels from. It lists every one kia uses, plus every one `sources.txt` offers turned off, grouped like the file. To use one, tick it; to stop, untick it. **Add a channel source** takes the address of any M3U playlist on the internet. You need the password, the same one as for [profiles](profiles.md).
 
-![The secure Sources page: the Channel sources card with the password box and the Countries group open, USA ticked with 1,483 channels (1,173 working, 5 flaky, 305 dead at the last check), the other countries unticked, a Check now button on each, and the Languages, Categories, Smaller lists, and Radio groups closed below](../images/sources-page.png)
+![The secure Sources page: the Channel sources card with the password box and the Countries group open, USA ticked with 1,483 channels (1,173 working, 5 flaky, 305 dead at the last check), the other countries unticked, a Check now button on each, and the Languages, Categories, and Smaller lists groups closed below](../images/sources-page.png)
 
 **Check now** tests every stream in one source right away and shows how many work, with a few of the working channels' names. It takes from seconds to a few minutes, depending on the playlist's size, and changes nothing. **Stop** ends a check that's taking too long.
 
@@ -182,7 +182,7 @@ A restore puts files only inside the kia folder: one under a folder that's a lin
 
 ## Uninstalling
 
-To remove kia, in the kia folder:
+To remove kia, in the kia folder. Without Docker, run `scripts/install-service.sh --uninstall` instead, which removes kia's service, then skip to deleting the folder:
 
 ```sh
 scripts/install-service.sh --stack --uninstall
@@ -191,7 +191,7 @@ docker compose down --rmi all --volumes
 
 The first line removes the [kia-stack service](stack.md#changing-the-stack-from-the-dashboard), if you installed it; it's safe to run either way. (`--volumes` also removes the Docker volumes for Plex, Jellyfin, and Grafana [on a Mac](#on-a-mac).) Then delete the kia folder. That also deletes your settings and choices, so [back up](#backing-up-and-moving-to-another-computer) first if you might come back.
 
-**Before you delete it, check what else is in it.** With Plex in the stack ([the home TV box](cookbooks/plex-box.md)), the kia folder can hold your movies, shows, and music (`media/`, unless `KIA_MEDIA_DIR` points elsewhere) and Plex's library and watch history (`plex/`). With monitoring on, it holds the graphs' history (`monitoring/`). Move anything you want to keep out of the folder first. If you opened ports in ufw (the installer did before 0.5.6), close them with `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`. On each device, remove kia's address from the player (in Kodi, disable or uninstall IPTV Simple Client). Without Docker, `scripts/install-service.sh --uninstall` removes the service first.
+**Before you delete it, check what else is in it.** With Plex in the stack ([the home TV box](cookbooks/plex-box.md)), the kia folder can hold your movies, shows, and music (`media/`, unless `KIA_MEDIA_DIR` points elsewhere) and Plex's library and watch history (`plex/`). With monitoring on, it holds the graphs' history (`monitoring/`). Move anything you want to keep out of the folder first. If you opened ports in ufw (the installer did before 0.5.6), close them with `sudo ufw delete allow 8780/tcp` and `sudo ufw delete allow 8743/tcp`. On each device, remove kia's address from the player (in Kodi, disable or uninstall IPTV Simple Client), and remove kia from any AI assistant you connected to it (in Claude Code, `claude mcp remove kia`).
 
 ## Versions
 
@@ -225,7 +225,7 @@ Each image is scanned for known vulnerabilities before it's published, and from 
 
 ## `kia.toml`
 
-Each setting is explained by a comment in the file. The sections:
+Most settings are explained by a comment in the file; the rest are described here. The sections:
 
 - `[check]`: stream testing: `merge_duplicates` (join the same channel from different playlists), `concurrency`, `per_host` (tests at once per server), `per_host_limits` (exceptions to `per_host` for some servers), `host_delay_ms` (the gap between tests on one server), `timeout` (seconds before a silent stream fails), `require_video`, `grace_failures` (how many failed nightly checks in a row a stream that used to work survives; it's dropped after the next one), `history_days`, `user_agent` (kia introduces itself as VLC by default), `ffprobe` (the ffprobe program to use, if not the one on the `PATH`).
 - `[filters]`: leave channels out before testing: `exclude_groups`, `exclude_labels` (e.g. `"Geo-blocked"`, `"Not 24/7"`), `exclude_name_patterns` (regular expressions).

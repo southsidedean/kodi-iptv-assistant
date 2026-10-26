@@ -16,8 +16,10 @@ add_header Cache-Control "no-cache";
 # kia's pages are never shown inside another site's page.
 add_header X-Frame-Options "DENY" always;
 # Channel names and shows come from other people's playlists and guides. kia escapes them,
-# and if something got through anyway, a page could still load and send nothing outside
-# kia itself (the secure page keeps your password in the browser while it's open).
+# and if something got through anyway, a page couldn't load from or send requests to other
+# sites (the secure page keeps your password in the browser while it's open). A script
+# could still navigate away carrying data: kia's pages need their inline scripts, so the
+# escaping is what stops that.
 add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "no-referrer" always;
