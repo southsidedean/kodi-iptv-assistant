@@ -37,7 +37,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from kia import channels, m3u
+from kia import channels, m3u, native, playlistguide
 from kia.config import Config
 from kia.history import readable
 
@@ -369,7 +369,10 @@ def _choice(e: m3u.Entry, choices: object, candidates: list[str], evidence: list
         level, title = (OK, "It has a full guide") if hours >= 20 else (NOTE, "It has a partial guide")
         detail = f"From {site}: {hours} of the next 24 hours, {c.get('programs')} programs."
         if c.get("ends"):
-            detail += f" Its listings run to {readable(c['ends'])}, and the quick refreshes add more as the day goes on."
+            detail += f" Its listings run to {readable(c['ends'])}"
+            # Only the sources the quick refreshes download again get more during the day.
+            quick = site in native.QUICK_GRABBERS or str(site).startswith(playlistguide.PREFIX)
+            detail += ", and the quick refreshes add more as the day goes on." if quick else ", until tonight's refresh."
         return [Finding(level, title, detail, evidence)]
     # Matched, but none of its sources had anything for the next 24 hours.
     found = [Finding(PROBLEM, "Its guide sources sent nothing for the next day",
