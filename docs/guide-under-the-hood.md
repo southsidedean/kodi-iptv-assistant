@@ -39,6 +39,8 @@ Radio stations named exactly KINK or KEXP get their station's own schedule. A ch
 
 A Pluto TV channel's stream address carries Pluto's own ID for it (`jmp2.uk/plu-<id>`, or `/pluto/<id>.m3u8` once it plays through kia), and i.mjh.nz's Pluto guides list channels by that ID. So every Pluto channel also gets i.mjh.nz's guide for its country, by that ID, after its other sources, whatever name or `tvg-id` the playlist gives it. The country comes from the `tvg-id` (`.us` is the US guide), for the 14 countries i.mjh.nz covers. This one doesn't count toward `max_sites_per_channel`.
 
+epgshare01.online, a free guide service that one person runs, publishes a guide file a "feed": a country's (`US2`, `UK1`) or a service's (Distro TV, TBN+, Peacock). iptv-org lists its channels under feed names it has since changed, and mostly without IDs. So kia reads epgshare01's own channel lists instead, for the countries in your playlists (and the services that carry US channels, when you have US ones), and leaves iptv-org's out. Each channel's name comes from its ID there (`Bounce.TV.us2` is Bounce TV), with the feed's country, and is matched by exact name like any other site's. kia keeps the lists for a day, and uses last time's when epgshare01 can't be reached. Local US stations (`US_LOCALS1`, 58 MB a night) aren't read. `exclude_sites = ["epgshare01.online"]` turns it off.
+
 Each channel keeps up to three sources (`max_sites_per_channel`). When there are more, the sites in `prefer_sites` go first, then the sites that cover the most of your channels: those tend to be the big, well-kept ones. kia writes one channel list per site into `work/channels/`, with each site's channel IDs written under your `tvg-id`s, so the downloaded listings already carry the IDs your playlist uses.
 
 ## Downloading (`kia grab`)
@@ -49,10 +51,11 @@ Then, four sites at a time (`parallel_sites`):
 
 - Most sites: iptv-org's downloader for that site, for 3 days (`days`), with up to 5 connections at once (`site_connections` and `site_delay_ms` change that per site).
 - i.mjh.nz (Pluto TV, Plex, Samsung TV Plus, Roku): kia reads the site's ready-made guide files itself, as they arrive, keeping only your channels. That takes seconds, where iptv-org's downloader takes about 25 minutes and over 2 GB of memory.
+- epgshare01.online: kia downloads only the feeds your channels use, once a night, and keeps your channels, as with i.mjh.nz.
 - kink.nl and KEXP: kia reads KINK's schedule page and KEXP's public API itself.
 - Playlists' own guides: kia downloads each guide a playlist names, unzipping it if it's gzip, and keeps your channels. A playlist can name many guides (one names about 100, over 300 MB in all), so kia notes which addresses had any of your programs, for the quick refreshes below.
 
-Each download goes to `work/guides/.staging/` first and replaces the site's file only when it worked, so a site that fails tonight keeps last night's listings. A download that runs past `site_time_limit` (30 minutes) is stopped, with the same result. For i.mjh.nz and the playlists' guides, which come in several files, a failed file doesn't lose its channels either: kia keeps those channels' programs still to come from last time.
+Each download goes to `work/guides/.staging/` first and replaces the site's file only when it worked, so a site that fails tonight keeps last night's listings. A download that runs past `site_time_limit` (30 minutes) is stopped, with the same result. For i.mjh.nz, epgshare01, and the playlists' guides, which come in several files, a failed file doesn't lose its channels either: kia keeps those channels' programs still to come from last time.
 
 A site that fails three nights in a row (`site_fail_runs`) raises an alert. When a site's name couldn't be looked up, kia asks public DNS servers too, to tell a site that's gone from a DNS problem on your network ([DNS checks](how-it-works.md#dns-checks-and-alerts)).
 
@@ -71,7 +74,7 @@ Each file is written to a temporary name and renamed into place, so a player nev
 
 ## Between nights (`kia refresh-guide`)
 
-Every 4 hours (`KIA_GUIDE_REFRESH_HOURS`), kia downloads the quick sources again, the ones it reads itself: i.mjh.nz, kink.nl, KEXP, and the playlists' own guides (only the addresses that had your programs). It takes seconds. Then it builds the guide again, with last night's files from every other site. Streams aren't checked, and nothing is matched again: that waits for the night.
+Every 4 hours (`KIA_GUIDE_REFRESH_HOURS`), kia downloads the quick sources again, the ones it reads itself (but not epgshare01, which changes once a day): i.mjh.nz, kink.nl, KEXP, and the playlists' own guides (only the addresses that had your programs). It takes seconds. Then it builds the guide again, with last night's files from every other site. Streams aren't checked, and nothing is matched again: that waits for the night.
 
 ## With an upstream server
 
