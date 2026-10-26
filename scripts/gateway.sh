@@ -73,9 +73,9 @@ write() {
     # (state/mcp-token.txt), so with the gateway in use, kia's own token can be turned off.
     if [ ! -s "$kia_token" ]; then new_key >"$kia_token.tmp" && mv -f "$kia_token.tmp" "$kia_token"; fi
     if [ -s "$devices" ]; then
-        keys=$(awk '{ printf "          - keyHash: sha256:%s\n            metadata:\n              device: %s\n", $2, $1 }' "$devices")
+        keys=$(awk 'BEGIN { print "          keys:" } { printf "          - keyHash: sha256:%s\n            metadata:\n              device: %s\n", $2, $1 }' "$devices")
     else
-        keys="          []"  # no devices yet: every call is refused
+        keys="          keys: []"  # no devices yet: every call is refused
     fi
     cat >"$config.tmp" <<EOF
 # kia's gateway (agentgateway) in front of kia's MCP server. scripts/gateway.sh writes this
@@ -112,7 +112,6 @@ binds:
             header:
               name: Authorization
               prefix: "Bearer "
-          keys:
 $keys
         # Requests a minute for each device (KIA_GATEWAY_RATE). Every request counts, an
         # assistant's start-up ones too; over it, the device gets "rate limit exceeded".
