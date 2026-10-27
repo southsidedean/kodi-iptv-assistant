@@ -16,7 +16,7 @@ TOKEN = "t0ken-for-tests"
 @pytest.fixture
 def kia(tmp_path: Path, monkeypatch):
     """A kia folder with a last refresh, a channel, and the MCP server on."""
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     mcp._CALLS.clear()
     api._WRONG.clear()
     (tmp_path / "kia.toml").write_text("")
@@ -150,14 +150,17 @@ def test_every_tool_but_those_that_ask_only_reads_and_answers(kia):
     assert not any(t["annotations"]["destructiveHint"] for t in tools)
     assert {t["name"] for t in tools if not t["annotations"]["readOnlyHint"]} == mcp.ASKING == {
         "kia_test_channel", "kia_refresh_guide", "kia_add_to_plex", "kia_check_stack"}
-    before = sorted(p.name for p in kia.state_dir.parent.rglob("*"))
+    def files() -> dict[str, bytes]:  # every file's name and contents: nothing added, removed, or changed
+        return {str(p): p.read_bytes() for p in kia.state_dir.parent.rglob("*") if p.is_file()}
+
+    before = files()
     for t in tools:
         if t["name"] in mcp.ASKING:
             continue  # it leaves a request (tests/test_asks.py)
         result = call_tool(kia, t["name"], args_for(t["name"]))
         assert result.get("isError") is not True, (t["name"], result)
         assert json.loads(result["content"][0]["text"]) == result["structuredContent"]
-    assert sorted(p.name for p in kia.state_dir.parent.rglob("*")) == before  # nothing written
+    assert files() == before  # nothing written
     assert call_tool(kia, "kia_channel", {"query": "CNN"})["structuredContent"]["channels"][0]["subject"] == "CNN (CNN.us)"
     assert call_tool(kia, "kia_overview")["structuredContent"]["status"]["result"] == "ok"
     assert call_tool(kia, "kia_find_channels", {"query": "cnn"})["structuredContent"]["channels"][0]["id"] == "CNN.us"
@@ -546,7 +549,7 @@ def test_check_stack_only_checks_and_only_known_parts(kia, monkeypatch):
         rid = stack._request_id(kia.state_dir / stack.REQUEST)
         (service / stack.RESULT).write_text(f"id={rid}\naction=check\nstate=finished\nexit=0\n\nAll good\n")
 
-    monkeypatch.setattr(api.time, "sleep", service_answers)
+    monkeypatch.setattr(api, "_sleep", service_answers)
     approve(kia, asked["id"])
     done = finished(kia, asked["id"])
     assert done["result"]["ok"] and done["result"]["output"] == "All good"
@@ -592,7 +595,7 @@ def test_a_stack_service_that_never_answers(kia, monkeypatch):
 
     (kia.state_dir / stack.REQUEST).unlink()  # the first one, which nobody took
     monkeypatch.setattr(api, "STACK_CHECK_UP_TO", 60)
-    monkeypatch.setattr(api.time, "sleep", refused)
+    monkeypatch.setattr(api, "_sleep", refused)
     done = api._check_stack(kia, [])
     assert done["ok"] is False and done["output"] == "An old request"
 

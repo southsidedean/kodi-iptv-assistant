@@ -190,18 +190,19 @@ def test_players_that_look_the_same_share_a_line(tmp_path: Path):
 
 
 def test_plex_and_jellyfin_are_asked_at_the_same_time(tmp_path: Path):
-    import time
+    import threading
+
+    both = threading.Barrier(2, timeout=5)  # passes only when both are being asked at once
 
     class Slow(FakePlex):
         def sessions(self):
-            time.sleep(0.5)
+            both.wait()  # asked one after the other, this times out, and that server counts as down
             return super().sessions()
 
     state = tmp_path / "state"
-    began = time.monotonic()
     out = metrics.render(tmp_path, plex=metrics.MediaSessions(Slow(), state_dir=state),
                          jellyfin=metrics.MediaSessions(Slow(), state_dir=state))  # fmt: skip
-    assert time.monotonic() - began < 0.9 and "kia_plex_up 1" in out and "kia_jellyfin_up 1" in out
+    assert "kia_plex_up 1" in out and "kia_jellyfin_up 1" in out
 
 
 def test_a_plex_that_turned_kia_away_is_asked_with_its_new_token(tmp_path: Path, capsys):

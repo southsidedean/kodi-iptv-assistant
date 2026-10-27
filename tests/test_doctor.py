@@ -776,7 +776,8 @@ def test_every_docs_link_in_doctors_answers_exists():
     from tests.test_docs import github_anchor
 
     def anchors(page: Path) -> set[str]:
-        return {github_anchor(h) for h in re.findall(r"^#+ (.+)$", page.read_text(), re.M)}
+        text = re.sub(r"^```.*?^```", "", page.read_text(), flags=re.M | re.S)  # a "# comment" in a code block isn't a heading
+        return {github_anchor(h) for h in re.findall(r"^#+ (.+)$", text, re.M)}
 
     root = Path(__file__).resolve().parent.parent
     source = (root / "src" / "kia" / "doctor.py").read_text()

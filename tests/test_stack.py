@@ -252,7 +252,7 @@ def api_cfg(tmp_path: Path):
 def test_the_api_asks_the_service(tmp_path: Path, monkeypatch):
     from kia import api
 
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex,plex-server")
     monkeypatch.setenv("KIA_STACK", "plex")
     cfg = api_cfg(tmp_path)
@@ -290,7 +290,7 @@ def test_the_stack_page_is_in_the_menu(tmp_path: Path):
 def test_the_api_refuses_a_body_that_isnt_an_object(tmp_path: Path, monkeypatch):
     from kia import api
 
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")
     cfg = api_cfg(tmp_path)
     for body in (b"[]", b"null", b'"plex"'):
@@ -345,7 +345,7 @@ def test_adding_live_tv_to_plex_from_the_page(tmp_path: Path, monkeypatch):
 
     from kia import api
 
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     monkeypatch.setattr(api, "PLEX_TUNERS", {"running": False})
     cfg = api_cfg(tmp_path)
     post = lambda: api.handle(cfg, "POST", "/api/plex/tuners", {"X-Kia-Password": "secret"}, b"", True)

@@ -48,6 +48,7 @@ def test_unexpected_errors_get_a_500(server, monkeypatch):
     with pytest.raises(urllib.error.HTTPError) as err:
         urllib.request.urlopen(f"http://127.0.0.1:{port}/api/profiles", timeout=5)
     assert err.value.code == 500 and "error" in json.loads(err.value.read())
+    err.value.close()
 
 
 def test_pages_cant_be_framed_or_load_from_elsewhere(server):
@@ -172,6 +173,7 @@ def test_encoded_tmp_addresses_are_hidden_too(server):
     for path in ("/guide.xml.tmp", "/guide.xml%2etmp", "/guide.xml.%74mp"):
         with pytest.raises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5)
+        err.value.close()
         assert err.value.code == 404
 
 
@@ -198,8 +200,9 @@ def test_the_relay_wont_follow_a_redirect_off_https():
     handler = pluto._HttpsOnly()
     req = urllib.request.Request("https://stitcher.pluto.tv/x.m3u8")
     for target in ("http://192.168.1.20/admin", "file:///etc/passwd"):
-        with pytest.raises(urllib.error.HTTPError):
+        with pytest.raises(urllib.error.HTTPError) as err:
             handler.redirect_request(req, io.BytesIO(), 302, "Found", {}, target)
+        err.value.close()
     assert handler.redirect_request(req, io.BytesIO(), 302, "Found", {}, "https://cdn.pluto.tv/y.m3u8") is not None
 
 

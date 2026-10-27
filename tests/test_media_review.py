@@ -69,12 +69,14 @@ def test_a_refused_redirect_isnt_asked_again():
         calls.append(url)
         raise pluto.RedirectRefused(url, 302, "redirect to an address that isn't https", {}, io.BytesIO())
 
-    with pytest.raises(pluto.RedirectRefused):
+    with pytest.raises(pluto.RedirectRefused) as err:
         pluto.fetch_retry("https://example.com/x", refuse)
+    err.value.close()
     assert len(calls) == 1
     handler = pluto._HttpsOnly()
-    with pytest.raises(urllib.error.HTTPError):  # still an HTTPError to anything that asks
+    with pytest.raises(urllib.error.HTTPError) as err:  # still an HTTPError to anything that asks
         handler.redirect_request(urllib.request.Request("https://e/x"), io.BytesIO(), 302, "Found", {}, "http://192.168.1.20/")
+    err.value.close()
 
 
 def test_a_piece_whose_length_isnt_a_number_is_refused():

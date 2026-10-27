@@ -42,17 +42,24 @@ def test_run_pipeline(monkeypatch, tmp_path, codes, expected, steps_run):
         assert ran[1] == ["map", "-c", "kia.toml", "--update"]
 
 
-def test_next_run_keeps_wall_clock_time_across_dst(monkeypatch):
+def test_next_run_keeps_wall_clock_time_across_dst():
+    import os
     import time
 
-    monkeypatch.setenv("TZ", "America/New_York")
+    # By hand rather than monkeypatch, which would put TZ back only after the test, without
+    # time.tzset(): the next test would run in New York time.
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "America/New_York"
     time.tzset()
     try:
         # The evening before US clocks go back (Nov 1, 2026): 04:00 that morning is EST.
         nxt = cli.next_run_local("04:00", datetime(2026, 10, 31, 23, 0))
         assert (nxt.hour, nxt.utcoffset().total_seconds() / 3600) == (4, -5)
     finally:
-        monkeypatch.delenv("TZ")
+        if before is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = before
         time.tzset()
 
 

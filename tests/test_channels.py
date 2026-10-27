@@ -58,7 +58,7 @@ def test_number_choices_are_checked():
 
 @pytest.fixture
 def cfg(tmp_path: Path, monkeypatch) -> api.ApiConfig:
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     out, state = tmp_path / "output", tmp_path / "state"
     out.mkdir()
     es = entries()

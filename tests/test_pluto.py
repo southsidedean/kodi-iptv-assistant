@@ -418,8 +418,11 @@ def test_a_long_fallback_sends_one_alert_an_hour():
     r.channel(CID).last_fetch = 0.0
     r.handle(f"/pluto/{CID}.m3u8", "x")
     assert done.wait(5) and told[0][0] == CID and told[0][1] >= pluto.FALLBACK_ALERT // 60
+    sent = r.alerted[CID]
     r.handle(f"/pluto/{CID}.m3u8", "x")
-    assert len(told) == 1  # not again within the hour
+    # Not again within the hour. The alert goes out on a thread of its own, so check the
+    # decision itself, which is made at once: a second alert would have moved this time.
+    assert r.alerted == {CID: sent} and len(told) == 1
 
 
 def test_what_a_channel_remembers_stays_small():

@@ -14,7 +14,7 @@ from kia.m3u import Entry, write
 
 @pytest.fixture
 def cfg(tmp_path: Path, monkeypatch) -> api.ApiConfig:
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     out, state = tmp_path / "output", tmp_path / "state"
     out.mkdir()
     entries = [
@@ -251,7 +251,7 @@ def test_someone_guessing_is_an_alert_once(cfg, monkeypatch):
         clock[0] += 120
         return clock[0]
 
-    monkeypatch.setattr(api.time, "monotonic", later)
+    monkeypatch.setattr(api, "_clock", later)
     said = []
     cfg.alert = lambda event, title, message: said.append((event, title, message))
 
@@ -358,6 +358,14 @@ def test_every_route_is_in_one_of_the_lists():
               for p, m in re.findall(r'parts == \[([^\]]*)\] and method == "([A-Z]+)"', source)}  # fmt: skip
     listed = {(m, p.split("?")[0]) for m, p, _ in PROTECTED if not p.startswith("/api/profiles/")} | set(PUBLIC)
     assert routes == listed
+    # And every route is written that way, so none slips past the pattern above: the only
+    # others are these three, each covered by its own test.
+    others = {'if parts == ["mcp"]:', 'if parts and parts[0] == "sources" and method in ("PUT", "POST", "DELETE"):',
+              'if len(parts) == 2 and parts[0] == "profiles" and method in ("PUT", "DELETE"):'}  # fmt: skip
+    for line in source.splitlines():
+        line = line.split("  #")[0].strip()
+        if re.match(r"(el)?if .*\bparts\b", line):
+            assert re.fullmatch(r'if parts == \[[^\]]*\] and method == "[A-Z]+":', line) or line in others, line
     # Routes written another way (parts[0] == "sources" and method in (...), say): each part of
     # the API the code names is in one of the lists.
     named = set(re.findall(r'parts(?:\[0\]|\[:1\])? == \[?"([a-z-]+)"', source))
@@ -404,7 +412,7 @@ def test_a_burst_of_wrong_passwords_is_slowed_down_like_one_at_a_time(cfg, monke
     # so a burst counted as one. Now they take turns, and only the first gets checked.
     from concurrent.futures import ThreadPoolExecutor
 
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     checked = []
     real = cfg.auth.check
     monkeypatch.setattr(cfg.auth, "check", lambda given: checked.append(given) or real(given))
@@ -473,3 +481,31 @@ def test_kia_doctor_through_the_api(cfg, tmp_path):
     assert status == 200 and body["reports"][0]["subject"] == "CNN (CNN.us)"
     assert call(cfg, "GET", "/api/doctor/channel?q=" + "x" * 201)[0] == 400
     assert cfg.changes == []
+
+
+def test_a_crowd_of_addresses_doesnt_reset_one_still_waiting(monkeypatch):
+    # Past 1000 addresses, kia forgets those whose wait is over, to keep the table small;
+    # one that must still wait keeps its streak.
+    now = [1000.0]
+    monkeypatch.setattr(api, "_clock", lambda: now[0])
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
+    monkeypatch.setattr(api, "_WRONG", {("password", f"192.0.2.{i % 250}-{i}"): (1, 10.0) for i in range(1001)})
+    api._WRONG[("password", "198.51.100.7")] = (5, 2000.0)  # still waiting
+    token = api._CLIENT.set("192.0.2.200")
+    try:
+        with pytest.raises(api.ApiError):
+            api._slowed("password", lambda: False, "Wrong.", "Too many.")
+    finally:
+        api._CLIENT.reset(token)
+    assert api._WRONG[("password", "198.51.100.7")] == (5, 2000.0) and len(api._WRONG) == 2
+
+
+def test_the_tool_call_table_forgets_only_idle_callers(monkeypatch):
+    from collections import deque
+
+    from kia import mcp
+
+    monkeypatch.setattr(mcp, "_CALLS", {f"idle-{i}": deque([0.0]) for i in range(1001)})
+    mcp._CALLS["busy"] = deque([95.0] * mcp.CALLS_PER_MINUTE)
+    assert mcp._allowed("new", now=100.0)
+    assert set(mcp._CALLS) == {"busy", "new"} and not mcp._allowed("busy", now=100.0)  # still at its limit
