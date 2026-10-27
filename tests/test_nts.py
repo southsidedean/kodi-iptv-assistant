@@ -31,8 +31,8 @@ def test_the_shows_ahead():
 
 
 def test_each_station_gets_its_channels_schedule(tmp_path: Path):
-    for ch in ("1", "2"):
-        (tmp_path / f"nts{ch}.json").write_text(json.dumps(SCHEDULE))
+    (tmp_path / "nts1.json").write_text(json.dumps(SCHEDULE))
+    (tmp_path / "nts2.json").write_text(json.dumps({"results": [day(("On 2", "2026-10-26T11:00:00Z", "2026-10-26T13:00:00Z"))]}))
     chans = tmp_path / "nts.live.channels.xml"
     chans.write_text('<channels><channel site="nts.live" site_id="1" xmltv_id="radio.a">NTS Radio 1</channel>'
                      '<channel site="nts.live" site_id="2" xmltv_id="radio.b">NTS Radio 2</channel>'
@@ -40,8 +40,9 @@ def test_each_station_gets_its_channels_schedule(tmp_path: Path):
     out, said = tmp_path / "out.xml", []
     native.grab_nts(chans, out, 3, said.append, url=tmp_path.as_uri() + "/nts{channel}.json", now=NOW)
     text = out.read_text()
-    assert text.count("On now w/ Guests &amp; Friends'") == 2  # escaped once, for XML and 'channel="radio.a"' in text and 'channel="radio.b"' in text
-    assert "radio.c" not in text and said == ["nts.live: 4 shows in the next 3 days, for 2 station(s)"]
+    assert '"radio.a"><title>On now w/ Guests &amp; Friends\'</title>' in text  # escaped once, for XML
+    assert '"radio.b"><title>On 2</title>' in text and "radio.a\"><title>On 2" not in text  # each its own station's
+    assert "radio.c" not in text and said == ["nts.live: 3 shows in the next 3 days, for 2 station(s)"]
 
 
 def test_one_station_failing_keeps_the_other(tmp_path: Path):

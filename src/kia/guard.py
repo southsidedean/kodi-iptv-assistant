@@ -71,8 +71,8 @@ class Guard:
     """The guard, listening on 127.0.0.1 at a port of the system's choosing. resolve and
     is_local are for tests (a stand-in DNS, and which addresses count as local)."""
 
-    def __init__(self, resolve: Callable = socket.getaddrinfo, is_local: Callable[[str], bool] | None = None):
-        self._resolve = resolve
+    def __init__(self, resolve: Callable | None = None, is_local: Callable[[str], bool] | None = None):
+        self._resolve = resolve or socket.getaddrinfo
         self._is_local = is_local or lan.is_local_address
         self._tickets: dict[str, tuple[str, Ticket]] = {}
         self._lock = threading.Lock()

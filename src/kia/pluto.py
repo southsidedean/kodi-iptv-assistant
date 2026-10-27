@@ -190,8 +190,9 @@ def fetch(url: str, timeout: float = TIMEOUT) -> tuple[str, bytes]:
         return r.geturl(), body
 
 
-def fetch_retry(url: str, fetcher=fetch) -> tuple[str, bytes]:
+def fetch_retry(url: str, fetcher=None) -> tuple[str, bytes]:
     """Once more after a short wait: Pluto now and then answers 500 or times out."""
+    fetcher = fetcher or fetch  # looked up now, not when kia starts, so a test's stand-in applies
     try:
         return fetcher(url)
     except (NotHttps, TooBig, RedirectRefused):
@@ -606,11 +607,11 @@ class Relay:
     """Every Pluto channel being watched. Writes its status to status_file (pluto.json)."""
 
     def __init__(self, status_file: Path | None = None, log: Callable[[str], None] = print,
-                 fetcher=fetch, remux_fn=remux, on_fallback: Callable[[str, int], None] | None = None,
+                 fetcher=None, remux_fn=remux, on_fallback: Callable[[str, int], None] | None = None,
                  allowed: Callable[[], set[str]] | None = None):  # fmt: skip
         self.status_file = status_file
         self.log = log
-        self.fetcher = fetcher
+        self.fetcher = fetcher or fetch
         self.remux = remux_fn
         self.on_fallback = on_fallback
         self.allowed = allowed  # the channel ids kia's playlists have (None: any)

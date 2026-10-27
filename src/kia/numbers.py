@@ -105,9 +105,9 @@ class ChannelNumbers:
                 if int(n) not in taken and datetime.fromisoformat(seen) <= cutoff]  # fmt: skip
         return min(free) if free else None
 
-    def forget_older_than(self, days: int) -> None:
-        """Drop channels not kept for `days`; their numbers stay retired (see _recycled)."""
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    def forget_older_than(self, days: int, now: datetime | None = None) -> None:
+        """Drop channels not kept for `days` before now; their numbers stay retired (see _recycled)."""
+        cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days)
         for kind, known in self.numbers.items():
             retired = self.retired.setdefault(kind, {})
             for key, rec in list(known.items()):

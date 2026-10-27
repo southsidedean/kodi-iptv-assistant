@@ -89,11 +89,12 @@ def _get(url: str) -> str:
 
 
 def load_lists(work_dir: Path, countries: set[str], log: Callable[[str], None] = print,
-               get: Callable[[str], str] = _get, now: float | None = None) -> dict[str, dict]:  # fmt: skip
+               get: Callable[[str], str] | None = None, now: float | None = None) -> dict[str, dict]:  # fmt: skip
     """The channel lists of the feeds for your countries: from last time if less than a day
     old and for the same countries, otherwise downloaded again. When the download fails,
     last time's lists, whatever their age; {} without any."""
     now = time.time() if now is None else now
+    get = get or _get  # looked up now, not when kia starts, so a test's stand-in applies
     path = work_dir / CACHE
     saved = read_object(path)
     lists = _checked(saved.get("lists"))
