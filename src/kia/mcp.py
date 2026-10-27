@@ -87,11 +87,12 @@ DEVICE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 def via_gateway(device: str | None, address: str) -> str:
     """Who a call through the gateway is from, for the limit and kia's log: the device the
     gateway names in X-Kia-Device, so each device has CALLS_PER_MINUTE of its own. kia sees
-    every device at the gateway's address. Without a proper name, that address, which then
-    shares the limit (an older gateway's settings, say)."""
+    every device at the gateway's address. Without a proper name (an older gateway's settings,
+    say), the gateway as a whole, which those calls then share. That isn't an address, so it
+    counts as shared (api.shared_address): an hour's allowance there would cover every device."""
     if device and DEVICE.fullmatch(device):
         return f"{device} (through the gateway)"
-    return address
+    return f"the gateway at {address} (no device name)"
 
 
 def tokens(state_dir: Path, project_dir: Path | None, gateway: bool) -> list[str]:

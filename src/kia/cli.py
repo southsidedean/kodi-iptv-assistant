@@ -870,6 +870,9 @@ def run_and_report(config: str, update_epg: bool) -> int:
     update_status(cfg, result="running", started=started, finished=None, minutes=None, exit_code=None, next_run=None)
     try:
         rc = run_pipeline(config, update_epg)
+    except KeyboardInterrupt:  # Ctrl-C on kia run: not still "running", which would block Check now until a restart
+        update_status(cfg, result="failed", finished=now_iso(), minutes=round((time.monotonic() - start) / 60), exit_code=130)
+        raise
     except (Exception, SystemExit) as exc:  # tell a human; the daemon keeps going
         alerts.notify("run_failed", "kia: nightly run crashed", f"{type(exc).__name__}: {exc}",
                       cfg.state_dir, cfg.alerts, log)  # fmt: skip
@@ -1630,12 +1633,14 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
 # Options whose default comes from .env: (option, setting, default). They're read after the
 # command line, so a typo in one is reported by name, and only for the commands that use it.
 # (option, .env name, default, highest): ports up to 65535, and a quick guide refresh at most weekly.
-ENV_DEFAULTS = (("port", "KIA_PORT", 8780, 65535), ("https_port", "KIA_HTTPS_PORT", 8743, 65535),
-                ("api_port", "KIA_API_PORT", 0, 65535), ("guide_every", "KIA_GUIDE_REFRESH_HOURS", 4.0, 168.0))  # fmt: skip
+# (option, .env name, default, lowest, highest). KIA_HTTPS_PORT starts at 1, as kia.config
+# reads it too: only --https-port 0 turns the secure Dashboard off.
+ENV_DEFAULTS = (("port", "KIA_PORT", 8780, 0, 65535), ("https_port", "KIA_HTTPS_PORT", 8743, 1, 65535),
+                ("api_port", "KIA_API_PORT", 0, 0, 65535), ("guide_every", "KIA_GUIDE_REFRESH_HOURS", 4.0, 0, 168.0))  # fmt: skip
 
 
 def env_default(args: argparse.Namespace) -> None:
-    for option, name, fallback, highest in ENV_DEFAULTS:
+    for option, name, fallback, lowest, highest in ENV_DEFAULTS:
         if getattr(args, option, False) is not None:
             continue  # given on the command line, or not an option of this command
         raw = os.environ.get(name, "").strip()
@@ -1644,8 +1649,8 @@ def env_default(args: argparse.Namespace) -> None:
         except ValueError:
             raise ValueError(f"{name}={raw!r}: expected a number") from None
         # inf and nan read as numbers too, and a huge one only fails later, with a traceback.
-        if not math.isfinite(value) or not 0 <= value <= highest:
-            raise ValueError(f"{name}={raw!r}: expected a number from 0 to {highest:g}")
+        if not math.isfinite(value) or not lowest <= value <= highest:
+            raise ValueError(f"{name}={raw!r}: expected a number from {lowest} to {highest:g}")
         setattr(args, option, value)
 
 

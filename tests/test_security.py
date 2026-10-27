@@ -322,3 +322,10 @@ def test_the_built_in_server_wont_follow_a_link(tmp_path: Path):
             assert err.value.code == 404
     finally:
         httpd.shutdown()
+
+
+def test_a_remembered_password_is_never_an_attribute_in_the_page():
+    from kia import channeleditor, editor, sourceeditor, stackeditor
+
+    for page in (editor, channeleditor, sourceeditor, stackeditor):
+        assert 'else if (k === "value") e.value = attrs[k];' in page.SCRIPT, page.__name__

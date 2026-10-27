@@ -228,13 +228,14 @@ def test_through_the_gateway_each_device_has_its_own_limit(kia, tmp_path, monkey
     assert [through("laptop") for _ in range(3)] == [200, 200, 429]
     assert [through("phone") for _ in range(2)] == [200, 200]  # the laptop's calls don't count against it
     assert "MCP: kia_stack for laptop (through the gateway)" in capsys.readouterr().out
-    # A name gateway.sh wouldn't write: the gateway's address, which those calls then share.
+    # A name gateway.sh wouldn't write: the gateway as a whole, which those calls then share,
+    # and which can't be allowed for an hour (it would cover every device).
     for bad in ("Laptop", "-x", "a b", "x" * 41, "laptop\n", ""):
-        assert mcp.via_gateway(bad, "192.0.2.9") == "192.0.2.9", bad
+        assert mcp.via_gateway(bad, "192.0.2.9") == "the gateway at 192.0.2.9 (no device name)", bad
+    assert api.shared_address(mcp.via_gateway("", "192.0.2.9"))
     assert [through("../x") for _ in range(3)] == [200, 200, 429]
-    # With kia's own token, the header is anyone's to send: the address counts, as always,
-    # and that one has used its calls.
-    assert through("tablet", token=TOKEN) == 429
+    # With kia's own token, the header is anyone's to send: the address counts, as always.
+    assert [through("tablet", token=TOKEN) for _ in range(3)] == [200, 200, 429]
 
 
 # The token command, and over real HTTPS

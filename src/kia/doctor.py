@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import math
 import shutil
+import time
 from collections import Counter
 import os
 import re
@@ -60,16 +61,17 @@ DOCS = "docs/troubleshooting.md"
 _LOGIN_RES = (
     (re.compile(r"(?i)((?:[a-z][a-z0-9+.-]*:)?//)[^/\s?#]*@"), r"\1•••@"),
     # (Also with a prefix: api_key, X-Plex-Token, access_token, apikey.)
-    (re.compile(r"(?i)([?&;](?:[\w-]*[_-])?(?:user(?:name)?|login|pass(?:wd|word)?|pwd|token|key|apikey|auth|secret)=)[^&\s#]*"),
+    (re.compile(r"(?i)([?&;](?:[\w-]*[_-])?(?:user(?:name)?|login|pass(?:wd|word)?|pwd|pw|token|key|apikey|auth|secret)=)[^&\s#]*"),
      r"\1•••"),
     # The same, percent-encoded inside another address ("%3Fusername%3Dme%26password%3Dsecret").
-    (re.compile(r"(?i)((?:%3F|%26|%3B)(?:[\w-]*[_-])?(?:user(?:name)?|login|pass(?:wd|word)?|pwd|token|key|apikey|auth|secret)%3D)"
+    (re.compile(r"(?i)((?:%3F|%26|%3B)(?:[\w-]*[_-])?(?:user(?:name)?|login|pass(?:wd|word)?|pwd|pw|token|key|apikey|auth|secret)%3D)"
                 r".*?(?=%26|%3B|&|\s|#|$)"), r"\1•••"),
     (re.compile(r"(?i)(/(?:live|movie|series|timeshift)/)[^/\s?#]+/[^/\s?#]+/"), r"\1•••/•••/"),
     (re.compile(r"(?i)(%3A%2F%2F)[^/\s?#]*?%40"), r"\1•••%40"),
     # Without a scheme, "me:secret@host:8080/...": a name, a colon, no space, then @ and a
-    # host (an email address has no colon before its @, so it's left alone).
-    (re.compile(r"(?<![\w.%+:/-])[\w.%+-]+:[^\s@/]+@(?=[\w.-]+(?::\d+)?(?:[/?#\s]|$))"), "•••@"),
+    # host (an email address has no colon before its @, so it's left alone). Up to the last @
+    # before the host, so a password with an @ in it is hidden whole.
+    (re.compile(r"(?<![\w.%+:/-])[\w.%+-]+:[^\s/]+@(?=[\w.-]+(?::\d+)?(?:[/?#\s]|$))"), "•••@"),
 )
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
@@ -270,7 +272,7 @@ def channel(cfg: Config, query: str) -> list[Report]:
         reports += [_dropped(name, rows, cfg) for name, rows in list(gone.items())[:MAX_MATCHES] if name not in gone_removed]
         return reports[:MAX_MATCHES]
     if len(found) > MAX_MATCHES:
-        names = ", ".join(e.name for e in found[: MAX_MATCHES * 2])
+        names = ", ".join(_quote(e.name, 80) for e in found[: MAX_MATCHES * 2])
         return [Report(query, [Finding(NOTE, f"{len(found)} channels match", f"Say which one, by more of its name or its ID: {names}...")])]
     return [_kept(e, streams, cfg) for e in found]
 
@@ -706,20 +708,20 @@ def _threadfin(base: Path, folder: str, title: str, ok: object, cfg: Config, m3u
     for name in names:
         path = cfg.output_dir / name
         if not path.exists():
-            found.append(Finding(PROBLEM, f"{title} reads {name}, which doesn't exist",
+            found.append(Finding(PROBLEM, f"{title} reads {_quote(name, 80)}, which doesn't exist",
                                  "Make a playlist with that name on the Dashboard (Playlists, then Make a playlist, with For Plex through Threadfin ticked).",
                                  [f"{folder}/conf/settings.json", f"output/{name}"], "docs/plex.md#1-make-a-playlist-for-plex"))  # fmt: skip
             continue
         tv = sum(1 for e in m3u.parse(path.read_text(encoding="utf-8", errors="replace")) if not e.is_radio)
         if tv > PLEX_MAX:
-            found.append(Finding(PROBLEM, f"{name} has {tv} TV channels, more than Plex takes from one tuner ({PLEX_MAX})",
+            found.append(Finding(PROBLEM, f"{_quote(name, 80)} has {tv} TV channels, more than Plex takes from one tuner ({PLEX_MAX})",
                                  "Plex leaves the rest out. Make the playlist smaller, or split it between two Threadfins.",
                                  [f"output/{name}"], "docs/plex.md#before-you-start"))  # fmt: skip
         elif tv == 0:
-            found.append(Finding(PROBLEM, f"{name} has no TV channels", "Threadfin has nothing to offer Plex.",
+            found.append(Finding(PROBLEM, f"{_quote(name, 80)} has no TV channels", "Threadfin has nothing to offer Plex.",
                                  [f"output/{name}"], "docs/plex.md#1-make-a-playlist-for-plex"))  # fmt: skip
         else:
-            found.append(Finding(OK, f"{title} reads {name}: {tv} TV channels", "Within Plex's limit for one tuner.", [f"output/{name}"]))
+            found.append(Finding(OK, f"{title} reads {_quote(name, 80)}: {tv} TV channels", "Within Plex's limit for one tuner.", [f"output/{name}"]))
     return found
 
 
@@ -788,7 +790,10 @@ def _answering(cfg: Config) -> dict:
     return {x.get("service"): x.get("ok") for x in list_of(stack.get("services"), dict)}
 
 
-def hardware(cfg: Config, env: dict | None = None, ask=None) -> Report:
+HARDWARE_TIME = 10  # seconds for all of hardware's questions: the Dashboard's overview waits for them
+
+
+def hardware(cfg: Config, env: dict | None = None, ask=None, clock=time.monotonic) -> Report:
     """The computer, from the numbers Prometheus keeps for the Hardware dashboard: free space,
     RAID, memory errors, the processor slowing for heat, power, and with their exporters each
     disk's health (SMART) and the graphics card. ask(expr) answers a query (tests pass their own)."""
@@ -808,9 +813,14 @@ def hardware(cfg: Config, env: dict | None = None, ask=None) -> Report:
                                        ["Prometheus"], "In the kia folder: docker compose ps, then docker compose logs prometheus"))  # fmt: skip
         return report
 
+    give_up, cut = clock() + HARDWARE_TIME, []
+
     def series(expr: str) -> list[tuple[dict, float]]:
         """Each series' labels and value. A query that fails here, after the first one worked,
-        counts as no data."""
+        counts as no data, and so does one asked after HARDWARE_TIME."""
+        if clock() > give_up:
+            cut.append(expr)
+            return []
         try:
             return [(m if isinstance(m, dict) else {}, v) for m, v in ask(expr) if math.isfinite(v)]
         except OSError:
@@ -838,6 +848,10 @@ def hardware(cfg: Config, env: dict | None = None, ask=None) -> Report:
             report.findings.append(Finding(NOTE, f"The graphics card is hot: {gpu[0][1]:.0f}°C",
                                            "Around this point it slows itself down. Check its fans and the air around the computer.",
                                            ["Prometheus (dcgm-exporter)"]))  # fmt: skip
+    if cut:
+        report.findings.append(Finding(NOTE, "Prometheus was slow, so kia didn't ask everything",
+                                       f"{len(cut)} of its questions were left out after {HARDWARE_TIME} seconds. Ask again in a minute.",
+                                       ["Prometheus"]))  # fmt: skip
     if checked and not any(f.level != OK for f in report.findings):
         more = "" if disks else " Each disk's health needs observability-disks, on Linux."
         report.findings.append(Finding(OK, "The hardware looks fine", f"kia checked {'; '.join(checked)}.{more}", ["Prometheus"],
@@ -1027,15 +1041,15 @@ def _guide_for(playlist: str) -> str:
 def _jellyfin_tuner(name: str, cfg: Config, evidence: list[str], playlists: list[str]) -> list[Finding]:
     path = cfg.output_dir / name
     if not name.endswith(".m3u") or not path.is_file():
-        return [Finding(NOTE, f"Jellyfin reads {name or 'a playlist'}, which isn't one of kia's",
+        return [Finding(NOTE, f"Jellyfin reads {_quote(name, 80) or 'a playlist'}, which isn't one of kia's",
                         "If it's meant to be kia's, check the address: http://web/tv.m3u for Jellyfin in kia's stack, "
                         "otherwise http://<kia's address>:8780/tv.m3u.", evidence, "docs/jellyfin.md#jellyfin")]  # fmt: skip
     playlists.append(name)
     entries = m3u.parse(path.read_text(encoding="utf-8", errors="replace"))
     radio = sum(1 for e in entries if e.is_radio)
-    found = [Finding(OK, f"Jellyfin reads {name}: {len(entries) - radio} TV channels", "", evidence + [f"output/{name}"])]
+    found = [Finding(OK, f"Jellyfin reads {_quote(name, 80)}: {len(entries) - radio} TV channels", "", evidence + [f"output/{name}"])]
     if radio:
-        found.append(Finding(NOTE, f"{name} has {radio} radio station{'' if radio == 1 else 's'} too",
+        found.append(Finding(NOTE, f"{_quote(name, 80)} has {radio} radio station{'' if radio == 1 else 's'} too",
                              "Jellyfin lists them as TV channels, numbered apart from TV, so you see two channel 1s. "
                              "Use tv.m3u, or a playlist with radio left out.",
                              [f"output/{name}"], "docs/jellyfin.md#before-you-start-the-tv-only-playlist"))  # fmt: skip
@@ -1049,7 +1063,7 @@ def _jellyfin_guides(names: list[str], playlists: list[str], cfg: Config, eviden
     found = []
     for name in names:
         if not (cfg.output_dir / name).is_file():
-            found.append(Finding(NOTE, f"Jellyfin's guide is {name or 'a file'}, which isn't one of kia's",
+            found.append(Finding(NOTE, f"Jellyfin's guide is {_quote(name, 80) or 'a file'}, which isn't one of kia's",
                                  "If it's meant to be kia's, check the address: the guide that goes with tv.m3u is tv.guide.xml.gz.",
                                  evidence, "docs/jellyfin.md#jellyfin"))  # fmt: skip
     # guide.xml.gz has every channel, so it fits any playlist; otherwise each needs its own.

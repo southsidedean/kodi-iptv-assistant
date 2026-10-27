@@ -318,3 +318,13 @@ def test_the_nightly_run_sends_new_and_gone_channels(tmp_path: Path, monkeypatch
     titles = [r["Title"] for r in received]
     assert titles == ["kia: 1 new channel"] and received[0]["body"] == "New in your playlists: Bloomberg."  # Weather has no guide
     assert not (state / "alerts.log").exists() or "Bloomberg" not in (state / "alerts.log").read_text()  # a notice, not an alert
+
+
+def test_the_alert_log_is_kept_short(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(alerts, "LOG_LIMIT", 2000)
+    cfg = alerts.AlertConfig(events=("run_failed",))
+    for i in range(100):
+        alerts.notify("run_failed", f"failure {i}", "x" * 50, tmp_path, cfg, lambda m: None)
+    text = (tmp_path / "alerts.log").read_text()
+    assert len(text.encode()) <= 2000 and "failure 99\t" in text and "failure 0\t" not in text
+    assert all(line.count("\t") == 3 for line in text.splitlines())  # whole lines only

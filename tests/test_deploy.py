@@ -37,6 +37,13 @@ def test_serve_types_and_hides_tmp(server):
         get(f"{base}/guide.xml.tmp")
     err.value.close()
     assert err.value.code == 404
+    import http.client
+
+    for raw in ("/guide.xml.tmp#x", "/guide.xml.tmp?x", "/guide.xml.%74mp"):  # sent as they are, past urllib's tidying
+        conn = http.client.HTTPConnection(base.split("//")[1], timeout=5)
+        conn.request("GET", raw)
+        assert conn.getresponse().status == 404, raw
+        conn.close()
 
 
 def test_download_guide(server, tmp_path: Path):

@@ -56,6 +56,8 @@ SCRIPT = r"""
     var e = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
       if (k === "text") e.textContent = attrs[k];
+      // A remembered password goes in as the field's value, never an attribute in the page.
+      else if (k === "value") e.value = attrs[k];
       else if (k === "on") Object.keys(attrs.on).forEach(function (ev) { e.addEventListener(ev, attrs.on[ev]); });
       else if (attrs[k] === true) e.setAttribute(k, "");
       else if (attrs[k] !== false && attrs[k] != null) e.setAttribute(k, attrs[k]);
@@ -303,7 +305,8 @@ SCRIPT = r"""
 
   // After an apply: what each new part needs from you, once, to be ready.
   function nextSteps(added) {
-    var host = location.hostname.indexOf(":") >= 0 ? "[" + location.hostname + "]" : location.hostname;
+    // Browsers give an IPv6 address with its [ ] already (location.hostname is "[fd00::5]").
+    var host = location.hostname.indexOf(":") >= 0 && location.hostname.charAt(0) !== "[" ? "[" + location.hostname + "]" : location.hostname;
     var links = data.links || {};
     var items = el("ol");
     var docs = "https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/";
