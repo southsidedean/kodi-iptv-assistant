@@ -22,8 +22,11 @@ from kia import tls
 
 
 
-# The web server's addresses on Docker's network (KIA_PROXY_HOST, "web" in compose.yaml),
-# looked up again every minute: a recreated container can get a new address.
+# The web server's addresses on Docker's networks (KIA_PROXY_HOST, names with commas between),
+# looked up again every minute: a recreated container can get a new address. The web server
+# is on two networks with kia (default and gateway), and Docker answers "web" with only one
+# of its addresses, not always the one it connects from; so compose.yaml gives it a name on
+# each network too, and every address of every name counts.
 _proxy = {"at": -1e9, "addresses": frozenset()}
 _proxy_lock = threading.Lock()
 
@@ -31,11 +34,12 @@ _proxy_lock = threading.Lock()
 def proxy_addresses() -> frozenset[str]:
     with _proxy_lock:
         if time.monotonic() - _proxy["at"] > 60:
-            host = os.environ.get("KIA_PROXY_HOST", "web")
-            try:
-                found = {a[4][0] for a in socket.getaddrinfo(host, None)}
-            except OSError:  # no such name (not in Docker): nothing to trust
-                found = set()
+            found: set[str] = set()
+            for host in os.environ.get("KIA_PROXY_HOST", "web").split(","):
+                try:
+                    found |= {a[4][0] for a in socket.getaddrinfo(host.strip(), None)} if host.strip() else set()
+                except OSError:  # no such name (not in Docker, or a network not in use): nothing to trust
+                    continue
             _proxy.update(at=time.monotonic(), addresses=frozenset(found))
         return _proxy["addresses"]
 

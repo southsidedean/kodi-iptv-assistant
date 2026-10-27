@@ -216,7 +216,8 @@ def test_served_over_https(cfg, certs, monkeypatch):
         threading.Thread(target=proxied.serve_forever, daemon=True).start()
         base = f"http://127.0.0.1:{proxied.server_address[1]}"
         claim = urllib.request.Request(f"{base}/api/profiles", headers={"X-Kia-Secure": "1"})
-        for proxy, believed in (("127.0.0.1", True), ("192.0.2.9", False)):  # nginx here, or somewhere else
+        for proxy, believed in (("127.0.0.1", True), ("192.0.2.9", False),  # nginx here, or somewhere else
+                                ("192.0.2.9, 127.0.0.1", True), ("no-such-name.invalid,192.0.2.9", False)):  # any of its names; one that doesn't look up
             monkeypatch.setenv("KIA_PROXY_HOST", proxy)
             serve._proxy["at"] = -1e9  # look it up again
             with urllib.request.urlopen(claim, timeout=10) as r:
