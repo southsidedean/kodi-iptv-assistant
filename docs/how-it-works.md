@@ -80,7 +80,7 @@ The playlist uses the address in `KIA_PUBLIC_URL` for Pluto channels, so every d
 
 ## The Dashboard
 
-With Docker, `http://<your address>:8780/` starts with **Your stack**: a tile for each program running next to kia (Threadfin, Plex, Jellyfin, Prometheus, Grafana, and the exporters, whichever you [chose](stack.md)), green when it answers and red when it doesn't. kia checks each one every minute. A tile with a page of its own, such as Plex or Threadfin, opens it. kia has no access to Docker itself, so it can't tell a program that's starting from one that has stopped; `docker compose ps` in the kia folder can.
+With Docker and parts [chosen](stack.md) to run next to kia, `http://<your address>:8780/` has a **Your stack** card: a tile for each (Threadfin, Plex, Jellyfin, Prometheus, Grafana, and the exporters, whichever you chose), green when it answers and red when it doesn't. kia checks each one every minute. A tile with a page of its own, such as Plex or Threadfin, opens it. kia has no access to Docker itself, so it can't tell a program that's starting from one that has stopped; `docker compose ps` in the kia folder can.
 
 Until you've finished setting up, the page then has a **Getting started** checklist: the first refresh, the address other devices use, a player on each device, the password, your playlists, and alerts. kia ticks the steps it can check itself, you tick the rest, and you can hide it.
 
@@ -100,7 +100,7 @@ Every page has the same menu at the top, a **Documentation** button that opens t
 
 <img src="../images/kia-timeline-phone.png" width="300" alt="A playlist's Timeline on a phone: three hours from 11 PM, channel names down the side, a red line at the current time, and a tapped show's title and times under its channel">
 
-![kia's Dashboard: the menu, a banner saying everything's working, the answer to Ask kia what's wrong (the last refresh worked, and nothing needs you), the Your stack tiles for Threadfin, Plex, Grafana, and the exporters, the Getting started checklist, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
+![kia's Dashboard, with this kia's name next to the logo: the menu, a banner saying everything's working, the answer to Ask kia what's wrong (the last refresh worked, and nothing needs you), the Getting started checklist, the channel counts, and three playlists, each with its address and a Copy button. With parts such as Plex in the stack, a Your stack card with a tile for each shows above the checklist](../images/kia-status-screenshot.png)
 
 The banner at the top shows the state of the last refresh:
 
