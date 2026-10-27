@@ -129,6 +129,29 @@ def test_choose_and_write_guide(tmp_path: Path):
     assert "| Full guide (20+ of the next 24 hours) | 2 | 67% |" in report
 
 
+def test_a_programme_a_site_lists_twice_is_written_once(tmp_path: Path):
+    a = tmp_path / "a.xml"
+    # iptv-org's grabbers read a day at a time: a show past midnight comes back the next day.
+    write_site_guide(a, [("CNN.us@East", h, h + 1, f"A {h}") for h in range(24)] + [("CNN.us@East", 23, 24, "A 23")])
+    entries = [Entry("CNN", "u1", {"tvg-id": "CNN.us@East"})]
+    choices = xmltv.choose_sources(["CNN.us@East"], {"a": xmltv.scan(a)}, {"CNN.us@East": ["a"]}, NOW)
+    out = tmp_path / "guide.xml"
+    xmltv.write_guide(out, entries, choices, {"a": a}, placeholders=False, days=1, now=NOW)
+    titles = [p.findtext("title") for p in ET.parse(out).getroot().findall("programme")]
+    assert len(titles) == 24 and titles.count("A 23") == 1
+
+
+def test_a_pluto_channel_gets_one_imjhnz_feed():
+    plex = epgmap.Candidate("Top.us@SD", epgmap.SiteChannel("i.mjh.nz", "Plex/us#top", "en", "Top.us@SD", "Top"), False, "name")
+    other = epgmap.Candidate("Top.us@SD", epgmap.SiteChannel("tvpassport.com", "t1", "en", "Top.us@SD", "Top"), True, "id")
+    candidates = {"Top.us@SD": [other, plex]}
+    pluto = {"Top.us@SD": ("68757c45759366af05b3b199", "Top"), "Brit.uk@SD": ("65244c403fd33c0008ffff31", "Brit")}
+    assert epgmap.pluto_candidates(pluto, candidates, set()) == 2
+    # Plex's feed by name gives way: two i.mjh.nz feeds for one channel would overlap in the guide.
+    assert [c.channel.site_id for c in candidates["Top.us@SD"]] == ["t1", "PlutoTV/us#68757c45759366af05b3b199"]
+    assert [c.channel.site_id for c in candidates["Brit.uk@SD"]] == ["PlutoTV/gb#65244c403fd33c0008ffff31"]  # i.mjh.nz says gb
+
+
 def name_repo(tmp_path: Path) -> list[epgmap.SiteChannel]:
     sc = lambda site, sid, name, xid="": epgmap.SiteChannel(site, sid, "en", xid, name)
     return [
@@ -268,6 +291,8 @@ def test_guide_times_with_and_without_an_offset():
     assert xmltv.parse_time("20261024120000 -0500") == noon_central
     assert xmltv.parse_time("20261024120000-0500") == noon_central  # no space before it
     assert xmltv.parse_time("20261024170000") == noon_central  # none: UTC
+    with pytest.raises(ValueError):
+        xmltv.parse_time(None)  # a programme without a stop
 
 
 def test_namespaced_attributes_in_a_sites_channel_list_are_left_out(tmp_path: Path):
@@ -330,3 +355,12 @@ def test_a_pluto_id_from_either_address(url, base, cid):
     from kia import pluto
 
     assert pluto.any_channel_id(url, base) == cid
+
+
+def test_a_name_a_site_without_ids_lists_twice_isnt_matched_there():
+    sc = lambda site, sid, name: epgmap.SiteChannel(site, sid, "en", "", name, country="us")
+    rows = [sc("epgshare01.online", "US2#Bounce.us2", "Bounce TV"), sc("epgshare01.online", "LOCALS1#Bounce.Atlanta", "Bounce TV"),
+            sc("epgshare01.online", "US2#AXS.us2", "AXS TV"), sc("tvpassport.com", "t1", "Bounce TV")]  # fmt: skip
+    found = epgmap.match_by_name(["Bounce.us@SD", "AXS.us@SD"], {"Bounce.us@SD": "Bounce TV", "AXS.us@SD": "AXS TV"}, rows, set(), set())
+    assert [c.channel.site for c in found["Bounce.us@SD"]] == ["tvpassport.com"]  # two at epgshare01: no telling which
+    assert [c.channel.site_id for c in found["AXS.us@SD"]] == ["US2#AXS.us2"]

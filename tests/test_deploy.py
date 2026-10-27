@@ -232,6 +232,24 @@ def test_new_settings(tmp_path: Path, monkeypatch):
         load(cfg)
 
 
+@pytest.mark.parametrize("line, said", [
+    ("placeholder_hours = 2.0", "placeholder_hours"),
+    ('name_matching = "false"', "name_matching"),
+    ('exclude_sites = "plex.tv"', "exclude_sites"),
+    ('ignore_name_matches = "A.us"', "ignore_name_matches"),
+    ('runner = "podman"', "runner"),
+    ('site_connections = { "plex.tv" = "1" }', "site_connections"),
+    ("site_delay_ms = 100", "site_delay_ms"),
+    ("days = 400", "days"),
+])  # fmt: skip
+def test_epg_settings_are_checked_when_read(tmp_path: Path, line: str, said: str):
+    cfg = tmp_path / "kia.toml"
+    cfg.write_text(f"[epg]\n{line}\n")
+    (tmp_path / "sources.txt").write_text("https://example.com/us.m3u\n")
+    with pytest.raises(ValueError, match=said):
+        load(cfg)
+
+
 def git(repo: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout.strip()
 

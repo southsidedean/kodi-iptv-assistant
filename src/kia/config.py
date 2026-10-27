@@ -412,8 +412,8 @@ def env_bool(name: str, fallback: bool) -> bool:
     raise ValueError(f"{name}={raw!r}: expected true or false")
 
 
-def _placeholder_hours(hours: int) -> int:
-    if hours not in (1, 2, 3, 4, 6, 8, 12, 24):
+def _placeholder_hours(hours: object) -> int:
+    if type(hours) is not int or hours not in (1, 2, 3, 4, 6, 8, 12, 24):  # 2.0 would pass "in" and fail later
         raise ValueError(f"placeholder_hours = {hours}: must divide a day evenly (1, 2, 3, 4, 6, 8, 12, 24)")
     return hours
 
@@ -482,17 +482,33 @@ def _derive_epg_url(output: dict) -> str | None:
     return f"{base}/guide.xml.gz" if base else None
 
 
+def _per_site(name: str, value: object, least: int) -> dict[str, int]:
+    """[epg] site_connections and site_delay_ms: a whole number for each site name."""
+    if not isinstance(value, dict):
+        raise ValueError(f'{name} = {value!r}: expected a table, like {{ "tvpassport.com" = 100 }}')
+    return {site: _whole(f"{name} {site!r}", n, least) for site, n in value.items()}
+
+
+def _runner(value: object) -> str:
+    if value not in ("docker", "local"):
+        raise ValueError(f"[epg] runner = {value!r}: expected \"docker\" or \"local\"")
+    return value
+
+
+MAX_EPG_DAYS = 14  # each day is another day of every site to download, and of name blocks
+
+
 def _load_epg(epg: dict, base: Path) -> EpgConfig:
     d = EpgConfig()
     return EpgConfig(
         repo_dir=base / epg.get("repo_dir", d.repo_dir),
         work_dir=base / epg.get("work_dir", d.work_dir),
-        days=_env_int("KIA_EPG_DAYS", _whole("[epg] days", epg.get("days", d.days), 1)),
+        days=_within("KIA_EPG_DAYS or [epg] days", _env_int("KIA_EPG_DAYS", _whole("[epg] days", epg.get("days", d.days), 1)), 1, MAX_EPG_DAYS),
         max_sites_per_channel=_whole("[epg] max_sites_per_channel", epg.get("max_sites_per_channel", d.max_sites_per_channel), 1),
-        prefer_sites=epg.get("prefer_sites", []),
-        exclude_sites=_merge_env_list("KIA_EXCLUDE_SITES", epg.get("exclude_sites", [])),
+        prefer_sites=list(_texts("[epg] prefer_sites", epg.get("prefer_sites", []), '["tvpassport.com"]')),
+        exclude_sites=_merge_env_list("KIA_EXCLUDE_SITES", list(_texts("[epg] exclude_sites", epg.get("exclude_sites", []), '["plex.tv"]'))),
         # KIA_EPG_RUNNER lets the Docker image (which bundles Node) force "local".
-        runner=os.environ.get("KIA_EPG_RUNNER") or epg.get("runner", d.runner),
+        runner=_runner(os.environ.get("KIA_EPG_RUNNER") or epg.get("runner", d.runner)),
         docker_image=epg.get("docker_image", d.docker_image),
         parallel_sites=_env_int("KIA_PARALLEL_SITES", _whole("[epg] parallel_sites", epg.get("parallel_sites", d.parallel_sites), 1)),
         max_connections=_whole("[epg] max_connections", epg.get("max_connections", d.max_connections), 1),
@@ -503,11 +519,11 @@ def _load_epg(epg: dict, base: Path) -> EpgConfig:
         git_url=os.environ.get("KIA_EPG_GIT_URL") or epg.get("git_url", d.git_url),
         git_ref=os.environ.get("KIA_EPG_GIT_REF") or epg.get("git_ref", d.git_ref),
         native_grabbers=_switch("[epg] native_grabbers", epg.get("native_grabbers", d.native_grabbers)),
-        name_matching=epg.get("name_matching", d.name_matching),
+        name_matching=_switch("[epg] name_matching", epg.get("name_matching", d.name_matching)),
         playlist_guides=_switch("[epg] playlist_guides", epg.get("playlist_guides", d.playlist_guides)),
         site_time_limit=_whole("[epg] site_time_limit", epg.get("site_time_limit", d.site_time_limit), 0),
-        site_connections=dict(epg.get("site_connections", {})),
-        site_delay_ms=dict(epg.get("site_delay_ms", {})),
-        accept_name_matches=epg.get("accept_name_matches", []),
-        ignore_name_matches=epg.get("ignore_name_matches", []),
+        site_connections=_per_site("[epg] site_connections", epg.get("site_connections", {}), 1),
+        site_delay_ms=_per_site("[epg] site_delay_ms", epg.get("site_delay_ms", {}), 0),
+        accept_name_matches=list(_texts("[epg] accept_name_matches", epg.get("accept_name_matches", []), '["News12.us@SD"]')),
+        ignore_name_matches=list(_texts("[epg] ignore_name_matches", epg.get("ignore_name_matches", []), '["News12.us@SD"]')),
     )

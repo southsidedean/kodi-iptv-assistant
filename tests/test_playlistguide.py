@@ -64,10 +64,14 @@ def test_download_keeps_only_our_channels(server, tmp_path: Path):
         playlistguide.download(info, out, 1, logs.append, NOW, deadline=time.monotonic() - 1)
 
 
-def test_check_map_grab_guide_use_the_playlists_guide(server, tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("no_stop", [False, True])
+def test_check_map_grab_guide_use_the_playlists_guide(server, tmp_path: Path, monkeypatch, no_stop):
     www, base = server
     now = datetime.now(timezone.utc)
-    (www / "roku.xml").write_bytes(guide({"r1": [f"Show {h}" for h in range(24)]}, now))
+    xml = guide({"r1": [f"Show {h}" for h in range(24)]}, now)
+    if no_stop:  # XMLTV lets a programme leave out its stop: one such can't stop the guide
+        xml = xml.replace(b"</tv>", f'<programme start="{xmltv.format_time(now)}" channel="r1"><title>No end</title></programme></tv>'.encode())
+    (www / "roku.xml").write_bytes(xml)
     (tmp_path / "roku.m3u").write_text(f'#EXTM3U url-tvg="{base}/roku.xml"\n#EXTINF:-1 tvg-id="r1",Roku One\nhttp://s/1\n')
     (tmp_path / "sources.txt").write_text(f"{tmp_path / 'roku.m3u'} roku\n")
     repo = tmp_path / "epg"
@@ -143,3 +147,24 @@ def test_a_guide_that_fails_tonight_keeps_its_channels_and_its_place(server, tmp
     assert "<title>Film 0</title>" not in text or now.hour == 0  # but not what's over
     used = json.loads((tmp_path / "work" / "playlist-guides-used.json").read_text())
     assert used == {"playlist-free": [f"{base}/a.xml", f"{base}/b.xml"]}  # quick refreshes keep trying b.xml
+
+
+def test_damaged_plans_count_as_missing(tmp_path: Path):
+    path = tmp_path / "playlist-guides.json"
+    path.write_text(json.dumps({"playlist-a": {"urls": ["https://g/a.xml", 5], "channels": {"x": ["A", None], "y": "B"}, "guarded": False},
+                                "playlist-b": "nope", "playlist-c": {"urls": "https://g/c.xml"}, "playlist-d": {"urls": ["https://g/d.xml"], "guarded": "no"}}))  # fmt: skip
+    assert playlistguide.load(path) == {"playlist-a": {"urls": ["https://g/a.xml"], "channels": {"x": ["A"], "y": []}, "guarded": False},
+                                        "playlist-d": {"urls": ["https://g/d.xml"], "channels": {}}}  # no "guarded": counts as guarded  # fmt: skip
+    path.write_text("[1, 2]")
+    assert playlistguide.load(path) == {} and playlistguide.load_used(path) == {}
+
+
+def test_a_damaged_mapping_still_builds_a_guide(tmp_path: Path):
+    (tmp_path / "kia.toml").write_text(f'[epg]\nrepo_dir = "{tmp_path / "epg"}"\n')
+    (tmp_path / "sources.txt").write_text("/tmp/a.m3u\n")
+    (tmp_path / "output").mkdir()
+    (tmp_path / "output" / "curated.m3u").write_text('#EXTM3U\n#EXTINF:-1 tvg-id="A.us",A\nhttp://a/1\n')
+    (tmp_path / "work").mkdir()
+    (tmp_path / "work" / "mapping.json").write_text('["A.us"]')  # a list, not kia map's object
+    assert cli.main(["guide", "-c", str(tmp_path / "kia.toml")]) == 0
+    assert 'channel="A.us" kia-placeholder' in (tmp_path / "output" / "guide.xml").read_text()

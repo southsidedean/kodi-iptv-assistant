@@ -422,7 +422,7 @@ def grab_playlist_guides(
     results = []
     work = cfg.work_dir.resolve()
     useful_path = work / "playlist-guides-used.json"
-    useful = playlistguide.load(useful_path)
+    useful = playlistguide.load_used(useful_path)
     for site, info in sorted(spec.items()):
         if quick and useful.get(site):
             info = {**info, "urls": [u for u in info["urls"] if u in useful[site]] or info["urls"]}

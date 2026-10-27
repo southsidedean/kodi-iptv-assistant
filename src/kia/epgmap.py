@@ -194,16 +194,20 @@ def pluto_candidates(pluto: dict[str, tuple[str, str]], candidates: dict[str, li
                      skip_sites: set[str]) -> int:  # fmt: skip
     """Add i.mjh.nz's Pluto TV guide, by the channel's Pluto id, to each Pluto channel (tvg-id ->
     (Pluto id, name)) that doesn't have it yet: its own guide, whatever iptv-org knows it
-    as. After the others, as kia guide keeps whichever source has the most listings. The
-    country comes from the tvg-id (CNN.us -> us). Returns how many it added to."""
+    as. It takes the place of any other i.mjh.nz feed the channel matched (Plex's or Samsung's
+    by name): a site's channel file can name a channel once, or both feeds' programmes would go
+    into the guide, overlapping. After the others, as kia guide keeps whichever source has the
+    most listings. The country comes from the tvg-id (CNN.us -> us; i.mjh.nz calls the UK gb).
+    Returns how many it added to."""
     if "i.mjh.nz" in skip_sites:
         return 0
     added = 0
     for tid, (cid, name) in pluto.items():
-        region = country(tid)
+        region = {"uk": "gb"}.get(country(tid), country(tid))
         site_id = f"PlutoTV/{region}#{cid}"
         cands = candidates.setdefault(tid, [])
         if region in PLUTO_GUIDES and not any(c.channel.site == "i.mjh.nz" and c.channel.site_id == site_id for c in cands):
+            cands[:] = [c for c in cands if c.channel.site != "i.mjh.nz"]
             cands.append(Candidate(tid, SiteChannel("i.mjh.nz", site_id, "en", tid, name), True, "pluto"))
             added += 1
         if not cands:
@@ -253,8 +257,14 @@ def match_by_name(
         if not tid or tid in already or tid in ignore or tid not in names:
             continue
         rows = index.get((country(tid), name_key(names[tid])), [])
-        # Two different channel ids behind one name: there's no telling which is ours.
+        # Two different channel ids behind one name: there's no telling which is ours. The
+        # same goes for a site without ids (epgshare01) that lists the name twice, in two of
+        # its feeds: that site is left out.
         if not rows or len({sc.xmltv_id for sc in rows if sc.xmltv_id}) > 1:
+            continue
+        unnamed = Counter(sc.site for sc in {(sc.site, sc.site_id): sc for sc in rows if not sc.xmltv_id}.values())
+        rows = [sc for sc in rows if sc.xmltv_id or unnamed[sc.site] == 1]
+        if not rows:
             continue
         found[tid] = _one_per_site([Candidate(tid, sc, True, "name") for sc in rows])
     return found

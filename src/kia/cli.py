@@ -35,7 +35,7 @@ from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
 from kia.probe import GUARD_REFUSED, ProbeResult, probe, probe_guarded
-from kia.files import read_object, temp_name
+from kia.files import items, read_object, temp_name
 import contextlib
 
 
@@ -581,7 +581,7 @@ def cmd_map(args: argparse.Namespace) -> int:
     tvg_ids = [e.tvg_id for e in entries]
     names = {e.tvg_id: xmltv.display_name(e) for e in entries if not e.is_radio}
     aliases_path = epg.work_dir / "aliases.json"
-    aliases = json.loads(aliases_path.read_text()) if aliases_path.exists() else {}
+    aliases = {tid: items(ids) for tid, ids in read_object(aliases_path).items()}  # tvg-id -> other ids
     candidates = epgmap.find_candidates(tvg_ids, site_channels, epg, broken, names, aliases)
     if epg.native_grabbers:
         radio = {e.tvg_id: xmltv.display_name(e) for e in entries if e.is_radio}
@@ -760,7 +760,7 @@ def cmd_guide(args: argparse.Namespace) -> int:
     cfg = load_config(args)
     epg = cfg.epg
     mapping_path = epg.work_dir / "mapping.json"
-    site_order = json.loads(mapping_path.read_text()) if mapping_path.exists() else {}
+    site_order = {tid: items(sites) for tid, sites in read_object(mapping_path).items()}  # kia map's: tvg-id -> sites
     site_files = {
         p.name.removesuffix(".gz").removesuffix(".xml"): p
         for p in sorted((epg.work_dir / "guides").glob("*.xml*"))
