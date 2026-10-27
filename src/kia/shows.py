@@ -122,8 +122,9 @@ def _kia(cfg: Config, words: list[str], kinds: list[str], now: datetime, until: 
         return []
     channels = _kia_channels(cfg.output_dir / "curated.m3u")
     # A quick look for the words in each programme's raw bytes. bytes.lower() folds only ASCII,
-    # so a word with any other letter ("fútbol") is left to the full check after parsing.
-    needles = [w.encode() for w in words + kinds if w.isascii()]
+    # so a word with any other letter ("fútbol") is left to the full check after parsing, and
+    # so is one with a character the file holds escaped ("AT&T" is AT&amp;T there).
+    needles = [w.encode() for w in words + kinds if w.isascii() and not set(w) & set("&<>\"'")]
     found, seen = [], set()
     for m in _PROGRAMME.finditer(data):
         if needles and not all(n in m.group(2).lower() for n in needles):

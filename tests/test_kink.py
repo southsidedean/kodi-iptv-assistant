@@ -21,6 +21,7 @@ def test_parse_kink_schedule():
         slot("2026-10-19T06:00:00+02:00", "2026-10-19T09:00:00+02:00", "KINKSTART", "Michiel Veenstra"),
         slot("2026-10-19T00:00:00+02:00", "2026-10-19T06:00:00+02:00", "KINK NON-STOP"),
         slot("2026-10-19T09:00:00+02:00", "2026-10-19T12:00:00+02:00", "KINK 1500", alt_title="Special"),
+        slot("2026-10-19T12:00:00", "2026-10-19T15:00:00+02:00", "No offset"),  # can't be placed: left out
     ])  # fmt: skip
     slots = native.parse_kink_schedule(page)
     assert [(s[0].hour, s[2], s[3]) for s in slots] == [(0, "KINK NON-STOP", ""), (6, "KINKSTART", "Michiel Veenstra"),

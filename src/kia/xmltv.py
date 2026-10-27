@@ -31,7 +31,10 @@ def display_name(entry: Entry) -> str:
 def parse_time(value: str) -> datetime:
     """An XMLTV time, "20261024120000 -0500"; with no offset, UTC. Some guides leave out
     the space before the offset ("20261024120000-0500"), and XMLTV lets a time stop early
-    ("202610241200", "20261024"): the rest counts as zeros."""
+    ("202610241200", "20261024"): the rest counts as zeros. A missing time (XMLTV lets a
+    programme leave out its stop) is a ValueError too, like a bad one."""
+    if not isinstance(value, str):
+        raise ValueError("no XMLTV time")
     m = re.fullmatch(r"(\d{8,14})\s*(.*)", value.strip())
     if not m:
         raise ValueError(f"not an XMLTV time: {value[:40]!r}")
@@ -194,10 +197,15 @@ def write_guide(
                 f.write(f"<icon src={xml_attr(logo)}/>")
             f.write("</channel>\n")
 
+        # A programme once per channel and start: iptv-org's grabbers read a site a day at a
+        # time, and a show that runs past midnight comes back on the next day's page too.
+        written: set[tuple[str, str]] = set()
         for site, ids in sorted(wanted.items()):
             with _open(site_files[site]) as src:
                 for el in elements(src):
-                    if el.get("channel") in ids and not el.get(PLACEHOLDER_ATTR) and has_title(el):
+                    slot = (el.get("channel", ""), el.get("start", ""))
+                    if slot[0] in ids and slot not in written and not el.get(PLACEHOLDER_ATTR) and has_title(el):
+                        written.add(slot)
                         el.tail = None
                         f.write("  " + ET.tostring(el, encoding="unicode") + "\n")
                     el.clear()

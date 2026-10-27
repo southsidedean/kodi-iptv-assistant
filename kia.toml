@@ -196,7 +196,7 @@ auto_per_hour = 20
 [epg]
 # Building the program guide. See docs/how-it-works.md.
 
-# Days of program guide to download. More days take longer and use more memory.
+# Days of program guide to download, 1 to 14. More days take longer and use more memory.
 # .env: KIA_EPG_DAYS
 days = 3
 

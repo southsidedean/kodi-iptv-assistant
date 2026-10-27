@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from kia import epgmap, native
 
 NOW = datetime(2026, 10, 26, 12, 0, tzinfo=timezone.utc)
@@ -40,6 +42,25 @@ def test_each_station_gets_its_channels_schedule(tmp_path: Path):
     text = out.read_text()
     assert text.count("On now w/ Guests &amp; Friends'") == 2  # escaped once, for XML and 'channel="radio.a"' in text and 'channel="radio.b"' in text
     assert "radio.c" not in text and said == ["nts.live: 4 shows in the next 3 days, for 2 station(s)"]
+
+
+def test_one_station_failing_keeps_the_other(tmp_path: Path):
+    (tmp_path / "nts1.json").write_text(json.dumps(SCHEDULE))  # no nts2.json: NTS 2 can't be read
+    chans = tmp_path / "nts.live.channels.xml"
+    chans.write_text('<channels><channel site="nts.live" site_id="1" xmltv_id="radio.a">NTS Radio 1</channel>'
+                     '<channel site="nts.live" site_id="2" xmltv_id="radio.b">NTS Radio 2</channel></channels>')  # fmt: skip
+    out, said = tmp_path / "out.xml", []
+    native.grab_nts(chans, out, 3, said.append, url=tmp_path.as_uri() + "/nts{channel}.json", now=NOW)
+    assert 'channel="radio.a"><title>Tomorrow' in out.read_text() and 'channel="radio.b"><title>' not in out.read_text()
+    assert said[0].startswith("nts.live: couldn't read NTS 2")
+    (tmp_path / "nts1.json").unlink()
+    with pytest.raises(RuntimeError, match="no NTS schedule"):
+        native.grab_nts(chans, out, 3, said.append, url=tmp_path.as_uri() + "/nts{channel}.json", now=NOW)
+
+
+def test_a_time_without_its_offset_is_skipped():
+    shows = native.nts_programmes([day(("Mixed", "2026-10-26T13:00:00Z", "2026-10-26T14:00:00"))], NOW, 3)
+    assert shows == []
 
 
 def test_matched_by_the_stations_name():

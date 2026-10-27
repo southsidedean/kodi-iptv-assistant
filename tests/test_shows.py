@@ -63,6 +63,7 @@ def test_kia_guide_by_words_category_and_time(kia):
     # Named for the words first, then soonest: the game before the show whose description mentions bears.
     assert titles(shows.search(kia, "bears", now=NOW, env={})) == ["NFL Football", "Pawn Stars"]
     assert shows.search(kia, "curling", now=NOW, env={})["notes"][0].startswith("Nothing in the guides matches")
+    assert titles(shows.search(kia, "bears & a cub", now=NOW, env={})) == ["Pawn Stars"]  # & is &amp; in the file
 
 
 def test_many_matches_are_cut_and_said(kia, monkeypatch):

@@ -1,6 +1,7 @@
 """kia.epgshare and native.grab_epgshare01: epgshare01.online's guides, matched by name."""
 
 import gzip
+import http.client
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,9 +61,13 @@ def test_last_times_lists_when_epgshare01_cant_be_reached(tmp_path: Path):
     def down(url):
         raise OSError("timed out")
 
+    def cut_short(url):
+        raise http.client.IncompleteRead(b"US2")
+
     said = []
     assert epgshare.load_lists(tmp_path, {"us"}, said.append, down, now=T + 2 * 86400) == lists
-    assert "using last time's" in said[0]
+    assert epgshare.load_lists(tmp_path, {"us"}, said.append, cut_short, now=T + 2 * 86400) == lists
+    assert "using last time's" in said[0] and "using last time's" in said[1]
     (tmp_path / epgshare.CACHE).write_text(json.dumps({"time": T, "countries": ["us"], "lists": {
         "../x": {"country": "us", "ids": ["A.us2"]}, "US2": {"country": "usa", "ids": ["B.us2"]},
         "UK1": {"country": "uk", "ids": ["C.uk1", 5, "has space"]}, "CA2": "nope"}}))  # fmt: skip
