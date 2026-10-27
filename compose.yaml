@@ -559,7 +559,7 @@ services:
   # shell, so there's no health check: the Stack tile knocks on its port.
   gateway:
     profiles: ["gateway"]
-    image: ${KIA_GATEWAY_IMAGE:-ghcr.io/agentgateway/agentgateway:v1.6.0}
+    image: ${KIA_GATEWAY_IMAGE:-ghcr.io/agentgateway/agentgateway:v1.7.0}
     restart: unless-stopped
     logging: *logging
     user: "${PUID:-1000}:${PGID:-1000}"

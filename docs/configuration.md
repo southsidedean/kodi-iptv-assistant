@@ -85,7 +85,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_DCGM_IMAGE` | `nvidia/dcgm-exporter:4.6.1-4.8.4` | The graphics card exporter's version (`monitoring-gpu`), pinned to one tested with kia's Hardware dashboard. |
 | `KIA_GATEWAY_PORT` | `8745` | The gateway's port, for AI assistants on several devices (the `gateway` part, [several devices](mcp.md#several-devices-the-gateway)). It answers only over HTTPS, with kia's certificate. |
 | `KIA_GATEWAY_RATE` | `120` | Requests a minute each device may send through the gateway, 1 to 10000. An assistant's start-up takes a few. Run `scripts/gateway.sh write` after changing it. |
-| `KIA_GATEWAY_IMAGE` | `ghcr.io/agentgateway/agentgateway:v1.6.0` | The gateway's version, pinned to one tested with kia. |
+| `KIA_GATEWAY_IMAGE` | `ghcr.io/agentgateway/agentgateway:v1.7.0` | The gateway's version, pinned to one tested with kia. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.
