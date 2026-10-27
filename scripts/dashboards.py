@@ -173,7 +173,6 @@ class Board:
 
 OK_FAILED = [{"type": "value", "options": {
     "0": {"text": "Failed", "color": "red"}, "1": {"text": "OK", "color": "green"}, "2": {"text": "Refreshing", "color": "blue"}}}]  # fmt: skip
-GREEN = [{"color": "green", "value": None}]
 # The relay's numbers come only while it's on; kia's other numbers say whether kia answers.
 PLUTO_OFF = "No numbers from the Pluto TV relay: it's off (KIA_PLUTO_RELAY=false), or kia isn't answering"
 

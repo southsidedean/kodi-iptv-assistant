@@ -320,8 +320,8 @@ def test_pin_versions_script(tmp_path: Path):
     proj = tmp_path / "kia"
     (proj / "scripts").mkdir(parents=True)
     shutil.copy(root / "scripts" / "pin-versions.sh", proj / "scripts")
-    (proj / ".env").write_text("KIA_PUBLIC_URL=http://tv.lan:8780\nKIA_BASE_IMAGE=\nKIA_NGINX_IMAGE=\nKIA_EPG_GIT_REF=\n")
-    (proj / "vendor" / "epg").mkdir(parents=True)
+    (proj / ".env").write_text("KIA_PUBLIC_URL=http://tv.lan:8780\nKIA_BASE_IMAGE=\nKIA_NGINX_IMAGE='nginx:alpine'\nKIA_EPG_GIT_REF=\nX=1")
+    (proj / "vendor" / "epg").mkdir(parents=True)  # nothing downloaded yet: git would answer with kia's own commit
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     (bin_dir / "docker").write_text('#!/bin/sh\necho "${5%%:*}@sha256:abc123"\n')  # docker image inspect --format X IMAGE
@@ -331,9 +331,15 @@ def test_pin_versions_script(tmp_path: Path):
     env = {"PATH": f"{bin_dir}:/usr/bin:/bin"}
     run = lambda *a: subprocess.run(["sh", "scripts/pin-versions.sh", *a], cwd=proj, env=env, capture_output=True, text=True)
     assert run().returncode == 0
+    assert "KIA_EPG_GIT_REF=\n" in (proj / ".env").read_text()
+    (proj / ".env").write_text("KIA_PUBLIC_URL=http://tv.lan:8780\nKIA_BASE_IMAGE=\nKIA_NGINX_IMAGE='nginx:alpine'\nKIA_EPG_GIT_REF=\nX=1")
+    (proj / "vendor" / "epg" / ".git").mkdir()
+    assert run().returncode == 0
     text = (proj / ".env").read_text()
-    assert "KIA_BASE_IMAGE=cgr.dev/chainguard/wolfi-base@sha256:abc123" in text and "KIA_NGINX_IMAGE=nginx@sha256:abc123" in text
+    assert "KIA_BASE_IMAGE=cgr.dev/chainguard/wolfi-base@sha256:abc123" in text
+    assert "KIA_NGINX_IMAGE=nginx@sha256:abc123" in text  # 'nginx:alpine' read without its quotes, as Compose does
     assert "KIA_EPG_GIT_REF=0123456789abcdef" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text
+    assert "X=1\n" in text  # a last line without its line break stays its own
     assert list(proj.glob(".env.bak-*"))
     assert run("--unpin").returncode == 0
     text = (proj / ".env").read_text()

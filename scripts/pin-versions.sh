@@ -7,17 +7,24 @@
 # Pins the base (Wolfi) and nginx images by digest and iptv-org/epg by commit. .env is backed
 # up first. Apply with: docker compose up -d --build
 set -eu
+# Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
+# UTF-8) they take capitals and accented letters too, and a name check lets them through.
+LC_ALL=C
+export LC_ALL
 umask 077  # .env and its backups hold passwords: only you can read them
 cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "No .env here; copy .env.example to .env first." >&2; exit 1; }
 
 set_env() {  # set_env NAME VALUE: replace the NAME= line in .env, or add it
   if grep -q "^$1=" .env; then
-    sed "s|^$1=.*|$1=$2|" .env > .env.tmp && mv .env.tmp .env
+    K=$1 V=$2 awk 'BEGIN { FS = OFS = "=" } $1 == ENVIRON["K"] { print ENVIRON["K"] "=" ENVIRON["V"]; next } { print }' .env > .env.tmp && mv .env.tmp .env
   else
+    if [ -s .env ] && [ -n "$(tail -c 1 .env)" ]; then echo >> .env; fi  # a last line without its line break
     printf '%s=%s\n' "$1" "$2" >> .env
   fi
 }
+# A setting's value as Compose reads it, without one pair of quotes around it.
+get() { grep "^$1=" .env | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/" || true; }
 
 cp .env ".env.bak-$(date +%Y%m%d-%H%M%S)"
 if [ "${1:-}" = "--unpin" ]; then
@@ -29,8 +36,8 @@ fi
 digest() {  # digest IMAGE: the image's repository digest, e.g. nginx@sha256:...
   docker image inspect --format '{{index .RepoDigests 0}}' "$1" 2>/dev/null || true
 }
-base_image=$(grep '^KIA_BASE_IMAGE=' .env | cut -d= -f2-); base_image=${base_image:-cgr.dev/chainguard/wolfi-base:latest}
-nginx_image=$(grep '^KIA_NGINX_IMAGE=' .env | cut -d= -f2-); nginx_image=${nginx_image:-nginx:alpine}
+base_image=$(get KIA_BASE_IMAGE); base_image=${base_image:-cgr.dev/chainguard/wolfi-base:latest}
+nginx_image=$(get KIA_NGINX_IMAGE); nginx_image=${nginx_image:-nginx:alpine}
 base=$(digest "$base_image"); nginx=$(digest "$nginx_image")
 case "$base_image" in *@sha256:*) ;; *)
   if [ -z "$base" ]; then
@@ -53,7 +60,9 @@ case "$base_image" in *@sha256:*) ;; *)
     esac
   fi ;;
 esac
-epg=$(git -C vendor/epg rev-parse HEAD 2>/dev/null || true)
+# Only vendor/epg's own copy: in an empty folder, git would answer with kia's own commit.
+epg=""
+if [ -e vendor/epg/.git ]; then epg=$(git -C vendor/epg rev-parse HEAD 2>/dev/null || true); fi
 [ -n "$base" ] && set_env KIA_BASE_IMAGE "$base" && echo "KIA_BASE_IMAGE=$base"
 [ -n "$nginx" ] && set_env KIA_NGINX_IMAGE "$nginx" && echo "KIA_NGINX_IMAGE=$nginx"
 [ -n "$epg" ] && set_env KIA_EPG_GIT_REF "$epg" && echo "KIA_EPG_GIT_REF=$epg"

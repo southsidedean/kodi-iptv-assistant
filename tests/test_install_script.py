@@ -179,3 +179,18 @@ def test_the_preset_menu_says_what_each_one_asks_of_you(kia: Path):
     menu = [line.split(":")[0].strip() for line in r.stdout.splitlines() if line.startswith("  ") and ":" in line and "Asks" not in line]
     assert menu[0] == "kodi"  # in the presets' own order, as the Dashboard shows them
     assert "Asks you for: A playlist named plex, made on the Dashboard; a claim code from plex.tv/claim" in r.stdout
+
+
+def test_not_as_root(kia: Path):
+    stub(kia.parent / "bin", "id", 'case "$1" in -u) echo 0 ;; *) /usr/bin/id "$@" ;; esac\n')
+    r = install(kia, "--yes")
+    assert r.returncode == 1 and "not as root" in r.stderr and not (kia / ".env").exists()
+
+
+def test_a_download_cut_short_runs_nothing(kia: Path, tmp_path: Path):
+    # Piped from curl, a script cut off part way: everything is in main(), run on the last line.
+    text = (kia / "scripts" / "install.sh").read_text()
+    cut = tmp_path / "cut.sh"
+    cut.write_text(text[: len(text) // 2])
+    r = subprocess.run(["sh", str(cut), "--yes"], cwd=tmp_path, capture_output=True, text=True, check=False)
+    assert "==" not in r.stdout and not list(tmp_path.glob("*.env"))  # no step started
