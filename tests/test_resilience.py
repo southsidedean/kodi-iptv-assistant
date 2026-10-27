@@ -547,7 +547,7 @@ def test_an_address_python_cant_read_doesnt_stop_the_check(tmp_path: Path, monke
     bad = ["http://[x/bad.m3u8", "http://[192.168.1.20]/a", "http://:9090/x", "http://me@:9090/x"]
     results = asyncio.run(cli.probe_all([m3u.Entry("Good", "https://8.8.8.8/a.m3u8"), *(m3u.Entry(u, u) for u in bad)],
                                         cfg, verbose=False))  # fmt: skip
-    assert tested == ["https://8.8.8.8/a.m3u8"]  # an empty host would reach this computer itself
+    assert tested == ["http://kia-guard.invalid/https/8.8.8.8:443/a.m3u8"]  # through the guard; an empty host would reach this computer itself
     assert all("not a network stream" in results[u].error for u in bad)
     assert not cli.is_stream_url("http://:9090/x") and cli.is_stream_url("rtsp://192.0.2.5/live")
 
