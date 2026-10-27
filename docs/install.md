@@ -143,7 +143,7 @@ The first time, this downloads and builds kia (a few minutes), then starts the f
 
 When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [Dashboard](how-it-works.md#the-dashboard), with the channel counts and your playlist's address. If another device will use kia, open that address on it too.
 
-![kia's Dashboard after the first refresh: the menu, a banner saying everything's working, the answer to Ask kia what's wrong, the Your stack tiles, the Getting started checklist, the channel counts, and the playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
+![kia's Dashboard after the first refresh, with this kia's name next to the logo: the menu, a banner saying everything's working, the answer to Ask kia what's wrong (the last refresh worked, and nothing needs you), the Getting started checklist with two of six steps done, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
 kia also made a password for changing things on the Dashboard, such as [playlists for people and devices](profiles.md). It's in `state/admin-password.txt` in the kia folder; [the secure Dashboard](secure-page.md) explains it.
 
