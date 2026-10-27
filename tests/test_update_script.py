@@ -124,6 +124,31 @@ def test_asks_first_while_someone_watches_through_jellyfin(copy: Path):
     r = update(copy)  # no terminal to answer: not restarted
     assert r.returncode == 0 and "kia says: 1 playing" in r.stdout and "Not restarted" in r.stdout
     assert "up -d" not in (copy.parent / "docker.log").read_text()  # only asked which servers run
+    # The running kia keeps its version, so its files stay with it: a new kia.toml may be one
+    # the old kia can't read.
+    assert git(copy, "describe", "--tags") == "v0.1.0"
+
+
+@pytest.mark.parametrize("args", [(), ("--main",)])
+def test_declining_puts_the_files_back_after_a_new_update_script(copy: Path, args: tuple):
+    # The new version's update.sh differs, so the first run hands over to it (KIA_UPDATE_AGAIN):
+    # the second one asks, and must put the files back where the first found them.
+    origin = copy.parent / "origin"
+    (origin / "scripts" / "update.sh").write_text((origin / "scripts" / "update.sh").read_text() + "# changed\n")
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "a new update.sh")
+    git(origin, "tag", "v0.4.0")
+    if args:
+        git(copy, "checkout", "-q", "main")  # a copy that follows main, one commit behind
+        git(copy, "reset", "-q", "--hard", "HEAD~1")
+    before = git(copy, "rev-parse", "HEAD")
+    (copy.parent / "bin" / "curl").write_text("#!/bin/sh\necho 'kia_pluto_channels_playing 2'\n")
+    (copy.parent / "bin" / "curl").chmod(0o755)
+    r = update(copy, *args)
+    assert r.returncode == 0 and "Not restarted, and kia's files are back" in r.stdout, r.stdout + r.stderr
+    assert git(copy, "rev-parse", "HEAD") == before
+    if args:
+        assert git(copy, "rev-parse", "--abbrev-ref", "HEAD") == "main"  # still following main
 
 
 @pytest.mark.parametrize("in_stack, asks", [("", False), ("plex", True)])
@@ -326,3 +351,57 @@ def test_the_new_versions_update_script_finishes_the_update(copy: Path):
     (copy.parent / "docker.log").unlink()
     r = update(copy, "v0.4.0")
     assert "the new update.sh" in r.stdout and r.stdout.count("Looking for kia's releases") == 1
+
+
+def test_yes_doesnt_ask_kia_who_is_watching(copy: Path):
+    asked = copy.parent / "curl.log"
+    (copy.parent / "bin" / "curl").write_text(f"#!/bin/sh\necho \"$*\" >> {asked}\necho 'kia_pluto_channels_playing 2'\n")
+    (copy.parent / "bin" / "curl").chmod(0o755)
+    assert update(copy, "--yes").returncode == 0 and not asked.exists()
+    assert update(copy, "v0.1.0").returncode == 0 and "--max-filesize" in asked.read_text()  # and never an endless answer
+
+
+def test_a_linux_stack_service_is_installed_again_for_new_settings(copy: Path):
+    # systemd keeps the unit as installed too (its sandbox, say).
+    origin, bin_dir, calls = copy.parent / "origin", copy.parent / "bin", copy.parent / "calls.log"
+    for name, body in (("uname", "echo Linux"), ("systemctl", f'echo "systemctl $*" >> {calls}')):
+        (bin_dir / name).write_text(f"#!/bin/sh\n{body}\n")
+        (bin_dir / name).chmod(0o755)
+    (origin / "deploy").mkdir()
+    (origin / "deploy" / "kia-stack.service").write_text("[Service]\n")
+    (origin / "scripts" / "install-service.sh").write_text(f'#!/bin/sh\necho "install-service $*" >> {calls}\n')
+    (origin / "scripts" / "install-service.sh").chmod(0o755)
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "the service's sandbox changes")
+    git(origin, "tag", "v0.4.0")
+    r = update(copy, "v0.4.0")
+    assert r.returncode == 0 and "Installed the kia-stack service again" in r.stdout, r.stdout + r.stderr
+    assert "install-service --stack" in calls.read_text() and "restart kia-stack" not in calls.read_text()
+
+
+@pytest.mark.parametrize("numbers, says", [
+    ("kia_pluto_channels_playing 2", "kia says: 2 playing"),  # Pluto TV through kia
+    ("kia_pluto_channels_playing 0\\nkia_refresh_running 1", "kia says: a refresh is running"),
+])  # fmt: skip
+def test_asks_first_for_a_pluto_viewer_or_a_refresh(copy: Path, numbers: str, says: str):
+    (copy.parent / "bin" / "curl").write_text(f"#!/bin/sh\nprintf '{numbers}\\n'\n")
+    (copy.parent / "bin" / "curl").chmod(0o755)
+    r = update(copy)
+    assert says in r.stdout and "Not restarted" in r.stdout, r.stdout
+    assert "up -d" not in (copy.parent / "docker.log").read_text()
+
+
+def test_without_docker_a_stopped_service_is_nobody_watching(copy: Path):
+    bin_dir, calls = copy.parent / "bin", copy.parent / "calls.log"
+    for name, body in (("curl", "exit 7"), ("systemctl", "exit 3"), ("launchctl", "exit 1")):  # kia doesn't answer: it's stopped
+        (bin_dir / name).write_text(f"#!/bin/sh\n{body}\n")
+        (bin_dir / name).chmod(0o755)
+    origin = copy.parent / "origin"
+    (origin / "scripts" / "install-service.sh").write_text(f'#!/bin/sh\necho "install-service $*" >> {calls}\n')
+    (origin / "scripts" / "install-service.sh").chmod(0o755)
+    git(origin, "add", "-A")
+    git(origin, "commit", "-q", "-m", "the service script")
+    git(origin, "tag", "v0.4.0")
+    r = update(copy, "v0.4.0", "--no-docker")
+    assert r.returncode == 0 and "kia says" not in r.stdout and calls.read_text() == "install-service \n", r.stdout + r.stderr
+    assert not (copy.parent / "docker.log").exists()

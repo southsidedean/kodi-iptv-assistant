@@ -13,6 +13,10 @@
 #   scripts/stack.sh watch              run for the Dashboard's Stack page (the kia-stack service)
 #   --yes                               don't ask, even if someone is watching
 set -eu
+# Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
+# UTF-8) they take capitals and accented letters too, and a name check lets them through.
+LC_ALL=C
+export LC_ALL
 
 cd "$(dirname "$0")/.."
 cmd=status preset="" try="" try_set=no ask=yes once=no claim=""
@@ -50,13 +54,20 @@ observability-gpu|monitoring-gpu|the graphics card on the Hardware dashboard: NV
 observability-disks|monitoring-disks|each disk's health (SMART) on the Hardware dashboard: Linux
 gateway|gateway|a gateway in front of kia's MCP server: a key for each device, with a limit and a log (docs/mcp.md)"
 
-get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
+# A setting's value as Compose reads it: the last line for it, without one pair of quotes around it.
+get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/" || true; }
 set_env() {  # set_env NAME VALUE: replace the line, or add it
+    # Through the environment, not awk -v: that would show the value (a Plex claim code) to
+    # anyone listing processes, and read its backslashes as escapes.
     if grep -q "^$1=" .env; then
-        (umask 077 && awk -v k="$1" -v v="$2" 'BEGIN { FS = OFS = "=" } $1 == k { print k "=" v; next } { print }' .env >.env.tmp) && mv .env.tmp .env
+        (umask 077 && K=$1 V=$2 awk 'BEGIN { FS = OFS = "=" } $1 == ENVIRON["K"] { print ENVIRON["K"] "=" ENVIRON["V"]; next } { print }' .env >.env.tmp) && mv .env.tmp .env
     else
+        ends_line .env
         printf '%s=%s\n' "$1" "$2" >>.env
     fi
+}
+ends_line() {  # a file whose last line has no line break gets one, so a line added after it stays its own
+    if [ -s "$1" ] && [ -n "$(tail -c 1 "$1")" ]; then echo >>"$1"; fi
 }
 has() { case ",$features," in *",$1,"*) return 0 ;; esac; return 1; }
 # The host in KIA_PUBLIC_URL (an address or name, or [an IPv6 address]), or nothing when
@@ -159,10 +170,13 @@ if [ "$cmd" = watch ]; then
     }
     take_request() {
         in=state/stack-request
-        # Anything but a plain file there (a link, a folder) isn't a request: remove it, so
-        # it can't block the next one. rm on a link removes the link, never its target.
+        # Anything but a plain file there (a link, a folder) isn't a request: renamed away into
+        # the service's own folder, as a request is, and removed there, so it can't block the
+        # next one. The service changes nothing in state/ but that rename. A rename moves a
+        # link itself, and rm removes a link, never its target.
         if [ -L "$in" ] || { [ -e "$in" ] && [ ! -f "$in" ]; }; then
-            rm -rf "$in"
+            rm -rf "$own/not-a-request"
+            mv -f "$in" "$own/not-a-request" 2>/dev/null && rm -rf "$own/not-a-request"
             echo "stack: removed something in $in that wasn't a request"
             return 0
         fi
@@ -372,7 +386,12 @@ if has plex || has jellyfin; then
 fi
 if has gateway; then
     rate=$(get KIA_GATEWAY_RATE)
-    case "$rate" in "") ;; *[!0-9]* | 0) problem "KIA_GATEWAY_RATE is a number of requests a minute, such as 120" ;; esac
+    # As scripts/gateway.sh write checks it: 1 to 10000, without a leading 0.
+    case "$rate" in
+        "") ;;
+        *[!0-9]* | 0*) problem "KIA_GATEWAY_RATE is a number of requests a minute, such as 120" ;;
+        *) if [ ${#rate} -gt 5 ] || [ "$rate" -gt 10000 ]; then problem "KIA_GATEWAY_RATE is from 1 to 10000 requests a minute"; fi ;;
+    esac
     if [ ! -s gateway/devices ]; then
         note "no device has a gateway key yet: scripts/gateway.sh add laptop (docs/mcp.md)"
     fi
@@ -429,7 +448,11 @@ fi
 # --- apply ---------------------------------------------------------------------------
 # Nobody watching? Restarting kia cuts off Pluto TV through it, and Plex's Live TV.
 port=$(get KIA_PORT)
-if numbers=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null); then
+# Asked only when the answer matters (not with --yes), and at most 4 MB of it: kia's own
+# numbers are a few KB, and anything far bigger isn't kia.
+if [ "$ask" = no ]; then
+    watching=""
+elif numbers=$(curl -fsS --max-time 5 --max-filesize 4000000 "http://localhost:${port:-8780}/metrics" 2>/dev/null); then
     watching=$(printf '%s\n' "$numbers" | awk '
         /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
         /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ { n += $NF }
@@ -468,6 +491,10 @@ if [ -e "$backup" ] || [ -L "$backup" ] || ! (umask 077 && set -C && cat .env >"
     echo "stack: couldn't save a copy of .env as $backup (something is already there); nothing changed" >&2
     exit 1
 fi
+# The newest 5 copies are kept; each holds .env's passwords, so older ones go. (Their names
+# are dates, so they sort oldest first, and have no spaces. find: this script runs with
+# set -f, so a * isn't expanded.)
+find stack-service -maxdepth 1 -name 'env.before-stack-*' -type f | sort -r | tail -n +6 | while read -r old; do rm -f "$old"; done
 if [ "$try_set" = yes ]; then set_env KIA_STACK "$features"; fi
 if [ -n "$claim" ]; then set_env PLEX_CLAIM "$claim"; fi  # read by Plex on its first start only
 # The addresses Plex and Jellyfin apps use to reach them, from KIA_PUBLIC_URL, if not set.

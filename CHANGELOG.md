@@ -11,6 +11,16 @@
 
 ### Fixes
 
+- `scripts/update.sh` moved kia's files to the new release before asking about viewers, so answering no left the running kia with files from the new one (a `kia.toml` it might not read). It now puts them back.
+- With `--yes`, `update.sh` and `stack.sh apply` no longer ask kia who's watching, and never read more than 4 MB of the answer.
+- On a Mac, the scripts' name checks (`scripts/gateway.sh add`, among others) let through capital and accented letters; they now run in the C locale.
+- A line added to an `.env` without a line break at its end joined the last line; the scripts now add one first. They also read a value in quotes (`KIA_PORT="8780"`) as Compose does.
+- `scripts/pin-versions.sh` pinned kia's own commit as iptv-org's when iptv-org's copy hadn't been downloaded yet.
+- `scripts/install.sh` refuses to run as root, runs nothing if a download through `curl | sh` is cut short, and no longer guesses a kia folder from the folder you ran it in.
+- `stack.sh apply` keeps only the newest 5 copies of `.env` it saves, since each holds your passwords.
+- `stack.sh check` and `gateway.sh write` agree on `KIA_GATEWAY_RATE`: a whole number from 1 to 10000.
+- On Linux, `update.sh` installs the kia-stack service again when its unit file changed, as it already did on a Mac.
+
 - One damaged file in `state/asks/` broke every request from an assistant, and the Dashboard's list of them. Damaged records inside the stream history, channel numbers, Dashboard choices, and new-channel notes, and damaged parts of `status.json`, `profiles.json`, `settings.json`, `secure.json`, and `channel-sources.json`, could stop the nightly check, `/metrics`, or the status pages. Each now counts as missing.
 - `kia backup` follows only the certificate links in `tls/`. Before, a link kia had put in `state/` could copy a file from outside the kia folder into the backup. Two backups made in the same second no longer share a name.
 

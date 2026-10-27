@@ -22,7 +22,15 @@
 #                   what runs next to kia (docs/stack.md); without it, it asks (default yes)
 #   --no-stack-service  don't install it
 #   --yes           don't ask; accept what it finds
+
+# All of it in one function, run on the last line: piped from curl, a download cut off part
+# way then runs nothing, rather than the half of the script that arrived.
+main() {
 set -eu
+# Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
+# UTF-8) they take capitals and accented letters too, and a name check lets them through.
+LC_ALL=C
+export LC_ALL
 
 REPO=https://github.com/southsidedean/kodi-iptv-assistant.git
 DIR=""
@@ -61,6 +69,9 @@ while [ $# -gt 0 ]; do
         *) die "unknown option $1 (try --help)" ;;
     esac
 done
+# As root, kia's files and its container would be root's (PUID in .env), and the kia-stack
+# service would run as root. Where a step needs sudo, it says which command to run.
+[ "$(id -u)" != 0 ] || die "run this as your own user, not as root or with sudo."
 for n in "$PORT" "$HTTPS_PORT"; do
     case "$n" in '' | *[!0-9]*) die "a port is a number, such as 8780; not $n" ;; esac
 done
@@ -104,7 +115,12 @@ command -v git >/dev/null 2>&1 || die "Git isn't installed. macOS: run  git --ve
 say "Docker and Git are ready."
 
 step "Getting kia"
-here=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || here=""
+# The copy this script is in, when it was run from one (scripts/install.sh). Piped from curl,
+# $0 is the shell, and the current folder says nothing about where kia is.
+here=""
+case "$0" in
+    install.sh | */install.sh) here=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || here="" ;;
+esac
 if [ -z "$DIR" ] && [ -n "$here" ] && [ -f "$here/compose.yaml" ] && [ -f "$here/src/kia/cli.py" ]; then
     DIR=$here
 fi
@@ -235,6 +251,7 @@ if [ -n "$PRESET" ]; then
     if grep -q '^KIA_STACK=' .env; then
         (umask 077 && sed -e "s|^KIA_STACK=.*|KIA_STACK=$stack|" .env >.env.tmp) && mv .env.tmp .env
     else
+        if [ -s .env ] && [ -n "$(tail -c 1 .env)" ]; then echo >>.env; fi  # a last line without its line break
         printf 'KIA_STACK=%s\n' "$stack" >>.env  # an .env from before KIA_STACK
     fi
     # The addresses Plex and Jellyfin apps on your network use, from this computer's.
@@ -343,3 +360,6 @@ say "Next: wait for the first refresh (the Dashboard says when it's done), then 
 say "Kodi or another player on each device:"
 say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/kodi.md"
 say "  https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/players.md (other players)"
+}
+
+main "$@"
