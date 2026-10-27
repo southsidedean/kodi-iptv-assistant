@@ -98,7 +98,7 @@ That's why kia's container has no Docker access, and why the kia-stack service c
 
 The Dashboard is how you change things, so it's how someone else would try to:
 
-- Changes need the password, and only over HTTPS. kia trusts the "came over HTTPS" mark only from its own web server, which sets it on every request.
+- Changes need the password, and only over HTTPS. kia trusts the "came over HTTPS" mark only from its own web server, which sets it on every request. "Its own web server" is the web container's addresses on both Docker networks it shares with kia (`KIA_PROXY_HOST`: `web` and a name on each network), so a container on the gateway's network, the gateway included, can't claim the mark.
 - kia keeps only a scrypt hash of the password, and turns away requests from other websites' pages.
 - Wrong passwords slow down: a second each, then a wait that doubles from the second one in a row, up to a minute, for the address that sent them. The web server passes on that address itself, so a browser can't claim someone else's.
 - Only a short list of things can be changed: profiles, playlists, favorites and numbers, the password, this kia's name, the stack, and answers to assistants' requests. Nothing else in `.env` or `kia.toml`.

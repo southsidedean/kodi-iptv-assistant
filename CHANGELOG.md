@@ -10,6 +10,7 @@
 
 ### Fixes
 
+- kia trusts its web server's "came over HTTPS" mark from the web server's addresses on both of the Docker networks they share. Before, it looked up only one, and Docker doesn't say which it gives, so with the gateway part, the secure page could have refused changes.
 - A playlist whose name starts with `_` or has `..` in it, such as `_mine`, never had its own guide used; its guide now gets a name kia accepts.
 - A damaged `threadfin/conf/authentication.json` (a list, say) stopped `threadfin-setup`; it now counts as missing, and Threadfin gets its login.
 - On an install with nothing next to kia, **Nothing needs you** no longer says "everything in the stack answers".
