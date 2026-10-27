@@ -172,8 +172,8 @@ site_fail_runs = 3
 # Minutes a request waits for you before it expires (1 to 1440, a day).
 expires_minutes = 10
 
-# How many requests can wait at once (1 to 20). Only one of each kind waits at a time.
-waiting = 5
+# How many requests can wait at once (1 to 4): one of each kind at most, and there are four.
+waiting = 4
 
 # Requests that run without asking you, all off until you list them. Only these kinds can:
 #   test_channel   test a channel's stream

@@ -160,7 +160,7 @@ Common causes:
 
 - Many guide sites `FAILED`, or the log stops suddenly while downloading guides: kia probably ran out of memory. Lower `KIA_PARALLEL_SITES` (each guide site uses up to about 0.7 GB), or raise `KIA_MEMORY_LIMIT` if the computer has memory to spare.
 - `Permission denied`: see [file permission errors](#file-permission-errors).
-- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, so keep those settings as they are ([why](configuration.md#versions)).
+- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, so keep those settings as they are ([why](configuration.md#what-kias-containers-can-touch)).
 - An error about `.env` or `kia.toml`: the message names the setting. Fix it, run `docker compose up -d`, and [refresh now](configuration.md#when-changes-take-effect).
 
 ### File permission errors
@@ -190,6 +190,11 @@ A run usually takes 15 minutes to an hour, depending on how many playlists you'v
 - `part_down`: on kia's computer, `docker compose ps` shows whether the part is running, and `docker compose logs <part>` says why it stopped. `docker compose up -d` starts it again. The Dashboard's **Stack** page shows it too.
 - `guessing`: if you know the address, it's usually a device with an old password or MCP token saved, such as an assistant set up before a new `kia mcp-token`; give it the new one. If you don't know it, someone on your network may be trying passwords: kia slows each try down, up to a minute apart, and a long password is the real protection.
 - `playlist_lan`: open `report.html` to see the playlist's streams that kia didn't test. Usually the playlist has a mistake, such as a stream on a private address. If the playlist is yours and its streams really are on your network, add the word `lan` to its line in the sources file ([playlists from the internet](../SECURITY.md#playlists-from-the-internet)).
+
+## The Stack page, and AI assistants
+
+- The Dashboard's **Stack** page has its own list: [if something's wrong](stack-dashboard.md#if-somethings-wrong).
+- An AI assistant that can't reach kia, or gets an error from it: [when it doesn't work](mcp.md#when-it-doesnt-work).
 
 ## Still stuck?
 

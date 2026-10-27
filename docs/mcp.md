@@ -223,7 +223,7 @@ In the kia folder, add `gateway` to `KIA_STACK` in `.env`, such as `KIA_STACK=pl
 scripts/stack.sh apply
 ```
 
-Or choose **Gateway** on the Dashboard's Stack page ([choosing the parts](stack.md)). The gateway answers on port 8745 (`KIA_GATEWAY_PORT`), over HTTPS with kia's certificate, at `/mcp`.
+Or, on the Dashboard's Stack page, open **Choose the parts yourself** and tick `gateway` with the parts you have ([choosing the parts](stack-dashboard.md#4-choose-and-check)). The gateway answers on port 8745 (`KIA_GATEWAY_PORT`), over HTTPS with kia's certificate, at `/mcp`.
 
 ### 2. Give each device a key
 
@@ -351,7 +351,7 @@ Some tools ask kia to do something, such as testing a channel's stream or refres
 | `kia_check_stack` | Check a choice of parts, as the **Stack** page's **Check** does. It only checks: applying a choice stays on the Dashboard. Needs Docker and the kia-stack service |
 | `kia_request_status` | How a request went: waiting, running, declined, expired, or done or failed, with its result (this one only reads) |
 
-A request waits 10 minutes, then expires. At most 5 wait at once, one of each kind; asking again for a kind that's waiting gives back the request already waiting. Requests that change your setup, such as applying a stack change, passwords, settings, or sources, can't be asked for at all.
+A request waits 10 minutes, then expires. At most 4 wait at once, one of each kind (`waiting` in `kia.toml`'s `[asks]` can make it fewer); asking again for a kind that's waiting gives back the request already waiting. Requests that change your setup, such as applying a stack change, passwords, settings, or sources, can't be asked for at all.
 
 To change how long a request waits, or how many can wait, set them in `kia.toml`:
 
@@ -369,7 +369,7 @@ Approving every stream test gets old while you work through channels with an ass
 
 **For an hour.** On the Dashboard, a waiting request has a third button, **Approve, and allow these for an hour**. It runs the request, and for the next hour the same kind of request from the same assistant runs by itself. The card says what's allowed and for how long, with a **Stop allowing** button.
 
-Without the gateway, kia tells assistants apart by the address they call from. Where every device shares one address, kia can't, so the button isn't offered: under Docker Desktop (a Mac or Windows), which shows kia one address for everyone, and for assistants on the kia computer itself. There, give each device a key with the [gateway](#several-devices-the-gateway), or use `auto_approve` below.
+Without the gateway, kia tells assistants apart by the address they call from. Where every device shares one address, kia can't, so the button isn't offered: under Docker Desktop on a Mac, which shows kia one address for everyone, and for assistants on the kia computer itself. There, give each device a key with the [gateway](#several-devices-the-gateway), or use `auto_approve` below.
 
 **Always.** List the kinds in `kia.toml`, then restart kia:
 

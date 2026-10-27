@@ -56,7 +56,7 @@ To choose numbers yourself, or star favorites that show up as a Favorites group,
 
 ## How much the server does
 
-Each device fetches its streams straight from the internet, so adding a TV adds almost nothing for the server: it hands out playlist and guide files. The exception is Pluto TV channels, which kia passes on itself ([why](../how-it-works.md#pluto-tv)). Each one being watched takes about 2 to 3% of one processor core on the PCs we measured, and 22% on a Raspberry Pi 3B.
+Each device fetches its streams straight from the internet, so adding a TV adds almost nothing for the server: it hands out playlist and guide files. The exception is Pluto TV channels, which kia passes on itself ([why](../how-it-works.md#pluto-tv)). Each one being watched takes about 2 to 3% of one processor core on the PCs we measured, and 22% on a Raspberry Pi 3B, an older and slower board than the Pi 4 or 5 kia needs.
 
 The nightly refresh is the busy part: up to an hour of checking streams and downloading the guide, at 4:00 unless you change `KIA_RUN_AT`.
 
