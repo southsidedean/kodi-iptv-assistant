@@ -55,7 +55,7 @@ They're in `stacks/` in the kia folder. Add your own parts to `KIA_STACK` afterw
 
 `check` (and `apply`, before it changes anything) stops on a *problem* and points out a *warning*:
 
-- **Problems:** a name it doesn't know; `plex` with `plex-tuner` (Plex already brings its tuner); `plex-tuner-2` without `plex` or `plex-tuner`; `observability-gpu` or `observability-disks` without `observability`; no playlist named `plex` yet for Threadfin; `observability-gpu` without an NVIDIA card and NVIDIA's Container Toolkit, or either Hardware part on a Mac; a media folder that's missing or can't be read; a port another program already uses; a `KIA_GATEWAY_RATE` that isn't a number.
+- **Problems:** a name it doesn't know; `plex` with `plex-tuner` (Plex already brings its tuner); `plex-tuner-2` without `plex` or `plex-tuner`; `observability-gpu` or `observability-disks` without `observability`; no playlist named `plex` yet for Threadfin; `observability-gpu` without an NVIDIA card and NVIDIA's Container Toolkit, or either Hardware part on a Mac; a media folder that's missing or can't be read; a port another program already uses; a `KIA_GATEWAY_RATE` that isn't a whole number from 1 to 10000.
 - **Warnings:** settings a part needs and doesn't have yet, such as `KIA_PLEX_ADVERTISE` or a claim code for Plex's first start; on a Mac, a database in a folder rather than a [Docker volume](configuration.md#on-a-mac), or no node-exporter from Homebrew; a computer with less than 6 GB of memory running more than one of Plex, Jellyfin, and the graphs.
 - **Hints:** on Linux, an NVIDIA card or disks it could show on the Hardware dashboard; with the gateway, that no device has a key yet.
 

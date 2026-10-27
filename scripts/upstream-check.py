@@ -64,8 +64,8 @@ def main() -> int:
     print("Listings per site:", listings)
     for r in results:
         if not listings[r.site]:
-            log = r.log.read_text()[-1500:] if r.log.exists() else "(no log: its grabber didn't start)"
-            print(f"--- {r.site} log ---\n{log}")
+            tail = r.log.read_text()[-1500:] if r.log.exists() else "(no log: its grabber didn't start)"
+            print(f"--- {r.site} log ---\n{tail}")
     if not any(listings.values()):
         print("FAIL: no site gave any listings")
         return 1

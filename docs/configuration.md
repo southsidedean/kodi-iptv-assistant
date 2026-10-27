@@ -84,7 +84,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE`, `KIA_SMARTCTL_IMAGE` | the latest | The monitoring images' versions. |
 | `KIA_DCGM_IMAGE` | `nvidia/dcgm-exporter:4.6.1-4.8.4` | The graphics card exporter's version (`monitoring-gpu`), pinned to one tested with kia's Hardware dashboard. |
 | `KIA_GATEWAY_PORT` | `8745` | The gateway's port, for AI assistants on several devices (the `gateway` part, [several devices](mcp.md#several-devices-the-gateway)). It answers only over HTTPS, with kia's certificate. |
-| `KIA_GATEWAY_RATE` | `120` | Requests a minute each device may send through the gateway. An assistant's start-up takes a few. Run `scripts/gateway.sh write` after changing it. |
+| `KIA_GATEWAY_RATE` | `120` | Requests a minute each device may send through the gateway, 1 to 10000. An assistant's start-up takes a few. Run `scripts/gateway.sh write` after changing it. |
 | `KIA_GATEWAY_IMAGE` | `ghcr.io/agentgateway/agentgateway:v1.6.0` | The gateway's version, pinned to one tested with kia. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 

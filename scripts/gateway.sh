@@ -15,6 +15,10 @@
 # digits, and dashes. A change takes effect at once: the gateway restarts, which takes
 # about a second.
 set -eu
+# Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
+# UTF-8) they take capitals and accented letters too, and a name check lets them through.
+LC_ALL=C
+export LC_ALL
 
 cd "$(dirname "$0")/.."
 dir=gateway
@@ -25,7 +29,8 @@ loaded=$dir/loaded            # what the gateway last started with (refresh, bel
 cert=tls/fullchain.pem        # kia's certificate, or yours
 
 die() { echo "gateway: $*" >&2; exit 1; }
-get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
+# A setting's value as Compose reads it: the last line for it, without one pair of quotes around it.
+get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/" || true; }
 
 cmd=${1:-}
 [ $# -gt 0 ] && shift
@@ -72,8 +77,10 @@ touch "$devices"
 # the gateway never reads half of them.
 write() {
     rate=$(get KIA_GATEWAY_RATE); rate=${rate:-120}
-    case "$rate" in "" | *[!0-9]*) die "KIA_GATEWAY_RATE is a number of requests a minute, such as 120" ;; esac
-    if [ "$rate" -lt 1 ] || [ "$rate" -gt 10000 ]; then die "KIA_GATEWAY_RATE is from 1 to 10000 requests a minute"; fi
+    # 1 to 10000, without a leading 0 (YAML would read 0120 as a number in base 8). stack.sh
+    # check uses the same rule, so a value it passes never stops an apply here.
+    case "$rate" in "" | *[!0-9]* | 0*) die "KIA_GATEWAY_RATE is a number of requests a minute, such as 120" ;; esac
+    if [ ${#rate} -gt 5 ] || [ "$rate" -gt 10000 ]; then die "KIA_GATEWAY_RATE is from 1 to 10000 requests a minute"; fi
     # The gateway's own token for kia, made the first time. kia accepts it as it does its own
     # (state/mcp-token.txt), so with the gateway in use, kia's own token can be turned off.
     if [ ! -s "$kia_token" ]; then new_key >"$kia_token.tmp" && mv -f "$kia_token.tmp" "$kia_token"; fi
@@ -168,7 +175,7 @@ EOF
 # place (a new inode); one copied over the old file changes in place, which the gateway
 # notices by itself.
 # shellcheck disable=SC2012  # one name we chose; macOS's find can't print an inode
-stamp() { { cat "$config" 2>/dev/null; ls -lni "$cert" 2>/dev/null | awk '{ print $1, $6 }'; } | sha256; }
+stamp() { { cat "$config" 2>/dev/null; ls -lnid "$cert" 2>/dev/null | awk '{ print $1, $6 }'; } | sha256; }
 
 # On Linux, the gateway notices a new settings file or certificate by itself. With Docker
 # Desktop (macOS, Windows) it notices the first one and misses every one after it, so when

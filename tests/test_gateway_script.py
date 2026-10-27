@@ -89,6 +89,10 @@ def test_remove_and_the_names_it_refuses(kia: Path):
     for bad in ("Laptop", "-x", 'a"b', "a b", "x" * 41, "a:b"):
         r = gateway(kia, "add", bad)
         assert r.returncode != 0 and not (kia / "gateway" / "devices").read_text(), bad
+    # In a UTF-8 locale, macOS's sh lets [a-z] take capitals and accented letters too.
+    for bad in ("Laptop", "caf\u00e9"):
+        r = gateway(kia, "add", bad, LANG="en_US.UTF-8", LC_ALL="en_US.UTF-8")
+        assert r.returncode != 0 and not (kia / "gateway" / "devices").read_text(), bad
     assert gateway(kia, "add", "laptop", "--for", "something").returncode != 0
 
 
@@ -97,7 +101,7 @@ def test_the_limit_comes_from_env_and_is_checked(kia: Path):
     assert gateway(kia, "write").returncode == 0
     config = (kia / "gateway" / "config.yaml").read_text()
     assert "maxTokens: 30" in config and "tokensPerFill: 30" in config and "key: apiKey.device" in config
-    for bad in ("0", "abc", "10001", "5; rm -rf /"):
+    for bad in ("0", "abc", "10001", "5; rm -rf /", "0120", "99999999999999999999"):
         (kia / ".env").write_text(f"KIA_GATEWAY_RATE={bad}\n")
         r = gateway(kia, "write")
         assert r.returncode != 0 and "KIA_GATEWAY_RATE" in r.stderr, bad

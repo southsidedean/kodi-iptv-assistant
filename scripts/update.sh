@@ -10,6 +10,10 @@
 #
 # Read the changelog's "Upgrading" notes for the new version first: some need a step.
 set -eu
+# Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
+# UTF-8) they take capitals and accented letters too, and a name check lets them through.
+LC_ALL=C
+export LC_ALL
 
 cd "$(dirname "$0")/.."
 target="" docker=yes ask=yes restart=yes
@@ -26,9 +30,11 @@ while [ $# -gt 0 ]; do
     shift
 done
 die() { echo "update: $*" >&2; exit 1; }
-get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
+# A setting's value as Compose reads it: the last line for it, without one pair of quotes around it.
+get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/" || true; }
 set_env() {  # set_env NAME VALUE: replace the line
-    (umask 077 && awk -v k="$1" -v v="$2" 'BEGIN { FS = OFS = "=" } $1 == k { print k "=" v; next } { print }' .env >.env.tmp) && mv .env.tmp .env
+    # Through the environment, not awk -v, which shows a value to anyone listing processes.
+    (umask 077 && K=$1 V=$2 awk 'BEGIN { FS = OFS = "=" } $1 == ENVIRON["K"] { print ENVIRON["K"] "=" ENVIRON["V"]; next } { print }' .env >.env.tmp) && mv .env.tmp .env
 }
 # This computer's name as kia's name (KIA_NAME): lowercase letters, digits, and dashes, at
 # most 40. In Docker, kia sees only its container's random id, so it's written into .env.
@@ -46,6 +52,11 @@ if [ -z "${KIA_UPDATE_AGAIN:-}" ]; then echo "Looking for kia's releases..."; fi
 git fetch --quiet --tags --force origin
 before=$(git describe --tags --always)
 before_head=$(git rev-parse HEAD)
+# Where the files were before this update, and on which branch (none for a release), to go
+# back there if you answer no below. The second run (KIA_UPDATE_AGAIN) gets them from the first.
+from=${KIA_UPDATE_FROM:-$before_head} from_branch=${KIA_UPDATE_FROM_BRANCH-$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)}
+case "$from" in "" | *[!0-9a-f]*) from=$before_head ;; esac
+case "$from_branch" in *[!A-Za-z0-9._/-]* | -*) from_branch="" ;; esac
 # What the containers last started with, kept until they've restarted, so a run that stops
 # before that (Docker not running, a failed build) isn't forgotten. It's kept in git's own
 # folder, which the kia container can't write (it sees the kia folder read-only), and read
@@ -103,7 +114,7 @@ if [ -z "${KIA_UPDATE_AGAIN:-}" ] && ! git diff --quiet "$before_head" HEAD -- s
     if [ "$docker" = no ]; then set -- "$@" --no-docker; fi
     if [ "$restart" = no ]; then set -- "$@" --no-restart; fi
     if [ "$ask" = no ]; then set -- "$@" --yes; fi
-    KIA_UPDATE_AGAIN=1 exec sh scripts/update.sh "$@"
+    KIA_UPDATE_AGAIN=1 KIA_UPDATE_FROM=$from KIA_UPDATE_FROM_BRANCH=$from_branch exec sh scripts/update.sh "$@"
 fi
 
 [ "$restart" = yes ] || exit 0
@@ -116,7 +127,11 @@ in_stack=""
 if [ "$docker" = yes ]; then
     in_stack=$(docker compose ps --services --status running 2>/dev/null | grep -x -e plex -e jellyfin | tr '\n' ' ' || true)
 fi
-if numbers=$(curl -fsS --max-time 5 "http://localhost:${port:-8780}/metrics" 2>/dev/null); then
+# Asked only when the answer matters (not with --yes), and at most 4 MB of it: kia's own
+# numbers are a few KB, and anything far bigger isn't kia.
+if [ "$ask" = no ]; then
+    watching=""
+elif numbers=$(curl -fsS --max-time 5 --max-filesize 4000000 "http://localhost:${port:-8780}/metrics" 2>/dev/null); then
     watching=$(printf '%s\n' "$numbers" | awk -v in_stack=" $in_stack" '
         /^kia_pluto_channels_playing / && $2 > 0 { n += $2 }
         /^kia_(plex|jellyfin)_sessions\{/ && $0 !~ /kind="none"/ {
@@ -138,7 +153,22 @@ fi
 if [ -n "$watching" ] && [ "$ask" = yes ]; then
     printf 'kia says: %s. Restart now anyway? [y/N] ' "$watching"
     { read -r answer </dev/tty; } 2>/dev/null || answer=n  # no terminal: don't restart
-    case "$answer" in [yY]*) ;; *) echo "Not restarted. Run this again later, or with --yes."; exit 0 ;; esac
+    case "$answer" in
+        [yY]*) ;;
+        *)
+            # The running kia keeps its version, so its files go back to match: a new
+            # kia.toml or sources.txt can be one the old kia can't read.
+            if [ "$(git rev-parse HEAD)" != "$from" ]; then
+                if [ -n "$from_branch" ]; then
+                    git checkout --quiet "$from_branch" && git reset --quiet --keep "$from"
+                else
+                    git -c advice.detachedHead=false checkout --quiet "$from"
+                fi
+            fi
+            echo "Not restarted, and kia's files are back where they were. Run this again later, or with --yes."
+            exit 0
+            ;;
+    esac
 fi
 
 if [ "$docker" = no ]; then
@@ -194,9 +224,9 @@ if [ -n "$restart" ]; then
     done
 fi
 # The kia-stack service keeps running the stack.sh it started with: restart it for the new one.
-# On a Mac, launchd also keeps the service's settings file as installed (where its log goes,
-# say), so a new one is installed again rather than only restarted.
-if echo "$changed" | grep -qx -e 'scripts/stack.sh' -e 'deploy/kia-stack.plist'; then
+# launchd and systemd also keep the service's settings file as installed (where its log goes,
+# its sandbox), so a new one is installed again rather than only restarted.
+if echo "$changed" | grep -qx -e 'scripts/stack.sh' -e 'deploy/kia-stack.plist' -e 'deploy/kia-stack.service'; then
     if [ "$(uname -s)" = Darwin ]; then
         if launchctl print "gui/$(id -u)/io.github.southsidedean.kia-stack" >/dev/null 2>&1; then
             if echo "$changed" | grep -qx 'deploy/kia-stack.plist'; then
@@ -206,7 +236,11 @@ if echo "$changed" | grep -qx -e 'scripts/stack.sh' -e 'deploy/kia-stack.plist';
             fi
         fi
     elif systemctl --user is-active --quiet kia-stack 2>/dev/null; then
-        systemctl --user restart kia-stack && echo "Restarted the kia-stack service, for its new version."
+        if echo "$changed" | grep -qx 'deploy/kia-stack.service'; then
+            scripts/install-service.sh --stack >/dev/null && echo "Installed the kia-stack service again, for its new settings."
+        else
+            systemctl --user restart kia-stack && echo "Restarted the kia-stack service, for its new version."
+        fi
     fi
 fi
 git rev-parse HEAD >"$deployed"

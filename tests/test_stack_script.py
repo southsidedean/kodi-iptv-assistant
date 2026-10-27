@@ -534,9 +534,11 @@ def test_the_gateway_part_writes_its_settings_before_it_starts(kia: Path):
     # Written before Compose starts the gateway, which reads it only from that file.
     calls = (kia.parent / "docker.log").read_text().splitlines()
     assert any("up -d" in c and "COMPOSE_PROFILES=gateway " in c for c in calls)
-    (kia / ".env").write_text((kia / ".env").read_text() + "KIA_GATEWAY_RATE=fast\n")
-    r = stack(kia, "check")
-    assert r.returncode == 1 and "KIA_GATEWAY_RATE" in r.stdout
+    env = (kia / ".env").read_text()
+    for bad in ("fast", "0", "0120", "10001", "99999999999999999999"):  # what gateway.sh write refuses too
+        (kia / ".env").write_text(env + f"KIA_GATEWAY_RATE={bad}\n")
+        r = stack(kia, "check")
+        assert r.returncode == 1 and "KIA_GATEWAY_RATE" in r.stdout, bad
 
 
 def test_watch_restarts_the_gateway_when_kias_certificate_changes(kia: Path):
@@ -552,3 +554,29 @@ def test_watch_restarts_the_gateway_when_kias_certificate_changes(kia: Path):
     asked = (kia.parent / "docker.log").read_text().count("ps -q --status running gateway")
     stack(kia, "watch", "--once")
     assert (kia.parent / "docker.log").read_text().count("ps -q --status running gateway") == asked + 1
+
+
+def test_apply_writes_env_lines_whole(kia: Path):
+    (kia / ".env").write_text((kia / ".env").read_text() + 'KIA_PORT="1"\nPLEX_CLAIM=old\nLAST=x')  # no line break at the end
+    r = stack(kia, "apply", "--preset", "plex-box", "--claim", "claim-abc123", "--yes")
+    assert r.returncode == 0, r.stdout + r.stderr
+    env = (kia / ".env").read_text()
+    assert "\nLAST=x\n" in env and "PLEX_CLAIM=claim-abc123\n" in env  # each on its own line
+    assert "KIA_STACK=plex\n" in env
+
+
+def test_apply_keeps_only_the_newest_env_copies(kia: Path):
+    folder = kia / "stack-service"
+    folder.mkdir(exist_ok=True)
+    for day in range(1, 9):  # eight older copies, each with .env's passwords
+        (folder / f"env.before-stack-2026010{day}-120000").write_text("old\n")
+    assert stack(kia, "apply", "--preset", "kodi", "--yes").returncode == 0
+    kept = sorted(p.name for p in folder.glob("env.before-stack-*"))
+    assert len(kept) == 5 and "env.before-stack-20260108-120000" in kept and "env.before-stack-20260103-120000" not in kept
+
+
+def test_apply_asks_first_while_someone_watches(kia: Path):
+    stub(kia.parent / "bin", "curl", 'echo "kia_pluto_channels_playing 1"\n')
+    r = stack(kia, "apply", "--preset", "plex-box")  # no terminal to answer: not changed
+    assert "kia says: 1 playing" in r.stdout and "Not changed" in r.stdout, r.stdout + r.stderr
+    assert "KIA_STACK=plex" not in (kia / ".env").read_text()

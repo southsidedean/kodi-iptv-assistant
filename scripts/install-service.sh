@@ -14,6 +14,10 @@
 # from websites. Settings come from .env (copy .env.example) and kia.toml, the same as
 # with Docker. kia serves the playlists, the Dashboard, and the secure page itself.
 set -eu
+# Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
+# UTF-8) they take capitals and accented letters too, and a name check lets them through.
+LC_ALL=C
+export LC_ALL
 
 DIR=$(cd "$(dirname "$0")/.." && pwd)
 MODE=install STACK=no
