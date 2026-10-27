@@ -36,6 +36,8 @@ def location(endpoint: str) -> str:
         return "?"
     if ip.version == 6 and ip.ipv4_mapped:  # ::ffff:192.168.1.20
         ip = ip.ipv4_mapped
+    # Tailscale's addresses (100.64.0.0/10) aren't private ones, so a player on them counts as
+    # wan: it's usually a device away from home, reaching Jellyfin through the tailnet.
     return "lan" if ip.is_private or ip.is_loopback or ip.is_link_local else "wan"
 
 

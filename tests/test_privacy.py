@@ -5,6 +5,7 @@ documentation (192.0.2.x, 198.51.100.x, 203.0.113.x). Emails use example.com, an
 names the few placeholders below. Images can't be checked here: open every one by eye.
 """
 
+import functools
 import ipaddress
 import re
 import subprocess
@@ -23,7 +24,8 @@ HOST_NAMES = {"my-server.lan", "server.lan", "kia.lan", "kia.home.lan", "tv.lan"
 HOME_PATHS = {"/home/threadfin", "/Users/Shared"}  # Threadfin's folder in its container; every Mac's shared folder
 
 
-def tracked_text() -> list[tuple[str, str]]:
+@functools.cache  # read once for all the checks below: the files don't change while they run
+def tracked_text() -> tuple[tuple[str, str], ...]:
     if not (ROOT / ".git").exists():
         pytest.skip("needs the git copy (a downloaded archive has no list of tracked files)")
     names = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
@@ -33,13 +35,17 @@ def tracked_text() -> list[tuple[str, str]]:
             files.append((name, (ROOT / name).read_text()))
         except (UnicodeDecodeError, OSError):  # images and other binary files
             continue
-    return files
+    return tuple(files)
 
 
-def findings(pattern: str, allowed) -> list[str]:
+def findings(pattern: str, allowed, needles: tuple[str, ...] = ()) -> list[str]:
+    """Each match not allowed, as file:line: match. needles: text a match always has
+    (lowercase), so a line without any is skipped before the pattern runs on it."""
     hits = []
     for name, text in tracked_text():
         for n, line in enumerate(text.splitlines(), 1):
+            if needles and not any(s in line.lower() for s in needles):
+                continue
             for match in re.finditer(pattern, line, flags=re.I):
                 if not allowed(match.group(0)):
                     hits.append(f"{name}:{n}: {match.group(0)}")
@@ -89,14 +95,14 @@ def test_no_real_ipv6_addresses_on_a_home_network():
 
 
 def test_no_real_email_addresses():
-    hits = findings(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", lambda e: bool(EMAIL_DOMAINS.search(e)) or e in EMAILS)
+    hits = findings(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", lambda e: bool(EMAIL_DOMAINS.search(e)) or e in EMAILS, ("@",))
     assert not hits, "use you@example.com:\n" + "\n".join(hits)
 
 
 def test_no_real_host_names():
     # Not one followed by another dot: sources.local.txt is a file.
     hits = findings(r"[\w-]+(?:\.[\w-]+)*\.(?:lan|internal|localdomain|home\.arpa|local|home|ts\.net)\b(?!\.\w)",
-                    lambda h: h.lower() in HOST_NAMES)  # fmt: skip
+                    lambda h: h.lower() in HOST_NAMES, (".lan", ".internal", ".localdomain", ".home", ".local", ".ts.net"))  # fmt: skip
     assert not hits, "use my-server.lan or kia.home.lan:\n" + "\n".join(hits)
 
 

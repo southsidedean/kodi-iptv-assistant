@@ -2,6 +2,20 @@
 
 ## 0.7.6 (unreleased)
 
+### Security
+
+- kia copies only the `#EXTVLCOPT` player options a stream needs (`http-user-agent`, `http-referrer`, `http-origin`, and `program`) from a playlist into its own, as it already did for `#KODIPROP`. Before, a stranger's playlist could set any VLC option in your player.
+- kia's container may run at most 1,024 processes and threads at once (a full refresh peaks under 100), and the web server 256, with 256 MB of memory. A program run wild, such as one a stream broke, can't start thousands or take the computer's memory.
+- SECURITY.md now says that kia can read Threadfin's settings, which hold the password for Threadfin's page, as it can read `.env` and Plex's settings.
+
+### Fixes
+
+- kia trusts its web server's "came over HTTPS" mark from the web server's addresses on both of the Docker networks they share. Before, it looked up only one, and Docker doesn't say which it gives, so with the gateway part, the secure page could have refused changes.
+- A playlist whose name starts with `_` or has `..` in it, such as `_mine`, never had its own guide used; its guide now gets a name kia accepts.
+- A damaged `threadfin/conf/authentication.json` (a list, say) stopped `threadfin-setup`; it now counts as missing, and Threadfin gets its login.
+- On an install with nothing next to kia, **Nothing needs you** no longer says "everything in the stack answers".
+- Piped from `curl`, the installer said "Checking what's installed" twice; the copy it hands over to now carries on without repeating it.
+
 ## 0.7.5 (2026-10-26)
 
 This release is a full independent review of kia, docs included, and the fixes it led to. Eight reviewers read every file in full and found about 105 problems, fixed in nine pull requests. Then kia was installed on a fresh computer by following the docs from the start.

@@ -88,6 +88,7 @@ def test_containers_stay_locked_down():
     for name in ("kia", "web"):
         service = compose_service(name)
         assert "read_only: true" in service and "- ALL" in service and "no-new-privileges:true" in service, name
+        assert re.search(r"^\s+pids_limit: \d+$", service, re.M) and "mem_limit:" in service, name  # nothing run wild takes the computer
     kia = compose_service("kia")
     assert "init: true" in kia  # cleans up the stream tests a stopped "Check now" leaves behind
     assert "- ./:/data:ro" in kia  # kia's own code and settings can't be changed from inside

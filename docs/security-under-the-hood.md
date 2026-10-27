@@ -88,7 +88,7 @@ Suppose a program got taken over, by a stream that broke ffprobe, say. What it c
 | Taken over | Could | Couldn't |
 |---|---|---|
 | iptv-org's downloader, in its sandbox | Read its own folder and the channel list, write its guide, use the network | Read kia's settings or other files, start programs |
-| ffprobe or ffmpeg, or kia itself, in Docker | Everything kia can: write `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`; read the rest of the kia folder, `.env` included, and with Plex in the stack, Plex's settings and sign-in; reach your network; leave requests for the kia-stack service | Change the system or the rest of the kia folder, see Jellyfin's or Grafana's data, reach Docker, gain privileges |
+| ffprobe or ffmpeg, or kia itself, in Docker | Everything kia can: write `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`; read the rest of the kia folder, `.env` included, and with Plex in the stack, Plex's settings and sign-in, and Threadfin's settings and the password for its page; reach your network; leave requests for the kia-stack service | Change the system or the rest of the kia folder, see Jellyfin's or Grafana's data, reach Docker, gain privileges |
 | The same, without Docker (Linux service) | The same folders, read your files, reach your network | Change files outside kia's folders and npm's cache, where the system allows those limits ([without Docker](setups.md#without-docker)) |
 | The web server | Read `output/`, the certificate and its key | Change anything kia uses |
 
@@ -98,7 +98,7 @@ That's why kia's container has no Docker access, and why the kia-stack service c
 
 The Dashboard is how you change things, so it's how someone else would try to:
 
-- Changes need the password, and only over HTTPS. kia trusts the "came over HTTPS" mark only from its own web server, which sets it on every request.
+- Changes need the password, and only over HTTPS. kia trusts the "came over HTTPS" mark only from its own web server, which sets it on every request. "Its own web server" is the web container's addresses on both Docker networks it shares with kia (`KIA_PROXY_HOST`: `web` and a name on each network), so a container on the gateway's network, the gateway included, can't claim the mark.
 - kia keeps only a scrypt hash of the password, and turns away requests from other websites' pages.
 - Wrong passwords slow down: a second each, then a wait that doubles from the second one in a row, up to a minute, for the address that sent them. The web server passes on that address itself, so a browser can't claim someone else's.
 - Only a short list of things can be changed: profiles, playlists, favorites and numbers, the password, this kia's name, the stack, and answers to assistants' requests. Nothing else in `.env` or `kia.toml`.

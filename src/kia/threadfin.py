@@ -97,7 +97,9 @@ def secure_login(conf: Path, folder: str, log=print) -> bool:
         db = json.loads(users_file.read_text())
     except (OSError, ValueError):
         db = {}
-    if isinstance(db, dict) and db.get("users"):
+    if not isinstance(db, dict):
+        db = {}  # damaged into another shape: as if missing, so Threadfin still gets a login
+    if db.get("users"):
         # Someone set up Threadfin's login already. If it was kia, stopped before it turned the
         # login on for Threadfin's page, finish that. Only then: once it's done (LOGIN_DONE), a
         # login you turn off on Threadfin's own page stays off.

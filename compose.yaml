@@ -36,7 +36,8 @@ services:
       # so a stream that broke ffprobe couldn't reach Jellyfin's users or the password Grafana
       # made. The rest of the kia folder stays readable, because kia needs it: .env, with any
       # passwords set there (KIA_GRAFANA_PASSWORD, say), and with Plex in the stack, Plex's
-      # settings, which hold its sign-in.
+      # settings, which hold its sign-in, and Threadfin's (kia doctor reads which playlist it
+      # uses), with the password for its page.
       - /data/jellyfin:size=1m,mode=0500
       - /data/monitoring:size=1m,mode=0500
     cap_drop:
@@ -104,12 +105,17 @@ services:
       KIA_TLS_NAMES: ${KIA_TLS_NAMES:-}
       # nginx (another user) reads kia's certificate key from tls/, through your group.
       KIA_TLS_SHARED: "true"
-      # Only requests from the web server may say they came through the secure page.
-      KIA_PROXY_HOST: web
+      # Only requests from the web server may say they came through the secure page: its
+      # addresses on both networks it shares with kia (web's aliases below).
+      KIA_PROXY_HOST: web,web-default,web-gateway
       # nginx forwards /api/ and /pluto/ to this port (not published).
       KIA_API_PORT: "8781"
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}
+    # Processes and threads at once: a full refresh peaks under 100 (measured for 0.7.6), so
+    # this leaves room for more streams or sites at once, and stops a program run wild (a
+    # stream that broke ffmpeg, say) from starting thousands.
+    pids_limit: 1024
     command: ["daemon", "--at", "${KIA_RUN_AT:-04:00}"]
     # The gateway's network too, so the Stack tiles can tell whether the gateway answers.
     networks: [default, gateway]
@@ -159,6 +165,9 @@ services:
       - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
+    # nginx uses about 15 MB and a process for each processor; these leave plenty of room.
+    mem_limit: 256m
+    pids_limit: 256
     ports:
       # KIA_BIND=127.0.0.1 keeps the server to this machine (e.g. Kodi on the same laptop).
       - "${KIA_BIND:-0.0.0.0}:${KIA_PORT:-8780}:80"
@@ -167,7 +176,12 @@ services:
     depends_on:
       - kia
     # The gateway part reaches kia's MCP server through this server, on the gateway's network.
-    networks: [default, gateway]
+    # A name on each network, so kia can look up both of its addresses (KIA_PROXY_HOST).
+    networks:
+      default:
+        aliases: [web-default]
+      gateway:
+        aliases: [web-gateway]
     # Healthy while nginx serves the Dashboard.
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]

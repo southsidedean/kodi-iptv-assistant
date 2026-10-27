@@ -66,6 +66,10 @@ def test_the_login_is_threadfins_own_kind(tmp_path: Path):
     before = (conf / "authentication.json").read_text()
     assert not threadfin.secure_login(conf, "threadfin", lambda m: None)
     assert (conf / "authentication.json").read_text() == before
+    # One damaged into another shape counts as missing: Threadfin gets a login, not a crash.
+    (conf / "authentication.json").write_text("[1, 2]")
+    threadfin.secure_login(conf, "threadfin", lambda m: None)
+    assert json.loads((conf / "authentication.json").read_text())["users"]
 
 
 def test_the_default_playlist_is_plex_unless_only_plex_1_exists(tmp_path: Path):
