@@ -532,6 +532,7 @@ ASKS_SCRIPT = """
           if (a.can_allow) buttons.splice(1, 0, ["Approve, and allow these for an hour", "hour", ""]);
           buttons.forEach(function (b) {
             var button = Object.assign(document.createElement("button"), { type: "button", textContent: b[0], className: b[2] });
+            button.setAttribute("aria-label", b[0] + ": " + a.what);  // a screen reader says which request, not just "Approve"
             button.addEventListener("click", function () { answer(a.id, b[1]); });
             li.append(" ", button);
           });
@@ -581,6 +582,7 @@ ASKS_SCRIPT = """
                  body: JSON.stringify(body) }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
     }).then(function (r) {
+      if (r._status === 401) { try { sessionStorage.removeItem(KEY); } catch (e) {} }  // a wrong password isn't kept for the next page
       if (r._status !== 200) { say.className = "asks-say error"; say.textContent = r.error || "Something went wrong."; return; }
       try { sessionStorage.setItem(KEY, pass.value); } catch (e) {}
       say.textContent = typeof said === "function" ? said(r) : said;
@@ -1034,7 +1036,7 @@ def render_playlist(s: dict, pl: dict, entries: list) -> str:
         return (
             f'<tr data-id="{escape(e.tvg_id or "")}" data-key="{escape(e.key)}"{" data-fav" if FAVORITES in e.group.split(";") else ""}>'
             f'<td class="num">{escape(e.attrs.get("tvg-chno", ""))}</td>'
-            f'<td class="name">{escape(e.name)}</td><td class="now" hidden></td><td class="next" hidden></td>'
+            f'<td class="name" data-name="{escape(e.name)}">{escape(e.name)}</td><td class="now" hidden></td><td class="next" hidden></td>'
             f'<td>{escape(e.group.replace(";", ", "))}</td></tr>\n'
         )
 

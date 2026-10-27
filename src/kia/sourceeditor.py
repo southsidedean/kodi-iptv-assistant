@@ -40,6 +40,8 @@ SCRIPT = r"""
     var e = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
       if (k === "text") e.textContent = attrs[k];
+      // A remembered password goes in as the field's value, never an attribute in the page.
+      else if (k === "value") e.value = attrs[k];
       else if (k === "on") Object.keys(attrs.on).forEach(function (ev) { e.addEventListener(ev, attrs.on[ev]); });
       else if (attrs[k] === true) e.setAttribute(k, "");
       else if (attrs[k] !== false && attrs[k] != null) e.setAttribute(k, attrs[k]);

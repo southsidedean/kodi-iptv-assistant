@@ -176,6 +176,7 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
   .source .counts { grid-column: 1; }
   .copy code { flex: 1 1 100%; }
   table.settings, table.settings tbody, table.settings tr, table.settings td { display: block; width: auto !important; }
+  table.settings thead { display: none; }  /* stacked, a header row would sit above the first row alone */
   table.settings tr { border-bottom: 1px solid var(--line); padding: .45rem 0; }
   table.settings td { border: 0; padding: .05rem .35rem; }
   table.settings td:first-child { color: var(--muted); }

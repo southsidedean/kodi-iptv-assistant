@@ -98,6 +98,28 @@ def save_state(state_dir: Path, state: dict) -> None:
     tmp.replace(state_dir / "alert-state.json")
 
 
+LOG_LIMIT = 1024 * 1024  # bytes of alerts.log: years of alerts; the status page reads it all each time
+
+
+def _trim(path: Path) -> None:
+    """Past LOG_LIMIT, keep the newest half of alerts.log's lines."""
+    try:
+        if path.stat().st_size <= LOG_LIMIT:
+            return
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+        kept, size = [], 0
+        for line in reversed(lines):
+            size += len(line.encode())
+            if size > LOG_LIMIT // 2:
+                break
+            kept.append(line)
+        tmp = temp_name(path)
+        tmp.write_text("".join(reversed(kept)), encoding="utf-8")
+        tmp.replace(path)
+    except OSError:
+        pass  # the alert itself went out; a long log only costs space
+
+
 def notify(
     event: str,
     title: str,
@@ -123,6 +145,7 @@ def notify(
         state_dir.mkdir(parents=True, exist_ok=True)
         with open(state_dir / "alerts.log", "a") as f:
             f.write(f"{now_iso()}\t{event}\t{title}\t{message.replace(chr(10), ' | ')}\n")
+        _trim(state_dir / "alerts.log")
     if cfg.ntfy_url:
         send_ntfy(cfg.ntfy_url, event, title, message, log)
     if cfg.command:

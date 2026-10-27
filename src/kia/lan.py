@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 # IPv6 addresses that carry an IPv4 one inside: NAT64 (64:ff9b::192.168.1.20 reaches that
 # address on a network with NAT64) and 6to4. Python calls both global, whatever they carry.
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_COMPATIBLE = ipaddress.ip_network("::/96")  # IPv4-compatible, ::192.168.1.20 (long deprecated, still parsed)
 
 
 def host_of(url: str) -> str:
@@ -58,10 +59,11 @@ def _addresses(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]
 
 
 def _not_global(a: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    if not a.is_global:
+    if not a.is_global or a.is_multicast:  # multicast: a stream on your own network (IPTV from a router, say)
         return True
     if a.version == 6:
-        inside = ipaddress.IPv4Address(int(a) & 0xFFFFFFFF) if a in _NAT64 else a.sixtofour
+        # An IPv4 address inside: NAT64's, 6to4's, or the old IPv4-compatible form (::a.b.c.d).
+        inside = ipaddress.IPv4Address(int(a) & 0xFFFFFFFF) if a in _NAT64 or a in _COMPATIBLE else a.sixtofour
         return inside is not None and not inside.is_global
     return False
 

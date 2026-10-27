@@ -152,6 +152,9 @@ def parse(text: str, source: str = "") -> list[Entry]:
         else:
             entry = pending or Entry(name=line, url="", source=source)
             entry.url = line
+            # A channel needs a name to show (and the Dashboard to find it by): its tvg-name or
+            # tvg-id, if the playlist gave it none.
+            entry.name = entry.name or entry.attrs.get("tvg-name", "").strip() or entry.tvg_id or "Channel"
             entries.append(entry)
             pending = None
     return entries

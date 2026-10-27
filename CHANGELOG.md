@@ -5,12 +5,22 @@
 ### Security
 
 - A playlist from the internet could get past the outbound guard with an HLS piece at an `httpproxy://` address, which ffmpeg opens and which connects to any device on your network directly. ffprobe may now use only plain http, which always goes to the guard. The guard opens https streams for ffprobe itself, checking their certificates, and rewrites the addresses in HLS playlists and redirects so their pieces come back through it ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
-
+- Logins in addresses are hidden in two more forms in `kia doctor` and the MCP tools' answers (`pw=`, and a password with `@` in it, without `https://`), and channel and playlist names from Threadfin and Jellyfin are quoted like other outside text.
+- A call through the gateway without a device name counted as one caller, so an hour's allowance there would have covered every device behind the gateway. Such calls now count as a shared address, which can't get one.
+- The Dashboard no longer puts a remembered password in the page as an attribute, and forgets it after a wrong-password answer on the requests card.
+- An IPv6 address carrying a local IPv4 one in the old form (`::192.168.1.20`), and multicast addresses, count as your network.
+- Without Docker, kia's own web server could serve a half-written `.tmp` file when the request had `#` after the name.
 - A playlist from the internet, the radio station lists and SomaFM's `.pls` files, the lookup of a Pluto TV channel's Samsung TV Plus link, and the Pluto relay's downloads now go through kia's outbound guard. Before, a redirect could take them to an address on your network. Only addresses that start with jmp2.uk's own `https://jmp2.uk/stvp-` are looked up as Samsung links ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
 - A playlist download now stops at 64 MB or five minutes, and a station list at 8 MB. Before, a server that never stopped sending could fill kia's memory or hold up the nightly refresh.
 
 ### Fixes
 
+- A channel with no name stopped the playlist page's Test, Why?, and star buttons at its row, and the guide timeline. A nameless channel now takes its `tvg-name` or `tvg-id` as its name.
+- A run stopped with Ctrl-C stayed "Refreshing now" until kia restarted, so Check now refused to start.
+- `state/alerts.log` grew forever and was read whole for each status update; past 1 MB, kia keeps the newest half.
+- `kia doctor hardware`, and the Dashboard's overview with it, could wait about a minute on a slow Prometheus; it now stops asking after 10 seconds and says so.
+- On an IPv6 address, the links to Plex and Jellyfin after adding them to the stack had their brackets twice.
+- Approve and Decline say which request they answer to screen readers; scrolling to the playlist editor respects reduced motion; stacked tables on phones lose their stray header row.
 - One program without an end time, from any guide source, stopped `kia guide` every night until the source changed. XMLTV allows it; kia now leaves that program out.
 - Many channels showed each program twice: iptv-org's downloaders read a site a day at a time, and a show that runs past midnight came back on the next day's page. kia now writes each program once.
 - 0.7.4: a Pluto TV channel that had also matched i.mjh.nz's Plex or Samsung guide by name got both guides' programs, overlapping. Pluto's guide by ID now takes their place. Pluto channels from the UK never got Pluto's guide by ID; now they do.

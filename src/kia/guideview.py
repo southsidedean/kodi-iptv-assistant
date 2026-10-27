@@ -145,7 +145,7 @@ SCRIPT = r"""
       }
       lastBody = row.parentNode;
       var line = el("div", "tl-row"), name = el("div", "tl-name"), track = el("div", "tl-track");
-      var label = row.querySelector("td.name").firstChild.textContent;
+      var label = row.querySelector("td.name").dataset.name || "";
       name.appendChild(el("b", null, row.querySelector("td.num").textContent));
       name.appendChild(document.createTextNode(label));
       name.title = label;

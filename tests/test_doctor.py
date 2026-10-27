@@ -218,6 +218,8 @@ def test_unknown_too_many_and_empty(kia):
     kept(kia, *(f'#EXTINF:-1 tvg-id="N{i}.us",News {i}\nhttps://n/{i}\n' for i in range(8)))
     assert titles(channel(kia, "zzz")[0]) == ["No channel by that name"]
     assert titles(channel(kia, "news")[0]) == ["8 channels match"]
+    kept(kia, *(f'#EXTINF:-1 tvg-id="N{i}.us",News https://me:pw@cdn/{i}\nhttps://n/{i}\n' for i in range(8)))
+    assert "pw@" not in channel(kia, "news")[0].findings[0].detail  # channel names are a stranger's text: quoted
     assert titles(channel(kia, "  ")[0]) == ["Say which channel"]
 
 
@@ -292,6 +294,8 @@ def test_the_dashboard_and_playlist_pages_offer_it(kia):
     ("url=https%3A%2F%2Fuser%3Asecret%40host%2F", "secret", "host"),
     ("me:secret@host:8080/live", "secret", "host:8080/live"),
     ("HTTPS://U:SECRET@HOST/", "SECRET", "HOST/"),
+    ("http://host/get.php?user=me&pw=SECRET", "SECRET", "pw="),
+    ("me:p@ss@host:8080/live", "ss@", "host:8080/live"),
 ])
 def test_logins_in_addresses_are_hidden(text, hidden, kept):
     shown = doctor.hide_logins(text)
@@ -552,6 +556,15 @@ def test_hardware_all_good(kia):
     # Without the disks' exporter, it says what would add them.
     assert "needs observability-disks" in hardware_report(kia, {**HEALTHY, "count(smartctl_device)": []}).findings[0].detail
 
+
+
+def test_hardware_stops_asking_a_slow_prometheus(kia):
+    ticks = iter(range(0, 1000, 4))  # each question takes 4 seconds
+    write(kia, "output/stack.json", {"services": [{"service": "prometheus", "ok": True}]})
+    asked = []
+    r = doctor.hardware(load(kia / "kia.toml"), env={}, clock=lambda: next(ticks),
+                        ask=lambda expr: asked.append(expr) or next((v for k, v in HEALTHY.items() if k in expr), []))  # fmt: skip
+    assert len(asked) <= 4 and "Prometheus was slow, so kia didn't ask everything" in titles(r)
 
 def test_hardware_prometheus_or_node_exporter_down(kia):
     r = hardware_report(kia, OSError("Connection refused"))
