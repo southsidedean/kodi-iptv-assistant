@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- Finding shows now takes a time of day, so a question like "what football is on tonight" isn't buried under the afternoon's listings. `kia find` and the `kia_find_shows` tool take `--after` and `--before` (a local 24-hour time, such as `--after 18:00`), keeping shows that start in that window. A busy search used to return the soonest 25 matches and stop, which filled up with daytime shows before it reached the evening.
 - When you ask kia about a channel that's down, it now tells you. The channel question (`kia_channel`, the Dashboard's Ask kia) and the channel search (`kia_find_channels`, the Dashboard's `/api/channels`) used to show only working channels. A channel that failed its last check, such as a Fox News that stopped working, looked as though it didn't exist, even when a working channel shared part of its name. kia now shows the dead channels too, each with the reason its stream failed.
 
 ## 0.7.6 (2026-10-27)

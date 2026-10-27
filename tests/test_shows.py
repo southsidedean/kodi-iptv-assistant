@@ -66,10 +66,31 @@ def test_kia_guide_by_words_category_and_time(kia):
     assert titles(shows.search(kia, "bears & a cub", now=NOW, env={})) == ["Pawn Stars"]  # & is &amp; in the file
 
 
+def test_after_and_before_narrow_to_a_time_of_day(kia):
+    # Two football shows today, this afternoon and tonight. Times are built from the machine's
+    # own offset, so the local clock is known whatever the test's time zone.
+    local = datetime.now().astimezone()
+
+    def utc_for_local(hour: int) -> datetime:
+        return local.replace(hour=hour, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    now, afternoon, evening = utc_for_local(13), utc_for_local(14), utc_for_local(20)
+    (kia.output_dir / "guide.xml").write_text(
+        '<?xml version="1.0"?>\n<tv>\n'
+        + programme("FOX.us", afternoon, 2, "College Football", "<category>Sports</category>")
+        + programme("FOX.us", evening, 3, "NFL Football", "<category>Sports</category>")
+        + "</tv>\n")
+    assert set(titles(shows.search(kia, "football", now=now, env={}))) == {"College Football", "NFL Football"}
+    assert titles(shows.search(kia, "football", now=now, after="18:00", env={})) == ["NFL Football"]
+    assert titles(shows.search(kia, "football", now=now, after="12:00", before="18:00", env={})) == ["College Football"]
+    bad = shows.search(kia, "football", now=now, after="6pm", env={})
+    assert any("24-hour clock" in note for note in bad["notes"])
+
+
 def test_many_matches_are_cut_and_said(kia, monkeypatch):
     monkeypatch.setattr(shows, "MAX_RESULTS", 1)
     r = shows.search(kia, "football", hours=48, now=NOW, env={})
-    assert len(r["shows"]) == 1 and r["notes"][0].startswith("2 shows match; these are the first 1.")
+    assert len(r["shows"]) == 1 and r["notes"][0].startswith("2 shows match; these are the first 1,")
 
 
 def test_guide_text_is_quoted(kia):

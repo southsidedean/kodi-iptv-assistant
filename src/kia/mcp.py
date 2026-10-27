@@ -174,12 +174,15 @@ TOOLS = [
      "and Jellyfin that kia knows. Matches every word in a show's title, episode, or description, and the "
      "category's words in its categories; up to 25, those named for the words first, then the soonest, each with its channel, number, start "
      "and end, and where to watch it (kia's playlists, Plex, or Jellyfin). For questions like \"when is "
-     "the game on?\" or \"what sports are on now?\". Times are in this computer's time zone.",
+     "the game on?\" or \"what sports are on now?\". For \"tonight\" or \"this afternoon\", set after "
+     "and before (local HH:MM), such as after 18:00. Times are in this computer's time zone.",
      {"type": "object", "additionalProperties": False,
       "properties": {"query": {"type": "string", "maxLength": 100, "description": "Words in the show's title or description, such as NFL"},
                      "category": {"type": "string", "maxLength": 50, "description": "A guide category, such as Sports (kia's and Jellyfin's guides)"},
                      "hours": {"type": "number", "minimum": 0, "maximum": 168,
-                               "description": "How far ahead to look: 0 for on now; 24 if left out"}}}),
+                               "description": "How far ahead to look: 0 for on now; 24 if left out"},
+                     "after": {"type": "string", "maxLength": 8, "description": "Only shows starting at or after this local time (HH:MM, 24-hour), such as 18:00 for tonight"},
+                     "before": {"type": "string", "maxLength": 8, "description": "Only shows starting before this local time (HH:MM, 24-hour), such as 12:00 for the morning"}}}),
     ("kia_whats_new", "New and gone channels",
      "Channels new to kia's playlists in the last 7 days, and channels gone from them because their streams "
      "stopped working, newest first: each one's ID (or name key), name, category, and when. A channel is new "
@@ -390,7 +393,8 @@ def _find_shows(conf: Config, args: dict, _api) -> dict:
     query, category = str(args.get("query") or "")[:100], str(args.get("category") or "")[:50]
     if not query.strip() and not category.strip():
         return {"note": "Give some words to look for, a category, or both."}
-    return shows.search(conf, query, category, args.get("hours", 24))
+    return shows.search(conf, query, category, args.get("hours", 24),
+                        after=str(args.get("after") or ""), before=str(args.get("before") or ""))
 
 
 def _plex(conf: Config, _args: dict, _api) -> dict:
