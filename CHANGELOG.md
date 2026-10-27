@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.7.6 (unreleased)
+
 ## 0.7.5 (2026-10-26)
 
 This release is a full independent review of kia, docs included, and the fixes it led to. Eight reviewers read every file in full and found about 105 problems, fixed in nine pull requests. Then kia was installed on a fresh computer by following the docs from the start.
