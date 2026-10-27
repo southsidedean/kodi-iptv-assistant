@@ -90,7 +90,7 @@ On the secure Dashboard, `https://localhost:8743/` (your browser warns about kia
 
 **Watching on other devices later.** To let a TV, phone, or another computer in the house use this kia, change the two lines in `.env` to this computer's network address and `KIA_BIND=0.0.0.0`, as in [setups → home server](../setups.md#home-server), and apply the change. A computer that sleeps makes a poor server, though: the other devices lose their channels while it's asleep.
 
-**Removing kia.** With Docker, in the kia folder: `scripts/install-service.sh --stack --uninstall` (if you installed the kia-stack service), then `docker compose down`, then delete the folder. Without Docker: `scripts/install-service.sh --uninstall`, then delete the folder.
+**Removing kia.** Follow [uninstalling](../configuration.md#uninstalling): a few commands in the kia folder, then delete it, after checking what else it holds.
 
 ## If something's wrong
 

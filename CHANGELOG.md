@@ -15,6 +15,9 @@
 
 ### Fixes
 
+- `[asks] waiting` in `kia.toml` is now 1 to 4, and 4 by default: one request of each kind waits at a time, and there are four kinds, so a higher number never did anything.
+- `KIA_PROMETHEUS_URL` in `.env` now reaches kia's container, so `kia doctor hardware` can use a Prometheus of your own. It's in `.env.example` and the configuration docs.
+- The docs catch up with 0.7.x: the MCP server is no longer called read-only, the security diagram shows the gateway, the guide diagram shows epgshare01 outside the quick refreshes, and the cookbooks show the Stack page's way to add Plex or Jellyfin.
 - One damaged file in `state/asks/` broke every request from an assistant, and the Dashboard's list of them. Damaged records inside the stream history, channel numbers, Dashboard choices, and new-channel notes, and damaged parts of `status.json`, `profiles.json`, `settings.json`, `secure.json`, and `channel-sources.json`, could stop the nightly check, `/metrics`, or the status pages. Each now counts as missing.
 - `kia backup` follows only the certificate links in `tls/`. Before, a link kia had put in `state/` could copy a file from outside the kia folder into the backup. Two backups made in the same second no longer share a name.
 - A channel with no name stopped the playlist page's Test, Why?, and star buttons at its row, and the guide timeline. A nameless channel now takes its `tvg-name` or `tvg-id` as its name.
@@ -411,7 +414,7 @@ Three changes can need a step of your own:
 - Piped from curl, the installer is main's copy while the kia it downloads is a release. It now hands over to that release's own installer, with the same options, so the installer and the files come from the same version.
 - With a preset, the Plex and Jellyfin addresses came out wrong when `KIA_PUBLIC_URL` had `https://`, a slash at the end, or no address at all. They're read the way `stack.sh` reads them now, and left empty when there's nothing to use. An IPv6 address gets its brackets (`http://[fd00::5]:8780`).
 - The installer no longer opens ports in ufw. Docker lets connections to its ports past ufw by itself, so those rules opened nothing and could pass for protection. It says that `KIA_BIND` decides who can connect, and the docs say the same.
-- On a Mac with less than 6 GB of memory, it uses the lighter settings too, and the firewall step opens the ports in `.env` rather than the default ones.
+- On a Mac with less than 6 GB of memory, it uses the lighter settings too.
 
 ### Updating
 

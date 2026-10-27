@@ -73,6 +73,8 @@ services:
       # The Dashboard's Observability button (docs/cookbooks/observability.md).
       KIA_GRAFANA_URL: ${KIA_GRAFANA_URL:-}
       KIA_GRAFANA_PORT: ${KIA_GRAFANA_PORT:-}
+      # kia doctor hardware (and the Dashboard's and MCP's hardware checks): a Prometheus of your own.
+      KIA_PROMETHEUS_URL: ${KIA_PROMETHEUS_URL:-}
       KIA_COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
       KIA_STACK: ${KIA_STACK:-}
       # The Dashboard's Stack tiles link to these (src/kia/stack.py).

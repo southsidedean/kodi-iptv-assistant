@@ -33,7 +33,7 @@ KIA_STACK=plex,observability
 KIA_GRAFANA_PASSWORD=choose-a-password
 ```
 
-Then run `scripts/stack.sh apply`.
+Don't apply it yet: step 2 ends with the one `scripts/stack.sh apply` it needs.
 
 Without a `KIA_STACK` line, add `monitoring` to `COMPOSE_PROFILES` yourself instead, or move to `KIA_STACK` first ([how](../stack.md#without-kia_stack)).
 

@@ -64,6 +64,8 @@ docker compose ps
 
 `scripts/stack.sh apply` checks your settings first, then sets `COMPOSE_PROFILES` and `KIA_PLEX_URL` and starts Plex and Threadfin.
 
+**Or on the Dashboard.** With the [kia-stack service](../stack-dashboard.md) installed, open the secure page's **Stack** page, choose the **Plex TV box** card, paste the claim code into its box, then choose **Check** and **Apply**. It writes the same lines into `.env`, with `KIA_PLEX_ADVERTISE` from kia's address. A media folder of your own still goes into `.env` as `KIA_MEDIA_DIR` first.
+
 kia sets up Threadfin before it starts, with your playlist, its guide, and the settings that work (see the [Plex guide](../plex.md) for what they are). After a minute or two, `docker compose ps` shows `kia`, `web`, `threadfin`, and `plex`, each `healthy` or `running`.
 
 ## 5. Add Live TV to Plex

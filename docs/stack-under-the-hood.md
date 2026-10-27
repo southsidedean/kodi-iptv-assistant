@@ -7,7 +7,7 @@ What happens, file by file, when you choose what runs next to kia: from one line
 | Piece | Where | What it does |
 |---|---|---|
 | `KIA_STACK` | `.env` | Your choice: part names, with commas between, such as `plex,observability` |
-| The presets | `stacks/*.env` | Ready-made choices. Each sets `KIA_STACK`, with a title, what it needs, and its place on the page (`# title:`, `# needs:`, `# order:`) |
+| The presets | `stacks/*.env` | Ready-made choices. Each sets `KIA_STACK`, with a title, what it needs, what it asks of you, and its place on the page (`# title:`, `# needs:`, `# asks:`, `# order:`) |
 | `compose.yaml` | the kia folder | Every container kia's stack can run, each under a Compose *profile*. Docker starts the containers of the profiles named in `COMPOSE_PROFILES` |
 | `scripts/stack.sh` | the kia folder | Turns `KIA_STACK` into `COMPOSE_PROFILES`, checks the choice for this computer, and starts and stops containers |
 | The kia-stack service | on the computer, as you | `scripts/stack.sh watch`: carries out the Stack page's requests |
@@ -124,7 +124,7 @@ Everything it writes stays in `stack-service/` in the kia folder. kia sees that 
 
 ### How the page knows the service is there
 
-The page treats the service as running while `containers.tsv` is less than 90 seconds old, or while the last answer says `running` and is less than 30 minutes old (a first apply can spend that long downloading). Otherwise **Check** and **Apply** are greyed out, and the page shows the command to run in the kia folder instead. kia also reports this in `/metrics` as `kia_stack_service_up`.
+The page treats the service as running while `containers.tsv` is less than 90 seconds old, or while the last answer says `running` and is less than 30 minutes old (a first apply can spend that long downloading). Otherwise **Check** and **Apply** are greyed out, and the page shows the command to run in the kia folder instead. (`kia_stack_service_up` in `/metrics` is something else: whether each container in the stack answered kia's knock, as the Dashboard's Your stack tiles show.)
 
 ### Why it's built this way
 
@@ -157,7 +157,7 @@ The `gateway` part runs [agentgateway](https://agentgateway.dev) in front of kia
 
 Everything in `gateway/` is readable only by you; kia and the gateway run as you, so they can read it too.
 
-On Linux, the gateway notices a new settings file or certificate by itself. With Docker Desktop (macOS, Windows) it notices the first one and misses the rest, so `scripts/gateway.sh` restarts it whenever either has changed since it last started. That takes about a second, and since kia keeps no sessions, a device just sends its next request. Adding or removing a device restarts it at once. For kia's certificate renewals, the kia-stack service runs `scripts/gateway.sh refresh` every 30 seconds; without the service, run it yourself after a new certificate goes into `tls/`. It finds the certificate by its inode and size, from `ls`, without opening it, because kia's container can write `tls/`.
+On Linux, the gateway notices a new settings file or certificate by itself. With Docker Desktop on a Mac it notices the first one and misses the rest, so `scripts/gateway.sh` restarts it whenever either has changed since it last started, on Linux too: one rule for both. That takes about a second, and since kia keeps no sessions, a device just sends its next request. Adding or removing a device restarts it at once. For kia's certificate renewals, the kia-stack service runs `scripts/gateway.sh refresh` every 30 seconds; without the service, run it yourself after a new certificate goes into `tls/`. It finds the certificate by its inode and size, from `ls`, without opening it, because kia's container can write `tls/`.
 
 A call goes like this:
 
