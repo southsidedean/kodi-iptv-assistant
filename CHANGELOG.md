@@ -11,6 +11,9 @@
 
 ### Fixes
 
+- One damaged file in `state/asks/` broke every request from an assistant, and the Dashboard's list of them. Damaged records inside the stream history, channel numbers, Dashboard choices, and new-channel notes, and damaged parts of `status.json`, `profiles.json`, `settings.json`, `secure.json`, and `channel-sources.json`, could stop the nightly check, `/metrics`, or the status pages. Each now counts as missing.
+- `kia backup` follows only the certificate links in `tls/`. Before, a link kia had put in `state/` could copy a file from outside the kia folder into the backup. Two backups made in the same second no longer share a name.
+
 - One program without an end time, from any guide source, stopped `kia guide` every night until the source changed. XMLTV allows it; kia now leaves that program out.
 - Many channels showed each program twice: iptv-org's downloaders read a site a day at a time, and a show that runs past midnight came back on the next day's page. kia now writes each program once.
 - 0.7.4: a Pluto TV channel that had also matched i.mjh.nz's Plex or Samsung guide by name got both guides' programs, overlapping. Pluto's guide by ID now takes their place. Pluto channels from the UK never got Pluto's guide by ID; now they do.
