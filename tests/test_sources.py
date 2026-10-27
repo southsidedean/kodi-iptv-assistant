@@ -199,9 +199,43 @@ def test_a_check_can_be_stopped(cfg, monkeypatch):
             os.killpg(proc.pid, 0)
         except ProcessLookupError:
             break
+        except PermissionError:  # macOS, while the group holds only a child not yet reaped
+            pass
         pause(0.05)
     else:
         pytest.fail("the check's child is still running")
+
+
+def test_stop_ends_a_child_that_missed_the_first_signal(tmp_path):
+    # A child that ignores SIGTERM stands in for one that started just as the signal came.
+    # The check itself ends on SIGTERM; the child has to go too.
+    ready = tmp_path / "ready"
+    child = ("import pathlib, signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+             f"pathlib.Path({str(ready)!r}).touch(); time.sleep(60)")  # fmt: skip
+    script = ("import subprocess, sys, time; "
+              f"subprocess.Popen([sys.executable, '-c', {child!r}]); time.sleep(60)")  # fmt: skip
+    proc = api.subprocess.Popen([sys.executable, "-c", script], start_new_session=True)
+    pause = threading.Event().wait  # the fixture turns time.sleep off
+    for _ in range(200):  # until the child has set SIGTERM aside
+        if ready.exists():
+            break
+        pause(0.05)
+    else:
+        os.killpg(proc.pid, 9)
+        pytest.fail("the child never started")
+    api._end(proc)
+    assert proc.returncode is not None
+    for _ in range(100):
+        try:
+            os.killpg(proc.pid, 0)
+        except ProcessLookupError:
+            break
+        except PermissionError:  # macOS, while the group holds only a child not yet reaped
+            pass
+        pause(0.05)
+    else:
+        os.killpg(proc.pid, 9)
+        pytest.fail("the child that ignored SIGTERM is still running")
 
 
 def test_no_check_during_a_refresh(cfg):

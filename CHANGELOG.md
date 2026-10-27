@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.7.6 (unreleased)
+## 0.7.6 (2026-10-27)
+
+This release fixes the smaller problems left from 0.7.5's review.
+
+### Upgrading from 0.7.5
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change. The update recreates kia's and the web server's containers with their new limits.
 
 ### Security
 
@@ -15,6 +21,7 @@
 - A damaged `threadfin/conf/authentication.json` (a list, say) stopped `threadfin-setup`; it now counts as missing, and Threadfin gets its login.
 - On an install with nothing next to kia, **Nothing needs you** no longer says "everything in the stack answers".
 - Piped from `curl`, the installer said "Checking what's installed" twice; the copy it hands over to now carries on without repeating it.
+- **Stop** on a playlist check could miss a stream test the check was just starting (seen on a Mac). That test kept the check "running" until it finished by itself. Stop now ends everything the check started.
 
 ## 0.7.5 (2026-10-26)
 

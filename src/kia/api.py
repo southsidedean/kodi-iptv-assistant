@@ -583,11 +583,19 @@ def _end(proc) -> None:
         try:
             os.killpg(proc.pid, sig)
             proc.wait(timeout=10)
-            return
+            break
         except subprocess.TimeoutExpired:
             continue
         except (ProcessLookupError, PermissionError):  # it ended by itself meanwhile
-            return
+            break
+    # A program the check was starting just as the first signal came can miss it (macOS lets
+    # a new process slip past a signal sent to its group mid-start). It would keep the check's
+    # output open, and the check "running", until it ended by itself, so end what's left.
+    # The group's number can't belong to anyone else while a process is still in it.
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):  # the group is gone: nothing was left
+        pass
 
 
 # Adding kia's channels to Plex as Live TV now (kia plex-tuners), from the Stack page once
