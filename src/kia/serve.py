@@ -12,7 +12,6 @@ import sys
 import threading
 import time
 import traceback
-import urllib.parse
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -62,8 +61,9 @@ class OutputHandler(SimpleHTTPRequestHandler):
     }
 
     def send_head(self):
-        # Don't serve files that a run is still writing.
-        if urllib.parse.unquote(self.path.split("?", 1)[0]).endswith(".tmp"):
+        # Don't serve files that a run is still writing. By the file it would open, so a query
+        # or a #fragment after the name can't get one past this.
+        if Path(self.translate_path(self.path)).name.endswith(".tmp"):
             self.send_error(404)
             return None
         # Nor anything through a link, as nginx (disable_symlinks on) doesn't: a link put in

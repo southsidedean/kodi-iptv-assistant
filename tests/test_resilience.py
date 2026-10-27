@@ -405,6 +405,9 @@ def test_numbers_in_env_are_read_only_for_the_commands_that_use_them(tmp_path: P
     cli.env_default(given)
     assert given.port == 1234  # the command line wins
     cli.env_default(argparse.Namespace())  # a command without those options reads none of them
+    monkeypatch.setenv("KIA_HTTPS_PORT", "0")  # as kia.config reads it: 1 or more (--https-port 0 turns it off)
+    with pytest.raises(ValueError, match="from 1 to 65535"):
+        cli.env_default(argparse.Namespace(https_port=None))
 
 
 def test_a_missing_kia_toml_is_one_line(tmp_path: Path, capsys):
@@ -591,6 +594,8 @@ def test_yours_is_decided_by_the_address_not_a_lookup(monkeypatch):
     # Addresses that carry a local IPv4 address inside count as local.
     monkeypatch.undo()
     assert lan.is_local("64:ff9b::c0a8:114") and lan.is_local("2002:c0a8:0114::1") and not lan.is_local("2606:4700::1111")
+    assert lan.is_local("::192.168.1.20") and not lan.is_local("::8.8.8.8")  # IPv4-compatible, the old form
+    assert lan.is_local("239.1.1.1") and lan.is_local("ff0e::1")  # multicast: your network's own streams
     assert lan.host_of("http://[x/a") == "" and lan.host_of("https://Example.com:8/x") == "example.com"
 
 

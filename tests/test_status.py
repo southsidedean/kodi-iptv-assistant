@@ -49,6 +49,21 @@ def test_crash_is_recorded(tmp_path: Path, monkeypatch):
     assert json.loads((tmp_path / "output" / "status.json").read_text())["result"] == "failed"
 
 
+def test_a_run_stopped_with_ctrl_c_isnt_left_running(tmp_path: Path, monkeypatch):
+    import pytest
+
+    monkeypatch.delenv("KIA_PUBLIC_URL", raising=False)
+    cfg = make_instance(tmp_path)
+
+    def stopped(c, u):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "run_pipeline", stopped)
+    with pytest.raises(KeyboardInterrupt):
+        cli.run_and_report(str(cfg), update_epg=False)
+    assert json.loads((tmp_path / "output" / "status.json").read_text())["result"] == "failed"
+
+
 def test_old_alert_lines_and_escaping(tmp_path: Path):
     log = tmp_path / "alerts.log"
     log.write_text(
@@ -319,6 +334,28 @@ def test_page_updates_take_turns_across_processes(tmp_path: Path):
     os.close(fd)
     worker.join(10)
     assert done.is_set()
+
+
+def test_a_channel_without_a_name_still_has_one():
+    from kia.m3u import parse
+
+    es = parse('#EXTM3U\n#EXTINF:-1 tvg-id="A.us",\nhttp://a/1\n#EXTINF:-1 tvg-name="Bee",  \nhttp://a/2\n#EXTINF:-1,\nhttp://a/3\n')
+    assert [e.name for e in es] == ["A.us", "Bee", "Channel"]  # the page finds each row by its name
+
+
+def test_the_page_finds_names_in_their_own_attribute(tmp_path: Path):
+    from kia.m3u import Entry, write
+
+    out = tmp_path / "output"
+    out.mkdir()
+    (out / "curated.m3u").write_text(write([Entry('Say "hi" <now>', "http://a/1", {"tvg-id": "S.us"})], None))
+    status.update(out, tmp_path / "state", None)
+    page = (out / "playlists" / "curated.html").read_text()
+    assert 'data-name="Say &quot;hi&quot; &lt;now&gt;"' in page
+
+
+def test_approve_and_decline_say_which_request():
+    assert 'setAttribute("aria-label", b[0] + ": " + a.what)' in status.ASKS_SCRIPT
 
 
 def test_damaged_state_files_still_give_a_page(tmp_path: Path):
