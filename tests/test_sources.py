@@ -103,7 +103,7 @@ def test_check_now_keeps_the_lan_word():
 
 @pytest.fixture
 def cfg(tmp_path: Path, monkeypatch) -> api.ApiConfig:
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     instance(tmp_path)
     out, state = tmp_path / "output", tmp_path / "state"
     out.mkdir()

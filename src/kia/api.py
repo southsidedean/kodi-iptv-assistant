@@ -500,6 +500,11 @@ def mask_url(url: str) -> str:
 
 # "Check now": a test check of one playlist, one at a time. It writes to work/check-test/
 # and leaves the playlists players use alone.
+# The waits and the clock api uses, through names of its own, so a test can stand in for them
+# here without changing the time module for everything else in the process.
+_sleep = time.sleep
+_clock = time.monotonic
+
 CHECK: dict = {"running": False}
 CHECK_REPORT: dict = {}  # the test report's file time when the check started
 CHECK_PROC: dict = {}  # the running check's process, so Stop can end it
@@ -704,16 +709,16 @@ def _slowed(kind: str, right: Callable[[], bool], wrong_text: str, too_many: str
     # the "too many" check, and each would count as only the first.
     with PASSWORD_LOCK:
         wrong, until = _WRONG.get(client, (0, 0.0))
-        if until > time.monotonic():
-            raise ApiError(429, f"{too_many} Try again in {math.ceil(until - time.monotonic())} seconds.")
+        if until > _clock():
+            raise ApiError(429, f"{too_many} Try again in {math.ceil(until - _clock())} seconds.")
         if right():
             _WRONG.pop(client, None)
             return
         if len(_WRONG) > 1000:  # many addresses: keep only those still waiting
-            now = time.monotonic()
+            now = _clock()
             for k in [k for k, (_, u) in _WRONG.items() if u < now]:
                 del _WRONG[k]
-        _WRONG[client] = (wrong + 1, time.monotonic() + (min(2.0**wrong, 60.0) if wrong else 0))
+        _WRONG[client] = (wrong + 1, _clock() + (min(2.0**wrong, 60.0) if wrong else 0))
     if alert and wrong + 1 == GUESSES:
         what = "the Dashboard's password" if kind == "password" else "kia's MCP token"
         # The address is kia's own reading of who connected (_CLIENT), never text from the request.
@@ -724,7 +729,7 @@ def _slowed(kind: str, right: Callable[[], bool], wrong_text: str, too_many: str
             f"{address} got {what} wrong {GUESSES} times in a row. kia slows each try down, up to a minute "
             "apart. It may be a device with an old one saved (an assistant after a new MCP token, say); if "
             "you don't know the address, someone on your network may be guessing.")).start()  # fmt: skip
-    time.sleep(1)  # outside the lock: someone guessing doesn't hold up the right password
+    _sleep(1)  # outside the lock: someone guessing doesn't hold up the right password
     raise ApiError(401, wrong_text)
 
 
@@ -816,14 +821,14 @@ def _check_stack(cfg: ApiConfig, parts: list) -> dict:
     folder, which kia reads until the answer to this request comes."""
     rid = ask_stack(cfg, "check", {"parts": parts})["id"]
     service_dir = _project_dir(cfg) / stack.SERVICE_DIR
-    end = time.monotonic() + STACK_CHECK_UP_TO
-    while time.monotonic() < end:
+    end = _clock() + STACK_CHECK_UP_TO
+    while _clock() < end:
         res = stack.result(service_dir) or {}
         if res.get("id") == rid and res.get("state") in ("finished", "refused"):
             ok = res.get("state") == "finished" and res.get("exit") == "0"
             return {"ok": ok, "summary": "The check passed: these parts can run together." if ok else
                     "The check found problems; its output says which.", "output": _last_lines(res.get("output", ""), 40)}  # fmt: skip
-        time.sleep(2)
+        _sleep(2)
     return {"ok": False, "summary": "The kia-stack service didn't answer. Is it running? (docs/stack.md)"}
 
 

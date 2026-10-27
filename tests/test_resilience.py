@@ -101,7 +101,9 @@ def test_retry_keeps_the_per_server_limit(tmp_path: Path, monkeypatch):
     cfg.host_delay_ms = 0  # this test is about the limit, not the spacing
     entries = [m3u.Entry(str(i), f"http://one.host/{i}") for i in range(10)]
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
-    assert seen["calls"] == 20 and seen["max"] <= cfg.per_host
+    # Every stream tried twice, never more than per_host at once, and the limit actually used:
+    # a check that ran them one at a time would pass "at most" too.
+    assert seen["calls"] == 20 and seen["max"] == cfg.per_host
 
 
 def test_test_runs_leave_the_live_playlist_alone(tmp_path: Path, monkeypatch):

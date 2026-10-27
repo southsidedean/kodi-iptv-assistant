@@ -154,7 +154,7 @@ def parse(text: str, source: str = "") -> list[Entry]:
             entry.url = line
             # A channel needs a name to show (and the Dashboard to find it by): its tvg-name or
             # tvg-id, if the playlist gave it none.
-            entry.name = entry.name or entry.attrs.get("tvg-name", "").strip() or entry.tvg_id or "Channel"
+            entry.name = entry.name or " ".join(entry.attrs.get("tvg-name", "").split()) or " ".join(entry.tvg_id.split()) or "Channel"
             entries.append(entry)
             pending = None
     return entries

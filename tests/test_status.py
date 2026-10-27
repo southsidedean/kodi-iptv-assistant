@@ -316,21 +316,29 @@ def test_settings_show_the_stack(tmp_path: Path, monkeypatch):
     assert parts() == "plex, observability"
 
 
-def test_page_updates_take_turns_across_processes(tmp_path: Path):
+def test_page_updates_take_turns_across_processes(tmp_path: Path, monkeypatch):
     import fcntl
     import os
     import threading
-    import time
+
+    from kia import locks
 
     cfg = cli.load(make_instance(tmp_path))
     cfg.state_dir.mkdir(exist_ok=True)
     fd = os.open(cfg.state_dir / "status.lock", os.O_RDWR | os.O_CREAT, 0o600)
     fcntl.flock(fd, fcntl.LOCK_EX)  # as a kia command run by hand would hold it
-    done = threading.Event()
+    asking, done = threading.Event(), threading.Event()
+    real_flock = fcntl.flock
+
+    def flock(f, how):  # notes that the update has come to the lock, then waits there as before
+        asking.set()
+        real_flock(f, how)
+
+    monkeypatch.setattr(locks.fcntl, "flock", flock)
     worker = threading.Thread(target=lambda: (status.update(cfg.output_dir, cfg.state_dir, cfg.public_url), done.set()))
     worker.start()
-    time.sleep(0.3)
-    assert not done.is_set()  # waits its turn
+    assert asking.wait(10)  # it asked for the lock, however slow the machine
+    assert not done.wait(0.3)  # and waits its turn
     os.close(fd)
     worker.join(10)
     assert done.is_set()

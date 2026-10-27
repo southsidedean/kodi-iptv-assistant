@@ -53,7 +53,7 @@ def test_titles():
 
 
 def test_the_api_reads_it_for_anyone_and_changes_it_with_the_password(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
     monkeypatch.setenv("KIA_NAME", "den")
     (tmp_path / "output").mkdir()
     cfg = config(tmp_path)

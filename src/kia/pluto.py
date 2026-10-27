@@ -197,7 +197,12 @@ def fetch(url: str, timeout: float = TIMEOUT) -> tuple[str, bytes]:
         opener = _OPENER
         if ticket:
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _HttpsOnly, native._ThroughTheGuard(ticket.url))
-        with opener.open(req, timeout=timeout) as r:
+        try:
+            r = opener.open(req, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            exc.close()  # its connection, which nothing reads: the status and reason are enough
+            raise
+        with r:
             body = r.read(MAX_DOWNLOAD + 1)  # one byte over says it's too big, without reading on
             if len(body) > MAX_DOWNLOAD:
                 raise TooBig(f"more than {MAX_DOWNLOAD // (1024 * 1024)} MB from {url[:80]}")

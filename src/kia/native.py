@@ -165,10 +165,14 @@ def fetch(url: str, timeout: float = 120, proxy: str | None = None, agent: str |
     """Open url; with proxy (a kia.guard ticket's address), through the outbound guard, and
     never through a proxy of yours (ProxyHandler({}))."""
     req = urllib.request.Request(url, headers={"User-Agent": agent or f"kodi-iptv-assistant/{__version__}"})
-    if proxy is None:
-        return _OPENER.open(req, timeout=timeout)
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _StayOffYourNetwork, _ThroughTheGuard(proxy))
-    return opener.open(req, timeout=timeout)
+    opener = _OPENER
+    if proxy is not None:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _StayOffYourNetwork, _ThroughTheGuard(proxy))
+    try:
+        return opener.open(req, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        exc.close()  # its connection, which no caller reads: the status and reason are enough
+        raise
 
 
 @contextmanager

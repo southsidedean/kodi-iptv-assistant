@@ -361,21 +361,19 @@ def test_a_refused_apply_leaves_env_alone(kia: Path):
 
 
 def test_the_env_copy_is_never_written_through_a_link(kia: Path):
-    import time
-
     # The copy goes in stack-service/, which kia's container can't write; even so, nothing
     # already at the name is written through: a file, or a link to one or to a device
     # (set -C alone writes through a link to /dev/null or a FIFO).
     target = victim(kia)
     with_stack(kia, "plex")
     (kia / "stack-service").mkdir()
-    now = time.time()
+    # The copy's name has the time in it: a date that always says the same, so the link sits
+    # at the very name, however long the run takes.
+    stub(kia.parent / "bin", "date", 'case "$1" in +%Y%m%d-%H%M%S) echo 20261026-120000 ;; *) exec /bin/date "$@" ;; esac\n')
     for link_to in (target, Path("/dev/null")):
         for old in (kia / "stack-service").glob("env.before-stack-*"):
             old.unlink()
-        for second in range(-1, 6):  # the copy's name has the time in it: cover the next few seconds
-            name = time.strftime("env.before-stack-%Y%m%d-%H%M%S", time.localtime(now + second))
-            (kia / "stack-service" / name).symlink_to(link_to)
+        (kia / "stack-service" / "env.before-stack-20261026-120000").symlink_to(link_to)
         r = stack(kia, "apply", "--stack", "jellyfin", "--yes")
         assert target.read_text() == "keep me\n"
         assert r.returncode == 1 and "couldn't save a copy of .env" in r.stderr, link_to
