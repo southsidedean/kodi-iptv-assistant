@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.8.0 (unreleased)
+## 0.8.0 (2026-10-27)
+
+This release fixes two ways kia could leave you without an answer when you asked about a channel or a show.
+
+### Upgrading from 0.7.6
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change.
 
 ### Fixes
 
