@@ -110,7 +110,7 @@ def test_only_your_own_files_pin_numbers(tmp_path: Path, monkeypatch):
     remote = cfg.sources[0].__class__("web", "https://example.com/list.m3u")
     assert cfg.sources[0].is_local_file and not remote.is_local_file
 
-    monkeypatch.setattr(cli, "fetch", lambda url: '#EXTM3U\n#EXTINF:-1 tvg-id="Web.us" tvg-chno="50",Web\nhttp://w/1\n'
+    monkeypatch.setattr(cli, "fetch", lambda url, guarded=True: '#EXTM3U\n#EXTINF:-1 tvg-id="Web.us" tvg-chno="50",Web\nhttp://w/1\n'
                         if url.startswith("https") else mine.read_text())  # fmt: skip
     cfg.sources.append(remote)
     entries = cli.load_entries(cfg, None)

@@ -230,7 +230,6 @@ def test_radio_playlist(tmp_path: Path, monkeypatch):
 
 
 def test_a_download_that_fails_is_tried_again(monkeypatch):
-    import io
     import urllib.error
 
     from kia import cli
@@ -238,13 +237,13 @@ def test_a_download_that_fails_is_tried_again(monkeypatch):
     answers = [OSError("timed out"), urllib.error.HTTPError("u", 503, "busy", {}, None), b"#EXTM3U\n"]
     waits = []
 
-    def urlopen(req, timeout):
+    def download(url, guarded, limit, seconds):
         a = answers.pop(0)
         if isinstance(a, Exception):
             raise a
-        return io.BytesIO(a)
+        return a
 
-    monkeypatch.setattr(cli.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(cli.native, "download", download)
     monkeypatch.setattr(cli.time, "sleep", waits.append)
     assert cli.fetch("https://x/list.m3u") == "#EXTM3U\n" and waits == list(cli.FETCH_WAITS)
 
@@ -264,10 +263,10 @@ def test_a_source_that_cant_be_downloaded_uses_its_last_copy(tmp_path: Path, mon
     (tmp_path / "kia.toml").write_text("")
     monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
     cfg = load(tmp_path / "kia.toml")
-    monkeypatch.setattr(cli, "fetch", lambda url: "#EXTM3U\n#EXTINF:-1,News\nhttp://a/1\n")
+    monkeypatch.setattr(cli, "fetch", lambda url, guarded=True: "#EXTM3U\n#EXTINF:-1,News\nhttp://a/1\n")
     assert [e.name for e in cli.load_entries(cfg, None)] == ["News"]
 
-    def down(url):
+    def down(url, guarded=True):
         raise OSError("GitHub is down")
 
     monkeypatch.setattr(cli, "fetch", down)

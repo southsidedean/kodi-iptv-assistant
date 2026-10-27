@@ -52,6 +52,8 @@ The guard is a small proxy, in Python's standard library like the rest of kia, r
 
 ffprobe gets `-protocol_whitelist http,https,tls,tcp,httpproxy,crypto,data` for these tests, so a stream can't switch it to reading a file or opening a raw connection, and `no_proxy` is taken out of its settings, since a name listed there would skip the guard. ffmpeg's HLS reader opens only http and https pieces anyway (checked with ffmpeg 9.0). The guard passes on only `GET`, `HEAD`, and `CONNECT`, reads at most 16 KB of a request's headers, sends plain http requests on with `Connection: close` so each one is checked anew, handles 64 connections at once, and closes a connection that passes nothing for 60 seconds.
 
+kia's own downloads for things that aren't yours go through it too: a playlist from the internet (not yours, as above), radio-browser's and SomaFM's station lists and SomaFM's `.pls` files, the lookup of a Pluto TV channel's Samsung TV Plus link, and every download of the Pluto relay, https or not. A playlist download stops at 64 MB or five minutes, and a station list at 8 MB, so a server that never stops can't fill kia's memory or hold up the nightly refresh.
+
 It doesn't cover rtmp and rtsp streams, which can't go through a web proxy; they keep the first check alone. When you've set a proxy of your own (`http_proxy`, `https_proxy`, `all_proxy`, in either case), kia leaves your proxy in charge and doesn't start the guard. Your own playlists don't use it: they can name anything on your network.
 
 ### Guide sites

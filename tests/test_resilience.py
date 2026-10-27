@@ -417,9 +417,9 @@ def test_a_page_with_no_channels_keeps_the_last_good_copy(tmp_path: Path, monkey
     cfg = load(make_cfg(tmp_path))
     src = cfg.sources[0].__class__(name="us", url="https://example.org/us.m3u")
     good = '#EXTM3U\n#EXTINF:-1 tvg-id="A.us",A\nhttp://a/1\n'
-    monkeypatch.setattr(cli, "fetch", lambda url: good)
+    monkeypatch.setattr(cli, "fetch", lambda url, guarded=True: good)
     assert cli.fetch_source(cfg, src) == good
-    monkeypatch.setattr(cli, "fetch", lambda url: "<html>Service unavailable</html>")
+    monkeypatch.setattr(cli, "fetch", lambda url, guarded=True: "<html>Service unavailable</html>")
     assert cli.fetch_source(cfg, src) == good  # the error page wasn't saved over it
     assert (cfg.epg.work_dir / "sources" / "us.m3u").read_text() == good
     assert not list((cfg.epg.work_dir / "sources").glob("*.tmp"))
@@ -561,7 +561,7 @@ def test_a_cut_short_download_is_retried_then_uses_the_saved_copy(tmp_path: Path
         calls.append(1)
         raise http.client.IncompleteRead(b"#EXT", 1000)
 
-    monkeypatch.setattr(cli.urllib.request, "urlopen", short)
+    monkeypatch.setattr(cli.native, "download", short)
     monkeypatch.setattr(cli.time, "sleep", lambda s: None)
     with pytest.raises(http.client.HTTPException):
         cli.fetch("https://8.8.8.8/us.m3u")
@@ -605,7 +605,7 @@ def test_a_playlist_from_the_internet_cant_name_a_guide_on_your_network(tmp_path
     monkeypatch.delenv("KIA_SOURCES_FILE", raising=False)
     text = ('#EXTM3U x-tvg-url="http://192.168.1.20:9090/guide.xml,https://8.8.8.8/guide.xml"\n'
             '#EXTINF:-1 tvg-id="A.us",A\nhttps://8.8.8.8/a.m3u8\n')  # fmt: skip
-    monkeypatch.setattr(cli, "fetch", lambda url: text)
+    monkeypatch.setattr(cli, "fetch", lambda url, guarded=True: text)
     (tmp_path / "sources.txt").write_text("https://8.8.8.8/us.m3u us\nhttps://8.8.8.8/eu.m3u eu lan\n")
     (tmp_path / "kia.toml").write_text('[check]\nffprobe = "true"\n')
     said = []
@@ -615,6 +615,6 @@ def test_a_playlist_from_the_internet_cant_name_a_guide_on_your_network(tmp_path
     assert any("us: left out 1 of its guides, on your own network" in m for m in said)
     assert len(eu.guide_urls) == 2  # marked lan: its guides may be on your network
     # An address Python can't read is left out too, without stopping the playlist.
-    monkeypatch.setattr(cli, "fetch", lambda url: text.replace("https://8.8.8.8/guide.xml", "http://[x/guide.xml"))
+    monkeypatch.setattr(cli, "fetch", lambda url, guarded=True: text.replace("https://8.8.8.8/guide.xml", "http://[x/guide.xml"))
     us, _eu = cli.load_entries(load(tmp_path / "kia.toml"), None)
     assert us.guide_urls == ()

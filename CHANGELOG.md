@@ -2,6 +2,11 @@
 
 ## 0.7.5 (unreleased)
 
+### Security
+
+- A playlist from the internet, the radio station lists and SomaFM's `.pls` files, the lookup of a Pluto TV channel's Samsung TV Plus link, and the Pluto relay's downloads now go through kia's outbound guard. Before, a redirect could take them to an address on your network. Only addresses that start with jmp2.uk's own `https://jmp2.uk/stvp-` are looked up as Samsung links ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
+- A playlist download now stops at 64 MB or five minutes, and a station list at 8 MB. Before, a server that never stopped sending could fill kia's memory or hold up the nightly refresh.
+
 ### Fixes
 
 - One program without an end time, from any guide source, stopped `kia guide` every night until the source changed. XMLTV allows it; kia now leaves that program out.

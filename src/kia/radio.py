@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from kia import __version__, lan
+from kia import lan, native
 from kia.m3u import Entry
 
 PREFIX = "radio-browser:"
@@ -65,11 +65,9 @@ def fetch_stations(params: dict[str, str], timeout: float = 30) -> list[dict]:
     errors = []
     for server in SERVERS:
         url = f"https://{server}/json/stations/search?{query}"
-        req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.load(resp)
-        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return json.loads(_get(url, timeout))
+        except (OSError, ValueError, http.client.HTTPException) as exc:
             errors.append(f"{server}: {getattr(exc, 'reason', exc)}")
     raise RadioError("radio-browser unreachable (" + "; ".join(errors) + ")")
 
@@ -131,10 +129,14 @@ def check_params(kind: str, params: dict[str, str]) -> None:
         raise ValueError(f"{kind}: unknown choice(s) {unknown}; it takes: {allowed}")
 
 
+MAX_ANSWER = 8 * 1024 * 1024  # bytes: radio-browser's and SomaFM's answers are under 1 MB
+
+
 def _get(url: str, timeout: float = 30) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+    """A station list or .pls playlist, through kia's outbound guard (kia.native.opened): the
+    addresses come from other people's services, so neither they nor a redirect may reach
+    your network. Cut off at MAX_ANSWER and two minutes."""
+    return native.download(url, True, MAX_ANSWER, timeout=timeout)
 
 
 def pls_stream(text: str) -> str | None:
