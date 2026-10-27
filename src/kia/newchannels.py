@@ -34,17 +34,17 @@ def _load(state_dir: Path) -> dict:
     """The record, with anything damaged into another shape left out."""
     data = read_object(state_dir / FILE)
 
-    def records(value) -> dict[str, dict]:
+    def records(value, when: str) -> dict[str, dict]:  # when: "first" for channels, "gone" for gone ones
         return {k: r for k, r in obj(value).items() if isinstance(k, str) and isinstance(r, dict)
-                and isinstance(r.get("name"), str) and isinstance(r.get("first", r.get("gone")), str)}  # fmt: skip
+                and isinstance(r.get("name"), str) and isinstance(r.get(when), str)}  # fmt: skip
 
     news = obj(data.get("news"))
     pending = {k: [x for x in news[k] if isinstance(x, str)] if isinstance(news.get(k), list) else [] for k in ("new", "gone")}
     return {
         "started": data.get("started") if isinstance(data.get("started"), str) else "",
         "run": data.get("run") if isinstance(data.get("run"), str) else "",
-        "channels": records(data.get("channels")),
-        "gone": records(data.get("gone")),
+        "channels": records(data.get("channels"), "first"),
+        "gone": records(data.get("gone"), "gone"),
         "news": pending,
     }
 

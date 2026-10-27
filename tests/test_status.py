@@ -319,3 +319,17 @@ def test_page_updates_take_turns_across_processes(tmp_path: Path):
     os.close(fd)
     worker.join(10)
     assert done.is_set()
+
+
+def test_damaged_state_files_still_give_a_page(tmp_path: Path):
+    out, state = tmp_path / "output", tmp_path / "state"
+    out.mkdir()
+    state.mkdir()
+    (out / "profiles.json").write_text(json.dumps({"profiles": ["kids", {"name": "x"}], "error": 5}))
+    (state / "settings.json").write_text(json.dumps({"sections": [{"title": "A", "rows": [{"name": 1}, "row"]}, "B"]}))
+    (state / "secure.json").write_text(json.dumps({"url": 5, "tls": {"names": "tv.lan", "expires": "soon", "issuer": None}}))
+    status.update(out, state, "http://tv.lan:8780")
+    assert (out / "index.html").exists()
+    (state / "secure.json").write_text(json.dumps({"url": "https://tv.lan:8743", "tls": {"names": ["tv.lan"], "expires": "2020-01-01T00:00:00"}}))
+    status.update(out, state, "http://tv.lan:8780")  # an expiry without its time zone: left out
+    assert (out / "index.html").exists()

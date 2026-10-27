@@ -109,6 +109,26 @@ def test_backup_stores_what_symlinks_point_at(tmp_path: Path):
     assert restored == ["tls/fullchain.pem"] and (other / "tls" / "fullchain.pem").read_text() == "CERT"
 
 
+
+def test_backup_follows_no_other_links(tmp_path: Path):
+    # kia's container can write state/ and tls/: a link it plants mustn't carry a file kia
+    # can't read (an SSH key) into a backup made outside it.
+    base = tmp_path / "kia"
+    (base / "state").mkdir(parents=True)
+    (base / "tls").mkdir()
+    secret = tmp_path / "id_ed25519"
+    secret.write_text("KEY")
+    (base / "state" / "history.json").symlink_to(secret)
+    (base / "tls" / "notes.pem").symlink_to(secret)
+    (tmp_path / "outside").mkdir()
+    (tmp_path / "outside" / "x.json").write_text("KEY")
+    (base / "state" / "linked").symlink_to(tmp_path / "outside", target_is_directory=True)
+    (base / "state" / "real.json").write_text("{}")
+    assert backup.make(base, tmp_path / "b.tar.gz") == ["state/real.json"]
+    taken = tmp_path / "before-restore-20261026-120000.tar.gz"
+    taken.write_text("")
+    assert backup._unused(taken).name == "before-restore-20261026-120000-2.tar.gz"  # two in one second
+
 def test_relay_plays_only_kias_channels_and_only_so_many(monkeypatch):
     allowed = {"66ba495ffe11e5000881f049"}
     r = pluto.Relay(None, log=lambda m: None, fetcher=lambda u: (_ for _ in ()).throw(OSError("offline")),

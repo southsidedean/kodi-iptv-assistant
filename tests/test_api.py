@@ -52,6 +52,15 @@ def test_read_and_preview(cfg):
     assert call(cfg, "GET", "/api/channels?q=cn")[1]["channels"] == [{"id": "CNN.us", "name": "CNN", "group": "News"}]
 
 
+
+def test_a_damaged_sources_file_still_lists_the_channels(cfg):
+    for damaged in ("[1, 2]", '{"x": 5}', "not json"):
+        (cfg.state_dir / "channel-sources.json").write_text(damaged)
+        status, data = call(cfg, "GET", "/api/profiles")
+        assert status == 200 and data["total"] == 3
+    (cfg.state_dir / "channel-sources.json").write_text(json.dumps({api._items(cfg)[0][0].key: "us"}))  # text, not a list
+    assert api._items(cfg)[0][1] == set()
+
 def test_saving_needs_the_password_over_https(cfg):
     assert call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]})[0] == 401
     assert call(cfg, "PUT", "/api/profiles/kids", {"groups": ["Kids"]}, password="nope")[0] == 401

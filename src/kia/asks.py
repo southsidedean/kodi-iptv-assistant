@@ -27,6 +27,7 @@ through files.read_object: one damaged into another shape counts as missing.
 from __future__ import annotations
 
 import json
+import math
 import re
 import secrets
 import threading
@@ -73,11 +74,13 @@ def _folder(state_dir: Path) -> Path:
 
 
 def _read(path: Path) -> dict | None:
-    """One request, or None when the file isn't one kia wrote."""
+    """One request, or None when the file isn't one kia wrote: every field kia reads back is
+    checked, so one damaged file can't stop the others (or the Dashboard's list)."""
     r = read_object(path)
+    number = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)  # noqa: E731
     if not (ID.fullmatch(str(r.get("id", ""))) and r.get("kind") in KINDS and r.get("state") in STATES
-            and isinstance(r.get("args"), dict) and isinstance(r.get("what"), str)
-            and isinstance(r.get("expires"), (int, float))):  # fmt: skip
+            and isinstance(r.get("args"), dict) and isinstance(r.get("what"), str) and isinstance(r.get("who"), str)
+            and number(r.get("expires")) and ("answered_at" not in r or number(r["answered_at"]))):  # fmt: skip
         return None
     return r
 
