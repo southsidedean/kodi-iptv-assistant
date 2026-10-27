@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.8.1 (unreleased)
+
 ## 0.8.0 (2026-10-27)
 
 This release fixes two ways kia could leave you without an answer when you asked about a channel or a show.
