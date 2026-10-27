@@ -36,6 +36,7 @@ import urllib.request
 import uuid
 from collections import deque
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -89,13 +90,17 @@ def any_channel_id(url: str, base_url: str | None) -> str | None:
     return channel_id(url)
 
 
-_PARTNER_RE = re.compile(r"jmp2\.uk/stvp-", re.I)  # Samsung TV Plus, which also carries Pluto TV channels
+# Samsung TV Plus's links, which also carry Pluto TV channels: jmp2.uk's own, from the start.
+_PARTNER_RE = re.compile(r"https?://jmp2\.uk/stvp-[^/?#]+", re.I)
 
 
 def final_url(url: str, timeout: float = TIMEOUT) -> str:
-    """Where a link ends up after its redirects (nothing is downloaded)."""
-    req = urllib.request.Request(url, headers={"User-Agent": "VLC/3.0.20 LibVLC/3.0.20"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    """Where a link ends up after its redirects (only the answer's start is read). Through
+    kia's outbound guard: the link comes from a playlist, and a redirect mustn't take kia to
+    a device on your network."""
+    from kia import native
+
+    with native.opened(url, True, timeout, agent="VLC/3.0.20 LibVLC/3.0.20") as r:
         return r.geturl()
 
 
@@ -106,7 +111,7 @@ def partner_channels(entries: list[Entry], log=print, resolve=final_url) -> dict
     up, one request each. Returns {their link: Pluto's own}."""
     found: dict[str, str] = {}
     for e in entries:
-        if e.url in found or channel_id(e.url) or not _PARTNER_RE.search(e.url):
+        if e.url in found or channel_id(e.url) or not _PARTNER_RE.fullmatch(e.url.split("?")[0]):
             continue
         if "pluto" not in f"{e.name} {e.tvg_id}".lower():
             continue
@@ -179,15 +184,24 @@ class TooBig(ValueError):
 
 
 def fetch(url: str, timeout: float = TIMEOUT) -> tuple[str, bytes]:
-    """(final address, body). Only https: the addresses come from Pluto's playlists."""
+    """(final address, body). Only https: the addresses come from Pluto's playlists (and
+    jmp2.uk's), so they go through kia's outbound guard, which refuses one on your network,
+    https or not (kia.guard). Without the guard (a proxy of your own), _OPENER alone."""
+    from kia import guard, native
+
     if not url.lower().startswith("https://"):
         raise NotHttps(f"not an https address: {url[:80]}")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with _OPENER.open(req, timeout=timeout) as r:
-        body = r.read(MAX_DOWNLOAD + 1)  # one byte over says it's too big, without reading on
-        if len(body) > MAX_DOWNLOAD:
-            raise TooBig(f"more than {MAX_DOWNLOAD // (1024 * 1024)} MB from {url[:80]}")
-        return r.geturl(), body
+    g = guard.get()
+    with g.ticket() if g else nullcontext() as ticket:
+        opener = _OPENER
+        if ticket:
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _HttpsOnly, native._ThroughTheGuard(ticket.url))
+        with opener.open(req, timeout=timeout) as r:
+            body = r.read(MAX_DOWNLOAD + 1)  # one byte over says it's too big, without reading on
+            if len(body) > MAX_DOWNLOAD:
+                raise TooBig(f"more than {MAX_DOWNLOAD // (1024 * 1024)} MB from {url[:80]}")
+            return r.geturl(), body
 
 
 def fetch_retry(url: str, fetcher=None) -> tuple[str, bytes]:

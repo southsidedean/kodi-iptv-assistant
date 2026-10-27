@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from kia import pluto, serve
+from kia import guard, pluto, serve
 from kia.m3u import Entry
 
 CID = "66ba495ffe11e5000881f049"
@@ -345,6 +345,7 @@ def test_an_answer_too_big_is_refused_without_reading_it_all(monkeypatch):
             read.append(n)
             return b"x" * (n if n >= 0 else 10**9)
 
+    monkeypatch.setattr(guard, "get", lambda: None)  # as with a proxy of your own: _OPENER alone
     monkeypatch.setattr(pluto._OPENER, "open", lambda req, timeout=None: Huge())
     with pytest.raises(pluto.TooBig):
         pluto.fetch("https://example.com/piece.ts")

@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from collections import defaultdict
 from collections.abc import Callable
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -160,14 +161,32 @@ def read_page(resp, limit: int = MAX_PAGE, seconds: float = PAGE_TIME) -> bytes:
     return b"".join(parts)
 
 
-def fetch(url: str, timeout: float = 120, proxy: str | None = None):
+def fetch(url: str, timeout: float = 120, proxy: str | None = None, agent: str | None = None):
     """Open url; with proxy (a kia.guard ticket's address), through the outbound guard, and
     never through a proxy of yours (ProxyHandler({}))."""
-    req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
+    req = urllib.request.Request(url, headers={"User-Agent": agent or f"kodi-iptv-assistant/{__version__}"})
     if proxy is None:
         return _OPENER.open(req, timeout=timeout)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _StayOffYourNetwork, _ThroughTheGuard(proxy))
     return opener.open(req, timeout=timeout)
+
+
+@contextmanager
+def opened(url: str, guarded: bool, timeout: float = 60, agent: str | None = None):
+    """url opened, through kia's outbound guard when guarded (an address from a playlist or
+    service that isn't yours), so neither it nor a redirect reaches your network. Without
+    the guard (you've set a proxy of your own), redirects onto your network are refused."""
+    from kia import guard
+
+    g = guard.get() if guarded else None
+    with (g.ticket() if g else nullcontext()) as ticket, fetch(url, timeout, ticket.url if ticket else None, agent) as resp:
+        yield resp
+
+
+def download(url: str, guarded: bool, limit: int = MAX_PAGE, seconds: float = PAGE_TIME, timeout: float = 60) -> bytes:
+    """A whole answer (see read_page), opened as opened() does."""
+    with opened(url, guarded, timeout) as resp:
+        return read_page(resp, limit, seconds)
 
 
 def grab_imjh(

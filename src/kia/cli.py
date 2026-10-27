@@ -51,15 +51,23 @@ FETCH_WAITS = (10, 30)
 SAVED_COPY_DAYS = 7
 
 
-def fetch(url: str) -> str:
+# A playlist's size and download time: the biggest real ones (iptv-org's whole index) are
+# about 10 MB and take seconds. A server that never stops, or trickles a byte at a time,
+# can't fill kia's memory or hold the nightly refresh.
+MAX_PLAYLIST = 64 * 1024 * 1024
+PLAYLIST_TIME = 300
+
+
+def fetch(url: str, guarded: bool = True) -> str:
+    """A playlist: a file, or a download. guarded: it isn't yours (config.Source.is_yours),
+    so it's downloaded through kia's outbound guard, and neither it nor a redirect can
+    reach your network (kia.native.opened)."""
     path = Path(url)
     if path.exists():
         return decode_text(path.read_bytes())
-    req = urllib.request.Request(url, headers={"User-Agent": f"kodi-iptv-assistant/{__version__}"})
     for wait in (*FETCH_WAITS, None):
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                return decode_text(resp.read())
+            return decode_text(native.download(url, guarded, MAX_PLAYLIST, PLAYLIST_TIME))
         except urllib.error.HTTPError as exc:
             if (exc.code < 500 and exc.code != 429) or wait is None:
                 raise
@@ -78,7 +86,7 @@ def fetch_source(cfg: Config, src) -> str:
         return fetch(src.url)
     saved = cfg.epg.work_dir / "sources" / f"{src.name}.m3u"
     try:
-        text = fetch(src.url)
+        text = fetch(src.url, guarded=not src.is_yours)
         # A server can answer 200 with an error page or an empty file. That's a failed
         # download too: saving it would lose the last good copy, and the source's channels.
         # (Any line a playlist doesn't mark is read as a channel, so look for a stream address.)
