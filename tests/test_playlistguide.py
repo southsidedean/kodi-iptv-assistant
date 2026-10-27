@@ -168,3 +168,11 @@ def test_a_damaged_mapping_still_builds_a_guide(tmp_path: Path):
     (tmp_path / "work" / "mapping.json").write_text('["A.us"]')  # a list, not kia map's object
     assert cli.main(["guide", "-c", str(tmp_path / "kia.toml")]) == 0
     assert 'channel="A.us" kia-placeholder' in (tmp_path / "output" / "guide.xml").read_text()
+
+
+@pytest.mark.parametrize("source", ["_mine", "__x__", "-a-", ".b.", "My List!", "a..b"])
+def test_every_playlists_guide_gets_a_name_kia_will_use(source):
+    from kia.epgmap import is_safe_site
+
+    name = playlistguide.site_name(source)
+    assert name.startswith("playlist-") and is_safe_site(name.removeprefix("playlist-"))

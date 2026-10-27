@@ -31,8 +31,11 @@ PREFIX = "playlist-"
 
 
 def site_name(source: str) -> str:
-    """A playlist's guide shows up as a site named after the playlist, e.g. playlist-roku."""
-    return PREFIX + (re.sub(r"[^A-Za-z0-9._-]+", "-", source).strip("-.") or "source")
+    """A playlist's guide shows up as a site named after the playlist, e.g. playlist-roku. It
+    starts with a letter or digit and has no "..", as epgmap.is_safe_site needs: "_mine" is
+    playlist-mine, and "a..b" playlist-a.b."""
+    name = re.sub(r"\.{2,}", ".", re.sub(r"[^A-Za-z0-9._-]+", "-", source))
+    return PREFIX + (name.strip("-._") or "source")
 
 
 def plan(entries: list[Entry], aliases: dict[str, list[tuple[str, str]]] | None = None) -> dict:

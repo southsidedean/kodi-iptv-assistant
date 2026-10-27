@@ -248,8 +248,9 @@ def test_a_download_that_fails_is_tried_again(monkeypatch):
     assert cli.fetch("https://x/list.m3u") == "#EXTM3U\n" and waits == list(cli.FETCH_WAITS)
 
     answers[:] = [urllib.error.HTTPError("u", 404, "not found", {}, None)]  # not worth trying again
-    with pytest.raises(urllib.error.HTTPError):
+    with pytest.raises(urllib.error.HTTPError) as err:
         cli.fetch("https://x/gone.m3u")
+    err.value.close()
     assert waits == list(cli.FETCH_WAITS)
 
 

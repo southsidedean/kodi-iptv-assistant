@@ -61,8 +61,8 @@ def test_sessions_in_the_shape_plex_uses(server):
 def test_locations():
     # Outside addresses are public DNS servers; Python counts the documentation ranges as private.
     found = [jellyfin.location(a) for a in ("192.168.1.20", "8.8.8.8:443", "[2001:4860:4860::8888]:80", "::1", "fd00::5",
-                                             "::ffff:192.168.1.20", "::ffff:8.8.4.4", "")]  # fmt: skip
-    assert found == ["lan", "wan", "wan", "lan", "lan", "lan", "wan", "?"]
+                                             "::ffff:192.168.1.20", "::ffff:8.8.4.4", "", "100.101.102.103")]  # fmt: skip
+    assert found == ["lan", "wan", "wan", "lan", "lan", "lan", "wan", "?", "wan"]  # Tailscale's: a device away from home
 
 
 def test_jellyfin_in_metrics_next_to_plex(server, tmp_path: Path):

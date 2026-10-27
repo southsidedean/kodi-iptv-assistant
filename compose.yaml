@@ -36,7 +36,8 @@ services:
       # so a stream that broke ffprobe couldn't reach Jellyfin's users or the password Grafana
       # made. The rest of the kia folder stays readable, because kia needs it: .env, with any
       # passwords set there (KIA_GRAFANA_PASSWORD, say), and with Plex in the stack, Plex's
-      # settings, which hold its sign-in.
+      # settings, which hold its sign-in, and Threadfin's (kia doctor reads which playlist it
+      # uses), with the password for its page.
       - /data/jellyfin:size=1m,mode=0500
       - /data/monitoring:size=1m,mode=0500
     cap_drop:

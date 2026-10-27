@@ -33,6 +33,15 @@ def test_headers_from_vlcopt():
     assert entries[0].user_agent is None
 
 
+def test_only_known_player_options_pass_through():
+    text = ("#EXTM3U\n#EXTINF:-1,A\n#EXTVLCOPT:HTTP-User-Agent=Box/1\n#EXTVLCOPT:http-referrer=https://a/\n"
+            "#EXTVLCOPT:program=2\n#EXTVLCOPT:sout=#std{access=file,dst=/tmp/x}\n#EXTVLCOPT:input-slave=file:///etc/passwd\n"
+            "http://a/1\n")  # fmt: skip
+    (e,) = m3u.parse(text)
+    assert e.vlcopts == {"http-user-agent": "Box/1", "http-referrer": "https://a/", "program": "2"}
+    assert "sout" not in m3u.write([e]) and "input-slave" not in m3u.write([e])  # never into kia's playlists
+
+
 def test_labels_quality_and_commas_in_name():
     town = m3u.parse(SAMPLE)[3]
     assert town.name == "Town TV, Channel 3 (720p) [Not 24/7]"

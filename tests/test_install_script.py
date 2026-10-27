@@ -194,3 +194,11 @@ def test_a_download_cut_short_runs_nothing(kia: Path, tmp_path: Path):
     cut.write_text(text[: len(text) // 2])
     r = subprocess.run(["sh", str(cut), "--yes"], cwd=tmp_path, capture_output=True, text=True, check=False)
     assert "==" not in r.stdout and not list(tmp_path.glob("*.env"))  # no step started
+
+
+def test_after_the_hand_over_it_doesnt_say_it_all_again(kia: Path):
+    first = install(kia, "--yes")
+    again = install(kia, "--yes", KIA_INSTALL_HANDED_OVER="1")
+    assert first.returncode == again.returncode == 0, again.stdout + again.stderr
+    assert "Checking what's installed" in first.stdout and "Checking what's installed" not in again.stdout
+    assert "Using kia in" not in again.stdout and "== Settings" in again.stdout

@@ -180,7 +180,8 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
     if os.environ.get("KIA_JELLYFIN_URL") and os.environ.get("KIA_JELLYFIN_TOKEN"):
         report.findings += [f for f in jellyfin(cfg, now=now).findings if f.level == PROBLEM]
     if not report.findings or all(f.level == OK for f in report.findings):
-        report.findings.append(Finding(OK, "Nothing needs you", "No alerts, no playlist whose streams all fail, and everything in the stack answers."))
+        stack = ", and everything in the stack answers" if _answering(cfg) else ""  # nothing runs next to kia: no stack to speak of
+        report.findings.append(Finding(OK, "Nothing needs you", f"No alerts, no playlist whose streams all fail{stack}."))
     return report
 
 

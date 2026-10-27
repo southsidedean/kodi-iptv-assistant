@@ -55,6 +55,9 @@ def overview(base: Path) -> doctor.Report:
 def test_a_good_refresh_says_nothing_needs_you(kia):
     r = overview(kia)
     assert r.worst == doctor.OK and titles(r) == ["The last refresh worked", "Nothing needs you"]
+    assert "stack" not in r.findings[-1].detail  # nothing runs next to kia: no stack to mention
+    write(kia, "output/stack.json", {"services": [{"service": "threadfin", "ok": True}]})
+    assert overview(kia).findings[-1].detail.endswith("and everything in the stack answers.")
 
 
 def test_no_status_yet(kia):

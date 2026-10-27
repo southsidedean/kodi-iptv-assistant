@@ -94,7 +94,10 @@ case "$OS" in
     *) die "kia runs on macOS and Linux (including Raspberry Pi), not Windows yet. Kodi on Windows works with a kia on another computer." ;;
 esac
 
-step "Checking what's installed"
+# The downloaded copy's installer, handed over to below, checks again but says nothing the
+# first one said already.
+again=${KIA_INSTALL_HANDED_OVER:+yes}
+[ -n "$again" ] || step "Checking what's installed"
 if ! command -v docker >/dev/null 2>&1; then
     if [ "$OS" = Darwin ]; then
         die "Docker isn't installed. Install Docker Desktop from https://www.docker.com/products/docker-desktop/, start it, then run this again."
@@ -112,9 +115,9 @@ if ! docker info >/dev/null 2>&1; then
     die "Docker isn't answering. Start it with  sudo systemctl start docker ; if you just ran  sudo usermod -aG docker \$USER , log out and back in first. Then run this again."
 fi
 command -v git >/dev/null 2>&1 || die "Git isn't installed. macOS: run  git --version  and accept the offer to install it. Linux: sudo apt install git (or your system's equivalent)."
-say "Docker and Git are ready."
+[ -n "$again" ] || say "Docker and Git are ready."
 
-step "Getting kia"
+[ -n "$again" ] || step "Getting kia"
 # The copy this script is in, when it was run from one (scripts/install.sh). Piped from curl,
 # $0 is the shell, and the current folder says nothing about where kia is.
 here=""
@@ -126,7 +129,7 @@ if [ -z "$DIR" ] && [ -n "$here" ] && [ -f "$here/compose.yaml" ] && [ -f "$here
 fi
 DIR=${DIR:-$HOME/kodi-iptv-assistant}
 if [ -d "$DIR/.git" ]; then
-    say "Using kia in $DIR"
+    [ -n "$again" ] || say "Using kia in $DIR"
 elif [ -e "$DIR" ]; then
     die "$DIR exists but isn't a copy of kia. Use --dir to pick another folder."
 else

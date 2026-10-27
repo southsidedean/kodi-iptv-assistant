@@ -92,6 +92,12 @@ class Entry:
 _KODIPROP_RE = re.compile(r"^(inputstream|inputstreamaddon|mimetype|inputstream\.(adaptive|ffmpegdirect)\.[a-z_]+)=", re.I)
 
 
+# #EXTVLCOPT lines too: the player options a stream needs to open (its user agent, referrer,
+# origin, or which program in it to play), and nothing else a stranger's playlist could
+# set in the player. Playlists in the wild use only the first two.
+VLCOPTS = frozenset({"http-user-agent", "http-referrer", "http-origin", "program"})
+
+
 def is_allowed_kodiprop(prop: str) -> bool:
     return bool(_KODIPROP_RE.match(prop.strip()))
 
@@ -141,8 +147,8 @@ def parse(text: str, source: str = "") -> list[Entry]:
             pending = Entry(name=name, url="", attrs=attrs, duration=duration, source=source)
         elif line.startswith("#EXTVLCOPT:"):
             key, _, value = line[len("#EXTVLCOPT:"):].partition("=")
-            if pending is not None:
-                pending.vlcopts[key.strip()] = value.strip()
+            if pending is not None and key.strip().lower() in VLCOPTS:
+                pending.vlcopts[key.strip().lower()] = value.strip()
         elif line.startswith("#KODIPROP:"):
             prop = line[len("#KODIPROP:"):]
             if pending is not None and is_allowed_kodiprop(prop):

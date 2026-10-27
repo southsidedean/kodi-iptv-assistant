@@ -88,7 +88,7 @@ Suppose a program got taken over, by a stream that broke ffprobe, say. What it c
 | Taken over | Could | Couldn't |
 |---|---|---|
 | iptv-org's downloader, in its sandbox | Read its own folder and the channel list, write its guide, use the network | Read kia's settings or other files, start programs |
-| ffprobe or ffmpeg, or kia itself, in Docker | Everything kia can: write `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`; read the rest of the kia folder, `.env` included, and with Plex in the stack, Plex's settings and sign-in; reach your network; leave requests for the kia-stack service | Change the system or the rest of the kia folder, see Jellyfin's or Grafana's data, reach Docker, gain privileges |
+| ffprobe or ffmpeg, or kia itself, in Docker | Everything kia can: write `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`; read the rest of the kia folder, `.env` included, and with Plex in the stack, Plex's settings and sign-in, and Threadfin's settings and the password for its page; reach your network; leave requests for the kia-stack service | Change the system or the rest of the kia folder, see Jellyfin's or Grafana's data, reach Docker, gain privileges |
 | The same, without Docker (Linux service) | The same folders, read your files, reach your network | Change files outside kia's folders and npm's cache, where the system allows those limits ([without Docker](setups.md#without-docker)) |
 | The web server | Read `output/`, the certificate and its key | Change anything kia uses |
 
