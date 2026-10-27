@@ -329,7 +329,7 @@ Afterwards, kia's log shows whether anything still tries the old token or key: `
 | `kia_stack` | Each program running next to kia, and whether it answered kia's last check |
 | `kia_settings` | The settings kia is running with, and where each is changed |
 | `kia_whats_on` | What's on a channel (or up to 5 that match) now and next, from kia's guide for the next 14 hours. With Plex, also Plex's own channels (an antenna's), by name, call sign, or number |
-| `kia_find_shows` | Shows in the guides that match some words or a category, now or up to a week ahead: kia's guide, and Plex's and Jellyfin's own guides (an antenna's, say). Up to 25, the ones named for the words first, each with its channel, number, times, and where to watch it |
+| `kia_find_shows` | Shows in the guides that match some words or a category, now or up to a week ahead: kia's guide, and Plex's and Jellyfin's own guides (an antenna's, say). Up to 25, the ones named for the words first, then the soonest, each with its channel, number, times, and where to watch it. For a time of day such as tonight, it takes an `after` and `before` (local HH:MM) |
 | `kia_whats_new` | Channels new to your playlists in the last week, and those gone because their streams stopped working ([new and gone channels](alerts.md#new-and-gone-channels)) |
 | `kia_docs` | The sections of kia's own docs, the copy installed with your kia, that best match some words, with links |
 

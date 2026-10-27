@@ -27,9 +27,10 @@ To find a show in the guide, `kia find` searches kia's guide, and Plex's and Jel
 ```sh
 docker compose exec kia python3 -m kia find football
 docker compose exec kia python3 -m kia find --category Sports --hours 0
+docker compose exec kia python3 -m kia find football --after 18:00
 ```
 
-`--hours 0` means on now, and `--hours 168` looks a week ahead.
+`--hours 0` means on now, and `--hours 168` looks a week ahead. For a time of day, `--after` and `--before` take a local 24-hour time, so `--after 18:00` finds what starts tonight and keeps a busy search like football from filling up with daytime listings.
 
 None of these change anything.
 

@@ -1068,7 +1068,8 @@ def cmd_find(args: argparse.Namespace) -> int:
     if not args.words and not args.category:
         log("kia find needs some words, a --category, or both. Example: kia find NFL")
         return 2
-    found = shows.search(load_config(args), " ".join(args.words), args.category, args.hours)
+    found = shows.search(load_config(args), " ".join(args.words), args.category, args.hours,
+                         after=args.after, before=args.before)
     if args.json:
         print(json.dumps(found, indent=1))
     else:
@@ -1741,6 +1742,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("words", nargs="*", help="words in the show's title or description, such as NFL")
     p.add_argument("--category", default="", help="a guide category, such as Sports")
     p.add_argument("--hours", type=float, default=24, help="how far ahead to look (0: on now; at most 168)")
+    p.add_argument("--after", default="", help="only shows starting at or after this local time (HH:MM, 24-hour), such as 18:00 for tonight")
+    p.add_argument("--before", default="", help="only shows starting before this local time (HH:MM, 24-hour), such as 12:00 for the morning")
     p.add_argument("--json", action="store_true", help="the answer as JSON, for scripts")
     p.set_defaults(func=cmd_find)
     p = sub.add_parser("mcp", help="kia's MCP server over standard input and output, for an AI assistant on this computer (docs/mcp.md)")

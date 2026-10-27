@@ -183,7 +183,7 @@ def test_find_shows_and_its_arguments(kia, monkeypatch):
     from kia import shows
 
     asked = []
-    monkeypatch.setattr(shows, "search", lambda conf, q, cat, hours: asked.append((q, cat, hours)) or {"shows": []})
+    monkeypatch.setattr(shows, "search", lambda conf, q, cat, hours, after="", before="": asked.append((q, cat, hours)) or {"shows": []})
     assert call_tool(kia, "kia_find_shows", {"query": "NFL", "hours": 0})["structuredContent"] == {"shows": []}
     assert call_tool(kia, "kia_find_shows", {"category": "Sports"})["structuredContent"] == {"shows": []}
     assert asked == [("NFL", "", 0), ("", "Sports", 24)]

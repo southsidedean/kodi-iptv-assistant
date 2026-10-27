@@ -55,6 +55,24 @@ def _local(dt: datetime) -> str:
     return dt.astimezone().isoformat(timespec="minutes")
 
 
+def _clock(value: str) -> int | None:
+    """A local wall-clock time "HH:MM" (24-hour) as minutes past midnight, or None when value
+    isn't one. An empty value is also None; the caller tells the two apart by whether it was set."""
+    m = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", value or "")
+    if not m:
+        return None
+    hour, minute = int(m[1]), int(m[2])
+    return hour * 60 + minute if hour < 24 and minute < 60 else None
+
+
+def _in_day(start: datetime, lo: int, hi: int) -> bool:
+    """start's local time of day falls in [lo, hi) minutes past midnight. A window that wraps
+    past midnight (lo > hi, such as after 22:00 and before 02:00) keeps either side."""
+    local = start.astimezone()
+    mins = local.hour * 60 + local.minute
+    return lo <= mins < hi if lo <= hi else (mins >= lo or mins < hi)
+
+
 def _words(text: str) -> list[str]:
     return [w for w in text.lower().split() if w]
 
@@ -66,10 +84,12 @@ def _has(text: str, words: list[str]) -> bool:
 
 
 def search(cfg: Config, query: str = "", category: str = "", hours: float = 24, now: datetime | None = None,
-           env: dict | None = None, plex=None, jellyfin=None) -> dict:  # fmt: skip
+           env: dict | None = None, plex=None, jellyfin=None, after: str = "", before: str = "") -> dict:  # fmt: skip
     """Shows whose title, episode, or description has every word of query, and whose category
     has category's words, airing between now and hours from now (0: on now), from every guide
-    kia knows, soonest first. plex and jellyfin stand in for their clients in tests."""
+    kia knows, soonest first. after and before narrow by time of day, keeping shows that start
+    at or after after and before before (local HH:MM), for a question like "tonight". plex and
+    jellyfin stand in for their clients in tests."""
     env = os.environ if env is None else env
     now = now or datetime.now(timezone.utc)
     hours = max(0.0, min(float(hours), MAX_HOURS))
@@ -79,12 +99,19 @@ def search(cfg: Config, query: str = "", category: str = "", hours: float = 24, 
     found = _kia(cfg, words, kinds, now, until)
     found += _from_plex(env, plex, words, kinds, now, until, notes)
     found += _from_jellyfin(env, jellyfin, words, kinds, now, until, notes, found, cfg.output_dir)
+    lo, hi = _clock(after), _clock(before)
+    if (after and lo is None) or (before and hi is None):
+        notes.append("Give a time of day as HH:MM on a 24-hour clock, such as 18:00 for tonight.")
+    elif lo is not None or hi is not None:
+        # An evening question shouldn't be buried under the daytime listings that come first, so
+        # keep only the shows that start within the time of day asked for ("tonight" is after 18:00).
+        found = [s for s in found if _in_day(s.start, lo if lo is not None else 0, hi if hi is not None else 24 * 60)]
     # Shows named for the words first ("football" finds the games before a show whose
     # description mentions football), then the soonest.
     found.sort(key=lambda s: (not s.in_title, s.start, s.where != "kia", s.channel))
     out = {"from": _local(now), "until": _local(until), "shows": [s.to_dict() for s in found[:MAX_RESULTS]]}
     if len(found) > MAX_RESULTS:
-        notes.append(f"{len(found)} shows match; these are the first {MAX_RESULTS}. More words, or fewer hours, narrow it down.")
+        notes.append(f"{len(found)} shows match; these are the first {MAX_RESULTS}, soonest first. Narrow it with more words, a category, fewer hours, or an after and before time of day, such as after 18:00 for tonight.")
     if not found:
         notes.append("Nothing in the guides matches. Guide titles are often short, so try fewer words.")
     if notes:
