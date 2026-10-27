@@ -25,6 +25,17 @@ def readable(iso: str | None) -> str:
     return f"{dt:%a %b} {dt.day}, {dt:%H:%M %Z}"
 
 
+def _record(rec: object) -> bool:
+    """A stream's record as History writes it: counts as whole numbers, times as text."""
+    if not (isinstance(rec, dict) and all(type(rec.get(k)) is int for k in ("checks", "successes"))
+            and type(rec.get("consecutive_failures", 0)) is int):  # fmt: skip
+        return False
+    try:
+        return datetime.fromisoformat(rec.get("last_checked", rec.get("first_seen"))).tzinfo is not None  # compared with now
+    except (TypeError, ValueError):
+        return False
+
+
 class History:
     def __init__(self, path: Path):
         self.path = path
@@ -35,7 +46,8 @@ class History:
             except ValueError:  # cut short (a full disk, a crash) or edited by hand
                 records = None
             if isinstance(records, dict):
-                self.records = records
+                # A record damaged inside counts as never checked (see _record).
+                self.records = {url: rec for url, rec in records.items() if _record(rec)}
             else:
                 # Start a new one, so the checks still run. The old file stays, as
                 # history.json.bad; losing it only resets each stream's record of past checks.
@@ -66,7 +78,7 @@ class History:
         self.records = {
             url: rec
             for url, rec in self.records.items()
-            if datetime.fromisoformat(rec["last_checked"]) >= cutoff
+            if datetime.fromisoformat(rec.get("last_checked", rec["first_seen"])) >= cutoff
         }
 
     def save(self) -> None:

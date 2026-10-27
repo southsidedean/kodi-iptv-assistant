@@ -47,6 +47,17 @@ def test_no_status_yet(tmp_path: Path):
     assert "kia_info" in text and "kia_channels" not in text and "kia_pluto" not in text
 
 
+
+def test_a_damaged_status_file_still_gives_metrics(tmp_path: Path):
+    (tmp_path / "status.json").write_text(json.dumps({"result": "ok", "last_run": {"minutes": "12", "finished": "x"},
+        "channels": [1], "coverage": {"full": "lots", "partial": True, "none": 3}, "sources": ["us", {"name": "uk", "ok": 5}],
+        "profiles": "kids", "alerts": {"a": 1}, "pluto_channels": [1]}))  # fmt: skip
+    text = metrics.render(tmp_path, FakeRelay())
+    assert 'kia_guide_coverage_channels{level="none"} 3' in text and 'kia_source_streams{source="uk",status="ok"} 5' in text
+    assert "lots" not in text and "True" not in text and "kia_last_refresh_duration_seconds" not in text
+    (tmp_path / "status.json").write_text("[1, 2]")
+    assert "kia_info" in metrics.render(tmp_path)
+
 def test_the_server_answers_metrics(tmp_path: Path):
     (tmp_path / "status.json").write_text(json.dumps(STATUS))
     srv = serve.serve_in_background(tmp_path, "127.0.0.1", 0, metrics=lambda: metrics.render(tmp_path))

@@ -84,3 +84,7 @@ def test_a_damaged_record_counts_as_none(tmp_path: Path):
         assert sent(tmp_path) == []
         assert newchannels.track(tmp_path, [ch("CNN.us")], set(), night(0), 30) == {"new": [], "gone": []}  # a first night
         (tmp_path / newchannels.FILE).unlink()
+    # A gone record without its time (the shape a channel's record has) is left out, not a KeyError.
+    (tmp_path / newchannels.FILE).write_text(json.dumps({"started": night(0), "run": night(0), "channels": {},
+                                                         "gone": {"x": {"name": "X", "first": night(0)}}}))  # fmt: skip
+    assert newchannels.track(tmp_path, [ch("CNN.us")], set(), night(1), 30)["gone"] == []

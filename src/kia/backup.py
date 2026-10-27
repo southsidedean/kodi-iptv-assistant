@@ -30,6 +30,10 @@ FOLDERS = ("playlists", "profiles", "state", "tls", "threadfin", "threadfin-2", 
 # scripts/gateway.sh write make new ones. The devices' keys are kept only as hashes, which
 # can't be used as keys.
 LEFT_OUT = ("state/mcp-token.txt", "gateway/kia-token")
+# The only links a backup follows: the certificate and key you may have linked in (from Let's
+# Encrypt, say). kia's container can write state/ and tls/, so a link anywhere else could
+# point a backup made outside it at a file kia can't read (an SSH key) and carry it off.
+LINKS_FOLLOWED = ("tls/fullchain.pem", "tls/privkey.pem")
 MANIFEST = "kia-backup.json"
 
 
@@ -42,10 +46,19 @@ def _wanted(base: Path, sources_file: Path | None, extra: tuple[str, ...] = ()) 
             pass  # a sources file outside the kia folder isn't backed up
     found = [base / n for n in sorted(names) if (base / n).is_file()]
     for folder in FOLDERS:
-        if (base / folder).is_dir():
+        if (base / folder).is_dir() and not (base / folder).is_symlink():
             found += sorted(p for p in (base / folder).rglob("*") if p.is_file() and not p.name.endswith(".tmp")
-                            and p.relative_to(base).as_posix() not in LEFT_OUT)  # fmt: skip
+                            and p.relative_to(base).as_posix() not in LEFT_OUT and _not_a_link(base, p))  # fmt: skip
     return found
+
+
+def _not_a_link(base: Path, p: Path) -> bool:
+    """Whether p, and every folder between base and it, is a plain file or folder (or one of
+    LINKS_FOLLOWED)."""
+    rel = p.relative_to(base)
+    if rel.as_posix() in LINKS_FOLLOWED:
+        return True
+    return not any((base / Path(*rel.parts[: i + 1])).is_symlink() for i in range(len(rel.parts)))
 
 
 def make(base: Path, out: Path, sources_file: Path | None = None, extra: tuple[str, ...] = ()) -> list[str]:
@@ -71,7 +84,16 @@ def make(base: Path, out: Path, sources_file: Path | None = None, extra: tuple[s
 
 
 def default_name(folder: Path) -> Path:
-    return folder / f"kia-backup-{datetime.now():%Y%m%d-%H%M%S}.tar.gz"
+    return _unused(folder / f"kia-backup-{datetime.now():%Y%m%d-%H%M%S}.tar.gz")
+
+
+def _unused(path: Path) -> Path:
+    """path, or path-2, -3, ... when a backup made in the same second has the name."""
+    n, stem = 1, path.name.removesuffix(".tar.gz")
+    while path.exists():
+        n += 1
+        path = path.with_name(f"{stem}-{n}.tar.gz")
+    return path
 
 
 def _safe(name: str) -> bool:
@@ -119,7 +141,7 @@ def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[
         extra = tuple(m.name for m in allowed if "/" not in m.name and m.name not in FILES)
         safety = None
         if _wanted(base, None, extra):
-            safety = default_name(safety_folder).with_name(f"before-restore-{datetime.now():%Y%m%d-%H%M%S}.tar.gz")
+            safety = _unused(default_name(safety_folder).with_name(f"before-restore-{datetime.now():%Y%m%d-%H%M%S}.tar.gz"))
             make(base, safety, extra=extra)
             log(f"Saved the current settings first, in {safety}")
         restored = []

@@ -20,7 +20,7 @@ from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
 from kia.channels import FAVORITES
 from kia.m3u import parse
-from kia.files import read_object, temp_name
+from kia.files import items, obj, read_object, temp_name
 from kia.locks import FilesLock
 
 # Files in output/ the page links to, with what each one is for.
@@ -44,6 +44,31 @@ RESULTS = {
 
 def _load(path: Path) -> dict:
     return read_object(path)  # damaged into another shape: as if missing
+
+
+def _secure(path: Path) -> dict:
+    """secure.json (kia serve's): its address and certificate, with any part damaged into
+    another shape left out, so the page is still written."""
+    data = _load(path)
+    cert = obj(data.get("tls"))
+    try:
+        expires = cert.get("expires") if datetime.fromisoformat(cert.get("expires")).tzinfo else None
+    except (TypeError, ValueError):
+        expires = None
+    tls = {"names": items(cert.get("names")), "expires": expires, "generated": cert.get("generated") is True,
+           "issuer": cert.get("issuer") if isinstance(cert.get("issuer"), str) else "",
+           "key_matches": cert.get("key_matches") if isinstance(cert.get("key_matches"), bool) else None}  # fmt: skip
+    return {"url": data.get("url") if isinstance(data.get("url"), str) else None, **({"tls": tls} if cert else {})}
+
+
+def _settings(path: Path) -> list[dict]:
+    """settings.json's sections (kia.settings), each row's three texts checked."""
+    out = []
+    for sec in items(_load(path).get("sections"), dict):
+        rows = [r for r in items(sec.get("rows"), dict) if all(isinstance(r.get(k), str) for k in ("name", "value", "change"))]
+        if isinstance(sec.get("title"), str):
+            out.append({"title": sec["title"], "rows": rows})
+    return out
 
 
 def _write(path: Path, text: str) -> None:
@@ -99,9 +124,9 @@ def collect(output_dir: Path, state_dir: Path, run: dict, public_url: str | None
         "alerts": recent_alerts(state_dir / "alerts.log", run.get("started")),
         "playlist_url": f"{public_url}/curated.m3u" if public_url else None,
         "profiles": _profiles(output_dir, public_url),
-        "profiles_error": _load(output_dir / "profiles.json").get("error"),
-        "secure": _load(state_dir / "secure.json"),
-        "settings": _load(state_dir / "settings.json").get("sections", []),
+        "profiles_error": error if isinstance(error := _load(output_dir / "profiles.json").get("error"), str) else None,
+        "secure": _secure(state_dir / "secure.json"),
+        "settings": _settings(state_dir / "settings.json"),
         "env_private": _load(state_dir / "settings.json").get("env_private"),
         "pluto_channels": _pluto_channels(entries),
         # How many Plex players /metrics has seen (their names are on the secure page only).
@@ -123,7 +148,9 @@ def _pluto_channels(entries: list) -> dict[str, str]:
 
 def _profiles(output_dir: Path, public_url: str | None) -> list[dict]:
     """Each profile's playlist (see kia.profiles), with its address when kia knows it."""
-    found = _load(output_dir / "profiles.json").get("profiles", [])
+    found = [p for p in items(_load(output_dir / "profiles.json").get("profiles"), dict)
+             if all(isinstance(p.get(k), str) for k in ("name", "title", "file"))
+             and all(type(p.get(k)) is int for k in ("tv", "radio"))]  # fmt: skip
     for p in found:
         p["url"] = f"{public_url}/{p['file']}" if public_url else None
     return found

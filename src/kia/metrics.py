@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import resource
 import secrets
@@ -25,7 +26,7 @@ from pathlib import Path
 
 from kia import __version__
 from kia import name as kia_name
-from kia.files import temp_name, read_object
+from kia.files import items, obj, read_object, temp_name
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 STARTED = time.time()
@@ -40,7 +41,9 @@ class _Out:
         self.lines: list[str] = []
 
     def metric(self, name: str, kind: str, help_text: str, samples: list[tuple[dict, float | int | None]]) -> None:
-        samples = [(labels, v) for labels, v in samples if v is not None]
+        # Numbers only: status.json damaged into other shapes gives text or true, which would
+        # break the page for Prometheus.
+        samples = [(labels, v) for labels, v in samples if _number(v)]
         if not samples:
             return
         self.lines += [f"# HELP {name} {help_text}", f"# TYPE {name} {kind}"]
@@ -50,6 +53,10 @@ class _Out:
 
     def one(self, name: str, kind: str, help_text: str, value: float | int | None) -> None:
         self.metric(name, kind, help_text, [({}, value)])
+
+
+def _number(v: object) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
 def _ts(iso: object) -> float | None:
@@ -118,7 +125,7 @@ class Players:
         path = self.state_dir / PLAYERS_FILE
         if self.known is None:
             # Damaged into another shape: as if missing (it only maps pseudonyms to players).
-            self.known = {k: v for k, v in read_object(path).items() if isinstance(v, dict)}
+            self.known = {k: v for k, v in read_object(path).items() if isinstance(v, dict) and isinstance(v.get("seen", ""), str)}
         today, changed = datetime.now().astimezone().date().isoformat(), False
         for x in sessions:
             seen = {"name": x["player"], "product": x["product"], "seen": today}
@@ -142,7 +149,7 @@ def _write_private(path: Path, text: str) -> None:
 
 def known_players(state_dir: Path) -> list[dict]:
     """Which pseudonym is which player, Plex's and Jellyfin's, newest first (for the secure System page)."""
-    known = {k: v for k, v in read_object(state_dir / PLAYERS_FILE).items() if isinstance(v, dict)}
+    known = {k: v for k, v in read_object(state_dir / PLAYERS_FILE).items() if isinstance(v, dict) and isinstance(v.get("seen", ""), str)}
     return sorted(({"pseudonym": k, **v} for k, v in known.items()), key=lambda p: (p.get("seen", ""), p["pseudonym"]), reverse=True)
 
 
@@ -222,10 +229,7 @@ def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jell
     for t in asking:
         t.join()
     out = _Out()
-    try:
-        s = json.loads((output_dir / "status.json").read_text())
-    except (OSError, ValueError):
-        s = {}
+    s = read_object(output_dir / "status.json")  # kia's, but damaged parts count as missing (kia.files)
     # With several kia installs in one Prometheus, the name says which is which (kia.name).
     labels = {"version": __version__}
     if state_dir is not None and (name := kia_name.current(state_dir)[0]):
@@ -233,7 +237,7 @@ def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jell
     out.metric("kia_info", "gauge", "kia's version, and its name when it has one.", [(labels, 1)])
     out.one("kia_start_time_seconds", "gauge", "When this kia started (Unix time).", round(STARTED))
 
-    run = s.get("last_run") or {}
+    run = obj(s.get("last_run"))
     result = s.get("result")
     if result:
         out.one("kia_refresh_running", "gauge", "1 while the nightly refresh runs.", int(result == "running"))
@@ -243,29 +247,29 @@ def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jell
             out.one("kia_last_refresh_alerts", "gauge", "1 if the last refresh raised alerts.", int(result == "alerts"))
     out.one("kia_last_refresh_start_time_seconds", "gauge", "When the last refresh started (Unix time).", _ts(run.get("started")))
     out.one("kia_last_refresh_end_time_seconds", "gauge", "When the last refresh finished (Unix time).", _ts(run.get("finished")))
-    if run.get("minutes") is not None:
+    if _number(run.get("minutes")):
         out.one("kia_last_refresh_duration_seconds", "gauge", "How long the last refresh took.", run["minutes"] * 60)
     out.one("kia_next_refresh_time_seconds", "gauge", "When the next nightly refresh starts (Unix time).", _ts(s.get("next_run")))
     out.one("kia_guide_updated_time_seconds", "gauge", "When the guide was last rebuilt (Unix time).", _ts(s.get("guide_updated")))
 
-    ch = s.get("channels") or {}
+    ch = obj(s.get("channels"))
     out.metric("kia_channels", "gauge", "Channels in the full playlist.",
                [({"kind": "tv"}, ch.get("tv")), ({"kind": "radio"}, ch.get("radio"))])  # fmt: skip
     out.one("kia_channels_with_guide", "gauge", "Channels with guide data.", ch.get("with_guide"))
-    cov = s.get("coverage") or {}
+    cov = obj(s.get("coverage"))
     out.metric("kia_guide_coverage_channels", "gauge", "TV channels by how much of the guide they have.",
                [({"level": k}, cov.get(k)) for k in ("full", "partial", "none")])  # fmt: skip
     out.metric("kia_source_streams", "gauge", "Streams in each channel source at the last check, by result.",
                [({"source": src.get("name"), "status": st}, src.get(st))
-                for src in s.get("sources") or [] for st in ("ok", "flaky", "dead")])  # fmt: skip
+                for src in items(s.get("sources"), dict) for st in ("ok", "flaky", "dead")])  # fmt: skip
     out.metric("kia_playlist_channels", "gauge", "Channels in each playlist.",
                [({"playlist": p.get("name"), "kind": kind}, p.get(kind))
-                for p in s.get("profiles") or [] for kind in ("tv", "radio")])  # fmt: skip
-    out.one("kia_alerts", "gauge", "Alerts from the last refresh.", len(s.get("alerts") or []))
+                for p in items(s.get("profiles"), dict) for kind in ("tv", "radio")])  # fmt: skip
+    out.one("kia_alerts", "gauge", "Alerts from the last refresh.", len(items(s.get("alerts"), object)))
 
     if relay is not None:
         r = relay.counters()
-        names = s.get("pluto_channels") or {}
+        names = obj(s.get("pluto_channels"))
         out.one("kia_pluto_channels_playing", "gauge", "Pluto TV channels kia is playing now.", r["playing"])
         out.metric("kia_pluto_viewers", "gauge", "Players watching each Pluto TV channel now.",
                    [({"channel": cid, "name": names.get(cid, "")}, n) for cid, n in r["viewers"].items()])  # fmt: skip
