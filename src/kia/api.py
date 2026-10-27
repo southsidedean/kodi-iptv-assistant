@@ -35,6 +35,7 @@ import sys
 
 from kia import channels, lan, locks, profiles, stack
 from kia.config import is_station_line
+from kia.files import items, read_object
 from kia import sources as web_sources
 from kia.auth import Auth
 from kia.m3u import parse
@@ -90,11 +91,8 @@ class ApiError(Exception):
 def _items(cfg: ApiConfig) -> list[tuple]:
     curated = cfg.output_dir / "curated.m3u"
     entries = parse(curated.read_text()) if curated.exists() else []
-    try:
-        sources = json.loads((cfg.state_dir / "channel-sources.json").read_text())
-    except (OSError, ValueError):
-        sources = {}
-    return [(e, set(sources.get(e.key, [e.source] if e.source else []))) for e in entries]
+    sources = read_object(cfg.state_dir / "channel-sources.json")  # channel key -> the playlists it came from
+    return [(e, set(items(sources[e.key]) if e.key in sources else [e.source] if e.source else [])) for e in entries]
 
 
 def _load(cfg: ApiConfig) -> list[profiles.Profile]:
@@ -508,9 +506,9 @@ CHECK_PROC: dict = {}  # the running check's process, so Stop can end it
 
 
 def _summary(report: Path) -> dict:
-    streams = json.loads(report.read_text()).get("streams", [])
-    by = Counter(s["status"] for s in streams)
-    working = [s["name"] for s in streams if s["status"] == "ok"]
+    streams = items(read_object(report).get("streams"), dict)  # kia's test report; damaged parts count as missing
+    by = Counter(s.get("status") for s in streams)
+    working = [str(s.get("name", "")) for s in streams if s.get("status") == "ok"]
     return {"total": len(streams), "ok": by["ok"], "flaky": by["flaky"], "dead": by["dead"], "sample": working[:8]}
 
 
@@ -523,11 +521,8 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
                None)  # fmt: skip
     if row is None:
         raise ApiError(404, "kia doesn't know that playlist.")
-    try:
-        if json.loads((cfg.output_dir / "status.json").read_text()).get("result") == "running":
-            raise ApiError(409, "kia is refreshing everything right now. Try again when it's done.")
-    except (OSError, ValueError):
-        pass
+    if read_object(cfg.output_dir / "status.json").get("result") == "running":
+        raise ApiError(409, "kia is refreshing everything right now. Try again when it's done.")
     with LOCK:
         if CHECK.get("running"):
             raise ApiError(409, f"kia is already checking {CHECK.get('name')}. Wait for it to finish, or stop it.")

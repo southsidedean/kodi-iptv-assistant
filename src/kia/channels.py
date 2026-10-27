@@ -38,8 +38,12 @@ BACK_AFTER_NIGHTS = 3
 def load(state_dir: Path) -> dict:
     data = read_object(state_dir / STATE_FILE)  # damaged into another shape: as if missing
     numbers = obj(data.get("numbers"))
-    return {"favorites": items(data.get("favorites")), "removed": obj(data.get("removed")),
-            "numbers": {"tv": obj(numbers.get("tv")), "radio": obj(numbers.get("radio"))}}  # fmt: skip
+    chosen = lambda kind: {k: n for k, n in obj(numbers.get(kind)).items() if type(n) is int and 0 < n <= MAX_NUMBER}  # noqa: E731
+    removed = {k: r for k, r in obj(data.get("removed")).items() if isinstance(r, dict)}
+    for r in removed.values():
+        if type(r.get("good_nights")) is not int:
+            r["good_nights"] = 0
+    return {"favorites": items(data.get("favorites")), "removed": removed, "numbers": {"tv": chosen("tv"), "radio": chosen("radio")}}
 
 
 def save(state_dir: Path, choices: dict) -> None:

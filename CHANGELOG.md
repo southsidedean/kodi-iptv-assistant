@@ -15,6 +15,8 @@
 
 ### Fixes
 
+- One damaged file in `state/asks/` broke every request from an assistant, and the Dashboard's list of them. Damaged records inside the stream history, channel numbers, Dashboard choices, and new-channel notes, and damaged parts of `status.json`, `profiles.json`, `settings.json`, `secure.json`, and `channel-sources.json`, could stop the nightly check, `/metrics`, or the status pages. Each now counts as missing.
+- `kia backup` follows only the certificate links in `tls/`. Before, a link kia had put in `state/` could copy a file from outside the kia folder into the backup. Two backups made in the same second no longer share a name.
 - A channel with no name stopped the playlist page's Test, Why?, and star buttons at its row, and the guide timeline. A nameless channel now takes its `tvg-name` or `tvg-id` as its name.
 - A run stopped with Ctrl-C stayed "Refreshing now" until kia restarted, so Check now refused to start.
 - `state/alerts.log` grew forever and was read whole for each status update; past 1 MB, kia keeps the newest half.

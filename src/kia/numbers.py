@@ -30,6 +30,16 @@ def pinned_number(entry: Entry) -> int | None:
     return entry.pinned_number
 
 
+def _record(r: object) -> bool:
+    """A channel's record as kia writes it: a whole number, and when it was last seen."""
+    if not (isinstance(r, dict) and type(r.get("number")) is int and r["number"] > 0):
+        return False
+    try:
+        return "last_seen" not in r or datetime.fromisoformat(r["last_seen"]).tzinfo is not None
+    except (TypeError, ValueError):
+        return False
+
+
 class ChannelNumbers:
     def __init__(self, path: Path, recycle_after_days: int = 0):
         self.path = path
@@ -42,13 +52,14 @@ class ChannelNumbers:
             path.replace(path.with_name(path.name + ".bad"))
         data = {k: obj(data.get(k)) for k in ("numbers", "next", "retired")} if data else {}
         # numbers[kind][channel key] = {"number": n, "last_seen": iso time, "pinned": bool}
-        self.numbers: dict[str, dict[str, dict]] = {k: {c: r for c, r in obj(v).items() if isinstance(r, dict)}
+        self.numbers: dict[str, dict[str, dict]] = {k: {c: r for c, r in obj(v).items() if _record(r)}
                                                     for k, v in data.get("numbers", {"tv": {}, "radio": {}}).items()}  # fmt: skip
         # Automatic numbers are never reused, even after a channel is forgotten, so an old
         # number never points at a different channel.
         self.next: dict[str, int] = {k: v for k, v in data.get("next", {"tv": 1, "radio": 1}).items() if isinstance(v, int)}
         # Numbers of forgotten channels, with when each channel was last seen, for recycling.
-        self.retired: dict[str, dict[str, str]] = {k: obj(v) for k, v in data.get("retired", {"tv": {}, "radio": {}}).items()}
+        self.retired: dict[str, dict[str, str]] = {k: {n: t for n, t in obj(v).items() if isinstance(t, str)}
+                                                   for k, v in data.get("retired", {"tv": {}, "radio": {}}).items()}  # fmt: skip
 
     def assign(self, entries: list[Entry], when: str, log: Callable[[str], None] = lambda m: None) -> None:
         """Set tvg-chno on each entry: its pinned number, its remembered one, or the next free one."""

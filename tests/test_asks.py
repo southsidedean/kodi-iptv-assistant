@@ -62,12 +62,16 @@ def test_a_damaged_or_planted_file_is_never_a_request(tmp_path: Path):
     folder = tmp_path / asks.FOLDER
     folder.mkdir()
     good = {"id": "0123456789abcdef", "kind": "test_channel", "args": {"key": "k"}, "what": "w", "state": "waiting",
-            "expires": T + 600}  # fmt: skip
+            "expires": T + 600, "who": "192.0.2.5"}  # fmt: skip
     (folder / "0123456789abcdef.json").write_text(json.dumps({**good, "state": "approved"}))  # not a state kia uses
     (folder / "fedcba9876543210.json").write_text(json.dumps({**good, "kind": "apply_stack"}))  # not a kind there is
     (folder / "aaaaaaaaaaaaaaaa.json").write_text(json.dumps(good))  # its name isn't its id
     (folder / "bbbbbbbbbbbbbbbb.json").write_text("[1, 2]")
+    (folder / "cccccccccccccccc.json").write_text(json.dumps({**good, "id": "cccccccccccccccc", "state": "done", "answered_at": "yesterday"}))
+    (folder / "dddddddddddddddd.json").write_text(json.dumps({**good, "id": "dddddddddddddddd", "who": None}))
     assert asks.listing(tmp_path, now=T) == [] and not list(folder.glob("*.json"))
+    (folder / "eeeeeeeeeeeeeeee.json").write_text(json.dumps({**good, "id": "eeeeeeeeeeeeeeee"}))
+    assert [r["id"] for r in asks.listing(tmp_path, now=T)] == ["eeeeeeeeeeeeeeee"]  # the good one alone still counts
 
 
 def test_a_request_kia_restarted_under_is_failed_not_running_for_ever(tmp_path: Path):
