@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.8.0 (unreleased)
+
 ## 0.7.6 (2026-10-27)
 
 This release fixes the smaller problems left from 0.7.5's review.
