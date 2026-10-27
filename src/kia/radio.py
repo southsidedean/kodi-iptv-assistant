@@ -143,8 +143,9 @@ def pls_stream(text: str) -> str | None:
     return files[0][1] if files else None
 
 
-def somafm(params: dict[str, str], source: str, get=_get) -> list[Entry]:
+def somafm(params: dict[str, str], source: str, get=None) -> list[Entry]:
     """SomaFM's channels, or only those in channels= (SomaFM's ids, such as groovesalad)."""
+    get = get or _get  # looked up now, not when kia starts, so a test's stand-in applies
     try:
         data = json.loads(get(SOMAFM_CHANNELS))
     except (OSError, ValueError) as exc:

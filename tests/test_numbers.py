@@ -157,8 +157,8 @@ def test_a_forgotten_number_above_the_counter_isnt_handed_out(tmp_path: Path):
     path = tmp_path / "channel-numbers.json"
     n = ChannelNumbers(path)
     n.assign([pinned(tv("A"), 5), tv("B")], "2026-10-19T09:00:00+00:00")  # B gets 1; the counter is at 2
-    n.numbers["tv"]["A.us"]["last_seen"] = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
-    n.forget_older_than(30)  # A's 5 is retired
+    n.numbers["tv"]["A.us"]["last_seen"] = "2026-09-09T09:00:00+00:00"
+    n.forget_older_than(30, now=datetime(2026, 10, 19, 10, tzinfo=timezone.utc))  # A's 5 is retired
     new = [tv(name) for name in ("B", "C", "D", "E", "F")]
     n.assign(new, "2026-11-30T09:00:00+00:00")
     assert numbers(new) == {"B": "1", "C": "2", "D": "3", "E": "4", "F": "6"}  # 5 is skipped
