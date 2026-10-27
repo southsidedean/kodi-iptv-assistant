@@ -166,6 +166,19 @@ def test_every_tool_but_those_that_ask_only_reads_and_answers(kia):
     assert call_tool(kia, "kia_find_channels", {"query": "cnn"})["structuredContent"]["channels"][0]["id"] == "CNN.us"
 
 
+def test_find_channels_includes_dead_channels_with_their_status(kia):
+    # CNN works and is curated; CNN International failed its last check and isn't in the playlists.
+    # A search for "cnn" has to return both, so a down channel shows up, not just working ones.
+    (kia.output_dir / "report.json").write_text(json.dumps({"streams": [
+        {"source": "us", "name": "CNN", "tvg_id": "CNN.us", "group": "News", "url": "http://a/2", "status": "ok"},
+        {"source": "us", "name": "CNN International", "tvg_id": "CNNIntl.us", "group": "News", "url": "http://a/3",
+         "status": "dead", "error": "Server returned 404 Not Found"}]}))  # fmt: skip
+    found = call_tool(kia, "kia_find_channels", {"query": "cnn"})["structuredContent"]["channels"]
+    by_id = {c["id"]: c for c in found}
+    assert by_id["CNN.us"]["status"] == "ok"
+    assert by_id["CNNIntl.us"]["status"] == "dead" and "404" in by_id["CNNIntl.us"]["error"]
+
+
 def test_find_shows_and_its_arguments(kia, monkeypatch):
     from kia import shows
 

@@ -149,11 +149,37 @@ def preview(cfg: ApiConfig, body: dict, headers=None, secure: bool = False) -> d
 
 def search_channels(cfg: ApiConfig, query: str) -> dict:
     q = query.strip().casefold()
-    found = [
-        {"id": e.tvg_id, "name": e.name, "group": e.group}
-        for e, _ in _items(cfg)
-        if q and e.tvg_id and (q in e.name.casefold() or q in e.tvg_id.casefold())
-    ]
+    if not q:
+        return {"channels": []}
+    # Each stream's status from the last check, keyed by ID and by name. A row whose fields
+    # aren't text is damaged, so it's left out rather than trusted.
+    streams = [s for s in items(read_object(cfg.output_dir / "report.json").get("streams"), dict)
+               if all(isinstance(s.get(k, ""), str) for k in ("name", "tvg_id", "status"))]  # fmt: skip
+    status_by: dict[str, str] = {}
+    error_by: dict[str, str] = {}
+    for s in streams:
+        for key in (s.get("tvg_id"), s.get("name")):
+            if key:
+                status_by.setdefault(key, s.get("status", ""))
+                if s.get("status") not in ("ok", "flaky"):
+                    error_by.setdefault(key, s.get("error") or s.get("status") or "")
+    found = []
+    seen: set[str] = set()
+    for e, _ in _items(cfg):
+        if e.tvg_id and (q in e.name.casefold() or q in e.tvg_id.casefold()):
+            found.append({"id": e.tvg_id, "name": e.name, "group": e.group,
+                          "status": status_by.get(e.tvg_id) or status_by.get(e.name) or "ok"})  # fmt: skip
+            seen.update((e.tvg_id, e.name))
+    # Dead channels the last check dropped from the playlists still matter: someone asking why a
+    # channel is down is asking about one that is no longer curated, so it has to show up here.
+    for s in streams:
+        name, tvg_id = s.get("name", ""), s.get("tvg_id", "")
+        if s.get("status") in ("ok", "flaky") or name in seen or tvg_id in seen:
+            continue
+        if q in name.casefold() or (tvg_id and q in tvg_id.casefold()):
+            found.append({"id": tvg_id, "name": name, "group": s.get("group", ""),
+                          "status": "dead", "error": error_by.get(tvg_id) or error_by.get(name) or ""})  # fmt: skip
+            seen.update((tvg_id, name))
     return {"channels": found[:25]}
 
 

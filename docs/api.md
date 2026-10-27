@@ -34,7 +34,7 @@ Requests and answers are JSON. An error comes back with an HTTP status code and 
 |---|---|---|
 | `GET /api/profiles` | Every profile's settings, plus the categories and source playlists to choose from, with channel counts | |
 | `POST /api/preview` | How many channels a profile with the settings you send would have, and a few of their names | password, HTTPS, when it has `names` or `exclude_names` |
-| `GET /api/channels?q=cnn` | Up to 25 channels with an ID (tvg-id) whose name or ID contains the text: `id`, `name`, `group` | |
+| `GET /api/channels?q=cnn` | Up to 25 channels whose name or ID contains the text, each with `id`, `name`, `group`, and `status` (working, flaky, or dead with the reason), including dead channels the last check dropped from the playlists | |
 | `PUT /api/profiles/<name>` | Makes the profile, or replaces its settings | password, HTTPS |
 | `DELETE /api/profiles/<name>` | Deletes the profile, its playlist, its guide, and its page | password, HTTPS |
 | `POST /api/password` | Changes the password: send `{"new": "..."}` | password, HTTPS |

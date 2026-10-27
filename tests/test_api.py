@@ -49,7 +49,7 @@ def test_read_and_preview(cfg):
     assert call(cfg, "POST", "/api/preview", {"names": ["("]})[0] == 401  # patterns need the password
     assert call(cfg, "POST", "/api/preview", {"names": ["("]}, password="secret")[0] == 400
     assert call(cfg, "POST", "/api/preview", {"names": ["cn"]}, password="secret")[1]["sample"] == ["CNN"]
-    assert call(cfg, "GET", "/api/channels?q=cn")[1]["channels"] == [{"id": "CNN.us", "name": "CNN", "group": "News"}]
+    assert call(cfg, "GET", "/api/channels?q=cn")[1]["channels"] == [{"id": "CNN.us", "name": "CNN", "group": "News", "status": "ok"}]
 
 
 
