@@ -2,6 +2,10 @@
 
 ## 0.8.1 (unreleased)
 
+### Changes
+
+- The gateway part now runs agentgateway v1.7.0 (it was v1.6.0). Update with `scripts/update.sh` to pull it; nothing in your setup changes.
+
 ## 0.8.0 (2026-10-27)
 
 This release fixes two ways kia could leave you without an answer when you asked about a channel or a show.
