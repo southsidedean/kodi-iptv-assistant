@@ -2,6 +2,10 @@
 
 ## 0.8.0 (unreleased)
 
+### Fixes
+
+- When you ask kia about a channel that's down, it now tells you. The channel question (`kia_channel`, the Dashboard's Ask kia) and the channel search (`kia_find_channels`, the Dashboard's `/api/channels`) used to show only working channels. A channel that failed its last check, such as a Fox News that stopped working, looked as though it didn't exist, even when a working channel shared part of its name. kia now shows the dead channels too, each with the reason its stream failed.
+
 ## 0.7.6 (2026-10-27)
 
 This release fixes the smaller problems left from 0.7.5's review.

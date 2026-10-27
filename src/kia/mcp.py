@@ -129,8 +129,9 @@ TOOLS = [
      "kia doctor on one channel (or up to 5 that match): whether its stream works and its record of past "
      "checks, or why it was left out of the playlists; and where its guide comes from, or why it has none.", _QUERY),
     ("kia_find_channels", "Find channels",
-     "Channels with an ID (tvg-id) in kia's playlists whose name or ID contains the text (up to 25): ID, name, and "
-     "category.", _QUERY),
+     "Channels whose name or ID contains the text (up to 25), each with its ID, name, category, and status: working, "
+     "flaky, or dead with the reason. Includes dead channels the last check dropped from the playlists, so a channel "
+     "that's down still shows up.", _QUERY),
     ("kia_playlists", "Playlists",
      "The playlists kia checks, with how many of their streams worked in the last check, and the playlists "
      "kia makes for people and devices (profiles), with their channel counts.", _NO_ARGS),

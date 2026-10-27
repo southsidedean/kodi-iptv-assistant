@@ -258,13 +258,22 @@ def channel(cfg: Config, query: str) -> list[Report]:
         return (tvg_id or "").lower() == q or q in (name or "").lower()
 
     found = [e for e in kept if matches(e.name, e.tvg_id)]
+    kept_keys = {e.tvg_id or e.name for e in found}
+
+    # Channels the last check dropped from the playlists (their streams failed), grouped by ID
+    # or name. We work these out even when there are kept matches: someone asking "why isn't
+    # Fox News working" needs to hear about a dead Fox News Channel even when a working Fox News
+    # Radio shares the word, so a dead channel never hides behind a live one with a similar name.
+    gone = {}
+    for s in streams:
+        if matches(s.get("name", ""), s.get("tvg_id", "")):
+            key = s.get("tvg_id") or s.get("name")
+            if key not in kept_keys:
+                gone.setdefault(key, []).append(s)
+    gone_removed = {k: v for k, v in removed.items() if matches(v.get("name", ""), "") or k.lower() == q}
+
     if not found:
-        # Not in the playlists: tonight's check may have dropped it, or you removed it.
-        gone = {}
-        for s in streams:
-            if matches(s.get("name", ""), s.get("tvg_id", "")):
-                gone.setdefault(s.get("tvg_id") or s.get("name"), []).append(s)
-        gone_removed = {k: v for k, v in removed.items() if matches(v.get("name", ""), "") or k.lower() == q}
+        # Not in the playlists at all: tonight's check may have dropped it, or you removed it.
         if not gone and not gone_removed:
             return [Report(query, [Finding(PROBLEM, "No channel by that name",
                                            "It isn't in the playlists, and no playlist kia checks has it. Check the spelling, or that its playlist is on in Sources.",
@@ -275,7 +284,10 @@ def channel(cfg: Config, query: str) -> list[Report]:
     if len(found) > MAX_MATCHES:
         names = ", ".join(_quote(e.name, 80) for e in found[: MAX_MATCHES * 2])
         return [Report(query, [Finding(NOTE, f"{len(found)} channels match", f"Say which one, by more of its name or its ID: {names}...")])]
-    return [_kept(e, streams, cfg) for e in found]
+    # The channels that play, then any dead channels that match the same words.
+    reports = [_kept(e, streams, cfg) for e in found]
+    reports += [_dropped(name, rows, cfg) for name, rows in gone.items() if name not in gone_removed]
+    return reports[:MAX_MATCHES]
 
 
 def _histories(cfg: Config) -> dict:

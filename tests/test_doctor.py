@@ -210,6 +210,22 @@ def test_a_channel_tonights_check_dropped(kia):
     assert "us: HTTP 404" in r.findings[0].detail and "failed the last 3 in a row" in r.findings[0].detail
 
 
+def test_a_dead_channel_shows_even_when_a_live_one_shares_a_word(kia):
+    # "Fox News" matches a working Fox News Radio and a dead Fox News Channel. The dead one has
+    # to show up too, so "why isn't Fox News working" never hides behind the live channel.
+    radio = '#EXTINF:-1 tvg-id="FoxNewsRadio.us@SD" group-title="News",Fox News Radio\nhttps://a/fnr\n'
+    kept(kia, radio)
+    write(kia, "output/report.json", {"streams": [
+        dict(STREAM, name="Fox News Radio", tvg_id="FoxNewsRadio.us@SD", url="https://a/fnr"),
+        dict(STREAM, name="Fox News Channel", tvg_id="FoxNewsChannel.us@US", url="https://a/fnc",
+             status="dead", selected=False, error="Server returned 404 Not Found")]})  # fmt: skip
+    subjects = [r.subject for r in channel(kia, "fox news")]
+    assert "Fox News Radio (FoxNewsRadio.us@SD)" in subjects
+    assert "Fox News Channel (FoxNewsChannel.us@US)" in subjects
+    dead = next(r for r in channel(kia, "fox news") if "Channel" in r.subject)
+    assert dead.worst == doctor.PROBLEM and "404" in dead.findings[0].detail
+
+
 def test_a_channel_you_removed(kia):
     kept(kia)
     write(kia, "state/channels.json", {"removed": {"CNN.us@SD": {"when": iso(NOW - 24 * HOUR), "name": "CNN", "good_nights": 1}}})

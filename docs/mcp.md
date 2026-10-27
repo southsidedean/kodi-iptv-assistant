@@ -324,7 +324,7 @@ Afterwards, kia's log shows whether anything still tries the old token or key: `
 | `kia_plex` | Why Plex shows no channels, or too few: Threadfin and its playlist, Plex's 480-channel limit, the last time kia added its tuners to Plex, and Plex's codecs |
 | `kia_jellyfin` | Why Jellyfin shows no channels, or no guide: the playlist and guide its Live TV reads (and whether they're kia's and go together), its channels, and its last guide refresh |
 | `kia_hardware` | The computer, from the stack's Prometheus: disks nearly full or failing their health check, RAID, memory errors, the processor slowing for heat, running on a battery, and the graphics card's temperature |
-| `kia_find_channels` | Up to 25 channels whose name or ID contains some text: ID, name, and category |
+| `kia_find_channels` | Up to 25 channels whose name or ID contains some text: ID, name, category, and status (working, flaky, or dead with the reason), including dead channels the last check dropped from the playlists |
 | `kia_playlists` | The playlists kia checks and how their streams did, and the playlists it makes for people and devices |
 | `kia_stack` | Each program running next to kia, and whether it answered kia's last check |
 | `kia_settings` | The settings kia is running with, and where each is changed |
