@@ -70,12 +70,13 @@ def media_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k in _MEDIA_ENV}
 
 
-# Through kia's outbound guard (kia.guard), what ffprobe may open: http and https, the tls
-# and tcp they run on (tcp also reaches the guard itself), the tunnel to it (httpproxy),
-# and what HLS needs (crypto for encrypted pieces, data for inline ones). Never file:, udp:,
-# or other ways around the guard. ffmpeg's HLS reader opens only http and https pieces
-# anyway; this holds for whatever else a stream from the internet tries.
-GUARDED_PROTOCOLS = "http,https,tls,tcp,httpproxy,crypto,data"
+# Through kia's outbound guard (kia.guard), what ffprobe may open: plain http, which goes to
+# the guard as a proxy (http_proxy), the tcp it runs on, and what HLS needs (crypto for
+# encrypted pieces, data for inline ones). Not https, tls, or httpproxy: ffmpeg's HLS reader
+# opens any piece whose address starts with "http", and httpproxy://host connects to host
+# itself, past the guard. https streams reach ffprobe as the guard's own http addresses
+# (kia.guard.for_ffprobe), and the guard opens them. Never file:, udp:, or other ways around it.
+GUARDED_PROTOCOLS = "http,tcp,crypto,data"
 
 
 def guarded_env(proxy: str) -> dict[str, str]:
@@ -163,7 +164,7 @@ async def probe_guarded(url: str, run=None, **kwargs) -> ProbeResult:
     if g is None:
         return await run(url, **kwargs)
     with g.ticket() as ticket:
-        result = await run(url, proxy=ticket.url, **kwargs)
+        result = await run(guard.for_ffprobe(url), proxy=ticket.url, **kwargs)
     if ticket.refused and not result.ok:
         return ProbeResult(ok=False, error=GUARD_REFUSED, elapsed=result.elapsed)
     return result

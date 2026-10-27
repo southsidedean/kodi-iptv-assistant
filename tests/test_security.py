@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from kia import api, auth, backup, m3u, pluto, radio, serve
+from kia import api, auth, backup, guard, m3u, pluto, radio, serve
 from kia.m3u import Entry
 
 
@@ -227,6 +227,51 @@ def test_test_keeps_strangers_playlists_off_your_network(tmp_path: Path, monkeyp
         api.test_channel(cfg, {"key": "x"})
     monkeypatch.setattr(api, "_from_yours", lambda cfg, entry: True)  # your own tuner's playlist
     assert api.test_channel(cfg, {"key": "x"})["ok"] and tried == ["http://192.168.1.20/admin"]
+
+
+
+def test_test_sends_strangers_streams_through_the_guard(hosts, monkeypatch):
+    hosts["tv.example"] = ["8.8.8.8"]  # on the internet
+    asked = []
+
+    async def fake_probe(url, proxy=None, **kw):
+        asked.append((url, proxy))
+        return type("R", (), {"ok": True, "error": None, "elapsed": 1.0, "height": 720})()
+
+    monkeypatch.setattr("kia.probe.probe", fake_probe)
+    cfg = type("C", (), {"user_agent": None, "require_video": False, "ffprobe": "ffprobe"})()
+    monkeypatch.setattr(api, "_entry", lambda cfg, body: Entry("TV", "https://tv.example/a.m3u8"))
+    monkeypatch.setattr(api, "_from_yours", lambda cfg, entry: False)
+    api.test_channel(cfg, {"key": "x"})
+    url, proxy = asked[-1]
+    assert url == "http://kia-guard.invalid/https/tv.example:443/a.m3u8" and proxy.endswith(f"127.0.0.1:{guard.get().port}")
+    monkeypatch.setattr(api, "_from_yours", lambda cfg, entry: True)
+    api.test_channel(cfg, {"key": "x"})
+    assert asked[-1] == ("https://tv.example/a.m3u8", None)  # yours: straight to it
+
+
+def test_the_nightly_check_sends_strangers_streams_through_the_guard(tmp_path: Path, hosts, monkeypatch):
+    import asyncio
+
+    from kia import cli
+    from kia.config import load
+
+    hosts["tv.example"] = ["8.8.8.8"]
+    asked = {}
+
+    async def fake_probe(url, proxy=None, **kw):
+        asked[url] = proxy
+        return cli.ProbeResult(ok=True, height=720)
+
+    monkeypatch.setattr(cli, "probe", fake_probe)
+    (tmp_path / "kia.toml").write_text("")
+    (tmp_path / "sources.txt").write_text("https://example.com/us.m3u\n")
+    cfg = load(tmp_path / "kia.toml")
+    mine, theirs = Entry("Mine", "http://tv.example/mine.m3u8"), Entry("Theirs", "https://tv.example/theirs.m3u8")
+    mine.yours = True
+    asyncio.run(cli.probe_all([mine, theirs], cfg, verbose=False))
+    assert asked["http://tv.example/mine.m3u8"] is None
+    assert asked["http://kia-guard.invalid/https/tv.example:443/theirs.m3u8"].endswith(f"127.0.0.1:{guard.get().port}")
 
 
 def test_guide_downloads_dont_redirect_onto_your_network():

@@ -4,6 +4,8 @@
 
 ### Security
 
+- A playlist from the internet could get past the outbound guard with an HLS piece at an `httpproxy://` address, which ffmpeg opens and which connects to any device on your network directly. ffprobe may now use only plain http, which always goes to the guard. The guard opens https streams for ffprobe itself, checking their certificates, and rewrites the addresses in HLS playlists and redirects so their pieces come back through it ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
+
 - A playlist from the internet, the radio station lists and SomaFM's `.pls` files, the lookup of a Pluto TV channel's Samsung TV Plus link, and the Pluto relay's downloads now go through kia's outbound guard. Before, a redirect could take them to an address on your network. Only addresses that start with jmp2.uk's own `https://jmp2.uk/stvp-` are looked up as Samsung links ([the outbound guard](docs/security-under-the-hood.md#the-outbound-guard)).
 - A playlist download now stops at 64 MB or five minutes, and a station list at 8 MB. Before, a server that never stopped sending could fill kia's memory or hold up the nightly refresh.
 
