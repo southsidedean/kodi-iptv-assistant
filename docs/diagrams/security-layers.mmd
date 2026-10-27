@@ -11,7 +11,9 @@ flowchart TB
   guard --> media
   net --> sandbox
   you["You, on the Dashboard"] -->|"password, HTTPS"| webserver["The web server"]
-  ai["An AI assistant<br>(MCP), read-only"] -->|"its own token, HTTPS"| webserver
+  ai["An AI assistant (MCP)<br>reads, and asks you<br>before anything runs"] -->|"its own token, HTTPS"| webserver
+  ai -.->|"or a device's key"| gw["The gateway, optional<br>a key and a limit<br>for each device"]
+  gw -->|"its own token, HTTPS"| webserver
   webserver --> checks
   checks -->|"a request file"| svc["kia-stack service<br>on the computer, as you"]
   svc -->|"checked: start or stop parts"| docker["Docker"]

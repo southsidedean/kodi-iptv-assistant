@@ -135,7 +135,7 @@ class Config:
     # Requests from AI assistants (kia.asks, [asks]): minutes one waits for you, and how many
     # can wait at once.
     asks_minutes: int = 10
-    asks_waiting: int = 5
+    asks_waiting: int = 4  # kia.asks.WAITING: one of each kind
     # The kinds that run without you, only from these gateway devices (empty: any caller),
     # at most asks_per_hour a kind (kia.asks.why_auto).
     asks_auto: tuple[str, ...] = ()
@@ -277,7 +277,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         pluto_relay=env_bool("KIA_PLUTO_RELAY", data.get("pluto", {}).get("relay", True)),
         dns_resolvers=_texts("[dns] verify_resolvers", data.get("dns", {}).get("verify_resolvers", ("8.8.8.8", "1.1.1.1"))),
         asks_minutes=_within("[asks] expires_minutes", data.get("asks", {}).get("expires_minutes", 10), 1, 1440),
-        asks_waiting=_within("[asks] waiting", data.get("asks", {}).get("waiting", 5), 1, 20),
+        asks_waiting=_within("[asks] waiting", data.get("asks", {}).get("waiting", 4), 1, 4),  # one of each of the 4 kinds at most
         asks_auto=_auto_kinds(data.get("asks", {}).get("auto_approve", [])),
         asks_devices=_devices(data.get("asks", {}).get("auto_devices", [])),
         asks_per_hour=_within("[asks] auto_per_hour", data.get("asks", {}).get("auto_per_hour", 20), 1, 200),

@@ -14,7 +14,7 @@ Four files, from most to least often changed:
 
 When a setting is in both `.env` and `kia.toml`, `.env` wins. The two "exclude" lists and `KIA_TLS_NAMES` are the exceptions: `.env` adds to `kia.toml`'s list instead of replacing it.
 
-To see the settings kia is running with, open **System** on the Dashboard, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-channel-sources-on-the-dashboard)) and what runs next to kia ([the Stack page](stack-dashboard.md)), settings can't be changed from the Dashboard.
+To see the settings kia is running with, open **System** on the Dashboard, or run `docker compose exec kia python3 -m kia settings`. Both list each setting with where to change it. Apart from the playlists kia checks ([below](#choosing-channel-sources-on-the-dashboard)), what runs next to kia ([the Stack page](stack-dashboard.md)), and this kia's name (`KIA_NAME`, on the System page), settings can't be changed from the Dashboard.
 
 ## `.env`
 
@@ -22,7 +22,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 |---|---|---|
 | `KIA_PUBLIC_URL` | empty | How Kodi reaches this machine, e.g. `http://192.168.1.20:8780`. Written into the playlist so Kodi finds the guide. |
 | `KIA_NAME` | this computer's name | This kia's name, for telling several installs apart: alert titles say `kia (den): ...`, the Dashboard's header shows it, and `kia mcp-token` names the server `kia-den` in assistants. Lowercase letters, digits, and dashes, up to 40. `install.sh` and `update.sh` fill it in when it's missing. A name set on the Dashboard's System page comes first; clearing it there goes back to this one. |
-| `KIA_BIND` | `0.0.0.0` | `0.0.0.0` = any device on your network; `127.0.0.1` = this machine only. It doesn't cover kia's node-exporter (the `monitoring-node` part, for the Hardware dashboard), which uses the computer's own network and answers on port 9100 to your network; To keep it off your network while Prometheus still reaches it, set `KIA_NODE_EXPORTER_LISTEN` to Docker's own address, usually `172.17.0.1:9100`. |
+| `KIA_BIND` | `0.0.0.0` | `0.0.0.0` = any device on your network; `127.0.0.1` = this machine only. It doesn't cover kia's node-exporter (the `monitoring-node` part, for the Hardware dashboard), which uses the computer's own network and answers on port 9100 to your network. To keep it off your network while Prometheus still reaches it, set `KIA_NODE_EXPORTER_LISTEN` to Docker's own address, usually `172.17.0.1:9100`. |
 | `KIA_PORT` | `8780` | Port for the playlist and guide. |
 | `KIA_RUN_AT` | `04:00` | Daily refresh time (24-hour clock). A run takes up to an hour. |
 | `KIA_GUIDE_REFRESH_HOURS` | 4 | Hours between quick guide refreshes, which keep guides that list only the next few hours current. They download only the guides kia reads itself, in seconds. `0` turns them off. |
@@ -78,6 +78,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_GRAFANA_PORT`, `KIA_PROMETHEUS_PORT` | `8788`, `8789` | Grafana's port, and Prometheus's, which is open to this computer only. Grafana answers only over HTTPS, with kia's own certificate (the one in `tls/`). |
 | `KIA_NODE_EXPORTER_LISTEN` | `:9100` | Where node-exporter (`monitoring-node`) listens. The default is every address of the computer; Docker's own address, usually `172.17.0.1:9100`, keeps the computer's numbers off the rest of your network. |
 | `KIA_PROMETHEUS_RETENTION` | `30d` | How long Prometheus keeps the numbers. |
+| `KIA_PROMETHEUS_URL` | `http://prometheus:9090` | Where `kia doctor hardware`, the Dashboard's overview, and the MCP server's `kia_hardware` ask Prometheus for the computer's numbers. Set it to use a Prometheus of your own that has node-exporter's numbers. |
 | `KIA_PROMETHEUS_DATA`, `KIA_GRAFANA_DATA` | `monitoring/prometheus`, `monitoring/grafana` | Where they keep their data. `grafana-data` is a Docker volume ([on a Mac](#on-a-mac)). |
 | `KIA_GRAFANA_URL` | | A Grafana elsewhere, for the Dashboard's **Observability** button. Without it, the button opens this computer's Grafana when the `monitoring` profile is on. |
 | `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE`, `KIA_SMARTCTL_IMAGE` | the latest | The monitoring images' versions. |
@@ -186,7 +187,7 @@ A restore puts files only inside the kia folder: one under a folder that's a lin
 
 ## Uninstalling
 
-To remove kia, in the kia folder. Without Docker, run `scripts/install-service.sh --uninstall` instead, which removes kia's service, then skip to deleting the folder:
+To remove kia, run these in the kia folder. Without Docker, run `scripts/install-service.sh --uninstall` instead, which removes kia's service, then skip to deleting the folder:
 
 ```sh
 scripts/install-service.sh --stack --uninstall
@@ -209,7 +210,9 @@ By default kia uses the latest version of each thing it depends on:
 
 To update kia and both images, run `scripts/update.sh` in the kia folder ([updating](../README.md#updating-and-stopping)).
 
-To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions of iptv-org/epg, the base image, and nginx into it. Threadfin and the gateway are already pinned (`KIA_THREADFIN_IMAGE`, `KIA_GATEWAY_IMAGE`); Plex, Jellyfin, and the monitoring images follow their latest release unless you set `KIA_PLEX_IMAGE`, `KIA_JELLYFIN_IMAGE`, `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE`, or `KIA_SMARTCTL_IMAGE` to a version. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, an exact image in `KIA_BASE_IMAGE` or `KIA_NGINX_IMAGE`, by digest (e.g. `nginx:alpine@sha256:...`), and a Node.js major version in `KIA_NODE_VERSION` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). Pinned versions don't receive fixes until you change them.
+To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia folder. It backs up `.env` and writes the versions of iptv-org/epg, the base image, and nginx into it. Threadfin, the gateway, and the graphics card's exporter are already pinned (`KIA_THREADFIN_IMAGE`, `KIA_GATEWAY_IMAGE`, `KIA_DCGM_IMAGE`); Plex, Jellyfin, and the monitoring images follow their latest release unless you set `KIA_PLEX_IMAGE`, `KIA_JELLYFIN_IMAGE`, `KIA_PROMETHEUS_IMAGE`, `KIA_GRAFANA_IMAGE`, `KIA_CADVISOR_IMAGE`, `KIA_NODE_EXPORTER_IMAGE`, or `KIA_SMARTCTL_IMAGE` to a version. `scripts/pin-versions.sh --unpin` goes back to the latest. To pin versions by hand, set them in `.env`: an iptv-org/epg tag or commit in `KIA_EPG_GIT_REF`, an exact image in `KIA_BASE_IMAGE` or `KIA_NGINX_IMAGE`, by digest (e.g. `nginx:alpine@sha256:...`), and a Node.js major version in `KIA_NODE_VERSION` (the versions each kia release was tested with are in the [changelog](../CHANGELOG.md)). Pinned versions don't receive fixes until you change them.
+
+### What kia's containers can touch
 
 kia's two containers, kia and the web server, run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, and the web server sees only `output/`, the certificate and key in `tls/`, and its own settings. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, in Node.js's sandbox, where it can't change kia itself, your settings, or anything else on the computer, and can't read your passwords. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
 
@@ -239,6 +242,6 @@ Most settings are explained by a comment in the file; the rest are described her
 - `[epg]`: guide building: `days`, `max_sites_per_channel`, `prefer_sites`, `exclude_sites`, `parallel_sites`, `max_connections`, `site_connections`, `site_delay_ms`, `site_time_limit`, `accept_name_matches`, `placeholders`, `placeholder_hours`, `radio_placeholders`, `native_grabbers`, `name_matching`, `ignore_name_matches`, `playlist_guides`, `git_url`, `git_ref`, `runner`.
 - `[upstream]`: `url` and `fallback`, the same as the `.env` settings above.
 - `[pluto]`: `relay`, the same as `KIA_PLUTO_RELAY` above.
-- `[asks]`: requests from AI assistants: `expires_minutes`, how long one waits for you (10), and `waiting`, how many can wait at once (5). See [asking kia to act](mcp.md#asking-kia-to-act). `auto_approve`, `auto_devices`, and `auto_per_hour` let some run without you ([letting requests run by themselves](mcp.md#letting-requests-run-by-themselves)).
+- `[asks]`: requests from AI assistants: `expires_minutes`, how long one waits for you (10), and `waiting`, how many can wait at once (4, one of each kind; it can be lower). See [asking kia to act](mcp.md#asking-kia-to-act). `auto_approve`, `auto_devices`, and `auto_per_hour` let some run without you ([letting requests run by themselves](mcp.md#letting-requests-run-by-themselves)).
 
 kia reads `kia.toml` when it starts, and again for each refresh. A number in quotes (`days = "3"`), a number out of range (`timeout = 0`), or a pattern that isn't a valid regular expression stops kia at the start, or that refresh later on, with one line that names the setting. With Docker, `docker compose logs kia` shows that line.

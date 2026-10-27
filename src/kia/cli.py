@@ -797,7 +797,8 @@ def cmd_refresh_guide(args: argparse.Namespace) -> int:
 
     Some guides reach only hours ahead (i.mjh.nz's Samsung TV Plus guide, about 11), so a
     nightly refresh alone leaves evenings empty. This re-downloads the guides kia reads
-    itself (i.mjh.nz, kink.nl, the playlists' own guides), which takes seconds, and rebuilds
+    itself (native.QUICK_GRABBERS: i.mjh.nz, KINK, KEXP, NTS; and the playlists' own guides,
+    but not epgshare01, which changes once a day), which takes seconds, and rebuilds
     the guide from those and the sites downloaded last night. With an upstream server, it
     copies that server's guide again instead. Streams aren't checked.
     """
@@ -1745,7 +1746,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("mcp", help="kia's MCP server over standard input and output, for an AI assistant on this computer (docs/mcp.md)")
     p.add_argument("-c", "--config", default="kia.toml")
     p.set_defaults(func=cmd_mcp)
-    p = sub.add_parser("mcp-token", help="turn on kia's MCP server for AI assistants, and show its token (docs/ask-kia.md)")
+    p = sub.add_parser("mcp-token", help="turn on kia's MCP server for AI assistants, and show its token (docs/mcp.md)")
     p.add_argument("-c", "--config", default="kia.toml")
     p.add_argument("--reset", action="store_true", help="make a new token; the old one stops working")
     p.add_argument("--off", action="store_true", help="turn the MCP server off (deletes the token)")

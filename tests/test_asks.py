@@ -141,3 +141,10 @@ def test_a_planted_allowance_counts_for_nothing(tmp_path: Path):
     assert asks.allowed(tmp_path, now=T) == [] and asks.why_auto(tmp_path, "test_channel", "x", "", now=T) == ""
     (tmp_path / asks.ALLOWED).write_text("[1, 2]")
     assert asks.allowed(tmp_path, now=T) == []
+
+
+def test_at_most_one_of_each_kind_waits():
+    from kia.config import Config
+
+    # [asks] waiting can't usefully be more than the kinds there are: one of each waits.
+    assert asks.WAITING == len(asks.KINDS) == Config.__dataclass_fields__["asks_waiting"].default

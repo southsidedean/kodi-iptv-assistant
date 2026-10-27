@@ -5,7 +5,7 @@ kia's Dashboard is on two ports:
 | Address | What it's for |
 |---|---|
 | `http://<your address>:8780/` | Playlists and guides for Kodi and other players, and the Dashboard to look at |
-| `https://<your address>:8743/` | The same Dashboard, where you make changes: add and change playlists, choose the playlists kia checks, star, number, test, or remove channels, choose what runs next to kia on the Stack page, and change the password |
+| `https://<your address>:8743/` | The same Dashboard, where you make changes: add and change playlists, choose the playlists kia checks, star, number, test, or remove channels, choose what runs next to kia on the Stack page, approve or decline an AI assistant's requests, and change the password and this kia's name |
 
 Changes are accepted only on the secure (`https://`) page, so the password never crosses your network in the clear. Playlists and guides stay on plain HTTP because Kodi and most players refuse a certificate they don't trust, and kia's own certificate is one of those.
 

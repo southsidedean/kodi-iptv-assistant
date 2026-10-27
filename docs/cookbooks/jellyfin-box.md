@@ -48,6 +48,8 @@ docker compose ps
 
 After a minute, `docker compose ps` shows `jellyfin` as `healthy`.
 
+**Or on the Dashboard.** With the [kia-stack service](../stack-dashboard.md) installed, open the secure page's **Stack** page, choose the **Jellyfin TV box** card, then choose **Check** and **Apply**. It writes the same lines into `.env`, with `KIA_JELLYFIN_ADVERTISE` from kia's address. A media folder of your own still goes into `.env` as `KIA_MEDIA_DIR` first.
+
 ## 3. Set up Jellyfin
 
 Open `http://192.168.1.20:8096` in a browser, and do this right after starting Jellyfin: until you finish, anyone on your network who opens that page can make themselves its administrator. Jellyfin's setup takes a few screens:

@@ -355,7 +355,7 @@ def test_kia_always_uses_its_own_esbuild(tmp_path: Path, monkeypatch):
     ('[epg]\ndays = "3"\n', "days"),
     ("[asks]\nexpires_minutes = 0\n", "expires_minutes"),
     ("[asks]\nexpires_minutes = 1441\n", "expires_minutes"),
-    ("[asks]\nwaiting = 21\n", "waiting"),
+    ("[asks]\nwaiting = 5\n", "waiting"),  # more than the kinds there are
     ("[asks]\nwaiting = true\n", "waiting"),
     ('[asks]\nauto_approve = ["add_to_plex"]\n', "auto_approve"),
     ('[asks]\nauto_approve = "test_channel"\n', "auto_approve"),

@@ -64,7 +64,7 @@ It also works out the Compose profiles, the names `compose.yaml` groups its cont
 ## What apply does
 
 1. Runs `check`, and stops on a problem.
-2. Asks first if someone is watching Pluto TV, Plex, or Jellyfin through kia, and if parts that run now would stop because `KIA_STACK` leaves them out (`--yes` skips both).
+2. Asks first if someone is watching Pluto TV, Plex, or Jellyfin through kia, if a refresh is running, if kia runs but its numbers don't answer (so it can't tell who's watching), and if parts that run now would stop because `KIA_STACK` leaves them out (`--yes` skips all of these).
 3. Keeps a copy of `.env` in `stack-service/env.before-stack-<date>`, then sets `COMPOSE_PROFILES` from `KIA_STACK`, and `KIA_PLEX_URL` or `KIA_JELLYFIN_URL` for a server in the stack if they're empty. When Plex or Jellyfin leaves the stack, it empties that address again if it still points at the container (`http://plex:32400`, `http://jellyfin:8096`); an address elsewhere, and the tokens, stay.
 4. With the gateway part, writes its settings in `gateway/` (`scripts/gateway.sh write`).
 5. Runs `docker compose up -d`, and stops and removes the containers of parts you took out.

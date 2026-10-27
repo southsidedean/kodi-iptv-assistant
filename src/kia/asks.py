@@ -40,7 +40,6 @@ from kia.files import read_object, temp_name
 
 FOLDER = "asks"  # in state/
 EXPIRES = 10 * 60  # seconds a request waits for you, unless [asks] says otherwise
-WAITING = 5  # requests waiting at once, unless [asks] says otherwise
 KEEP = 24 * 3600  # seconds an answered request stays, for the assistant to read how it went
 # A request still running after this long never finished: kia restarted while it ran.
 # The slowest kind, adding kia's channels to Plex, gives up after 30 minutes.
@@ -57,6 +56,7 @@ KINDS = {
 # The kinds that may run without you: they test, refresh, or check, as kia does by itself.
 # Not add_to_plex, which changes Plex's settings: that one always waits for you.
 AUTO_KINDS = ("test_channel", "refresh_guide", "check_stack")
+WAITING = len(KINDS)  # requests waiting at once, unless [asks] says fewer: one of each kind
 AUTO_PER_HOUR = 20  # automatic approvals a kind, an hour, unless [asks] says otherwise
 ALLOWED = "asks-allowed.json"  # in state/, beside asks/ (whose files must all be requests)
 ALLOW_FOR = 3600  # seconds the Dashboard's "allow for an hour" lasts
