@@ -12,8 +12,16 @@ that isn't yours go through this guard instead, and every connection is checked 
   is a name with any such address, the way kia.lan.is_local judges them;
 - redirects and HLS pieces are new connections, so each one is checked too.
 
-ffprobe and ffmpeg send https through it as tunnels (CONNECT) and plain http as requests
-for whole addresses (GET http://...), both of which the guard opens itself. It listens on
+ffprobe may use only plain http (with tcp under it, crypto for encrypted HLS pieces, and
+data for inline ones), and sends every request to the guard as one for a whole address
+(GET http://...). It may not use https, tls, or httpproxy: ffmpeg's HLS reader opens any
+piece whose address starts with "http", httpproxy:// included, and that one connects
+wherever it names, past the guard. So an https stream reaches ffprobe as an http address
+of the guard's own (for_ffprobe: http://kia-guard.invalid/https/host:port/path), and the
+guard opens it itself, with TLS and the server's certificate checked. It rewrites the
+addresses in the HLS playlists and redirects it passes back the same way, so a stream's
+https pieces work too; one it misses fails, since ffprobe has no way to open it. kia's
+own downloads (urllib) send https as tunnels (CONNECT), which the guard opens too. It listens on
 127.0.0.1 only, and only for tickets: each test or download gets its own name and secret
 in the proxy address, and the guard notes what it refused for that ticket, so the report
 can say why a stream failed. Without a ticket, it answers 407, which is also how ffmpeg
@@ -30,15 +38,17 @@ from __future__ import annotations
 import base64
 import hmac
 import os
+import re
 import secrets
 import select
 import socket
 import socketserver
+import ssl
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from kia import lan
 
@@ -49,8 +59,28 @@ IDLE = 60  # seconds a connection may pass nothing before the guard closes it
 CONNECTIONS = 64  # at once: kia tests up to `concurrency` streams, each opening a few
 # Your own proxy settings: with any of them set, kia uses your proxy and not the guard.
 PROXY_VARS = ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")
-# Headers for the guard alone, or for one connection: never passed on to the server.
-_HOP = {"proxy-authorization", "proxy-connection", "connection", "keep-alive", "te", "trailer", "upgrade"}
+# Headers for the guard alone, or for one connection: never passed on to the server. Host
+# and Accept-Encoding the guard writes itself (the server's own name; no compression, so a
+# playlist can be read and rewritten).
+_HOP = {"proxy-authorization", "proxy-connection", "connection", "keep-alive", "te", "trailer", "upgrade",
+        "host", "accept-encoding"}  # fmt: skip
+INNER = "kia-guard.invalid"  # the host of for_ffprobe's addresses: .invalid is never a real name
+PLAYLIST_LIMIT = 4 * 1024 * 1024  # bytes of an HLS playlist the guard rewrites; real ones are a few KB
+
+
+def for_ffprobe(url: str) -> str:
+    """url as ffprobe asks the guard for it: an https address becomes an http one of the
+    guard's own, which the guard opens with TLS (see the module's notes); others stay."""
+    try:
+        p = urlsplit(url)
+        host, port = p.hostname, p.port or 443
+    except ValueError:
+        return url
+    if p.scheme.lower() != "https" or not host:
+        return url
+    login = p.netloc.rpartition("@")[0]
+    where = f"[{host}]" if ":" in host else host
+    return f"http://{login + '@' if login else ''}{INNER}/https/{where}:{port}{p.path or '/'}{'?' + p.query if p.query else ''}"
 
 
 @dataclass
@@ -68,12 +98,16 @@ class _Server(socketserver.ThreadingTCPServer):
 
 
 class Guard:
-    """The guard, listening on 127.0.0.1 at a port of the system's choosing. resolve and
-    is_local are for tests (a stand-in DNS, and which addresses count as local)."""
+    """The guard, listening on 127.0.0.1 at a port of the system's choosing. resolve,
+    is_local, and tls are for tests (a stand-in DNS, which addresses count as local, and the
+    certificates trusted)."""
 
-    def __init__(self, resolve: Callable | None = None, is_local: Callable[[str], bool] | None = None):
+    def __init__(self, resolve: Callable | None = None, is_local: Callable[[str], bool] | None = None,
+                 tls: ssl.SSLContext | None = None):  # fmt: skip
         self._resolve = resolve or socket.getaddrinfo
         self._is_local = is_local or lan.is_local_address
+        self._tls = tls or ssl.create_default_context()  # the server's certificate and name checked
+        self._tls.minimum_version = max(self._tls.minimum_version, ssl.TLSVersion.TLSv1_2)  # nothing older
         self._tickets: dict[str, tuple[str, Ticket]] = {}
         self._lock = threading.Lock()
         self._slots = threading.BoundedSemaphore(CONNECTIONS)
@@ -145,12 +179,8 @@ class Guard:
             return
         if method == "CONNECT":  # https: a tunnel to host:port, which the client's TLS goes through
             host, port = _host_port(target, None)
-        elif method in ("GET", "HEAD"):  # plain http: the whole address, opened here
-            try:
-                parts = urlsplit(target)
-                host, port = (parts.hostname or "", parts.port or 80) if parts.scheme == "http" else ("", None)
-            except ValueError:
-                host, port = "", None
+        elif method in ("GET", "HEAD"):  # the whole address, opened here: http, or https for_ffprobe
+            scheme, host, port, path = _target(target)
             if names.get("content-length") or names.get("transfer-encoding"):
                 host = ""  # a GET with a body isn't something ffmpeg sends
         else:
@@ -163,6 +193,13 @@ class Guard:
         if server is None:
             _answer(client, 403, "refused by kia's outbound guard: an address on your own network")
             return
+        if server is not False and method != "CONNECT" and scheme == "https":
+            try:
+                server.settimeout(CONNECT_TIME)
+                server = self._tls.wrap_socket(server, server_hostname=host)
+            except (OSError, ValueError):
+                server.close()
+                server = False  # no TLS, or a certificate that isn't the server's
         if server is False:
             _answer(client, 502, "kia's outbound guard couldn't reach the server")
             return
@@ -172,17 +209,17 @@ class Guard:
                 if early:  # what the client sent without waiting for the 200
                     server.sendall(early)
                 _relay(client, server, both=True)
-            else:
-                path = parts.path or "/"
-                if parts.query:
-                    path += "?" + parts.query
-                lines = [f"{method} {path} HTTP/1.1"]
-                lines += [f"{k}: {v}" for k, v in headers if k.lower() not in _HOP]
-                lines.append("Connection: close")  # one request a connection: the next one is checked anew
-                server.sendall(("\r\n".join(lines) + "\r\n\r\n").encode("latin-1"))
-                # Only the answer comes back. Anything else the client sends on this
-                # connection never reaches the server, so a second request can't ride along.
-                _relay(server, client, both=False)
+                return
+            where = f"[{host}]" if ":" in host else host
+            if port != (443 if scheme == "https" else 80):
+                where += f":{port}"
+            lines = [f"{method} {path} HTTP/1.1", f"Host: {where}"]
+            lines += [f"{k}: {v}" for k, v in headers if k.lower() not in _HOP]
+            lines += ["Accept-Encoding: identity", "Connection: close"]  # one request a connection: the next one is checked anew
+            server.sendall(("\r\n".join(lines) + "\r\n\r\n").encode("latin-1"))
+            # Only the answer comes back. Anything else the client sends on this connection
+            # never reaches the server, so a second request can't ride along.
+            _pass_back(server, client, f"{scheme}://{where}{path}", method)
 
     def _connect(self, host: str, port: int, ticket: Ticket) -> socket.socket | bool | None:
         """A connection to host, to an address looked up here and checked: None when it's
@@ -244,15 +281,138 @@ def _host_port(target: str, default: int | None) -> tuple[str, int | None]:
     host = host[1:-1] if host.startswith("[") and host.endswith("]") else host
     if not port:
         return host, default
-    if not port.isdigit() or not 0 < int(port) < 65536:
+    if not (port.isascii() and port.isdigit()) or not 0 < int(port) < 65536:  # "²" is a digit too
         return host, None
     return host, int(port)
+
+
+def _target(target: str) -> tuple[str, str, int | None, str]:
+    """(scheme, host, port, path) from a GET's whole address: http://host/path, or an https
+    one as for_ffprobe writes it. An empty host for anything else."""
+    try:
+        parts = urlsplit(target)
+        name = parts.hostname or ""
+        path = (parts.path or "/") + ("?" + parts.query if parts.query else "")
+        if parts.scheme != "http" or not name:
+            return "", "", None, ""
+        if name != INNER:
+            return "http", name, parts.port or 80, path
+    except ValueError:
+        return "", "", None, ""
+    where, _, rest = path.removeprefix("/https/").partition("/") if path.startswith("/https/") else ("", "", "")
+    host, port = _host_port(where, 443)
+    return "https", host, port, "/" + rest
+
+
+def _to_ffprobe(url: str) -> str:
+    """An address from a server, made into one ffprobe can ask the guard for."""
+    return for_ffprobe(url) if url.lower().startswith("https:") else url
+
+
+_URI_ATTR = re.compile(r'(URI=")([^"]*)(")')
+
+
+def rewrite_playlist(text: str, base: str) -> str:
+    """An HLS playlist from base with each address (piece lines, and URI="..." in tags, such
+    as keys and other variants) made whole and given to ffprobe as for_ffprobe does. An
+    address in any other scheme stays as it is: ffprobe can't open it."""
+    out = []
+    for line in text.split("\n"):
+        s = line.strip()
+        if s.startswith("#"):
+            line = _URI_ATTR.sub(lambda m: m[1] + _to_ffprobe(urljoin(base, m[2])) + m[3], line)
+        elif s:
+            line = _to_ffprobe(urljoin(base, s))
+        out.append(line)
+    return "\n".join(out)
+
+
+def _pass_back(server: socket.socket, client: socket.socket, url: str, method: str) -> None:
+    """The server's answer to url, back to the client. A redirect's address is given as
+    for_ffprobe does; an HLS playlist is read whole and its addresses rewritten
+    (rewrite_playlist); anything else passes as it comes."""
+    server.settimeout(IDLE)
+    data = b""
+    while b"\r\n\r\n" not in data:
+        chunk = server.recv(65536)
+        if not chunk or len(data) > HEAD_LIMIT * 4:
+            return  # no proper answer: the client sees the connection close
+        data += chunk
+    raw, body = data.split(b"\r\n\r\n", 1)
+    status, *lines = raw.decode("latin-1").split("\r\n")
+    headers = [(k, v.strip()) for k, _, v in (line.partition(":") for line in lines)]
+    names = {k.lower(): v for k, v in headers}
+    if "location" in names:
+        moved = _to_ffprobe(urljoin(url, names["location"]))
+        headers = [(k, moved if k.lower() == "location" else v) for k, v in headers]
+    code = status.split(" ")[1] if status.count(" ") else ""
+    hls = ("mpegurl" in names.get("content-type", "").lower()
+           or urlsplit(url).path.lower().endswith((".m3u8", ".m3u")))  # fmt: skip
+    if method == "GET" and code in ("200", "206") and hls and names.get("content-encoding", "identity").lower() == "identity":
+        playlist = _whole_body(server, body, names)
+        if playlist is None:
+            return
+        text = rewrite_playlist(playlist.decode("utf-8", "surrogateescape"), url).encode("utf-8", "surrogateescape")
+        kept = [(k, v) for k, v in headers if k.lower() not in ("content-length", "transfer-encoding", "content-range", "connection")]
+        head = ["HTTP/1.1 200 OK", *(f"{k}: {v}" for k, v in kept), f"Content-Length: {len(text)}", "Connection: close"]
+        client.sendall(("\r\n".join(head) + "\r\n\r\n").encode("latin-1") + text)
+        return
+    client.sendall(("\r\n".join([status, *(f"{k}: {v}" for k, v in headers)]) + "\r\n\r\n").encode("latin-1") + body)
+    _relay(server, client, both=False)
+
+
+def _whole_body(server: socket.socket, body: bytes, names: dict[str, str]) -> bytes | None:
+    """A playlist's whole body, at most PLAYLIST_LIMIT bytes, chunked or not; None if it's
+    bigger, or cut off."""
+    def more() -> bytes:
+        chunk = server.recv(65536)
+        if not chunk:
+            raise EOFError
+        return chunk
+
+    try:
+        if "chunked" in names.get("transfer-encoding", "").lower():
+            out = b""
+            while True:
+                while b"\r\n" not in body:
+                    body += more()
+                size_line, body = body.split(b"\r\n", 1)
+                size = int(size_line.split(b";")[0].strip() or b"x", 16)
+                if size == 0:
+                    return out
+                if len(out) + size > PLAYLIST_LIMIT:
+                    return None
+                while len(body) < size + 2:
+                    body += more()
+                out, body = out + body[:size], body[size + 2:]
+        if (length := names.get("content-length", "")).isdigit():
+            if int(length) > PLAYLIST_LIMIT:
+                return None
+            while len(body) < int(length):
+                body += more()
+            return body[:int(length)]
+        while len(body) <= PLAYLIST_LIMIT:
+            try:
+                body += more()
+            except EOFError:
+                return body
+        return None
+    except (EOFError, ValueError):
+        return None
 
 
 def _relay(source: socket.socket, sink: socket.socket, both: bool) -> None:
     """Copy what source sends to sink (and, with both, the other way) until one side closes
     or nothing passes for IDLE seconds."""
-    ends = [source, sink] if both else [source]
+    if not both:  # one way, from a server that may be a TLS socket, which select can't see into
+        source.settimeout(IDLE)
+        try:
+            while data := source.recv(65536):
+                sink.sendall(data)
+        except TimeoutError:
+            pass
+        return
+    ends = [source, sink]
     for s in (source, sink):
         s.settimeout(None)
     while True:

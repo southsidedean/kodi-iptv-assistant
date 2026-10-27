@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from kia import alerts, cli, dnscheck, epgmap, grab, m3u, upstream, xmltv
+from kia import alerts, cli, dnscheck, epgmap, grab, guard, m3u, upstream, xmltv
 from kia.config import EpgConfig, load
 from kia.probe import ProbeResult
 
@@ -239,6 +239,7 @@ def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(cli, "probe", fake_probe)
     cfg = load(make_cfg(tmp_path, ""))
     cfg.per_host_limits, cfg.host_delay_ms = {"jmp2.uk": 6}, 50
+    guard.get()  # started now: starting it with the first test would shorten the first gap measured
     entries = [m3u.Entry(str(i), f"http://jmp2.uk/{i}") for i in range(12)] + [m3u.Entry(f"o{i}", f"http://other.tv/{i}") for i in range(4)]
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
     assert peak == {"jmp2.uk": 6, "other.tv": cfg.per_host}
@@ -547,7 +548,7 @@ def test_an_address_python_cant_read_doesnt_stop_the_check(tmp_path: Path, monke
     bad = ["http://[x/bad.m3u8", "http://[192.168.1.20]/a", "http://:9090/x", "http://me@:9090/x"]
     results = asyncio.run(cli.probe_all([m3u.Entry("Good", "https://8.8.8.8/a.m3u8"), *(m3u.Entry(u, u) for u in bad)],
                                         cfg, verbose=False))  # fmt: skip
-    assert tested == ["https://8.8.8.8/a.m3u8"]  # an empty host would reach this computer itself
+    assert tested == ["http://kia-guard.invalid/https/8.8.8.8:443/a.m3u8"]  # through the guard; an empty host would reach this computer itself
     assert all("not a network stream" in results[u].error for u in bad)
     assert not cli.is_stream_url("http://:9090/x") and cli.is_stream_url("rtsp://192.0.2.5/live")
 
