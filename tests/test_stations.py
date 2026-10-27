@@ -114,6 +114,7 @@ SLOTS = [
     timeslot(5, "12:00:00", "13:00:00", "Ended", end_date="2026-01-01"),
     timeslot(5, "13:00:00", "14:00:00", "Not yet", start_date="2027-01-01"),
     timeslot(5, "oops", "14:00:00", "Broken"),
+    {**timeslot(5, "15:00:00", "16:00:00", "Hosts as text"), "host_names": "Jane"},  # not a list: no hosts
 ]
 
 
@@ -123,6 +124,7 @@ def test_kexp_programmes_from_its_weekly_slots():
     got = [(s[0].strftime("%a %H:%M"), s[1].strftime("%a %H:%M"), s[2], s[3]) for s in shows]
     assert got == [
         ("Fri 07:00", "Fri 10:00", "The Morning Show", "John Richards"),
+        ("Fri 15:00", "Fri 16:00", "Hosts as text", ""),
         ("Fri 22:00", "Sat 00:00", "Street Sounds", "Larry Mizell, Jr."),  # ends when the next show starts
         ("Sat 00:00", "Sat 02:00", "Overlapping", ""),
         ("Sat 07:00", "Sat 10:00", "Saturday Morning", ""),
@@ -150,6 +152,17 @@ def test_grab_kexp_writes_the_schedule(tmp_path: Path, monkeypatch):
     assert xmltv.scan(out)["radio.kexp"]  # a complete XMLTV file that kia guide accepts
     assert ('start="20261023070000 -0700" stop="20261023100000 -0700" channel="radio.kexp">'
             "<title>The Morning Show</title><desc>With John Richards</desc>") in text  # fmt: skip
+
+
+def test_kexp_sending_the_wrong_shape_is_no_schedule(tmp_path: Path, monkeypatch):
+    import io
+
+    channels = tmp_path / "kexp.org.channels.xml"
+    channels.write_text('<channels><channel site="kexp.org" site_id="kexp" xmltv_id="radio.kexp">KEXP</channel></channels>')
+    for answer in ([], {"results": "x"}, {"results": ["x", 5]}):
+        monkeypatch.setattr(native, "fetch", lambda url, timeout=60, a=answer: io.BytesIO(json.dumps(a).encode()))
+        with pytest.raises(RuntimeError, match="no shows"):
+            native.grab_kexp(channels, tmp_path / "kexp.xml", 2, lambda m: None, now=datetime(2026, 10, 23, 18, tzinfo=timezone.utc))
 
 
 def test_the_kexp_station_gets_the_schedule():

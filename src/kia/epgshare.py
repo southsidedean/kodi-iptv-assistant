@@ -15,6 +15,7 @@ epgshare01's own page and channel ids from its lists, so both are checked before
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import time
@@ -108,7 +109,7 @@ def load_lists(work_dir: Path, countries: set[str], log: Callable[[str], None] =
             text = get(f"{EPGSHARE_BASE}/epg_ripper_{feed}.txt")
             ids = [line.strip() for line in text.splitlines()]
             new[feed] = {"country": cc, "ids": [i for i in ids if _CHANNEL_ID.fullmatch(i) and not i.isdigit() and not i.startswith("--")]}
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, http.client.HTTPException) as exc:  # HTTPException: an answer cut short
         log(f"epgshare01: couldn't read its channel lists ({exc}); using last time's")
         return lists
     work_dir.mkdir(parents=True, exist_ok=True)

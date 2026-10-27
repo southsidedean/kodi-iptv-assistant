@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from kia import guard
+from kia.files import items, obj, read_object, temp_name
 from kia.m3u import Entry, xml_attr, xml_text
 from kia.native import fetch, filter_xmltv
 
@@ -62,16 +63,27 @@ def plan(entries: list[Entry], aliases: dict[str, list[tuple[str, str]]] | None 
 
 def save(path: Path, spec: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = temp_name(path)
     tmp.write_text(json.dumps(spec, indent=1, sort_keys=True))
     tmp.replace(path)
 
 
 def load(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text())
-    except (OSError, ValueError):
-        return {}
+    """The plan plan() made and save() wrote. A site damaged into another shape is left out;
+    "guarded" is kept only as true or false (see download)."""
+    spec = {}
+    for site, info in read_object(path).items():
+        info = obj(info)
+        urls = items(info.get("urls"))
+        if urls:
+            channels = {gid: items(tids) for gid, tids in obj(info.get("channels")).items()}
+            spec[site] = {"urls": urls, "channels": channels, **({"guarded": info["guarded"]} if isinstance(info.get("guarded"), bool) else {})}
+    return spec
+
+
+def load_used(path: Path) -> dict[str, list[str]]:
+    """playlist-guides-used.json: each site's addresses that had our programmes."""
+    return {site: items(urls) for site, urls in read_object(path).items()}
 
 
 def sites_by_channel(spec: dict) -> dict[str, list[str]]:

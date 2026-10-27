@@ -295,9 +295,10 @@ def parse_kink_schedule(html: str) -> list[tuple[datetime, datetime, str, str]]:
             try:
                 show = (s.get("program") or {}).get("data") or {}
                 title = (s.get("alt_title") or show.get("title") or "").strip()
-                if title and s["start"] not in slots:
+                a, z = datetime.fromisoformat(s["start"]), datetime.fromisoformat(s["end"])
+                if title and s["start"] not in slots and a.tzinfo and z.tzinfo:  # a time without its offset can't be placed
                     dj = (s.get("alt_dj") or show.get("alt_title") or "").strip()
-                    slots[s["start"]] = (datetime.fromisoformat(s["start"]), datetime.fromisoformat(s["end"]), title, dj)
+                    slots[s["start"]] = (a, z, title, dj)
             except (AttributeError, KeyError, TypeError, ValueError):
                 continue
     return sorted(slots.values())
@@ -366,7 +367,8 @@ def kexp_programmes(slots: list[dict], now: datetime, days: int) -> list[tuple[d
                 title = (s.get("program_name") or "").strip()
             except (KeyError, TypeError, ValueError):
                 continue
-            hosts = [h for h in (s.get("host_names") or []) if isinstance(h, str) and h.strip()]
+            names = s.get("host_names")
+            hosts = [h for h in (names if isinstance(names, list) else []) if isinstance(h, str) and h.strip()]
             if title:
                 shows.append((start, stop, title, " and ".join(hosts)))
     shows.sort()
@@ -393,7 +395,9 @@ def grab_kexp(
     """KEXP's show schedule, for each channel in channels_file (the station KEXP)."""
     tvg_ids = [tvg_id for _, tvg_id, _ in read_channel_list(channels_file) if tvg_id]
     with fetch(url, timeout=60) as resp:
-        slots = json.loads(read_page(resp)).get("results", [])
+        data = json.loads(read_page(resp))
+    slots = data.get("results") if isinstance(data, dict) else None
+    slots = [s for s in slots if isinstance(s, dict)] if isinstance(slots, list) else []
     shows = kexp_programmes(slots, now or datetime.now(timezone.utc), days)
     if not shows:
         raise RuntimeError("no shows found in KEXP's schedule; api.kexp.org may have changed")
@@ -435,7 +439,7 @@ def nts_programmes(days_list: object, now: datetime, days: int) -> list[tuple[da
             except ValueError:
                 continue
             title = " ".join(html.unescape(b["broadcast_title"]).split())[:200]
-            if a.tzinfo and z > a and z > now and a < end and title:
+            if a.tzinfo and z.tzinfo and z > a and z > now and a < end and title:
                 out.append((a, z, title))
     return sorted(out)
 
@@ -448,22 +452,34 @@ def grab_nts(
     url: str = NTS_SCHEDULE,
     now: datetime | None = None,
 ) -> None:
-    """NTS's schedule, for each station in channels_file (site_id 1 or 2: NTS Radio 1 or 2)."""
+    """NTS's schedule, for each station in channels_file (site_id 1 or 2: NTS Radio 1 or 2).
+    A station whose schedule can't be read is left out; only when none can is it an error."""
     now = now or datetime.now(timezone.utc)
     rows = [(sid, tid, name) for sid, tid, name in read_channel_list(channels_file) if sid in NTS_CHANNELS and tid]
+    schedules, failed = {}, []
+    for channel in sorted({sid for sid, _, _ in rows}):
+        try:
+            with fetch(url.format(channel=channel), timeout=60) as resp:
+                data = json.loads(read_page(resp))
+        except (OSError, ValueError, http.client.HTTPException) as exc:
+            failed.append(f"NTS {channel} ({exc})")
+            continue
+        shows = nts_programmes(data.get("results") if isinstance(data, dict) else None, now, days)
+        if shows:
+            schedules[channel] = shows
+        else:
+            failed.append(f"NTS {channel} (no shows; nts.live may have changed)")
+    if failed:
+        log(f"nts.live: couldn't read {', '.join(failed)}")
+    if not schedules:
+        raise RuntimeError(f"no NTS schedule could be read: {', '.join(failed) or 'no stations'}")
     output.parent.mkdir(parents=True, exist_ok=True)
-    total = 0
+    total = sum(len(shows) for shows in schedules.values())
     with open(output, "w", encoding="utf-8") as out:
         out.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
         for _, tid, name in rows:
             out.write(f"  <channel id={xml_attr(tid)}><display-name>{xml_text(name or 'NTS')}</display-name></channel>\n")
-        for channel in sorted({sid for sid, _, _ in rows}):
-            with fetch(url.format(channel=channel), timeout=60) as resp:
-                data = json.loads(read_page(resp))
-            shows = nts_programmes(data.get("results") if isinstance(data, dict) else None, now, days)
-            if not shows:
-                raise RuntimeError(f"no shows found in NTS {channel}'s schedule; nts.live may have changed")
-            total += len(shows)
+        for channel, shows in schedules.items():
             for _, tid, _ in [r for r in rows if r[0] == channel]:
                 for a, b, title in shows:
                     out.write(f"  <programme start={xml_attr(format_time(a))} stop={xml_attr(format_time(b))} "

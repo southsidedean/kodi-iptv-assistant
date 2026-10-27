@@ -44,7 +44,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_EMAIL_TO`, `KIA_EMAIL_FROM` | , `KIA_SMTP_USER` | Who gets email alerts (comma-separated), and the address they come from. |
 | `KIA_ALERT_COMMAND` | | A command to run for each alert. |
 | `KIA_ALERT_EVENTS` | the alerts but `pluto_fallback`; no notices | Which events notify you, comma-separated ([choosing events](alerts.md#choosing-events)). |
-| `KIA_EPG_DAYS` | 3 | Days of program guide. |
+| `KIA_EPG_DAYS` | 3 | Days of program guide, 1 to 14. |
 | `KIA_PARALLEL_SITES` | 4 | Guide sites downloaded at once. Each peaks around 0.7 GB of memory. |
 | `KIA_CHECK_CONCURRENCY` | 20 | Streams tested at once. |
 | `KIA_MEMORY_LIMIT` | `4g` | Memory limit for kia. |

@@ -2,6 +2,18 @@
 
 ## 0.7.5 (unreleased)
 
+### Fixes
+
+- One program without an end time, from any guide source, stopped `kia guide` every night until the source changed. XMLTV allows it; kia now leaves that program out.
+- Many channels showed each program twice: iptv-org's downloaders read a site a day at a time, and a show that runs past midnight came back on the next day's page. kia now writes each program once.
+- 0.7.4: a Pluto TV channel that had also matched i.mjh.nz's Plex or Samsung guide by name got both guides' programs, overlapping. Pluto's guide by ID now takes their place. Pluto channels from the UK never got Pluto's guide by ID; now they do.
+- A cut-short answer from epgshare01 stopped `kia map`, and so the guide, that night. kia uses last time's lists instead.
+- One NTS station that couldn't be read lost both stations' schedules; the other is now kept. KINK, KEXP, and NTS times without a time zone are left out instead of stopping that station's schedule.
+- A channel name that epgshare01 lists in two feeds is no longer matched to whichever comes first.
+- A damaged `work/mapping.json`, `aliases.json`, or playlist guide plan counts as missing instead of stopping kia.
+- `kia find` and `kia_find_shows` missed words with `&`, `<`, or `>` in them ("AT&T").
+- More of `kia.toml`'s `[epg]` settings are checked when kia starts, so a typo is one clear line instead of a failure hours later: `placeholder_hours`, `name_matching`, `runner`, the site lists, `site_connections`, and `site_delay_ms`. `days` is now at most 14.
+
 ## 0.7.4 (2026-10-26)
 
 ### Upgrading from 0.7.3
