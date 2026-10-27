@@ -288,10 +288,13 @@ def tls_site(tmp_path: Path):
     Handler.seen = []
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), lambda *a: Handler(*a, directory=str(www)))
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(cert, key)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    g = guard.Guard(resolve=resolve, is_local=is_local, tls=ssl.create_default_context(cafile=str(cert)))
+    trust = ssl.create_default_context(cafile=str(cert))
+    trust.minimum_version = ssl.TLSVersion.TLSv1_2
+    g = guard.Guard(resolve=resolve, is_local=is_local, tls=trust)
     yield g, server.server_port, www
     g.close()
     server.shutdown()
@@ -307,7 +310,9 @@ def test_the_guard_opens_https_for_ffprobe(tls_site):
         assert Handler.seen[-1][1]["Host"] == f"tv.example:{port}"  # the server's own name
         answer = ask(g, f"GET {guard.for_ffprobe(f'https://tv.example:{port}/a.m3u8')} HTTP/1.1\r\n{login(ticket)}\r\n\r\n")
         assert answer.endswith(f"http://kia-guard.invalid/https/tv.example:{port}/piece.ts\n".encode())
+    assert g._tls.minimum_version >= ssl.TLSVersion.TLSv1_2
     wrong = guard.Guard(resolve=resolve, is_local=is_local)  # the system's trust: the test certificate isn't
+    assert wrong._tls.minimum_version >= ssl.TLSVersion.TLSv1_2 and wrong._tls.verify_mode == ssl.CERT_REQUIRED
     try:
         with wrong.ticket() as ticket:
             assert ask(wrong, f"GET {url} HTTP/1.1\r\n{login(ticket)}\r\n\r\n").startswith(b"HTTP/1.1 502")

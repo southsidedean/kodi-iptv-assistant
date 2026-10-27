@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from kia import alerts, cli, dnscheck, epgmap, grab, m3u, upstream, xmltv
+from kia import alerts, cli, dnscheck, epgmap, grab, guard, m3u, upstream, xmltv
 from kia.config import EpgConfig, load
 from kia.probe import ProbeResult
 
@@ -239,6 +239,7 @@ def test_per_server_limits_and_spacing(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(cli, "probe", fake_probe)
     cfg = load(make_cfg(tmp_path, ""))
     cfg.per_host_limits, cfg.host_delay_ms = {"jmp2.uk": 6}, 50
+    guard.get()  # started now: starting it with the first test would shorten the first gap measured
     entries = [m3u.Entry(str(i), f"http://jmp2.uk/{i}") for i in range(12)] + [m3u.Entry(f"o{i}", f"http://other.tv/{i}") for i in range(4)]
     asyncio.run(cli.probe_all(entries, cfg, verbose=False))
     assert peak == {"jmp2.uk": 6, "other.tv": cfg.per_host}

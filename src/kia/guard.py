@@ -107,6 +107,7 @@ class Guard:
         self._resolve = resolve or socket.getaddrinfo
         self._is_local = is_local or lan.is_local_address
         self._tls = tls or ssl.create_default_context()  # the server's certificate and name checked
+        self._tls.minimum_version = max(self._tls.minimum_version, ssl.TLSVersion.TLSv1_2)  # nothing older
         self._tickets: dict[str, tuple[str, Ticket]] = {}
         self._lock = threading.Lock()
         self._slots = threading.BoundedSemaphore(CONNECTIONS)
