@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LAN_ADDRESSES = {"192.168.1.20", "172.17.0.1",  # kia's stand-in, and Docker's default bridge (the same everywhere)
                  "100.64.0.0", "100.101.102.103"}  # Tailscale's range, and the address its own docs use as an example
 EMAIL_DOMAINS = re.compile(r"@example\.(com|org|net)$")
-EMAILS = {"you@gmail.com", "dad@my-server.lan"}  # the SMTP example in docs/alerts.md, and the front-door account example
+EMAILS = {"you@gmail.com", "dad@my-server.lan", "admin@kia.lan"}  # the SMTP example in docs/alerts.md, and the front-door account example
 HOST_NAMES = {"my-server.lan", "kia.my-server.lan", "auth.my-server.lan", "server.lan", "kia.lan", "kia.home.lan",
               "tv.lan", "host.docker.internal", "nas.local", "my-server.tail1234.ts.net"}  # fmt: skip
 HOME_PATHS = {"/home/threadfin", "/Users/Shared"}  # Threadfin's folder in its container; every Mac's shared folder

@@ -132,6 +132,14 @@ write() {
     storage=$(secret storage-key)
     hmac=$(secret hmac-secret)
     jwt=$(secret jwt-secret)
+    # The account store (LLDAP): its signing and seed secrets, as files it reads, and the admin
+    # password it and the identity provider share, in an env file compose loads for it. new_key
+    # has no "$", so LLDAP needs no escaping of it.
+    _=$(secret lldap-jwt-secret)
+    _=$(secret lldap-key-seed)
+    lldap_pass=$(secret lldap-admin-pass)
+    { printf 'LLDAP_LDAP_USER_PASS=%s\n' "$lldap_pass"; printf 'LLDAP_LDAP_USER_EMAIL=admin@kia.lan\n'; } >"$dir/lldap.env.tmp" \
+        && mv -f "$dir/lldap.env.tmp" "$dir/lldap.env"
     # Hash the client secret once and keep the hash, so a later write doesn't churn it (a new
     # hash would restart Authelia for no reason). The hash proves the same plaintext either way.
     if [ ! -s "$secrets/client-secret.hash" ]; then

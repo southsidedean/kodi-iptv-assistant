@@ -91,6 +91,8 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_FRONTDOOR_PORT` | `8444` | The port the front door answers on, over HTTPS with kia's certificate. |
 | `KIA_TRUST_FRONTDOOR` | off | With the front door on, `true` lets its admin (the `admins` group) edit on the Dashboard without kia's own password. Trusted only with the gateway's token, so a direct connection can't fake it ([one login for the stack](front-door.md)). |
 | `KIA_AUTHELIA_IMAGE` | `authelia/authelia:4.39.28` | The identity provider's version, pinned to one tested with kia. |
+| `KIA_LLDAP_IMAGE` | `lldap/lldap:v0.6.3` | The account store's version, pinned to one tested with kia. |
+| `KIA_LLDAP_DATA` | `./lldap/data` | Where the account store keeps its database. On a Mac the installer sets it to a Docker volume (`lldap-data`), since a shared folder corrupts the database. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.

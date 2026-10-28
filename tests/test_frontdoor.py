@@ -67,8 +67,13 @@ def test_write_makes_authelia_settings_and_keeps_every_secret_private(kia: Path)
     # session, storage, hmac, and signing secrets inline) and every file in secrets/.
     assert (kia / "frontdoor" / "configuration.yml").stat().st_mode & 0o777 == 0o600
     for f in ("client-secret", "cookie-secret", "session-secret", "storage-key", "hmac-secret",
-              "jwt-secret", "oidc.key", "client-secret.hash"):  # fmt: skip
+              "jwt-secret", "oidc.key", "client-secret.hash",
+              "lldap-jwt-secret", "lldap-key-seed", "lldap-admin-pass"):  # fmt: skip
         assert (kia / "frontdoor" / "secrets" / f).stat().st_mode & 0o777 == 0o600, f
+    # The account store's admin password, in an env file compose loads for it; the password
+    # itself is not printed anywhere, only its value here.
+    lldap_env = (kia / "frontdoor" / "lldap.env").read_text()
+    assert "LLDAP_LDAP_USER_PASS=" in lldap_env and "LLDAP_LDAP_USER_EMAIL=admin@kia.lan" in lldap_env
     # The gateway's OIDC cookie key is a 64-character hex AES-256 key (what agentgateway wants),
     # not the base64 the others use.
     cookie = (kia / "frontdoor" / "secrets" / "cookie-secret").read_text().strip()
