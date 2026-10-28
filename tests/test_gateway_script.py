@@ -171,6 +171,9 @@ def setup_frontdoor(kia: Path, client: str = "the-client-secret", cookie: str = 
     secrets.mkdir(parents=True)
     (secrets / "client-secret").write_text(client)
     (secrets / "cookie-secret").write_text(cookie)
+    # The login's signing key, as frontdoor.sh writes it; gateway.sh derives the public JWKS from it.
+    subprocess.run(["openssl", "genrsa", "-out", str(secrets / "oidc.key"), "2048"],
+                   check=True, capture_output=True)  # fmt: skip
 
 
 def test_the_front_door_adds_a_login_listener_and_keeps_the_mcp_one(kia: Path):
@@ -184,7 +187,11 @@ def test_the_front_door_adds_a_login_listener_and_keeps_the_mcp_one(kia: Path):
     # The login: the provider as issuer, the keys fetched over the network, the client secret
     # inline, the token exchange through the gateway's own HTTP listener.
     assert "issuer: https://auth.my-server.lan:8444" in config
-    assert "url: http://authelia:9091/jwks.json" in config
+    # The signing keys come from a file gateway.sh derived from the login's key (not a startup
+    # fetch, which can't work before the gateway's own listener is up).
+    assert "file: /gateway/jwks.json" in config
+    jwks = (kia / "gateway" / "jwks.json").read_text()
+    assert '"kty":"RSA"' in jwks and '"kid":"kia"' in jwks and '"use":"sig"' in jwks
     assert "clientSecret: the-client-secret" in config
     assert "tokenEndpoint: http://127.0.0.1:9092/api/oidc/token" in config
     assert "redirectURI: https://kia.my-server.lan:8444/oidc/callback" in config

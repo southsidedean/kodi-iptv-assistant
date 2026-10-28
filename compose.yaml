@@ -593,21 +593,21 @@ services:
   # holds the household's accounts, so one login covers kia's pages. scripts/frontdoor.sh writes
   # its settings and the account into frontdoor/. It's on the gateway's network only, with no
   # published port: the gateway is the only way to reach it, and puts a login in front of the
-  # Dashboard. It writes its own database in frontdoor/ (/config), so that mount is read-write.
+  # Dashboard. It writes its own database in frontdoor/ (/config).
+  # Authelia runs as root with a writable root filesystem, unlike the rest of the stack: its
+  # startup checks need both (as a non-root user, or with a read-only root, they fail and it
+  # won't start). It's still contained: no added capabilities, no new privileges, on an
+  # internal network with no published port, so only the gateway can reach it.
   authelia:
     profiles: ["frontdoor"]
     image: ${KIA_AUTHELIA_IMAGE:-authelia/authelia:4.39.28}
     restart: unless-stopped
     logging: *logging
-    user: "${PUID:-1000}:${PGID:-1000}"
-    read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     environment:
       X_AUTHELIA_CONFIG: /config/configuration.yml
     networks: [gateway]
-    tmpfs:
-      - /tmp
     volumes:
       - ./frontdoor:/config
 
