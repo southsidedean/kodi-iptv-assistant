@@ -89,6 +89,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_FRONTDOOR_HOST` | none | The host name for kia's pages behind the front door, such as `kia.my-server.lan` (the `frontdoor` part, [one login for the stack](front-door.md)). Needed when the front door is on. |
 | `KIA_FRONTDOOR_AUTH_HOST` | none | The host name for the login, such as `auth.my-server.lan`, under the same parent domain as `KIA_FRONTDOOR_HOST`. Needed when the front door is on. |
 | `KIA_FRONTDOOR_PORT` | `8444` | The port the front door answers on, over HTTPS with kia's certificate. |
+| `KIA_TRUST_FRONTDOOR` | off | With the front door on, `true` lets its admin (the `admins` group) edit on the Dashboard without kia's own password. Trusted only with the gateway's token, so a direct connection can't fake it ([one login for the stack](front-door.md)). |
 | `KIA_AUTHELIA_IMAGE` | `authelia/authelia:4.39.28` | The identity provider's version, pinned to one tested with kia. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 

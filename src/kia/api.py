@@ -80,6 +80,11 @@ class ApiConfig:
     ffprobe: str = "ffprobe"
     # Sends one of kia's alerts (kia.alerts.notify): event, title, message.
     alert: Callable[[str, str, str], None] | None = None
+    # Off by default. On (KIA_TRUST_FRONTDOOR), the Dashboard lets a person the front door has
+    # logged in edit without kia's own password, but only when the gateway's token proves the
+    # request came through the front door, so a direct connection can't fake the identity
+    # (docs/front-door.md). Admin is the "admins" group; others get read-only for now.
+    trust_frontdoor: bool = False
 
 
 class ApiError(Exception):
@@ -708,6 +713,34 @@ def ask_stack(cfg: ApiConfig, action: str, data: dict) -> dict:
     return {"id": rid, **get_stack(cfg, True)}
 
 
+def front_door_user(cfg: ApiConfig, headers) -> tuple[str, bool] | None:
+    """Who the front door says you are, as (name, is_admin), trusted only when the gateway's
+    own token proves the request came through the front door. A direct connection to the web
+    server can set X-User-* headers too, so without that token they're ignored, and the
+    password is still required. Off unless KIA_TRUST_FRONTDOOR is on and the gateway part runs.
+    Admin is the "admins" group (the front door puts the groups in X-User-Groups)."""
+    import hmac
+
+    from kia import mcp, stack
+
+    if not cfg.trust_frontdoor:
+        return None
+    name = (headers.get("X-User-Id") or "").strip()
+    if not name or "gateway" not in (stack.profiles() or []):
+        return None
+    # The gateway sends its own token in X-Kia-Gateway, a header of its own (not Authorization,
+    # which the login flow uses and strips). Only that proves the request came through the front
+    # door; without it the X-User-* headers could be a direct client's, so they're ignored.
+    token = mcp.gateway_token(cfg.config_file.parent if cfg.config_file else None)
+    given = (headers.get("X-Kia-Gateway") or "").strip()
+    if not (token and given and hmac.compare_digest(given.encode(), token.encode())):
+        return None
+    # The groups header may be a plain list or a bracketed one, depending on the login; take
+    # the group names out of it either way.
+    groups = re.findall(r"[A-Za-z0-9_-]+", headers.get("X-User-Groups") or "")
+    return name, "admins" in groups
+
+
 def check_password(cfg: ApiConfig, given: str | None, secure: bool) -> None:
     if cfg.auth.source == "off":
         raise ApiError(403, "Editing is off (KIA_EDITING=false in kia's .env file).")
@@ -1058,6 +1091,16 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
     parts = [p for p in url.path.split("/") if p][1:]  # after "api"
     origin = headers.get("Origin")
     host = headers.get("Host")
+    # A person the front door has logged in (trusted only with the gateway's token). A trusted
+    # admin edits without kia's own password; everyone else still needs it. Changes still need
+    # the secure (https) page, as with the password.
+    editor = front_door_user(cfg, headers)
+
+    def need_edit() -> None:
+        if secure and editor and editor[1]:
+            return
+        check_password(cfg, headers.get("X-Kia-Password"), secure)
+
     try:
         if origin and urlparse(origin).netloc != host:
             raise ApiError(403, "Requests from other websites aren't allowed.")
@@ -1094,23 +1137,23 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["channel-choices"] and method == "GET":
             return 200, get_choices(cfg)
         if parts == ["channel", "test"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, test_channel(cfg, data)
         if parts == ["channel", "remove"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, remove_channel(cfg, data)
         if parts == ["channel", "restore"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, put_back(cfg, data)
         if parts == ["renumber"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, renumber(cfg)
         if parts == ["channel"] and method == "PUT":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, set_channel(cfg, data)
         if parts == ["players"] and method == "GET":
             # Which pseudonym in the graphs is which Plex player: names can be personal.
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             from kia.metrics import known_players
 
             return 200, {"players": known_players(cfg.state_dir)}
@@ -1120,7 +1163,7 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["sources", "check"] and method == "GET":
             return 200, {"check": check_state()}
         if parts and parts[0] == "sources" and method in ("PUT", "POST", "DELETE"):
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             if parts == ["sources"] and method == "PUT":
                 return 200, set_source(cfg, data)
             if parts == ["sources"] and method == "POST":
@@ -1134,37 +1177,37 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["stack"] and method == "GET":
             return 200, get_stack(cfg, secure)
         if parts == ["stack", "check"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, ask_stack(cfg, "check", data)
         if parts == ["stack", "apply"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, ask_stack(cfg, "apply", data)
         if parts == ["plex", "tuners"] and method == "GET":
             return 200, {"plex": plex_tuners_state()}
         if parts == ["plex", "tuners"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, start_plex_tuners(cfg)
         if parts == ["asks"] and method == "GET":
             return 200, get_asks(cfg)
         if parts == ["asks", "approve"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, answer_ask(cfg, data, approve=True)
         if parts == ["asks", "decline"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, answer_ask(cfg, data, approve=False)
         if parts == ["asks", "stop-allowing"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, stop_allowing(cfg)
         if parts == ["name"] and method == "GET":
             return 200, get_name(cfg)
         if parts == ["name"] and method == "PUT":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, set_name(cfg, data)
         if parts == ["password"] and method == "POST":
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             return 200, change_password(cfg, data)
         if len(parts) == 2 and parts[0] == "profiles" and method in ("PUT", "DELETE"):
-            check_password(cfg, headers.get("X-Kia-Password"), secure)
+            need_edit()
             if method == "PUT":
                 return 200, save_profile(cfg, parts[1], data)
             return 200, delete_profile(cfg, parts[1])

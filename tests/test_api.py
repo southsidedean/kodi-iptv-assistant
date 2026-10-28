@@ -515,3 +515,61 @@ def test_the_tool_call_table_forgets_only_idle_callers(monkeypatch):
     mcp._CALLS["busy"] = deque([95.0] * mcp.CALLS_PER_MINUTE)
     assert mcp._allowed("new", now=100.0)
     assert set(mcp._CALLS) == {"busy", "new"} and not mcp._allowed("busy", now=100.0)  # still at its limit
+
+
+# --- The front-door header-trust mode (KIA_TRUST_FRONTDOOR): the Dashboard lets the front
+# door's logged-in admin edit without kia's own password, but only when the gateway's token
+# proves the request came through the front door (a direct client can set X-User-* too). ---
+
+def _frontdoor(cfg, tmp_path, monkeypatch, token="g" * 43):
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "gateway")  # the gateway part is on
+    (tmp_path / "gateway").mkdir(exist_ok=True)
+    (tmp_path / "gateway" / "kia-token").write_text(token + "\n")
+    cfg.config_file = tmp_path / "kia.toml"  # parent holds gateway/kia-token
+    cfg.trust_frontdoor = True
+    return token
+
+
+def _fd_edit(cfg, token=None, user="dad", groups="admins", secure=True):
+    headers = {"Host": "tv.lan:8743"}
+    if token:
+        headers["X-Kia-Gateway"] = token  # the gateway's proof the request came through it
+    if user:
+        headers["X-User-Id"] = user
+    if groups is not None:
+        headers["X-User-Groups"] = groups
+    return api.handle(cfg, "PUT", "/api/profiles/fd", headers, b'{"groups": ["Kids"]}', secure)
+
+
+def test_front_door_admin_edits_without_the_password(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    assert _fd_edit(cfg, token=token)[0] == 200  # a trusted admin, no password needed
+
+
+def test_front_door_without_the_gateway_token_still_needs_the_password(cfg, tmp_path, monkeypatch):
+    _frontdoor(cfg, tmp_path, monkeypatch)
+    # The X-User-* headers claim admin, but with no gateway token they could be from anyone.
+    assert _fd_edit(cfg, token=None)[0] == 401
+    assert _fd_edit(cfg, token="not-the-gateways-token-" + "x" * 20)[0] == 401
+
+
+def test_front_door_non_admin_cannot_edit(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    assert _fd_edit(cfg, token=token, groups="household")[0] == 401
+
+
+def test_front_door_is_off_by_default(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    cfg.trust_frontdoor = False  # the default: the headers are ignored, password required
+    assert _fd_edit(cfg, token=token)[0] == 401
+
+
+def test_front_door_admin_still_needs_the_secure_page(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    assert _fd_edit(cfg, token=token, secure=False)[0] == 403  # changes only over https
+
+
+def test_front_door_admin_with_a_bracketed_groups_header(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    # Some logins render the groups as a bracketed list; kia reads the names out either way.
+    assert _fd_edit(cfg, token=token, groups='["admins", "household"]')[0] == 200
