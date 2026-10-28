@@ -2,6 +2,10 @@
 
 ## 0.8.2 (unreleased)
 
+### Fixes
+
+- The optional front door from 0.8.1 didn't start. Turning on the `frontdoor` part left the gateway with no settings, the identity provider restarting in a loop, and the gateway unable to load the login's keys, so no login ever came up. kia now writes the gateway's settings whenever the front door is on, runs the identity provider the way it needs (a writable root filesystem, still as your own user with no extra privileges), and hands the gateway the login's public key as a file it reads at startup. If you turned the front door on under 0.8.1, update and run `scripts/stack.sh apply` again.
+
 ## 0.8.1 (2026-10-27)
 
 This release adds an optional front door that puts one login in front of kia's pages.
