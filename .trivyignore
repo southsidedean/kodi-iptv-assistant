@@ -16,3 +16,13 @@ CVE-2026-109924 exp:2026-11-30
 # ip-address 10.7.2: an IPv6 address full of percent signs takes long to parse (fixed in
 # 10.7.4). In npm, only its SOCKS proxy support (socks) uses it, and kia sets no SOCKS proxy.
 CVE-2026-111997 exp:2026-11-30
+
+# Two more in the undici 6.29.0 that npm 12.2.1 bundles (npm's newest, which still ships it),
+# both fixed in undici 6.29.1, which npm doesn't bundle yet. As with the others above, kia runs
+# npm only at image-build time, to install esbuild and the guide downloader's packages from the
+# npm registry, so the exposure is small: the certificate-validation bypass (CVE-2026-109383)
+# would need someone in the middle of the build's connection to the npm registry, and the denial
+# of service (CVE-2026-87018) only hits a program making undici TLS calls, which at build time is
+# npm itself. Checked in kia's image, 2026-10-28; drop both when a new npm bundles the fix.
+CVE-2026-109383 exp:2026-11-30
+CVE-2026-87018 exp:2026-11-30
