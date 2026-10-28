@@ -85,8 +85,11 @@ later release has the gateway add them.
 
 By default the front door uses kia's own self-signed certificate, so it works on a network with
 no public name and nothing in the cloud. You trust that certificate once on each device, as you
-already do for the Dashboard. A clean certificate from a public authority (Let's Encrypt or
-ZeroSSL), so browsers trust it with no warning, is an optional upgrade covered later.
+already do for the Dashboard. A clean certificate from a public authority, so browsers trust it
+with no warning, is an optional upgrade: see [using your own
+certificate](secure-page.md#using-your-own-certificate), which covers Let's Encrypt for a domain
+you own and DuckDNS if you don't have one. Put the certificate in `tls/` as usual and add the
+front door's two host names to `KIA_TLS_NAMES`.
 
 ## Accounts
 

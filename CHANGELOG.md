@@ -13,6 +13,8 @@ Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`
 - With `KIA_TRUST_FRONTDOOR` on, the Dashboard now drops its password prompts for a front-door admin and shows who's signed in, so one login really is enough. Changing kia's password still asks for the current one, and anyone not signed in through the front door still gives the password as before.
 - One login for the Dashboard, when the front door is on. Set `KIA_TRUST_FRONTDOOR=true` and a person the front door logs in who's in the `admins` group edits on the Dashboard without kia's own password, so there's a single login instead of two. kia trusts this only because the gateway sends its own token with the request, proving it came through the front door; a direct connection to the web server still needs the password. People not in `admins` can read the Dashboard but not change it. Off by default. [One login for the stack](docs/front-door.md) has the steps.
 
+- Getting a trusted certificate without owning a domain: [using your own certificate](docs/secure-page.md#without-your-own-domain-duckdns) now covers DuckDNS with Let's Encrypt over DNS, so the Dashboard and the front door can lose the browser warning on a home network with no public domain and nothing open to the internet.
+
 ### Fixes
 
 - Some Pluto TV channels could freeze or play out of sync, most often during ad breaks. A short sliver at the end of an ad can carry an audio track with nothing in it, which kia couldn't copy, so that piece failed and the player stalled or drifted. kia now plays such a piece without its (empty) sound instead of dropping it, so the channel keeps going. Every normal piece keeps its audio.

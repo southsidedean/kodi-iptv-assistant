@@ -116,6 +116,26 @@ sudo install -m 640 -o 1000 -g 1000 /etc/letsencrypt/live/kia.example.com/privke
 
 As above, `1000` is your `PUID` and `PGID` from `.env`. Then set `KIA_TLS_NAMES=kia.example.com` in `.env` and restart kia. The name also has to lead to the kia machine on your network: add it to your router's or home DNS server's local records. certbot renews by itself; to copy the renewed files each time, give it a deploy hook that runs the two `install` lines above (`--deploy-hook`).
 
+### Without your own domain (DuckDNS)
+
+You don't need to own a domain. [DuckDNS](https://www.duckdns.org) gives you a free name like `my-kia.duckdns.org`, and Let's Encrypt can check you own it through DNS, so you get a trusted certificate without opening any port to the internet.
+
+1. Sign in at [duckdns.org](https://www.duckdns.org) (with a Google or GitHub account), make a subdomain such as `my-kia`, and point it at the kia machine's address on your network (for example `192.168.1.20`). Copy your DuckDNS token from the same page.
+2. Get the certificate with [acme.sh](https://github.com/acmesh-official/acme.sh), which has built-in DuckDNS support, in the kia folder:
+
+   ```sh
+   export DuckDNS_Token=your-duckdns-token
+   acme.sh --issue --dns dns_duckdns -d my-kia.duckdns.org
+   acme.sh --install-cert -d my-kia.duckdns.org \
+     --fullchain-file tls/fullchain.pem --key-file tls/privkey.pem \
+     --reloadcmd "chown 1000:1000 tls/*.pem && chmod 644 tls/fullchain.pem && chmod 640 tls/privkey.pem"
+   ```
+
+   `1000` is your `PUID` and `PGID` from `.env`. acme.sh renews by itself and runs the reload command each time, so the new files land in `tls` with the right owner.
+3. Set `KIA_TLS_NAMES=my-kia.duckdns.org` in `.env` and restart kia.
+
+Because the name is validated through DNS, the kia machine never needs to be reachable from the internet; your devices reach it on your own network, where `my-kia.duckdns.org` resolves to its address.
+
 ## Without Docker
 
 `kia serve` and `kia daemon --serve` serve both ports themselves, with the same `tls` folder, password, and settings. They need the `openssl` command to make kia's own certificate; macOS and most Linux systems have it. `--https-port 0` turns the secure page off.
