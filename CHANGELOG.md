@@ -2,6 +2,10 @@
 
 ## 0.8.3 (unreleased)
 
+### New
+
+- One login for the Dashboard, when the front door is on. Set `KIA_TRUST_FRONTDOOR=true` and a person the front door logs in who's in the `admins` group edits on the Dashboard without kia's own password, so there's a single login instead of two. kia trusts this only because the gateway sends its own token with the request, proving it came through the front door; a direct connection to the web server still needs the password. People not in `admins` can read the Dashboard but not change it. Off by default. [One login for the stack](docs/front-door.md) has the steps.
+
 ## 0.8.2 (2026-10-27)
 
 This release fixes 0.8.1's optional front door, which didn't start.

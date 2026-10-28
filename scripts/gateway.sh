@@ -227,17 +227,30 @@ EOF
           redirectURI: https://$fd_host:$fd_port/oidc/callback
           scopes: [profile, email, groups]
           credentials: sessionOrBearer
-        # Who logged in, for the Dashboard to read (it keeps its own password until 0.8.2).
+        # Who logged in, and their groups, for the Dashboard to read. With KIA_TRUST_FRONTDOOR
+        # on, kia lets the "admins" group edit without its own password, but only because the
+        # gateway's token below proves this came through the front door (kia.api.front_door_user).
         transformations:
           request:
             set:
               x-user-id: jwt.preferred_username
               x-user-email: jwt.email
+              x-user-groups: jwt.groups
         # kia's web server answers only over HTTPS (changes need it), with its own certificate,
         # which names the computer rather than "web" on the gateway's network.
         backendTLS:
           root: /etc/kia-tls/fullchain.pem
           insecureHost: true
+        # The gateway's own token for kia, so kia knows the X-User-* headers came through the
+        # front door and aren't a direct client's. The browser never sees it.
+        backendAuth:
+          key:
+            value:
+              file: /gateway/kia-token
+            location:
+              header:
+                name: Authorization
+                prefix: "Bearer "
       backends:
       - host: web:443
     # The login itself, proxied to the provider with the forwarded headers it needs for a

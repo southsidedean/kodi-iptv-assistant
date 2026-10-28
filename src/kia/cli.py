@@ -979,6 +979,7 @@ def api_config(cfg: Config):
         user_agent=cfg.user_agent,
         ffprobe=cfg.ffprobe,
         alert=lambda event, title, message: alerts.notify(event, title, message, cfg.state_dir, cfg.alerts, log),
+        trust_frontdoor=cfg.trust_frontdoor,
     )
 
 

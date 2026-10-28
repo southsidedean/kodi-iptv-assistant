@@ -129,6 +129,9 @@ class Config:
     # the certificate so browsers trust it on those names too (docs/front-door.md).
     frontdoor_host: str | None = None
     frontdoor_auth_host: str | None = None
+    # Off by default. On (KIA_TRUST_FRONTDOOR), the Dashboard lets the front door's logged-in
+    # admin edit without kia's own password, trusted only with the gateway's token.
+    trust_frontdoor: bool = False
     dns_resolvers: tuple[str, ...] = ("8.8.8.8", "1.1.1.1")
     alerts: AlertConfig = field(default_factory=AlertConfig)
     history_days: int = 30
@@ -276,6 +279,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         tls_names=_merge_env_list("KIA_TLS_NAMES", list(output.get("tls_names", []))),
         frontdoor_host=(os.environ.get("KIA_FRONTDOOR_HOST") or "").strip() or None,
         frontdoor_auth_host=(os.environ.get("KIA_FRONTDOOR_AUTH_HOST") or "").strip() or None,
+        trust_frontdoor=env_bool("KIA_TRUST_FRONTDOOR", False),
         alerts=_load_alerts(data.get("alerts", {})),
         history_days=_whole("[check] history_days", check.get("history_days", 30), 1),
         upstream_url=_upstream_url(data.get("upstream", {})),

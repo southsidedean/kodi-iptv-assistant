@@ -199,6 +199,10 @@ def test_the_front_door_adds_a_login_listener_and_keeps_the_mcp_one(kia: Path):
     assert "tokenEndpointAuth: clientSecretPost" in config
     # Who logged in, added for the Dashboard; the Dashboard is the backend, over its own HTTPS.
     assert "x-user-id: jwt.preferred_username" in config and "x-user-email: jwt.email" in config
+    assert "x-user-groups: jwt.groups" in config  # groups, so kia can tell admins apart
+    # The gateway's token goes to the Dashboard too (not only the MCP route), so kia knows the
+    # X-User-* headers came through the front door and aren't a direct client's.
+    assert config.count("file: /gateway/kia-token") == 2
     assert "host: web:443" in config
     # The login provider and the internal token listener.
     assert "hostnames: [auth.my-server.lan]" in config and "- port: 9092" in config

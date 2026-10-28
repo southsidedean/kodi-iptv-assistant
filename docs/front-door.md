@@ -57,10 +57,15 @@ back who you are and adds that to the request as a header the page can trust (`X
 `X-User-Email`). The login token itself is stripped before the page sees it, so a page only ever
 learns your name, never a credential.
 
-In this release the Dashboard still asks for its own password behind the front door, so there are
-two logins for now. A later release lets the Dashboard trust the front door's header instead, so
-one login is enough, and brings the stack's other pages (Grafana, Threadfin) behind the same
-front door.
+By default the Dashboard still asks for its own password behind the front door, so there are two
+logins. To make one login enough, set `KIA_TRUST_FRONTDOOR=true` in `.env`: then a person in the
+`admins` group edits on the Dashboard without kia's own password, since the front door already
+checked who they are. kia trusts that only because the gateway sends its own token with the
+request, which proves it came through the front door; a direct connection to the web server,
+which could set the same `X-User-*` headers itself, still needs the password. People who aren't
+in `admins` can read the Dashboard but not change it. Leave it off and the Dashboard keeps its
+own password as before. Bringing the stack's other pages (Grafana, Threadfin) behind the same
+login comes next.
 
 kia never hashes a password itself. When you set an account, kia asks Authelia's own tool to turn
 the password into a hash, and keeps only the hash. The same goes for the gateway's own secret for
