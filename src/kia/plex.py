@@ -108,6 +108,10 @@ def find_tuners(base: Path, output_dir: Path, host: str | None, log=print, gette
         except (OSError, ValueError) as exc:
             log(f"Threadfin {i} isn't answering at {address} ({exc}); leaving it out.")
             continue
+        # Threadfin answers null (not a list) while it's still building its channel map, such as
+        # just after a restart or a renumber; that's no channels yet, not a reason to crash.
+        if not isinstance(lineup, list):
+            lineup = []
         channels = [str(c["GuideNumber"]) for c in lineup if isinstance(c, dict) and c.get("GuideNumber")]
         if not channels:
             log(f"Threadfin {i} at {address} has no channels yet (see its Mapping page); leaving it out.")
