@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.8.3 (unreleased)
+
 ## 0.8.2 (2026-10-27)
 
 This release fixes 0.8.1's optional front door, which didn't start.
