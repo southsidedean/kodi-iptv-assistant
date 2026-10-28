@@ -1181,7 +1181,17 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             from kia.metrics import known_players
 
             return 200, {"players": known_players(cfg.state_dir)}
+        if parts == ["editor"] and method == "GET":
+            # Whether the viewer is a trusted front-door admin, so the Dashboard can skip asking
+            # for kia's password. Only the gateway's token makes it true (front_door_user); a
+            # direct connection, or anyone not an admin, gets false and still sees the prompts.
+            admin = bool(secure and editor and editor[1])
+            return 200, {"frontdoor_admin": admin, "name": editor[0] if admin else ""}
         if parts == ["sources"] and method == "GET":
+            # A front-door admin can already edit the sources, so they see the credentials in them
+            # too, without kia's password; everyone else gives the password to unlock them.
+            if secure and editor and editor[1]:
+                return 200, get_sources(cfg, secure, True)
             why = password_error(cfg, headers.get("X-Kia-Password"), secure)
             return 200, get_sources(cfg, secure, why is None, locked=why)
         if parts == ["sources", "check"] and method == "GET":

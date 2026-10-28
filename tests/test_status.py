@@ -99,6 +99,22 @@ def test_every_page_has_the_menu_and_help(tmp_path: Path):
     assert 'href="../playlists.html" aria-current="page"' in pl and 'href="../index.html"' in pl
 
 
+def test_every_page_carries_the_one_login_wiring(tmp_path: Path):
+    from kia import htmlpage
+
+    s = status.collect(tmp_path, tmp_path, {}, None)
+    for name, render in status.PAGES.items():
+        page = render(s)
+        # The shared script asks the server whether you're a front-door admin, to skip the prompt.
+        assert 'api/editor")' in page, name
+    # The CSS hides the authorize-password fields for a front-door admin, but not the
+    # change-password form (its fields carry class "pw").
+    assert '.one-login input[autocomplete="current-password"]:not(.pw)' in htmlpage.STYLE
+    # The change-password form (editor.EDITING_SCRIPT) uses .pw, so one login leaves it asking.
+    from kia import editor
+    assert 'class: "pw"' in editor.EDITING_SCRIPT
+
+
 def test_details_points_to_the_new_pages(tmp_path: Path):
     page = status.render_details(status.collect(tmp_path, tmp_path, {}, None))
     assert "Details has moved" in page

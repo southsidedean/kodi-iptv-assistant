@@ -334,7 +334,7 @@ PROTECTED = [
     ("POST", "/api/accounts/set-admin", {"name": "kid", "admin": True}),
 ]
 PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
-          ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"), ("GET", "/api/accounts"),
+          ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"), ("GET", "/api/accounts"), ("GET", "/api/editor"),
           ("GET", "/api/plex/tuners"), ("GET", "/api/doctor"), ("GET", "/api/doctor/channel"), ("GET", "/api/doctor/plex"),
           ("GET", "/api/doctor/hardware"),
           ("GET", "/api/doctor/jellyfin"),
@@ -578,3 +578,39 @@ def test_front_door_admin_with_a_bracketed_groups_header(cfg, tmp_path, monkeypa
     token = _frontdoor(cfg, tmp_path, monkeypatch)
     # Some logins render the groups as a bracketed list; kia reads the names out either way.
     assert _fd_edit(cfg, token=token, groups='["admins", "household"]')[0] == 200
+
+
+def _fd_get(cfg, path, token=None, groups="admins", secure=True):
+    headers = {"Host": "tv.lan:8743", "X-User-Id": "dad"}
+    if token:
+        headers["X-Kia-Gateway"] = token
+    if groups is not None:
+        headers["X-User-Groups"] = groups
+    return api.handle(cfg, "GET", path, headers, b"", secure)
+
+
+def test_editor_endpoint_tells_the_page_youre_a_front_door_admin(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    # The page uses this to skip asking for kia's password; the gateway's token makes it true.
+    status, data = _fd_get(cfg, "/api/editor", token=token)
+    assert status == 200 and data == {"frontdoor_admin": True, "name": "dad"}
+    # No token, not an admin, over http, or off by default: false, so the prompts stay.
+    assert _fd_get(cfg, "/api/editor", token=None)[1]["frontdoor_admin"] is False
+    assert _fd_get(cfg, "/api/editor", token=token, groups="household")[1]["frontdoor_admin"] is False
+    assert _fd_get(cfg, "/api/editor", token=token, secure=False)[1]["frontdoor_admin"] is False
+    cfg.trust_frontdoor = False
+    assert _fd_get(cfg, "/api/editor", token=token)[1]["frontdoor_admin"] is False
+
+
+def test_front_door_admin_sees_the_sources_unlocked_without_the_password(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    # A front-door admin can edit the sources, so they see the credentials in them without kia's
+    # password; an ordinary viewer (no token) still has them locked until they give it. Capture
+    # the unlocked flag the handler passes, so the test needs no sources file of its own.
+    calls = []
+    monkeypatch.setattr(api, "get_sources",
+                        lambda c, secure=False, unlocked=False, locked=None: (calls.append(unlocked), {})[1])  # fmt: skip
+    _fd_get(cfg, "/api/sources", token=token)
+    assert calls[-1] is True  # a front-door admin: unlocked
+    _fd_get(cfg, "/api/sources", token=None)
+    assert calls[-1] is False  # no token: locked until the password
