@@ -228,6 +228,19 @@ def test_find_tuners_reads_threadfin_and_kia(tmp_path: Path, monkeypatch):
     assert len(said) == 2 and "isn't answering" in said[0]
 
 
+def test_find_tuners_treats_a_null_lineup_as_no_channels(tmp_path: Path):
+    # Threadfin answers null (not a list) while it's still building its channel map, such as
+    # right after a restart or a renumber. That's no channels yet, not a reason to crash.
+    out = tmp_path / "output"
+    out.mkdir()
+    (tmp_path / "threadfin" / "conf").mkdir(parents=True)
+    (tmp_path / "threadfin" / "conf" / "settings.json").write_text("{}")
+    said = []
+    found = plex.find_tuners(tmp_path, out, "my-server.lan", said.append, getter=lambda url: None)
+    assert found == []
+    assert any("no channels yet" in m for m in said)
+
+
 def test_plex_in_the_stack_reaches_threadfin_by_name_and_has_its_own_token(tmp_path: Path):
     assert plex.in_stack("http://plex:32400") and not plex.in_stack("http://192.168.1.20:32400")
     assert plex.own_token(tmp_path) is None  # not claimed yet

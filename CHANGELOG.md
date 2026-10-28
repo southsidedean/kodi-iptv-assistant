@@ -2,6 +2,10 @@
 
 ## 0.8.4 (unreleased)
 
+### Fixes
+
+- Adding kia's Threadfins to Plex (`kia plex-tuners`) no longer stops with an error when a Threadfin is still building its channel list, which it does for a short while after it restarts or after a renumber. kia now treats that as "no channels yet" and leaves that Threadfin out for this run, the same as when a Threadfin isn't answering at all.
+
 ## 0.8.3 (2026-10-28)
 
 ### Upgrading from 0.8.2
