@@ -1122,7 +1122,8 @@ def pluto_relay(cfg: Config) -> pluto.Relay | None:
                 known["stamp"] = stamp
             return known["ids"]
 
-        _RELAY = pluto.Relay(cfg.output_dir / "pluto.json", log, on_fallback=fallback_alert, allowed=allowed)
+        _RELAY = pluto.Relay(cfg.output_dir / "pluto.json", log, on_fallback=fallback_alert, allowed=allowed,
+                             debug_dir=cfg.state_dir / "pluto-debug")  # off unless you make that folder
         _RELAY.save_status(force=True)
         _RELAY.keep_status_fresh()
     return _RELAY

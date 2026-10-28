@@ -168,6 +168,45 @@ def test_pieces_are_decrypted_once_for_every_viewer():
     assert r.status()["channels"][0]["viewers"] == 2
 
 
+def test_debug_capture_is_off_until_you_make_the_folder(tmp_path):
+    part = "162136-698541"
+    fake = FakePluto([media([(0, SHOW.format(part=part, n=0))], seq=99, key=KEY.format(part=part))])
+
+    def boom(body, key, iv, dur, t0):
+        raise ValueError("sample rate not set")
+
+    dbg = tmp_path / "pluto-debug"
+    r = pluto.Relay(tmp_path / "pluto.json", log=lambda m: None, fetcher=fake, remux_fn=boom, debug_dir=dbg)
+    look(r)
+    # Off by default: the folder isn't there, so a failing copy saves nothing.
+    assert r.handle(f"/pluto/{CID}/0.ts", "v")[0] == 502  # the copy failed, so no piece
+    assert not dbg.exists()
+    # Armed: make the folder, and the next piece ffmpeg can't copy is saved, raw, with its
+    # details, so a real failure can be looked at later.
+    dbg.mkdir()
+    r.handle(f"/pluto/{CID}/0.ts", "v")
+    saved = list(dbg.glob("*.ts"))
+    assert len(saved) == 1 and saved[0].read_bytes().startswith(b"piece:")
+    meta = json.loads(next(dbg.glob("*.json")).read_text())
+    assert meta["error"].startswith("sample rate not set") and meta["cid"] == CID
+    assert meta["iv"] == "0" * 30 + "63" and meta["key"] == bytes(range(16)).hex()
+
+
+def test_debug_capture_stops_at_the_cap(tmp_path, monkeypatch):
+    fake = FakePluto([media([(0, SHOW.format(part="p", n=0))], seq=99, key=KEY.format(part="p"))])
+
+    def boom(*a):
+        raise ValueError("x")
+
+    r = pluto.Relay(tmp_path / "pluto.json", log=lambda m: None, fetcher=fake, remux_fn=boom, debug_dir=tmp_path / "d")
+    (tmp_path / "d").mkdir()
+    monkeypatch.setattr(pluto, "DEBUG_CAPTURES", 2)
+    look(r)
+    for _ in range(4):
+        r.handle(f"/pluto/{CID}/0.ts", "v")  # the same failing piece, over and over
+    assert len(list((tmp_path / "d").glob("*.ts"))) == 2  # no more than the cap
+
+
 def test_no_iv_means_the_sequence_number():
     lines = media([(0, SHOW.format(part="p", n=0))], seq=0x2A, key="k.key").replace(",IV=0x00000000000000000000000000000063", "")
     fake = FakePluto([lines])

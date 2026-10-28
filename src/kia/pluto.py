@@ -551,6 +551,7 @@ class Channel:
         except Exception as exc:
             self.stats.errors += 1
             self.stats.problem(f"ffmpeg couldn't copy a piece ({_short(exc)})")
+            self.relay.debug_save(self.cid, p, body, key, iv, exc)  # off unless the debug folder exists
             return b""
 
     def status(self) -> dict:
@@ -622,13 +623,19 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+DEBUG_CAPTURES = 25  # the most pieces the debug capture keeps, so it can't fill the disk
+
+
 class Relay:
     """Every Pluto channel being watched. Writes its status to status_file (pluto.json)."""
 
     def __init__(self, status_file: Path | None = None, log: Callable[[str], None] = print,
                  fetcher=None, remux_fn=remux, on_fallback: Callable[[str, int], None] | None = None,
-                 allowed: Callable[[], set[str]] | None = None):  # fmt: skip
+                 allowed: Callable[[], set[str]] | None = None, debug_dir: Path | None = None):  # fmt: skip
         self.status_file = status_file
+        # A diagnostic, off unless you make the folder it points at (state/pluto-debug): then the
+        # few pieces ffmpeg can't copy are saved there for a look, Pluto's own bytes only.
+        self.debug_dir = debug_dir
         self.log = log
         self.fetcher = fetcher or fetch
         self.remux = remux_fn
@@ -644,6 +651,31 @@ class Relay:
         self.retired = {"sessions": 0, "rewinds": 0, "errors": 0, "fallbacks": 0}
         self.pieces = 0
         self.bytes = 0
+
+    def debug_save(self, cid: str, p: Piece, body: bytes, key: str | None, iv: str, exc: BaseException) -> None:
+        """When the debug folder exists (you make it; it's off otherwise), save a piece ffmpeg
+        couldn't copy, raw, so a real failure can be looked at later. It keeps no more than
+        DEBUG_CAPTURES pieces, and writes only what came from Pluto (the piece, its key and IV),
+        never any of kia's own secrets."""
+        d = self.debug_dir
+        if not d:
+            return
+        try:
+            if not d.is_dir():  # not armed
+                return
+            with self.save_lock:
+                if sum(1 for _ in d.glob("*.ts")) >= DEBUG_CAPTURES:
+                    return
+                stamp = time.strftime("%Y%m%d-%H%M%S")
+                name = f"{cid}-{p.upstream_seq}-{stamp}-{uuid.uuid4().hex[:6]}"  # unique: retries share a second
+                (d / f"{name}.ts").write_bytes(body)
+                (d / f"{name}.json").write_text(json.dumps({
+                    "cid": cid, "uri": p.uri, "key_uri": p.key_uri, "iv": iv, "key": key,
+                    "dur": p.dur, "clip": p.clip, "error": _short(exc), "at": stamp,
+                }, indent=2))  # fmt: skip
+            self.log(f"Pluto {cid}: saved a piece ffmpeg couldn't copy to {d}/{name}.ts")
+        except OSError:
+            pass  # a diagnostic must never get in the way of playing
 
     def channel(self, cid: str, start: bool = True) -> Channel | None:
         """The channel, starting it if needed (start); None when it isn't playing and won't
