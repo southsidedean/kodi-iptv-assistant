@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.8.4 (unreleased)
+
 ## 0.8.3 (2026-10-28)
 
 ### Upgrading from 0.8.2
