@@ -239,7 +239,7 @@ EOF
             set:
               x-user-id: jwt.preferred_username
               x-user-email: jwt.email
-              x-user-groups: jwt.groups
+              x-user-groups: '(has(jwt.groups) ? jwt.groups : []).join(",")'
               x-kia-gateway: '"$fd_token"'
         # kia's web server answers only over HTTPS (changes need it), with its own certificate,
         # which names the computer rather than "web" on the gateway's network.
