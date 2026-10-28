@@ -615,6 +615,35 @@ services:
     volumes:
       - ./frontdoor:/config
 
+  # The front door's account store (LLDAP; the frontdoor part, docs/front-door.md): a small
+  # directory the identity provider checks passwords against, so a Dashboard page can add and
+  # remove household members. On the gateway network only, with no published port: the provider
+  # reaches it over LDAP (3890) and kia over its API (17170) for the account page. It keeps its
+  # own database in a volume; its secrets come from files in frontdoor/secrets. Like the provider
+  # it sets its own user through UID/GID rather than the stack's user override, so it can own that
+  # database.
+  lldap:
+    profiles: ["frontdoor"]
+    image: ${KIA_LLDAP_IMAGE:-lldap/lldap:v0.6.3}
+    restart: unless-stopped
+    logging: *logging
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      UID: ${PUID:-1000}
+      GID: ${PGID:-1000}
+      TZ: ${TZ:-}
+      LLDAP_LDAP_BASE_DN: dc=kia,dc=lan
+      LLDAP_JWT_SECRET_FILE: /frontdoor/secrets/lldap-jwt-secret
+      LLDAP_KEY_SEED_FILE: /frontdoor/secrets/lldap-key-seed
+    # The LLDAP admin password, written by scripts/frontdoor.sh (the provider binds with it too).
+    env_file:
+      - path: ./frontdoor/lldap.env
+        required: false
+    networks: [gateway]
+    volumes:
+      - ${KIA_LLDAP_DATA:-./lldap/data}:/data
+      - ./frontdoor:/frontdoor:ro
+
 # Docker volumes for Plex's, Jellyfin's, and Grafana's databases on a Mac, where a folder
 # shared from the Mac into Docker's Linux machine breaks Plex's database within minutes.
 # KIA_PLEX_CONFIG=plex-config, KIA_JELLYFIN_CONFIG=jellyfin-config, and
@@ -624,6 +653,7 @@ volumes:
   plex-config:
   jellyfin-config:
   grafana-data:
+  lldap-data:
 
 # The gateway part's network: the gateway, kia, its web server, and (with the front door) the
 # identity provider only, so Plex, Threadfin, and the rest can't reach the gateway or the login

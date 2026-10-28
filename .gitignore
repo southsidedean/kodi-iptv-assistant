@@ -45,3 +45,6 @@ sources.local.txt
 # Your own playlist files (see the end of sources.txt).
 playlists/
 *.tmp
+# The account store's database (compose.yaml, frontdoor profile; LLDAP).
+lldap/*/*
+!lldap/*/.gitkeep

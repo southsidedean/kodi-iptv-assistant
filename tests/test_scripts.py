@@ -72,7 +72,7 @@ def test_installer_puts_the_databases_in_volumes_on_a_mac():
     mac = text[text.index('if [ "$OS" = Darwin ]; then\n        (umask 077 && sed'):]
     mac = mac[: mac.index("\n    fi\n")]
     names = dict(re.findall(r"\^(KIA_[A-Z_]+)=\.\*\|\1=([a-z-]+)\|", mac))
-    assert names == {"KIA_PLEX_CONFIG": "plex-config", "KIA_JELLYFIN_CONFIG": "jellyfin-config", "KIA_GRAFANA_DATA": "grafana-data"}
+    assert names == {"KIA_PLEX_CONFIG": "plex-config", "KIA_JELLYFIN_CONFIG": "jellyfin-config", "KIA_GRAFANA_DATA": "grafana-data", "KIA_LLDAP_DATA": "lldap-data"}
     compose = (ROOT / "compose.yaml").read_text()
     volumes = compose.split("\nvolumes:\n", 1)[1].split("\nnetworks:\n", 1)[0]  # not the networks after them
     declared = re.findall(r"^  ([a-z0-9-]+):$", volumes, flags=re.M)
