@@ -104,6 +104,7 @@ write() {
         if [ ${#fd_port} -gt 5 ] || [ "$fd_port" -gt 65535 ]; then die "KIA_FRONTDOOR_PORT is from 1 to 65535"; fi
         [ -s frontdoor/secrets/client-secret ] || die "set the front door up first: scripts/frontdoor.sh write"
         fd_client=$(cat frontdoor/secrets/client-secret)
+        fd_token=$(head -n1 "$kia_token")  # the gateway's token for kia, to prove the request came through the front door
         printf 'OIDC_COOKIE_SECRET=%s\n' "$(cat frontdoor/secrets/cookie-secret)" >"$dir/oidc.env.tmp"
         # The login's public signing key, written as a JWKS file the gateway reads at startup.
         # Derived from the login's own signing key (frontdoor/secrets/oidc.key), so it always
@@ -229,28 +230,22 @@ EOF
           credentials: sessionOrBearer
         # Who logged in, and their groups, for the Dashboard to read. With KIA_TRUST_FRONTDOOR
         # on, kia lets the "admins" group edit without its own password, but only because the
-        # gateway's token below proves this came through the front door (kia.api.front_door_user).
+        # gateway's token in x-kia-gateway proves this came through the front door
+        # (kia.api.front_door_user). That's a header of the gateway's own, not Authorization,
+        # which the login flow uses and strips; the browser never sees it. The X-User-* headers
+        # replace any a client sent, so they can't be faked without the token.
         transformations:
           request:
             set:
               x-user-id: jwt.preferred_username
               x-user-email: jwt.email
               x-user-groups: jwt.groups
+              x-kia-gateway: '"$fd_token"'
         # kia's web server answers only over HTTPS (changes need it), with its own certificate,
         # which names the computer rather than "web" on the gateway's network.
         backendTLS:
           root: /etc/kia-tls/fullchain.pem
           insecureHost: true
-        # The gateway's own token for kia, so kia knows the X-User-* headers came through the
-        # front door and aren't a direct client's. The browser never sees it.
-        backendAuth:
-          key:
-            value:
-              file: /gateway/kia-token
-            location:
-              header:
-                name: Authorization
-                prefix: "Bearer "
       backends:
       - host: web:443
     # The login itself, proxied to the provider with the forwarded headers it needs for a

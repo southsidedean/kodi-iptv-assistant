@@ -728,12 +728,16 @@ def front_door_user(cfg: ApiConfig, headers) -> tuple[str, bool] | None:
     name = (headers.get("X-User-Id") or "").strip()
     if not name or "gateway" not in (stack.profiles() or []):
         return None
+    # The gateway sends its own token in X-Kia-Gateway, a header of its own (not Authorization,
+    # which the login flow uses and strips). Only that proves the request came through the front
+    # door; without it the X-User-* headers could be a direct client's, so they're ignored.
     token = mcp.gateway_token(cfg.config_file.parent if cfg.config_file else None)
-    scheme, _, given = (headers.get("Authorization") or "").strip().partition(" ")
-    given = given.strip() if scheme.lower() == "bearer" else ""
+    given = (headers.get("X-Kia-Gateway") or "").strip()
     if not (token and given and hmac.compare_digest(given.encode(), token.encode())):
-        return None  # not through the gateway: the X-User-* headers aren't to be trusted
-    groups = [g.strip() for g in (headers.get("X-User-Groups") or "").split(",") if g.strip()]
+        return None
+    # The groups header may be a plain list or a bracketed one, depending on the login; take
+    # the group names out of it either way.
+    groups = re.findall(r"[A-Za-z0-9_-]+", headers.get("X-User-Groups") or "")
     return name, "admins" in groups
 
 

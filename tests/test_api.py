@@ -533,7 +533,7 @@ def _frontdoor(cfg, tmp_path, monkeypatch, token="g" * 43):
 def _fd_edit(cfg, token=None, user="dad", groups="admins", secure=True):
     headers = {"Host": "tv.lan:8743"}
     if token:
-        headers["Authorization"] = "Bearer " + token
+        headers["X-Kia-Gateway"] = token  # the gateway's proof the request came through it
     if user:
         headers["X-User-Id"] = user
     if groups is not None:
@@ -567,3 +567,9 @@ def test_front_door_is_off_by_default(cfg, tmp_path, monkeypatch):
 def test_front_door_admin_still_needs_the_secure_page(cfg, tmp_path, monkeypatch):
     token = _frontdoor(cfg, tmp_path, monkeypatch)
     assert _fd_edit(cfg, token=token, secure=False)[0] == 403  # changes only over https
+
+
+def test_front_door_admin_with_a_bracketed_groups_header(cfg, tmp_path, monkeypatch):
+    token = _frontdoor(cfg, tmp_path, monkeypatch)
+    # Some logins render the groups as a bracketed list; kia reads the names out either way.
+    assert _fd_edit(cfg, token=token, groups='["admins", "household"]')[0] == 200
