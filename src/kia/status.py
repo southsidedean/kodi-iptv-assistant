@@ -14,7 +14,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from kia import __version__, channeleditor, editor, guideview, sourceeditor, stackeditor
+from kia import __version__, accountseditor, channeleditor, editor, guideview, sourceeditor, stackeditor
 from kia import doctorview, newchannels
 from kia.htmlpage import DOCS_URL, FILTER_ROWS, PROJECT_URL, page
 from kia.history import readable
@@ -977,10 +977,13 @@ def render_sources(s: dict) -> str:
 
 
 def render_stack(s: dict) -> str:
-    """Stack: what runs next to kia, and on the secure page, choosing what runs (stackeditor)."""
+    """Stack: what runs next to kia, choosing what runs (stackeditor), and, when the front door
+    is on, the accounts that can log in (accountseditor). Both fill in on the secure page."""
     card = f'<section class="card" id="stack-page"{_secure_attr(s)} hidden><div class="body"></div></section>'
-    body = f"<main><h1>Stack</h1>{card}</main>"
-    return page("Stack - kia", body, _footer(s), stackeditor.SCRIPT, editor.STYLE + stackeditor.STYLE, current="stack.html")
+    accounts = f'<section class="card" id="accounts-page"{_secure_attr(s)} hidden><div class="body"></div></section>'
+    body = f"<main><h1>Stack</h1>{card}{accounts}</main>"
+    return page("Stack - kia", body, _footer(s), stackeditor.SCRIPT + accountseditor.SCRIPT,
+                editor.STYLE + stackeditor.STYLE + accountseditor.STYLE, current="stack.html")  # fmt: skip
 
 
 def render_guide(s: dict) -> str:
