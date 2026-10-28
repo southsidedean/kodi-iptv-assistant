@@ -452,7 +452,7 @@ def ask(state_dir: Path, service_dir: Path, action: str, parts: list[str], claim
 
 
 def ask_account(state_dir: Path, service_dir: Path, op: str, name: str, admin: bool,
-                password: str = "") -> str:  # fmt: skip
+                password: str | None = None) -> str:  # fmt: skip
     """Leave a request for the kia-stack service to add, remove, or set the role of a front-door
     account. The service holds the account store's admin credential and runs scripts/frontdoor.sh;
     the kia container never does, so a break-in here can't manage accounts on its own. The new
