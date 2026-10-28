@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.8.2 (unreleased)
+
 ## 0.8.1 (2026-10-27)
 
 This release adds an optional front door that puts one login in front of kia's pages.
