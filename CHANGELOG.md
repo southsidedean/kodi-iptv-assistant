@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.8.2 (unreleased)
+## 0.8.2 (2026-10-27)
+
+This release fixes 0.8.1's optional front door, which didn't start.
+
+### Upgrading from 0.8.1
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). If you turned the front door on under 0.8.1, run `scripts/stack.sh apply` again afterwards so its settings are written and its parts come up. Everything else is unchanged.
 
 ### Fixes
 
