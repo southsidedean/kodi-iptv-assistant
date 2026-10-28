@@ -209,6 +209,7 @@ PARTS = (
 )
 SERVICE_DIR = "stack-service"  # in the kia folder
 REQUEST, TAKEN, RESULT, CONTAINERS = "stack-request", "request", "result", "containers.tsv"
+ACCOUNTS = "accounts.tsv"  # the service's list of front-door accounts, as CONTAINERS is for Docker
 SERVICE_SILENT_AFTER = 90  # seconds without a new container list: the service isn't running
 # The service refuses a request older than this, and the page stops waiting after it too:
 # an apply nobody is watching for any more shouldn't start later.
@@ -267,6 +268,47 @@ def claim_from(value) -> str:
     if not isinstance(value, str) or not _CLAIM.fullmatch(value.strip()):
         raise StackError("That isn't a claim code from plex.tv/claim (it starts with claim-).")
     return value.strip()
+
+
+# A front-door login name: lowercase letters, digits, and dashes, not starting with a dash.
+# scripts/frontdoor.sh checks it the same way before it reaches the account store.
+_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
+
+
+def name_from(value) -> str:
+    """A login name from the Dashboard. Anything that isn't lowercase letters, digits, and
+    dashes is refused, so it's safe as a command argument and in a file."""
+    if not isinstance(value, str) or not _NAME.fullmatch(value):
+        raise StackError("A login name is lowercase letters, digits, and dashes, such as dad.")
+    return value
+
+
+def password_from(value) -> str:
+    """A new front-door password from the Dashboard. It reaches the account store through the
+    kia-stack service (base64, so it survives the request's plain-text, line-based format), so it
+    can't hold a line break. The account store hashes it; kia never stores or hashes it."""
+    if not isinstance(value, str):
+        raise StackError("Expected the new password.")
+    if len(value) < 8:
+        raise StackError("A password is at least 8 characters.")
+    if len(value) > 128 or "\n" in value or "\r" in value:
+        raise StackError("That password can't be used here.")
+    return value
+
+
+def accounts(service_dir: Path) -> list[dict]:
+    """The service's last list of front-door accounts: each one's login name and whether it's an
+    admin. Empty before the service has written one, or when the front door is off."""
+    try:
+        text = (service_dir / ACCOUNTS).read_text(errors="replace")
+    except OSError:
+        return []
+    out = []
+    for line in text.splitlines()[:200]:
+        name, _, role = line.partition("\t")
+        if name:
+            out.append({"name": name[:40], "admin": role.strip() == "admin"})
+    return out
 
 
 def _age(path: Path) -> float | None:
@@ -359,6 +401,20 @@ def page_state(state_dir: Path, project_dir: Path) -> dict:
     }
 
 
+def account_state(state_dir: Path, project_dir: Path) -> dict:
+    """What the Accounts section shows: whether the front door is on, the accounts and their
+    roles, whether the service is there to change them, and its last answer. Account requests
+    share the one request slot with stack changes, so waiting and result are the same ones."""
+    service_dir = project_dir / SERVICE_DIR
+    return {
+        "frontdoor": "frontdoor" in (profiles() or []),
+        "service": service_running(service_dir),
+        "accounts": accounts(service_dir),
+        "waiting": waiting(state_dir, service_dir),
+        "result": result(service_dir),
+    }
+
+
 def links() -> dict:
     """Where a browser opens Plex, Jellyfin, and Grafana, for the page's next steps: ports on
     the address the browser used, and Grafana's address (the Observability button's)."""
@@ -392,4 +448,33 @@ def ask(state_dir: Path, service_dir: Path, action: str, parts: list[str], claim
     with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as f:
         f.write(text)
     tmp.replace(path)  # whole, at once: the service never reads half a request
+    return rid
+
+
+def ask_account(state_dir: Path, service_dir: Path, op: str, name: str, admin: bool,
+                password: str = "") -> str:  # fmt: skip
+    """Leave a request for the kia-stack service to add, remove, or set the role of a front-door
+    account. The service holds the account store's admin credential and runs scripts/frontdoor.sh;
+    the kia container never does, so a break-in here can't manage accounts on its own. The new
+    password (add only) goes base64 so it survives the line-based request, and reaches the service
+    only, never a command line. Returns the request id, which the service's answer carries."""
+    import base64
+
+    if op not in ("add", "remove", "set-admin"):
+        raise StackError("The account action is add, remove, or set-admin.")
+    name = name_from(name)
+    if waiting(state_dir, service_dir) is not None:
+        raise StackError("The service is still working on the last request. Wait for its answer first.")
+    rid = secrets.token_hex(8)
+    lines = [f"id={rid}", f"action=account-{op}", f"name={name}", f"admin={'yes' if admin else 'no'}"]
+    if op == "add":
+        lines.append("pw64=" + base64.b64encode(password_from(password).encode()).decode())
+    path = state_dir / REQUEST
+    tmp = temp_name(path)
+    # Readable by its owner only (it can hold the new password, base64); kia and the service run
+    # as the same user, so the service can still read it. A leftover from a crash goes first.
+    tmp.unlink(missing_ok=True)
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as f:
+        f.write("\n".join(lines) + "\n")
+    tmp.replace(path)
     return rid

@@ -195,20 +195,43 @@ if [ "$cmd" = watch ]; then
         (umask 077 && head -c 4096 "$req" >"$own/request.txt")
         id=$(field id "$own/request.txt") action=$(field action "$own/request.txt") parts=$(field stack "$own/request.txt")
         claim=$(field claim "$own/request.txt")
-        # The copy can hold a claim code: keep it no longer than it takes to read it. A
-        # claim code that's used ends up in .env, which only you can read.
+        # Account requests (below) carry a login name, a role, and, for add, the new password as
+        # base64 so it survives these plain lines.
+        name=$(field name "$own/request.txt") admin=$(field admin "$own/request.txt") pw64=$(field pw64 "$own/request.txt")
+        # The copy can hold a claim code or a password: keep it no longer than it takes to read
+        # them. A claim code that's used ends up in .env, which only you can read.
         rm -f "$own/request.txt"
         # Without a proper id there's no one to answer: kia always sends one.
         case "$id" in "" | *[!A-Za-z0-9-]*) echo "stack: ignored a request without a proper id"; rm -f "$req"; return 0 ;; esac
         if [ ${#id} -gt 64 ]; then echo "stack: ignored a request with a long id"; rm -f "$req"; return 0; fi
         why=""
-        case "$action" in check | apply) ;; *) why="it asked for something other than check or apply"; action=unknown ;; esac
-        case "$parts" in *[!a-z0-9,-]*) why="the parts can only be names such as plex,observability" ;; esac
-        if [ ${#parts} -gt 200 ]; then why="the list of parts is too long"; fi
-        # A Plex claim code, for an apply only: checked again by the script it's passed to.
-        case "$claim" in "") ;; claim-*) case "${claim#claim-}" in "" | *[!A-Za-z0-9_-]*) why="the claim code isn't one from plex.tv/claim" ;; esac ;; *) why="the claim code isn't one from plex.tv/claim" ;; esac
-        if [ ${#claim} -gt 80 ]; then why="the claim code is too long"; fi
-        if [ -n "$claim" ] && [ "$action" != apply ]; then why="a claim code goes with apply"; fi
+        case "$action" in
+            check | apply)
+                case "$parts" in *[!a-z0-9,-]*) why="the parts can only be names such as plex,observability" ;; esac
+                if [ ${#parts} -gt 200 ]; then why="the list of parts is too long"; fi
+                # A Plex claim code, for an apply only: checked again by the script it's passed to.
+                case "$claim" in "") ;; claim-*) case "${claim#claim-}" in "" | *[!A-Za-z0-9_-]*) why="the claim code isn't one from plex.tv/claim" ;; esac ;; *) why="the claim code isn't one from plex.tv/claim" ;; esac
+                if [ ${#claim} -gt 80 ]; then why="the claim code is too long"; fi
+                if [ -n "$claim" ] && [ "$action" != apply ]; then why="a claim code goes with apply"; fi
+                ;;
+            account-add | account-remove | account-set-admin)
+                # A login name and a role, each strictly checked, so they're safe as arguments to
+                # scripts/frontdoor.sh. The password (add only) is base64, and goes on stdin, not
+                # a command line. Only these three actions touch accounts.
+                case "$name" in "" | -* | *[!a-z0-9-]*) why="the login name can only be lowercase letters, digits, and dashes" ;; esac
+                if [ ${#name} -gt 40 ]; then why="the login name is too long"; fi
+                case "$action" in
+                    account-add | account-set-admin) case "$admin" in yes | no) ;; *) why="${why:-the role is yes or no}" ;; esac ;;
+                esac
+                if [ "$action" = account-add ]; then
+                    case "$pw64" in "") why="${why:-a password is needed}" ;; *[!A-Za-z0-9+/=]*) why="${why:-the password is not base64}" ;; esac
+                    if [ ${#pw64} -gt 256 ]; then why="the password is too long"; fi
+                elif [ -n "$pw64" ]; then
+                    why="${why:-that action takes no password}"
+                fi
+                ;;
+            *) why="it asked for something kia doesn't do"; action=unknown ;;
+        esac
         # The Dashboard stops waiting after 5 minutes, so a request older than that (left
         # while this service was stopped, say) is one nobody is watching for any more.
         if [ -n "$(find "$req" -mmin +5 2>/dev/null)" ]; then why="it was more than 5 minutes old"; fi
@@ -219,17 +242,49 @@ if [ "$cmd" = watch ]; then
             rm -f "$req"
             return 0
         fi
-        echo "stack: $action KIA_STACK=$parts (request $id)"
+        echo "stack: $action ${name:+account $name }${parts:+KIA_STACK=$parts }(request $id)"
         answer "$id" "$action" running ""  # so the Dashboard can say it's under way
-        if [ "$action" = apply ]; then set -- apply --stack "$parts" --yes; else set -- check --stack "$parts"; fi
-        if [ -n "$claim" ]; then set -- "$@" --claim "$claim"; fi
         code=0
-        sh scripts/stack.sh "$@" >"$own/watch.out" 2>&1 </dev/null || code=$?
+        case "$action" in
+            check)
+                sh scripts/stack.sh check --stack "$parts" >"$own/watch.out" 2>&1 </dev/null || code=$? ;;
+            apply)
+                set -- apply --stack "$parts" --yes
+                [ -n "$claim" ] && set -- "$@" --claim "$claim"
+                sh scripts/stack.sh "$@" >"$own/watch.out" 2>&1 </dev/null || code=$? ;;
+            account-add)
+                # The role: an admin unless no. The password arrives base64 and goes to
+                # frontdoor.sh on stdin, decoded, with a line end it reads as the password.
+                set -- account "$name"
+                [ "$admin" = no ] && set -- "$@" --no-admin
+                { printf '%s' "$pw64" | openssl base64 -d -A; echo; } | sh scripts/frontdoor.sh "$@" >"$own/watch.out" 2>&1 || code=$?
+                account_list ;;
+            account-remove)
+                sh scripts/frontdoor.sh remove "$name" >"$own/watch.out" 2>&1 </dev/null || code=$?
+                account_list ;;
+            account-set-admin)
+                onoff=off; [ "$admin" = yes ] && onoff=on
+                sh scripts/frontdoor.sh set-admin "$name" "$onoff" >"$own/watch.out" 2>&1 </dev/null || code=$?
+                account_list ;;
+        esac
         # The container list first: the page reads both as soon as the answer appears, and
         # after an apply it should show what runs now, not what ran before.
         containers
         answer "$id" "$action" finished "$code" "$own/watch.out"
         rm -f "$req"
+    }
+
+    # The front door's accounts, written like the container list, for the Dashboard's Accounts
+    # section: one per line, a tab, then admin or member. frontdoor.sh list prints "name" or
+    # "name (admin)"; it needs the account store running, so a failure keeps the last list.
+    account_list() {
+        if sh scripts/frontdoor.sh list </dev/null >"$own/accounts.out" 2>/dev/null; then
+            awk '/^No account/ { next }
+                 / \(admin\)$/ { sub(/ \(admin\)$/, ""); print $0 "\tadmin"; next }
+                 NF { print $0 "\tmember" }' "$own/accounts.out" >"$own/accounts.tmp" \
+                && mv -f "$own/accounts.tmp" "$own/accounts.tsv"
+        fi
+        rm -f "$own/accounts.out"
     }
 
     echo "stack: watching for requests from the Dashboard's Stack page (Ctrl-C stops)"
@@ -240,8 +295,9 @@ if [ "$cmd" = watch ]; then
             # The gateway part: a restart when kia renewed its certificate, which the
             # gateway misses with Docker Desktop (scripts/gateway.sh refresh).
             if [ -s gateway/loaded ]; then sh scripts/gateway.sh refresh </dev/null || true; fi
-            # The front door, the same way: a restart when its settings changed.
-            if [ -s frontdoor/loaded ]; then sh scripts/frontdoor.sh refresh </dev/null || true; fi
+            # The front door, the same way: a restart when its settings changed, and a fresh
+            # list of its accounts for the Dashboard's Accounts section.
+            if [ -s frontdoor/loaded ]; then sh scripts/frontdoor.sh refresh </dev/null || true; account_list; fi
         fi
         take_request
         [ "$once" = no ] || exit 0

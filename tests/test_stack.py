@@ -189,6 +189,69 @@ def test_asking_writes_one_request_at_a_time(tmp_path: Path):
     assert stack.waiting(state, service) is None and stack.ask(state, service, "apply", ["plex"])
 
 
+def test_asking_to_add_an_account_writes_the_password_base64(tmp_path: Path):
+    import base64
+
+    _, state, service = project(tmp_path)
+    rid = stack.ask_account(state, service, "add", "dad", admin=True, password="a-good-password")
+    text = (state / "stack-request").read_text()
+    assert f"id={rid}\n" in text and "action=account-add\n" in text and "name=dad\n" in text and "admin=yes\n" in text
+    # The password is carried base64, so it survives the line format and isn't there in the clear.
+    assert "pw64=" + base64.b64encode(b"a-good-password").decode() + "\n" in text
+    assert "a-good-password" not in text
+    assert (state / "stack-request").stat().st_mode & 0o777 == 0o600  # it holds the password
+    # A household member gets admin=no and no password line for set-admin/remove.
+    (state / "stack-request").unlink()
+    stack.ask_account(state, service, "set-admin", "kid", admin=False)
+    text = (state / "stack-request").read_text()
+    assert "action=account-set-admin\n" in text and "admin=no\n" in text and "pw64=" not in text
+
+
+def test_account_requests_are_checked(tmp_path: Path):
+    _, state, service = project(tmp_path)
+    for bad in ("Dad", "a b", "-x", "rm -rf", "a" * 41):
+        try:
+            stack.ask_account(state, service, "add", bad, admin=True, password="a-good-password")
+            raise AssertionError(f"accepted a bad name: {bad!r}")
+        except stack.StackError:
+            pass
+    for short in ("", "short", "x" * 7):
+        try:
+            stack.ask_account(state, service, "add", "dad", admin=True, password=short)
+            raise AssertionError(f"accepted a short password: {short!r}")
+        except stack.StackError as exc:
+            assert "8 characters" in str(exc) or "Expected" in str(exc)
+    # A newline can't travel to the account store (it reads one line as the password).
+    try:
+        stack.ask_account(state, service, "add", "dad", admin=True, password="line1\nline2!!")
+        raise AssertionError("accepted a password with a line break")
+    except stack.StackError:
+        pass
+    try:
+        stack.ask_account(state, service, "sudo", "dad", admin=True)
+        raise AssertionError("accepted an unknown account action")
+    except stack.StackError:
+        pass
+
+
+def test_account_requests_wait_their_turn(tmp_path: Path):
+    _, state, service = project(tmp_path)
+    stack.ask_account(state, service, "remove", "dad", admin=False)
+    try:
+        stack.ask(state, service, "check", ["plex"])  # the one slot is taken
+        raise AssertionError("a second request while the first waits")
+    except stack.StackError as exc:
+        assert "still working" in str(exc)
+
+
+def test_reading_the_accounts_list(tmp_path: Path):
+    _, _, service = project(tmp_path)
+    assert stack.accounts(service) == []
+    (service / "accounts.tsv").write_text("dad\tadmin\nkid\tmember\nmum\tadmin\n")
+    assert stack.accounts(service) == [{"name": "dad", "admin": True}, {"name": "kid", "admin": False},
+                                       {"name": "mum", "admin": True}]  # fmt: skip
+
+
 def test_a_leftover_request_temp_file_doesnt_block_asking(tmp_path: Path):
     # After a crash between writing and renaming, the same temp name can come back (the same
     # process id after a restart): it used to be a lasting 500 for Check and Apply.
@@ -267,6 +330,35 @@ def test_the_api_asks_the_service(tmp_path: Path, monkeypatch):
     (cfg.state_dir / "stack-request").unlink()
     status, data = ask({"parts": ["plex", "$(reboot)"]})
     assert status == 400 and not (cfg.state_dir / "stack-request").exists()
+
+
+def test_the_api_manages_accounts_through_the_service(tmp_path: Path, monkeypatch):
+    from kia import api
+
+    monkeypatch.setattr(api, "_sleep", lambda s: None)
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "gateway,frontdoor")
+    cfg = api_cfg(tmp_path)
+    # The list the service wrote, shown with no password.
+    (cfg.state_dir.parent / "stack-service").mkdir(exist_ok=True)
+    (cfg.state_dir.parent / "stack-service" / "accounts.tsv").write_text("dad\tadmin\nkid\tmember\n")
+    status, data = api.handle(cfg, "GET", "/api/accounts", {}, b"", False)
+    assert status == 200 and data["frontdoor"] is True
+    assert data["accounts"] == [{"name": "dad", "admin": True}, {"name": "kid", "admin": False}]
+    # Adding leaves a request (with the password base64, not in the clear) and gates on the password.
+    post = lambda op, body: api.handle(cfg, "POST", f"/api/accounts/{op}", {"X-Kia-Password": "secret"}, json.dumps(body).encode(), True)
+    assert post("add", {"name": "mum", "admin": True, "password": "a-good-password"})[0] == 200
+    req = (cfg.state_dir / "stack-request").read_text()
+    assert "action=account-add\nname=mum\nadmin=yes\n" in req and "a-good-password" not in req and "pw64=" in req
+    (cfg.state_dir / "stack-request").unlink()
+    # A bad name is a 400, a short password is a 400, and no password reaches a changing request.
+    assert post("add", {"name": "Bad Name", "password": "a-good-password"})[0] == 400
+    assert post("add", {"name": "mum", "password": "short"})[0] == 400
+    assert not (cfg.state_dir / "stack-request").exists()
+    # set-admin and remove need no password.
+    assert post("set-admin", {"name": "kid", "admin": True})[0] == 200
+    assert "action=account-set-admin\nname=kid\nadmin=yes\n" in (cfg.state_dir / "stack-request").read_text()
+    # A change needs the password (and the secure page), like every other change.
+    assert api.handle(cfg, "POST", "/api/accounts/remove", {}, b'{"name": "kid"}', True)[0] == 401
 
 
 def test_the_api_without_docker_has_nothing_to_ask(tmp_path: Path, monkeypatch):

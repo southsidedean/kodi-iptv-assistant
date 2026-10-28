@@ -246,7 +246,7 @@ def test_watch_applies_a_new_choice(kia: Path):
 
 
 @pytest.mark.parametrize(("fields", "why"), [
-    ({"action": "rm"}, "other than check or apply"),
+    ({"action": "rm"}, "something kia doesn't do"),
     ({"stack": "plex$(touch hacked)"}, "only be names"),
     ({"stack": "plex\\nobservability"}, "only be names"),
     ({"stack": "plex," * 60}, "too long"),
@@ -476,6 +476,69 @@ def test_the_service_passes_a_claim_code_on_and_refuses_a_bad_one(kia: Path):
     request(kia, id="req-12", action="check", stack="plex", claim="claim-abc")
     stack(kia, "watch", "--once")
     assert answer(kia)[0]["state"] == "refused"
+
+
+def frontdoor_stub(kia: Path) -> Path:
+    """Replace scripts/frontdoor.sh with a stand-in that records what stack.sh asked it (the
+    arguments, and the password read on stdin), and answers list with a canned pair. So these
+    tests check stack.sh's side of the contract; frontdoor.sh has its own tests."""
+    log = kia.parent / "frontdoor.log"
+    (kia / "scripts" / "frontdoor.sh").write_text(
+        "#!/bin/sh\n"
+        f'echo "args: $*" >> "{log}"\n'
+        'case "$1" in\n'
+        f'  account) IFS= read -r pw; echo "pw: $pw" >> "{log}" ;;\n'
+        '  list) printf "dad (admin)\\nkid\\n" ;;\n'
+        '  remove | set-admin) : ;;\n'
+        'esac\n')  # fmt: skip
+    return log
+
+
+def test_the_service_adds_an_account_with_the_password_only_on_stdin(kia: Path):
+    import base64
+
+    from kia import stack as kia_stack
+
+    log = frontdoor_stub(kia)
+    request(kia, id="acc-1", action="account-add", name="mum", admin="no",
+            pw64=base64.b64encode(b"a-good-password").decode())  # fmt: skip
+    stack(kia, "watch", "--once")
+    head, said = answer(kia)
+    assert head["state"] == "finished" and head["exit"] == "0"
+    logged = log.read_text()
+    assert "args: account mum --no-admin" in logged  # a household member, so --no-admin
+    assert "pw: a-good-password" in logged  # the password arrived on stdin, decoded
+    # The password is nowhere the page can read it, and no copy is left in the service's folder.
+    assert "a-good-password" not in said
+    assert not any("a-good-password" in f.read_text() for f in (kia / "stack-service").iterdir() if f.is_file())
+    # After the change the service writes the accounts list for the page.
+    assert kia_stack.accounts(kia / "stack-service") == [{"name": "dad", "admin": True}, {"name": "kid", "admin": False}]
+
+
+def test_the_service_sets_a_role_and_removes_an_account(kia: Path):
+    log = frontdoor_stub(kia)
+    request(kia, id="acc-2", action="account-set-admin", name="kid", admin="yes")
+    stack(kia, "watch", "--once")
+    assert answer(kia)[0]["state"] == "finished" and "args: set-admin kid on" in log.read_text()
+    request(kia, id="acc-3", action="account-remove", name="kid", admin="no")
+    stack(kia, "watch", "--once")
+    assert answer(kia)[0]["state"] == "finished" and "args: remove kid" in log.read_text()
+
+
+def test_the_service_refuses_a_bad_account_request(kia: Path):
+    frontdoor_stub(kia)
+    request(kia, id="acc-4", action="account-add", name="Bad Name", admin="no", pw64="eA==")
+    stack(kia, "watch", "--once")
+    assert answer(kia)[0]["state"] == "refused"  # a name with a space
+    request(kia, id="acc-5", action="account-add", name="mum", admin="no", pw64="")
+    stack(kia, "watch", "--once")
+    head, said = answer(kia)
+    assert head["state"] == "refused" and "password" in said  # add needs a password
+    request(kia, id="acc-6", action="account-remove", name="kid", admin="no", pw64="eA==")
+    stack(kia, "watch", "--once")
+    assert answer(kia)[0]["state"] == "refused"  # remove takes no password
+    # None of these reached the stand-in, so no account work ran.
+    assert not (kia.parent / "frontdoor.log").exists()
 
 
 def test_kia_running_without_an_answer_isnt_taken_as_nobody_watching(kia: Path):

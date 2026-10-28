@@ -713,6 +713,30 @@ def ask_stack(cfg: ApiConfig, action: str, data: dict) -> dict:
     return {"id": rid, **get_stack(cfg, True)}
 
 
+def get_accounts(cfg: ApiConfig, secure: bool = False) -> dict:
+    """The Accounts section: the front-door accounts and their roles, and whether the service is
+    there to change them. The accounts themselves aren't secret (names and roles, no passwords)."""
+    return {"editable": cfg.auth.source != "off", "secure": secure,
+            **stack.account_state(cfg.state_dir, _project_dir(cfg))}  # fmt: skip
+
+
+def change_account(cfg: ApiConfig, op: str, data: dict) -> dict:
+    """Ask the kia-stack service to add, remove, or set the role of a front-door account. kia
+    doesn't touch the account store itself; the service (which holds its admin credential) does.
+    The answer comes later, in GET /api/accounts, which the page asks for every few seconds."""
+    if stack.profiles() is None:
+        raise ApiError(409, "Managing accounts here is for kia with Docker.")
+    if not isinstance(data, dict):
+        raise ApiError(400, "Send the account as JSON.")
+    try:
+        with STACK_LOCK:
+            rid = stack.ask_account(cfg.state_dir, _project_dir(cfg) / stack.SERVICE_DIR, op,
+                                    data.get("name"), bool(data.get("admin")), data.get("password") or "")  # fmt: skip
+    except stack.StackError as exc:
+        raise ApiError(409 if "still working" in str(exc) else 400, str(exc)) from None
+    return {"id": rid, **get_accounts(cfg, True)}
+
+
 def front_door_user(cfg: ApiConfig, headers) -> tuple[str, bool] | None:
     """Who the front door says you are, as (name, is_admin), trusted only when the gateway's
     own token proves the request came through the front door. A direct connection to the web
@@ -1182,6 +1206,11 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["stack", "apply"] and method == "POST":
             need_edit()
             return 200, ask_stack(cfg, "apply", data)
+        if parts == ["accounts"] and method == "GET":
+            return 200, get_accounts(cfg, secure)
+        if len(parts) == 2 and parts[0] == "accounts" and parts[1] in ("add", "remove", "set-admin") and method == "POST":
+            need_edit()
+            return 200, change_account(cfg, parts[1], data)
         if parts == ["plex", "tuners"] and method == "GET":
             return 200, {"plex": plex_tuners_state()}
         if parts == ["plex", "tuners"] and method == "POST":
