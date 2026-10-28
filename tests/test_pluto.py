@@ -207,6 +207,42 @@ def test_debug_capture_stops_at_the_cap(tmp_path, monkeypatch):
     assert len(list((tmp_path / "d").glob("*.ts"))) == 2  # no more than the cap
 
 
+def _fake_copies(monkeypatch, results):
+    """Stand in for ffmpeg: probe_start returns zero offsets, and each copy call returns the next
+    (stdout, stderr) from results. Records whether each call asked for audio."""
+    monkeypatch.setattr(pluto, "probe_start", lambda *a, **k: (0.0, 0.0))
+    calls = []
+    it = iter(results)
+
+    def fake_run(cmd, **k):
+        calls.append("0:a:0?" in cmd)
+        out, err = next(it)
+        return subprocess.CompletedProcess(cmd, 0 if out else 1, stdout=out, stderr=err)
+
+    monkeypatch.setattr(pluto.subprocess, "run", fake_run)
+    return calls
+
+
+def test_remux_drops_the_audio_when_the_copy_fails_on_it(monkeypatch):
+    # The sliver case: the copy with audio yields nothing (the muxer refused the empty audio),
+    # so kia copies the piece video-only instead of failing it.
+    calls = _fake_copies(monkeypatch, [(b"", b"sample rate not set"), (b"VIDEO", b"")])
+    assert pluto.remux(b"body", "ab" * 16, "0" * 32, 0.033, 0.0) == b"VIDEO"
+    assert calls == [True, False]  # tried with audio, then without
+
+
+def test_remux_keeps_the_audio_when_the_copy_works(monkeypatch):
+    calls = _fake_copies(monkeypatch, [(b"OK", b"")])
+    assert pluto.remux(b"body", None, "0" * 32, 5.0, 0.0) == b"OK"
+    assert calls == [True]  # one call, audio kept, no fallback
+
+
+def test_remux_raises_when_even_video_only_fails(monkeypatch):
+    _fake_copies(monkeypatch, [(b"", b"broken"), (b"", b"still broken")])
+    with pytest.raises(ValueError):
+        pluto.remux(b"body", None, "0" * 32, 5.0, 0.0)
+
+
 def test_no_iv_means_the_sequence_number():
     lines = media([(0, SHOW.format(part="p", n=0))], seq=0x2A, key="k.key").replace(",IV=0x00000000000000000000000000000063", "")
     fake = FakePluto([lines])

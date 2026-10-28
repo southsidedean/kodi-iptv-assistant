@@ -599,7 +599,12 @@ def probe_start(path: str, key: str | None, iv: str, ffprobe: str = "ffprobe") -
 def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
           ffmpeg: str = "ffmpeg", ffprobe: str = "ffprobe") -> bytes:  # fmt: skip
     """Decrypt one piece and move it onto kia's clock, starting at t0 seconds. Audio keeps
-    its small offset from the video, unless it's out by a second or more (as in some ads)."""
+    its small offset from the video, unless it's out by a second or more (as in some ads).
+
+    A short sliver at the end of an ad sometimes declares an audio stream with no usable sample
+    rate and no audio packets, which the mpegts muxer refuses ("sample rate not set"). Rather than
+    drop the whole piece, which stalls the player and loops the session, kia copies that one piece
+    without the sound (a few milliseconds, with nothing to hear anyway)."""
     tmp = tempfile.mkdtemp(prefix="kia-pluto-")
     try:
         path = f"{tmp}/in.ts"
@@ -609,15 +614,25 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
         tv = round((t0 - v0) * 90000)
         ta = tv if abs(a0 - v0) < 1 else round((t0 - a0) * 90000)
         src = ["-f", "mpegts", "-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-f", "mpegts", "-i", path]
-        cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-copyts",
-               "-t", f"{dur:.3f}", *src,  # Pluto sometimes packs in more than it lists
-               "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy",
-               "-bsf:v", f"setts=pts=PTS+{tv}:dts=DTS+{tv}", "-bsf:a", f"setts=pts=PTS+{ta}:dts=DTS+{ta}",
-               "-muxdelay", "0", "-muxpreload", "0", "-mpegts_flags", "+initial_discontinuity",
-               "-f", "mpegts", "pipe:1"]  # fmt: skip
-        proc = subprocess.run(cmd, capture_output=True, timeout=30, check=False, env=media_env())
+
+        def copy(with_audio: bool) -> subprocess.CompletedProcess:
+            maps = ["-map", "0:v:0?"] + (["-map", "0:a:0?"] if with_audio else [])
+            bsf = ["-bsf:v", f"setts=pts=PTS+{tv}:dts=DTS+{tv}"]
+            if with_audio:
+                bsf += ["-bsf:a", f"setts=pts=PTS+{ta}:dts=DTS+{ta}"]
+            cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-copyts",
+                   "-t", f"{dur:.3f}", *src,  # Pluto sometimes packs in more than it lists
+                   *maps, "-c", "copy", *bsf,
+                   "-muxdelay", "0", "-muxpreload", "0", "-mpegts_flags", "+initial_discontinuity",
+                   "-f", "mpegts", "pipe:1"]  # fmt: skip
+            return subprocess.run(cmd, capture_output=True, timeout=30, check=False, env=media_env())
+
+        proc = copy(with_audio=True)
         if not proc.stdout:
-            raise ValueError(proc.stderr.decode(errors="replace").strip()[-200:] or "no output")
+            video_only = copy(with_audio=False)  # the sliver case above: keep the picture going
+            if video_only.stdout:
+                return video_only.stdout
+            raise ValueError((proc.stderr or video_only.stderr).decode(errors="replace").strip()[-200:] or "no output")
         return proc.stdout
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
