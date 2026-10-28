@@ -329,9 +329,12 @@ PROTECTED = [
     ("POST", "/api/asks/approve", {"id": "0123456789abcdef"}),
     ("POST", "/api/asks/decline", {"id": "0123456789abcdef"}),
     ("POST", "/api/asks/stop-allowing", {}),
+    ("POST", "/api/accounts/add", {"name": "mum", "admin": True, "password": "a-good-password"}),
+    ("POST", "/api/accounts/remove", {"name": "kid"}),
+    ("POST", "/api/accounts/set-admin", {"name": "kid", "admin": True}),
 ]
 PUBLIC = [("GET", "/api/profiles"), ("POST", "/api/preview"), ("GET", "/api/channels"), ("GET", "/api/channel-choices"),
-          ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"),
+          ("GET", "/api/sources"), ("GET", "/api/sources/check"), ("GET", "/api/stack"), ("GET", "/api/accounts"),
           ("GET", "/api/plex/tuners"), ("GET", "/api/doctor"), ("GET", "/api/doctor/channel"), ("GET", "/api/doctor/plex"),
           ("GET", "/api/doctor/hardware"),
           ("GET", "/api/doctor/jellyfin"),
@@ -362,12 +365,14 @@ def test_every_route_is_in_one_of_the_lists():
     source = inspect.getsource(api.handle)
     routes = {(m, "/api/" + "/".join(re.findall(r'"([a-z-]+)"', p)))
               for p, m in re.findall(r'parts == \[([^\]]*)\] and method == "([A-Z]+)"', source)}  # fmt: skip
-    listed = {(m, p.split("?")[0]) for m, p, _ in PROTECTED if not p.startswith("/api/profiles/")} | set(PUBLIC)
+    listed = {(m, p.split("?")[0]) for m, p, _ in PROTECTED
+              if not p.startswith(("/api/profiles/", "/api/accounts/"))} | set(PUBLIC)  # fmt: skip
     assert routes == listed
     # And every route is written that way, so none slips past the pattern above: the only
-    # others are these three, each covered by its own test.
+    # others are these four, each covered by its own test.
     others = {'if parts == ["mcp"]:', 'if parts and parts[0] == "sources" and method in ("PUT", "POST", "DELETE"):',
-              'if len(parts) == 2 and parts[0] == "profiles" and method in ("PUT", "DELETE"):'}  # fmt: skip
+              'if len(parts) == 2 and parts[0] == "profiles" and method in ("PUT", "DELETE"):',
+              'if len(parts) == 2 and parts[0] == "accounts" and parts[1] in ("add", "remove", "set-admin") and method == "POST":'}  # fmt: skip
     for line in source.splitlines():
         line = line.split("  #")[0].strip()
         if re.match(r"(el)?if .*\bparts\b", line):
