@@ -62,15 +62,21 @@ def in_url(host: str) -> str:
     return f"[{host}]" if ":" in host else host
 
 
-def names(public_url: str | None, chosen: list[str] | None = None) -> list[str]:
+def names(public_url: str | None, chosen: list[str] | None = None,
+          extra: list[str] | None = None) -> list[str]:
     """The names the certificate should cover: the ones you chose (KIA_TLS_NAMES) or the
-    public address's host, plus this machine. The first is the one people should open."""
+    public address's host, then any extra names (the front door's, so browsers trust it there
+    too), plus this machine. The first is the one people should open, so extra names never
+    change it."""
     out = [normal(n.strip()) for n in chosen or [] if n.strip()]
     if not out and (host := host_of(public_url)):
         out.append(normal(host))
-    for extra in ("localhost", "127.0.0.1"):
-        if extra not in out:
-            out.append(extra)
+    for name in extra or []:
+        if (n := normal(name.strip())) and n not in out:
+            out.append(n)
+    for loopback in ("localhost", "127.0.0.1"):
+        if loopback not in out:
+            out.append(loopback)
     return out
 
 

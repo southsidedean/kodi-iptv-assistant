@@ -123,7 +123,11 @@ write() {
         mv -f "$oidc_key.tmp" "$oidc_key"
     fi
     client=$(secret client-secret)      # the gateway sends this
-    _=$(secret cookie-secret)           # the gateway's login-cookie key (read by gateway.sh)
+    # The gateway's OIDC session cookie key (read by gateway.sh). agentgateway wants an
+    # AES-256 key as 64 hex characters, not the base64 the others use. Made once and kept.
+    if [ ! -s "$secrets/cookie-secret" ]; then
+        openssl rand -hex 32 >"$secrets/cookie-secret.tmp" && mv -f "$secrets/cookie-secret.tmp" "$secrets/cookie-secret"
+    fi
     session=$(secret session-secret)
     storage=$(secret storage-key)
     hmac=$(secret hmac-secret)

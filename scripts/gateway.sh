@@ -89,6 +89,24 @@ write() {
     else
         keys="          keys: []"  # no devices yet: every call is refused
     fi
+    # The front door (the frontdoor part): a second listener that owns login and proxies the
+    # Dashboard. Its host names and port come from .env; the client and cookie secrets come from
+    # the ones scripts/frontdoor.sh wrote. The gateway's OIDC cookie key goes in gateway/oidc.env,
+    # which compose loads for the gateway. The file is always written (empty without the front
+    # door), so compose's env_file always finds it.
+    fd_host=$(get KIA_FRONTDOOR_HOST)
+    fd_auth=$(get KIA_FRONTDOOR_AUTH_HOST)
+    fd_port=$(get KIA_FRONTDOOR_PORT); fd_port=${fd_port:-8444}
+    : >"$dir/oidc.env.tmp"
+    if [ -n "$fd_host" ]; then
+        [ -n "$fd_auth" ] || die "KIA_FRONTDOOR_AUTH_HOST is needed with KIA_FRONTDOOR_HOST (docs/front-door.md)"
+        case "$fd_port" in "" | *[!0-9]* | 0*) die "KIA_FRONTDOOR_PORT is a port number, such as 8444" ;; esac
+        if [ ${#fd_port} -gt 5 ] || [ "$fd_port" -gt 65535 ]; then die "KIA_FRONTDOOR_PORT is from 1 to 65535"; fi
+        [ -s frontdoor/secrets/client-secret ] || die "set the front door up first: scripts/frontdoor.sh write"
+        fd_client=$(cat frontdoor/secrets/client-secret)
+        printf 'OIDC_COOKIE_SECRET=%s\n' "$(cat frontdoor/secrets/cookie-secret)" >"$dir/oidc.env.tmp"
+    fi
+    mv -f "$dir/oidc.env.tmp" "$dir/oidc.env"
     cat >"$config.tmp" <<EOF
 # kia's gateway (agentgateway) in front of kia's MCP server. scripts/gateway.sh writes this
 # file from gateway/devices and .env: a change made here by hand is lost at its next write.
@@ -165,6 +183,78 @@ $keys
                 root: /etc/kia-tls/fullchain.pem
                 insecureHost: true
 EOF
+    if [ -n "$fd_host" ]; then
+        # The front door: a login listener for the Dashboard, and the login provider behind it.
+        # kia's web server sets the security headers (deploy/nginx.conf), so the gateway doesn't
+        # add its own here; it only owns the login and says who you are. The login token is not
+        # passed on to the Dashboard. docs/front-door.md.
+        cat >>"$config.tmp" <<EOF
+- port: $fd_port
+  listeners:
+  - protocol: HTTPS
+    tls:
+      cert: /etc/kia-tls/fullchain.pem
+      key: /etc/kia-tls/privkey.pem
+    routes:
+    - hostnames: [$fd_host]
+      policies:
+        oidc:
+          issuer: https://$fd_auth:$fd_port
+          authorizationEndpoint: https://$fd_auth:$fd_port/api/oidc/authorization
+          # The back-channel token exchange goes through the gateway's own HTTP listener
+          # (below), which adds the forwarded headers the login needs for a steady issuer, so
+          # the gateway never has to trust the login's self-signed certificate.
+          tokenEndpoint: http://127.0.0.1:9092/api/oidc/token
+          # The login's signing keys, fetched over the gateway's own network. No file to keep
+          # in step: a rotated key is picked up on the next fetch.
+          jwks:
+            url: http://authelia:9091/jwks.json
+          tokenEndpointAuth: clientSecretPost
+          clientId: agentgateway
+          clientSecret: $fd_client
+          redirectURI: https://$fd_host:$fd_port/oidc/callback
+          scopes: [profile, email, groups]
+          credentials: sessionOrBearer
+        # Who logged in, for the Dashboard to read (it keeps its own password until 0.8.2).
+        transformations:
+          request:
+            set:
+              x-user-id: jwt.preferred_username
+              x-user-email: jwt.email
+        # kia's web server answers only over HTTPS (changes need it), with its own certificate,
+        # which names the computer rather than "web" on the gateway's network.
+        backendTLS:
+          root: /etc/kia-tls/fullchain.pem
+          insecureHost: true
+      backends:
+      - host: web:443
+    # The login itself, proxied to the provider with the forwarded headers it needs for a
+    # steady issuer, so it never needs TLS of its own.
+    - hostnames: [$fd_auth]
+      policies:
+        transformations:
+          request:
+            set:
+              x-forwarded-proto: '"https"'
+              x-forwarded-host: '"$fd_auth:$fd_port"'
+      backends:
+      - host: authelia:9091
+- port: 9092
+  listeners:
+  # The gateway's own HTTP listener for the back-channel token exchange, on this container only
+  # (not published), adding the same forwarded headers.
+  - protocol: HTTP
+    routes:
+    - policies:
+        transformations:
+          request:
+            set:
+              x-forwarded-proto: '"https"'
+              x-forwarded-host: '"$fd_auth:$fd_port"'
+      backends:
+      - host: authelia:9091
+EOF
+    fi
     mv -f "$config.tmp" "$config"
 }
 

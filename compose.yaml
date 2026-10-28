@@ -577,6 +577,14 @@ services:
       - web
     ports:
       - "${KIA_BIND:-0.0.0.0}:${KIA_GATEWAY_PORT:-8745}:8745"
+      # The front door's login listener (the frontdoor part). Nothing listens on it until the
+      # front door is on, when scripts/gateway.sh adds its listener to the config.
+      - "${KIA_BIND:-0.0.0.0}:${KIA_FRONTDOOR_PORT:-8444}:8444"
+    # The gateway's OIDC session cookie key, written by scripts/gateway.sh when the front door
+    # is on. Optional, so the gateway still starts without the front door.
+    env_file:
+      - path: ./gateway/oidc.env
+        required: false
     volumes:
       - ./gateway:/gateway:ro
       - ./tls:/etc/kia-tls:ro

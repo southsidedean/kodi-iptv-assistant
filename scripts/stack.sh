@@ -410,7 +410,7 @@ fi
 [ -n "$(get KIA_PUBLIC_URL)" ] || warn "KIA_PUBLIC_URL is empty: players get links without kia's address (docs/configuration.md)"
 
 # Ports for parts that aren't running yet.
-for v in plex:plex:KIA_PLEX_PORT:32400 jellyfin:jellyfin:KIA_JELLYFIN_PORT:8096 observability:grafana:KIA_GRAFANA_PORT:8788 observability:prometheus:KIA_PROMETHEUS_PORT:8789 gateway:gateway:KIA_GATEWAY_PORT:8745; do
+for v in plex:plex:KIA_PLEX_PORT:32400 jellyfin:jellyfin:KIA_JELLYFIN_PORT:8096 observability:grafana:KIA_GRAFANA_PORT:8788 observability:prometheus:KIA_PROMETHEUS_PORT:8789 gateway:gateway:KIA_GATEWAY_PORT:8745 frontdoor:gateway:KIA_FRONTDOOR_PORT:8444; do
     part=${v%%:*} rest=${v#*:}; service=${rest%%:*}; rest=${rest#*:}; setting=${rest%%:*}; default=${rest#*:}
     port=$(get "$setting"); port=${port:-$default}
     if has "$part" && ! running "$service" && listening "$port"; then
@@ -528,11 +528,13 @@ if ! has jellyfin && [ "$(get KIA_JELLYFIN_URL)" = http://jellyfin:8096 ]; then
     set_env KIA_JELLYFIN_URL "" && echo "Emptied KIA_JELLYFIN_URL: Jellyfin isn't in KIA_STACK any more."
 fi
 
-# The gateway's settings, from its devices and .env, before it starts: it reads them only
-# from that file (scripts/gateway.sh).
-if has gateway; then sh scripts/gateway.sh write; fi
-# The front door's settings, the same way, before Authelia starts (scripts/frontdoor.sh).
+# The front door's settings and secrets first, before the gateway's: the gateway reads the
+# front door's client and cookie secrets, which frontdoor.sh writes (scripts/frontdoor.sh).
 if has frontdoor; then sh scripts/frontdoor.sh write; fi
+# The gateway's settings, from its devices and .env, before it starts: it reads them only
+# from that file, and adds the front door's login listener when the front door is on
+# (scripts/gateway.sh).
+if has gateway; then sh scripts/gateway.sh write; fi
 
 # The profiles given here too: one exported in this shell would win over .env's.
 compose_profiles=$(echo "$profiles" | tr ' ' ',')

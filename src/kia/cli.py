@@ -986,7 +986,8 @@ def secure_setup(cfg: Config) -> dict | None:
     """Make the admin password and the certificate if needed, and note the certificate and
     the secure page's address in state/secure.json for the Dashboard."""
     auth.from_env(cfg.state_dir).ensure(log)
-    names = tls.names(cfg.public_url, cfg.tls_names)
+    names = tls.names(cfg.public_url, cfg.tls_names,
+                      extra=[h for h in (cfg.frontdoor_host, cfg.frontdoor_auth_host) if h])
     info = tls.ensure(cfg.tls_dir, names, log)
     secure = {"url": f"https://{tls.in_url(names[0])}:{cfg.https_port}/" if info else None, "tls": info}
     write_atomic(cfg.state_dir / "secure.json", json.dumps(secure, indent=1))
@@ -1141,7 +1142,8 @@ def serve_secure(cfg: Config, bind: str, port: int | None):
 
 def cmd_tls(args: argparse.Namespace) -> int:
     cfg = load_config(args)
-    names = tls.names(cfg.public_url, cfg.tls_names)
+    names = tls.names(cfg.public_url, cfg.tls_names,
+                      extra=[h for h in (cfg.frontdoor_host, cfg.frontdoor_auth_host) if h])
     try:
         if args.self_signed:
             for name in (tls.CERT, tls.KEY):
