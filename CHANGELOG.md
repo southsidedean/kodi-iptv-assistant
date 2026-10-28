@@ -2,8 +2,13 @@
 
 ## 0.8.3 (unreleased)
 
+### Upgrading from 0.8.2
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). If you turned the front door on under 0.8.1 or 0.8.2 and set an account, run `scripts/frontdoor.sh account NAME` once after updating: accounts now live in the stack's own account store, and a password set under the old setup can't be carried across, so you set it again. Turning the front door on for the first time needs no such step.
+
 ### New
 
+- Separate front-door accounts, one per person, with roles. The account store ([LLDAP](https://github.com/lldap/lldap)) holds them, so a household can have an admin and ordinary members instead of one shared login. `scripts/frontdoor.sh account NAME` adds an account (an admin unless you add `--no-admin`), `set-admin NAME on` or `off` changes the role, `remove NAME` removes it, and `list` shows them all with admins marked. Managing accounts from the Dashboard comes next. [One login for the stack](docs/front-door.md) has the details.
 - One login for the Dashboard, when the front door is on. Set `KIA_TRUST_FRONTDOOR=true` and a person the front door logs in who's in the `admins` group edits on the Dashboard without kia's own password, so there's a single login instead of two. kia trusts this only because the gateway sends its own token with the request, proving it came through the front door; a direct connection to the web server still needs the password. People not in `admins` can read the Dashboard but not change it. Off by default. [One login for the stack](docs/front-door.md) has the steps.
 
 ## 0.8.2 (2026-10-27)

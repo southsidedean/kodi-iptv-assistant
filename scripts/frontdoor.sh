@@ -1,20 +1,23 @@
 #!/bin/sh
-# The front door's identity provider (the frontdoor part, docs/front-door.md): a small Authelia
-# that holds the household's accounts, so one login covers kia's pages. This writes Authelia's
-# settings and the one account; the gateway part puts a login in front of the Dashboard and
-# trusts what Authelia says (scripts/gateway.sh, from 0.8.2's listener work on).
+# The front door's identity provider (Authelia) and account store (LLDAP), the frontdoor part
+# (docs/front-door.md): one login covers kia's pages, and the household's accounts live in LLDAP
+# so a Dashboard page can manage them. This writes Authelia's settings and manages accounts; the
+# gateway part puts the login in front of the Dashboard (scripts/gateway.sh, from 0.8.2 on).
 #
 #   scripts/frontdoor.sh write                 write Authelia's settings from .env and the
 #                                              secrets (scripts/stack.sh apply does this)
-#   scripts/frontdoor.sh account NAME          set the one account's password (asked for it,
-#                                              not shown), such as frontdoor.sh account dad
-#   scripts/frontdoor.sh list                  the account that can log in
+#   scripts/frontdoor.sh account NAME          add or set an account and its password (asked
+#                                              for, never shown); an admin unless --no-admin,
+#                                              such as frontdoor.sh account dad
+#   scripts/frontdoor.sh set-admin NAME on|off make NAME an admin, or just a household member
+#   scripts/frontdoor.sh remove NAME           remove an account
+#   scripts/frontdoor.sh list                  the accounts that can log in (admins marked)
 #   scripts/frontdoor.sh refresh               restart Authelia if its settings changed (the
 #                                              kia-stack service does this every 30 seconds)
 #
 # NAME is the login name: lowercase letters, digits, and dashes, such as dad or admin.
-# kia never does password hashing itself: it asks Authelia's own tool to do it, so the only
-# password crypto in the stack is Authelia's.
+# Passwords live only in LLDAP, which hashes them with its own OPAQUE flow; kia never stores a
+# password or hashes one itself, so the only password crypto in the stack is the account store's.
 set -eu
 # Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
 # UTF-8) they take capitals and accented letters too, and a name check lets them through.
@@ -24,7 +27,6 @@ export LC_ALL
 cd "$(dirname "$0")/.."
 dir=frontdoor
 config=$dir/configuration.yml   # Authelia's settings, written from .env and the secrets
-users=$dir/users_database.yml   # the accounts, with each password as a hash Authelia made
 secrets=$dir/secrets            # the generated secrets, each in its own file, made once
 loaded=$dir/loaded              # what Authelia last started with (refresh, below)
 
@@ -36,31 +38,39 @@ new_key() { head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
 
 cmd=${1:-}
 [ $# -gt 0 ] && shift
-name="" email=""
+name="" email="" admin_flag="" setval=""
 case "$cmd" in
     account)
         [ $# -gt 0 ] || die "account needs the login name, such as dad"
         name=$1; shift ;;
+    remove)
+        [ $# -gt 0 ] || die "remove needs the login name, such as dad"
+        name=$1; shift ;;
+    set-admin)
+        [ $# -ge 2 ] || die "set-admin needs a login name and on or off, such as set-admin dad on"
+        name=$1; setval=$2; shift 2 ;;
     write | list | refresh) ;;
-    -h | --help | "") sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help | "") sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown command $cmd (see --help)" ;;
 esac
 while [ $# -gt 0 ]; do
     case "$1" in
         --email) [ $# -gt 1 ] || die "--email needs an address"; email=$2; shift ;;
+        --admin) admin_flag=yes ;;
+        --no-admin) admin_flag=no ;;
         *) die "unknown option $1 (see --help)" ;;
     esac
     shift
 done
-# The login name goes into Authelia's settings and becomes a part of a file: nothing that
-# could break out of a YAML line or pass for an option.
+# The login name goes into LDAP and into shell and JSON that reach the account store: nothing
+# that could break out of a line, pass for an option, or need escaping.
 if [ -n "$name" ]; then
     case "$name" in -* | *[!a-z0-9-]*) die "a login name is lowercase letters, digits, and dashes, such as dad" ;; esac
     [ ${#name} -le 40 ] || die "a login name is at most 40 characters"
 fi
 
 # Only you (and the stack's services, which run as you) can read anything in frontdoor/: the
-# secrets, the account hashes, and Authelia's database.
+# secrets and Authelia's settings (they hold the session, storage, hmac, and signing secrets).
 umask 077
 mkdir -p "$secrets"
 if [ -L "$dir" ] || [ ! -d "$dir" ]; then die "$dir isn't a folder"; fi
@@ -99,15 +109,15 @@ secret() {
     cat "$f"
 }
 
-# Authelia's own tool turns a password into a hash: kia never hashes a password itself. It runs
-# in a throwaway Authelia container (the pinned image). Authelia takes the password only on its
-# command line or from a terminal (it has no stdin form), so it goes on the throwaway container's
-# command line, seen only on this host for the instant it runs, and never kept. Prints the hash,
-# or stops with a clear message if Docker can't run it.
-hash_password() {  # hash_password ALGO PASSWORD
+# Authelia's own tool turns the OIDC client secret into a hash: kia never hashes it itself. It
+# runs in a throwaway Authelia container (the pinned image). Authelia takes the secret only on its
+# command line (it has no stdin form), so it goes on the throwaway container's command line, seen
+# only on this host for the instant it runs, and never kept. Prints the hash, or stops with a
+# clear message if Docker can't run it.
+hash_password() {  # hash_password ALGO SECRET
     out=$(docker compose --profile frontdoor run --rm --no-deps authelia \
               authelia crypto hash generate "$1" --password "$2" --no-confirm 2>/dev/null) \
-        || die "couldn't run Authelia to hash the password (is Docker running? is the image pulled?)"
+        || die "couldn't run Authelia to hash the client secret (is Docker running? is the image pulled?)"
     printf '%s\n' "$out" | sed -n 's/^Digest: //p' | head -n 1
 }
 
@@ -133,8 +143,7 @@ write() {
     hmac=$(secret hmac-secret)
     jwt=$(secret jwt-secret)
     # The account store (LLDAP): its signing and seed secrets, as files it reads, and the admin
-    # password it and the identity provider share, in an env file compose loads for it. new_key
-    # has no "$", so LLDAP needs no escaping of it.
+    # password it and Authelia share to bind. new_key has no "$", so LLDAP needs no escaping of it.
     _=$(secret lldap-jwt-secret)
     _=$(secret lldap-key-seed)
     lldap_pass=$(secret lldap-admin-pass)
@@ -148,9 +157,6 @@ write() {
         printf '%s\n' "$h" >"$secrets/client-secret.hash.tmp" && mv -f "$secrets/client-secret.hash.tmp" "$secrets/client-secret.hash"
     fi
     client_hash=$(cat "$secrets/client-secret.hash")
-    # Authelia won't start without an accounts file; account (below) fills it. Make an empty
-    # one so a first write and start don't fail before anyone's account is set.
-    [ -e "$users" ] || printf 'users: {}\n' >"$users"
     cat >"$config.tmp" <<EOF
 # kia's front door (Authelia). scripts/frontdoor.sh writes this file from .env and the secrets
 # in frontdoor/secrets: a change made here by hand is lost at its next write.
@@ -164,10 +170,18 @@ identity_validation:
   reset_password:
     jwt_secret: '$jwt'
 authentication_backend:
-  file:
-    path: '/config/users_database.yml'
-# One login is enough (one_factor). Roles come later from groups; for now every account can see
-# everything behind the front door.
+  # The accounts live in LLDAP (the account store), so a Dashboard page can manage them. Authelia
+  # checks passwords against it over LDAP. The 'lldap' implementation sets LLDAP's own filters and
+  # attributes, so only the address, the tree root, the admin to bind as, and its password are
+  # needed. The password is the one scripts/frontdoor.sh shares with LLDAP.
+  ldap:
+    implementation: 'lldap'
+    address: 'ldap://lldap:3890'
+    base_dn: 'dc=kia,dc=lan'
+    user: 'uid=admin,ou=people,dc=kia,dc=lan'
+    password: '$lldap_pass'
+# One login is enough (one_factor). The admins group is what kia reads for the admin role; every
+# account can see what's behind the front door.
 access_control:
   default_policy: 'one_factor'
 session:
@@ -214,10 +228,10 @@ EOF
 }
 
 # What Authelia runs with: its settings file. (As gateway.sh does for the gateway, since Docker
-# Desktop's file watch misses later changes.) Its own name, so a link put there by a taken-over
-# kia is never opened.
-# shellcheck disable=SC2012  # one name we chose; macOS's find can't print an inode
-stamp() { { cat "$config" 2>/dev/null; cat "$users" 2>/dev/null; } | if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | cut -d' ' -f1; }
+# Desktop's file watch misses later changes.) The accounts aren't here (they live in LLDAP, and
+# changing one needs no Authelia restart), so only the settings are stamped. Its own name, so a
+# link put there by a taken-over kia is never opened.
+stamp() { cat "$config" 2>/dev/null | if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | cut -d' ' -f1; }
 
 # On Linux Authelia notices a new settings file by itself; with Docker Desktop it doesn't, so
 # when the settings changed since it started, it's restarted. kia keeps no login state in
@@ -237,10 +251,34 @@ refresh() {
     mv -f "$loaded.tmp" "$loaded"
 }
 
+# The account work runs inside the lldap container, because LLDAP's admin API (port 17170) has no
+# published port on the host: only the gateway network reaches it. The script it runs lives in its
+# own file (so the shell doesn't have to carry it inline; bash 3.2, macOS's /bin/sh, mishandles a
+# here-document inside a command substitution) and reads its secrets and parameters from stdin.
+LLDAP_SH=$(cat scripts/frontdoor-lldap.sh 2>/dev/null) || true
+
+# True when the account store is up (an account change needs it; it holds the passwords).
+lldap_up() { [ -n "$(docker compose ps -q --status running lldap 2>/dev/null)" ]; }
+# Run the account script inside the lldap container, with the protocol lines on stdin.
+lldap_run() {
+    [ -n "$LLDAP_SH" ] || die "missing scripts/frontdoor-lldap.sh"
+    docker compose exec -T lldap sh -c "$LLDAP_SH"
+}
+# The admin password the store was set up with, or a clear message to set the front door up first.
+admin_pw() {
+    [ -s "$config" ] || die "set the front door up first: scripts/frontdoor.sh write"
+    lldap_up || die "the account store isn't running yet: start the stack (with the frontdoor part), then try again"
+    pw=$(cat "$secrets/lldap-admin-pass" 2>/dev/null) || true
+    [ -n "$pw" ] || die "set the front door up first: scripts/frontdoor.sh write"
+    printf '%s' "$pw"
+}
+
 case "$cmd" in
     list)
-        if [ -s "$users" ] && grep -q '^  [a-z0-9-]\{1,\}:' "$users" 2>/dev/null; then
-            sed -n 's/^  \([a-z0-9-]\{1,\}\):$/\1/p' "$users"
+        adminpw=$(admin_pw)
+        out=$(printf '%s\n' list "$adminpw" "" "" "" "" | lldap_run) || die "couldn't reach the account store"
+        if [ -n "$out" ]; then
+            printf '%s\n' "$out"
         else
             echo "No account can log in yet: scripts/frontdoor.sh account dad"
         fi
@@ -255,7 +293,7 @@ case "$cmd" in
         ;;
     account)
         hosts
-        [ -s "$config" ] || die "set the front door up first: scripts/frontdoor.sh write"
+        adminpw=$(admin_pw)
         [ -n "$email" ] || email="$name@$domain"
         case "$email" in *@*.*) ;; *) die "$email isn't an email address (NAME@$domain)" ;; esac
         # The password is asked for on the terminal, never shown and never on a command line.
@@ -266,25 +304,29 @@ case "$cmd" in
         echo >&2
         [ -n "$pw" ] || die "no password given"
         [ ${#pw} -ge 8 ] || die "a password is at least 8 characters"
-        pwhash=$(hash_password argon2 "$pw")
-        case "$pwhash" in \$argon2*) ;; *) die "Authelia didn't return a hash for the password" ;; esac
-        # One account for now, in both groups: admins (the stack's admin pages) and household
-        # (kia). Roles split these in 0.8.2.
-        cat >"$users.tmp" <<EOF
-# kia's front-door accounts. scripts/frontdoor.sh account writes this; each password is a hash
-# Authelia made, never the password itself.
-users:
-  $name:
-    disabled: false
-    displayname: '$name'
-    password: '$pwhash'
-    email: '$email'
-    groups:
-      - 'admins'
-      - 'household'
-EOF
-        mv -f "$users.tmp" "$users"
-        refresh
-        echo "Set the account $name. It can log in at the front door once the stack is running."
+        # An account is an admin unless --no-admin, so the first account can run the admin pages.
+        admin=yes; [ "$admin_flag" = no ] && admin=no
+        printf '%s\n' create "$adminpw" "$name" "$email" "$admin" "$pw" | lldap_run >/dev/null \
+            || die "couldn't set the account in the account store"
+        [ "$admin" = yes ] && role="an admin" || role="a household member"
+        echo "Set the account $name as $role. It can log in at the front door once the stack is running."
+        ;;
+    set-admin)
+        adminpw=$(admin_pw)
+        case "$setval" in
+            on) admin=yes ;;
+            off) admin=no ;;
+            *) die "set-admin takes on or off, such as set-admin dad on" ;;
+        esac
+        printf '%s\n' set-admin "$adminpw" "$name" "" "$admin" "" | lldap_run >/dev/null \
+            || die "couldn't update $name (is there an account with that name?)"
+        [ "$admin" = yes ] && role="an admin" || role="a household member"
+        echo "Set $name as $role."
+        ;;
+    remove)
+        adminpw=$(admin_pw)
+        printf '%s\n' remove "$adminpw" "$name" "" "" "" | lldap_run >/dev/null \
+            || die "couldn't remove $name (is there an account with that name?)"
+        echo "Removed the account $name."
         ;;
 esac
