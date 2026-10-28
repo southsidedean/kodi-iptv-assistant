@@ -184,6 +184,14 @@ button { font: inherit; min-height: 44px; padding: .45rem 1rem; border-radius: v
 @media (max-width: 24rem) { nav.menu a { padding-inline: .32rem; } }
 @media (max-width: 21rem) { nav.menu a { padding-inline: .2rem; font-size: .8rem; } }
 @media (prefers-reduced-motion: reduce) { .state-running .dot { animation: none; } }
+/* One login (ONE_LOGIN_SCRIPT): a front-door admin edits without kia's password, so the fields
+   that ask for it to authorize a change are hidden, along with the label right before each one.
+   The change-password form keeps its fields (they carry class "pw"), since that still asks for
+   the current password. */
+.one-login-note { margin: 0 0 var(--space-3); padding: .5rem .8rem; border-radius: var(--radius-small);
+  background: var(--info-bg); color: var(--fg); font-size: var(--step--1); }
+.one-login label.field:has(+ input[autocomplete="current-password"]:not(.pw)),
+.one-login input[autocomplete="current-password"]:not(.pw) { display: none; }
 """
 
 # Tables longer than this get a filter box.
@@ -251,6 +259,25 @@ def header(root: str = "", current: str = "") -> str:
 # This kia's name (kia.name) beside "kia" in the header and in the tab's title, so a
 # Dashboard says which of several installs it is. Asked for when the page opens, since a
 # name set on the System page holds at once, before kia writes its pages again.
+# One login: when the front door has logged in an admin (and the gateway's token proves the
+# request came through it), the Dashboard doesn't ask for kia's password again. The server already
+# accepts such a request without it; this just hides the "enter kia's password" fields and says
+# who you are. It runs on every page, and does nothing for anyone who isn't a front-door admin.
+ONE_LOGIN_SCRIPT = """<script>
+(function () {
+  if (location.protocol === "file:") return;
+  fetch("ROOTapi/editor").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    if (!d || !d.frontdoor_admin) return;
+    document.documentElement.classList.add("one-login");
+    var note = document.createElement("p");
+    note.className = "one-login-note";
+    note.textContent = "Signed in as " + d.name + " through the front door. Changes here don't need kia's password.";
+    var main = document.querySelector("main");
+    if (main) main.insertBefore(note, main.firstChild); else document.body.appendChild(note);
+  }).catch(function () {});
+})();
+</script>"""
+
 NAME_SCRIPT = """<script>
 (function () {
   var shown = document.querySelector(".brand .install-name");
@@ -288,6 +315,7 @@ def page(title: str, body: str, footer: str = "", script: str = "", style: str =
 <footer>{trouble}<p>{footer}</p></footer>
 {script}
 {NAME_SCRIPT.replace("ROOT", root)}
+{ONE_LOGIN_SCRIPT.replace("ROOT", root)}
 </body>
 </html>
 """

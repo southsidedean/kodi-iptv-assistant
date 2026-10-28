@@ -63,13 +63,14 @@ so a page only ever learns your name, never a credential.
 
 By default the Dashboard still asks for its own password behind the front door, so there are two
 logins. To make one login enough, set `KIA_TRUST_FRONTDOOR=true` in `.env`: then a person in the
-`admins` group edits on the Dashboard without kia's own password, since the front door already
-checked who they are. kia trusts that only because the gateway sends its own token with the
-request, which proves it came through the front door; a direct connection to the web server,
-which could set the same `X-User-*` headers itself, still needs the password. People who aren't
-in `admins` can read the Dashboard but not change it. Leave it off and the Dashboard keeps its
-own password as before. Bringing the stack's other pages (Grafana, Threadfin) behind the same
-login comes next.
+`admins` group uses the Dashboard without kia's own password, since the front door already checked
+who they are. The Dashboard drops its password prompts for them and shows who's signed in; the one
+exception is changing kia's password, which still asks for the current one. kia trusts this only
+because the gateway sends its own token with the request, which proves it came through the front
+door; a direct connection to the web server, which could set the same `X-User-*` headers itself,
+still needs the password. People who aren't in `admins` can read the Dashboard but not change it.
+Leave it off and the Dashboard keeps its own password as before. Bringing the stack's other pages
+(Grafana, Threadfin) behind the same login comes next.
 
 kia never stores or hashes a password itself. Accounts live in the account store, which hashes
 each password with its own secure exchange; kia only passes the password straight through to it,
