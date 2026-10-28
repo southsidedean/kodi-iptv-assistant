@@ -69,6 +69,10 @@ def test_write_makes_authelia_settings_and_keeps_every_secret_private(kia: Path)
     for f in ("client-secret", "cookie-secret", "session-secret", "storage-key", "hmac-secret",
               "jwt-secret", "oidc.key", "client-secret.hash"):  # fmt: skip
         assert (kia / "frontdoor" / "secrets" / f).stat().st_mode & 0o777 == 0o600, f
+    # The gateway's OIDC cookie key is a 64-character hex AES-256 key (what agentgateway wants),
+    # not the base64 the others use.
+    cookie = (kia / "frontdoor" / "secrets" / "cookie-secret").read_text().strip()
+    assert len(cookie) == 64 and all(c in "0123456789abcdef" for c in cookie), cookie
     # An empty accounts file, so Authelia can start before anyone's account is set.
     assert (kia / "frontdoor" / "users_database.yml").read_text().strip().endswith("users: {}")
 

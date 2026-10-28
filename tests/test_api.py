@@ -167,6 +167,11 @@ def test_certificate(certs, tmp_path):
     assert tls.names(None, ["kia.home.lan", "192.168.1.20"]) == ["kia.home.lan", "192.168.1.20", "localhost", "127.0.0.1"]
     assert tls.names("http://[fd00::5]:8780", []) [0] == "fd00::5"
     assert tls.names(None, ["FD00:0:0:0:0:0:0:5", "TV.lan"])[:2] == ["fd00::5", "tv.lan"]
+    # The front door's names (extra) are added for the certificate but never change the first,
+    # the one people open; a name already chosen isn't repeated.
+    assert tls.names(None, ["kia.my-server.lan"], extra=["kia.my-server.lan", "auth.my-server.lan"]) == \
+        ["kia.my-server.lan", "auth.my-server.lan", "localhost", "127.0.0.1"]
+    assert tls.names("http://tv.lan:8780", [], extra=["kia.my-server.lan"])[0] == "tv.lan"
     assert tls.in_url("fd00::5") == "[fd00::5]" and tls.in_url("tv.lan") == "tv.lan"
     logged = []
     before = (certs / tls.CERT).read_text()

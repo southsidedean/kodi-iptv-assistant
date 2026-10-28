@@ -2,6 +2,10 @@
 
 ## 0.8.1 (unreleased)
 
+### New
+
+- An optional front door puts one login in front of kia's pages, so a full stack doesn't mean a password for every page. Add `frontdoor` to `KIA_STACK`, set the two host names it answers on (`KIA_FRONTDOOR_HOST` for the pages and `KIA_FRONTDOOR_AUTH_HOST` for the login), apply, and set an account with `scripts/frontdoor.sh account dad`. A small identity provider ([Authelia](https://www.authelia.com)) holds the accounts and is the only part that handles a password; the gateway asks you to log in and tells each page who you are. It works offline with kia's own certificate, which now covers the two front-door names too. kia never hashes a password itself: Authelia's own tool does. In this release the Dashboard still keeps its own password behind the front door; a later release lets it trust the front door instead and brings the stack's other pages behind it. [One login for the stack](docs/front-door.md) has the steps.
+
 ### Changes
 
 - The gateway part now runs agentgateway v1.7.0 (it was v1.6.0). Update with `scripts/update.sh` to pull it; nothing in your setup changes.

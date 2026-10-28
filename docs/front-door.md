@@ -53,17 +53,22 @@ page opens. `scripts/frontdoor.sh list` shows the account that can log in.
 
 When you open a page behind the front door, the gateway checks whether you're signed in. If you
 aren't, it sends you to Authelia's login. Authelia checks your password, and the gateway reads
-back who you are and adds that to the request as a header the page trusts (`X-User-Id` and
+back who you are and adds that to the request as a header the page can trust (`X-User-Id` and
 `X-User-Email`). The login token itself is stripped before the page sees it, so a page only ever
 learns your name, never a credential.
+
+In this release the Dashboard still asks for its own password behind the front door, so there are
+two logins for now. A later release lets the Dashboard trust the front door's header instead, so
+one login is enough, and brings the stack's other pages (Grafana, Threadfin) behind the same
+front door.
 
 kia never hashes a password itself. When you set an account, kia asks Authelia's own tool to turn
 the password into a hash, and keeps only the hash. The same goes for the gateway's own secret for
 Authelia: Authelia makes the hash, and the plaintext stays in `frontdoor/`, readable only by you.
 
-The gateway also sets a few headers on every page that make it harder to attack: a
-content-security-policy that only lets a page load its own files, and headers that stop another
-site from framing it.
+kia's own pages already set a strict content-security-policy and frame headers of their own, so
+the gateway leaves those alone for the Dashboard. For other pages that don't set their own, a
+later release has the gateway add them.
 
 ## Certificates
 

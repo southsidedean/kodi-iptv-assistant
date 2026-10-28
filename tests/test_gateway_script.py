@@ -159,3 +159,71 @@ def test_refresh_never_opens_the_certificate(kia: Path, tmp_path: Path):
     r = subprocess.run(["sh", "scripts/gateway.sh", "refresh"], cwd=kia, capture_output=True, text=True, timeout=10,
                        env={"PATH": f"{tmp_path / 'bin'}:/usr/bin:/bin", "HOME": str(tmp_path), "FAKE_RUNNING": "1"})  # fmt: skip
     assert r.returncode == 0 and restarts(kia) == 1
+
+
+def setup_frontdoor(kia: Path, client: str = "the-client-secret", cookie: str = "a" * 64) -> None:
+    """A front door turned on: its host names in .env, and the two secrets frontdoor.sh writes."""
+    (kia / ".env").write_text("KIA_GATEWAY_PORT=8746\n"
+                              "KIA_FRONTDOOR_HOST=kia.my-server.lan\n"
+                              "KIA_FRONTDOOR_AUTH_HOST=auth.my-server.lan\n"
+                              "KIA_FRONTDOOR_PORT=8444\n")  # fmt: skip
+    secrets = kia / "frontdoor" / "secrets"
+    secrets.mkdir(parents=True)
+    (secrets / "client-secret").write_text(client)
+    (secrets / "cookie-secret").write_text(cookie)
+
+
+def test_the_front_door_adds_a_login_listener_and_keeps_the_mcp_one(kia: Path):
+    setup_frontdoor(kia)
+    r = gateway(kia, "write")
+    assert r.returncode == 0, r.stderr
+    config = (kia / "gateway" / "config.yaml").read_text()
+    # The MCP listener is still there, next to the new front-door one.
+    assert "- port: 8745" in config and "- port: 8444" in config
+    assert "host: https://web:443/api/mcp" in config  # MCP backend untouched
+    # The login: the provider as issuer, the keys fetched over the network, the client secret
+    # inline, the token exchange through the gateway's own HTTP listener.
+    assert "issuer: https://auth.my-server.lan:8444" in config
+    assert "url: http://authelia:9091/jwks.json" in config
+    assert "clientSecret: the-client-secret" in config
+    assert "tokenEndpoint: http://127.0.0.1:9092/api/oidc/token" in config
+    assert "redirectURI: https://kia.my-server.lan:8444/oidc/callback" in config
+    assert "token_endpoint_auth_method" not in config  # that's Authelia's spelling, not the gateway's
+    assert "tokenEndpointAuth: clientSecretPost" in config
+    # Who logged in, added for the Dashboard; the Dashboard is the backend, over its own HTTPS.
+    assert "x-user-id: jwt.preferred_username" in config and "x-user-email: jwt.email" in config
+    assert "host: web:443" in config
+    # The login provider and the internal token listener.
+    assert "hostnames: [auth.my-server.lan]" in config and "- port: 9092" in config
+    assert "host: authelia:9091" in config
+    # kia's web server sets the security headers, so the gateway doesn't add a second set here.
+    assert "content-security-policy" not in config
+    # The cookie key goes in the env file, never the config.
+    oidc_env = (kia / "gateway" / "oidc.env").read_text()
+    assert oidc_env.strip() == "OIDC_COOKIE_SECRET=" + "a" * 64
+    assert "a" * 64 not in config
+    for name in ("config.yaml", "oidc.env"):
+        assert (kia / "gateway" / name).stat().st_mode & 0o777 == 0o600, name
+
+
+def test_without_the_front_door_there_is_no_login_listener(kia: Path):
+    r = gateway(kia, "write")
+    assert r.returncode == 0, r.stderr
+    config = (kia / "gateway" / "config.yaml").read_text()
+    assert "- port: 8745" in config and "- port: 8444" not in config and "oidc:" not in config
+    # The env file is written empty, so compose's env_file always finds it.
+    assert (kia / "gateway" / "oidc.env").read_text().strip() == ""
+
+
+def test_the_front_door_needs_its_secrets_first(kia: Path):
+    (kia / ".env").write_text("KIA_FRONTDOOR_HOST=kia.my-server.lan\n"
+                              "KIA_FRONTDOOR_AUTH_HOST=auth.my-server.lan\n")  # no frontdoor/secrets
+    r = gateway(kia, "write")
+    assert r.returncode != 0 and "frontdoor.sh write" in r.stderr
+
+
+def test_the_front_door_needs_both_host_names(kia: Path):
+    setup_frontdoor(kia)
+    (kia / ".env").write_text("KIA_FRONTDOOR_HOST=kia.my-server.lan\n")  # no auth host
+    r = gateway(kia, "write")
+    assert r.returncode != 0 and "KIA_FRONTDOOR_AUTH_HOST" in r.stderr
