@@ -533,8 +533,9 @@ fi
 if has frontdoor; then sh scripts/frontdoor.sh write; fi
 # The gateway's settings, from its devices and .env, before it starts: it reads them only
 # from that file, and adds the front door's login listener when the front door is on
-# (scripts/gateway.sh).
-if has gateway; then sh scripts/gateway.sh write; fi
+# (scripts/gateway.sh). The front door turns on the gateway too, so its settings are written
+# whenever either is chosen.
+if has gateway || has frontdoor; then sh scripts/gateway.sh write; fi
 
 # The profiles given here too: one exported in this shell would win over .env's.
 compose_profiles=$(echo "$profiles" | tr ' ' ',')

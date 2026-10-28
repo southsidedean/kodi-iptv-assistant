@@ -105,6 +105,17 @@ write() {
         [ -s frontdoor/secrets/client-secret ] || die "set the front door up first: scripts/frontdoor.sh write"
         fd_client=$(cat frontdoor/secrets/client-secret)
         printf 'OIDC_COOKIE_SECRET=%s\n' "$(cat frontdoor/secrets/cookie-secret)" >"$dir/oidc.env.tmp"
+        # The login's public signing key, written as a JWKS file the gateway reads at startup.
+        # Derived from the login's own signing key (frontdoor/secrets/oidc.key), so it always
+        # matches what the login uses. The gateway can't fetch it at startup instead (the login
+        # serves its keys only for its own host, and the gateway's own listener isn't up yet),
+        # and the key is kia's and never rotates, so a file is exact and needs no refresh.
+        fd_mod=$(openssl rsa -in frontdoor/secrets/oidc.key -noout -modulus 2>/dev/null | sed 's/^Modulus=//')
+        fd_n=$(printf '%s' "$fd_mod" | python3 -c 'import sys, base64; print(base64.urlsafe_b64encode(bytes.fromhex(sys.stdin.read().strip())).decode().rstrip("="))') \
+            || die "couldn't derive the login's public key (needs openssl and python3)"
+        [ -n "$fd_n" ] || die "couldn't read the login's signing key (scripts/frontdoor.sh write)"
+        printf '{"keys":[{"kty":"RSA","use":"sig","alg":"RS256","kid":"kia","e":"AQAB","n":"%s"}]}\n' "$fd_n" \
+            >"$dir/jwks.json.tmp" && mv -f "$dir/jwks.json.tmp" "$dir/jwks.json"
     fi
     mv -f "$dir/oidc.env.tmp" "$dir/oidc.env"
     cat >"$config.tmp" <<EOF
@@ -205,10 +216,11 @@ EOF
           # (below), which adds the forwarded headers the login needs for a steady issuer, so
           # the gateway never has to trust the login's self-signed certificate.
           tokenEndpoint: http://127.0.0.1:9092/api/oidc/token
-          # The login's signing keys, fetched over the gateway's own network. No file to keep
-          # in step: a rotated key is picked up on the next fetch.
+          # The login's public signing key, from the file gateway.sh derived (above). A startup
+          # fetch can't work here: the login serves its keys only for its own host, and the
+          # gateway's own listener isn't up yet. The key is kia's and static, so the file is exact.
           jwks:
-            url: http://authelia:9091/jwks.json
+            file: /gateway/jwks.json
           tokenEndpointAuth: clientSecretPost
           clientId: agentgateway
           clientSecret: $fd_client
