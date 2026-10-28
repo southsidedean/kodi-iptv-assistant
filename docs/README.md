@@ -41,3 +41,4 @@ New here? Begin with [start here](start-here.md).
 - [Security under the hood](security-under-the-hood.md): what kia trusts, where untrusted input goes, and what each layer stops.
 - [Using kia from scripts and other apps](api.md)
 - [Metrics for Prometheus](metrics.md): kia's numbers, for graphs and alerts in Grafana.
+- [Roadmap](roadmap.md): what's shipped and where kia is headed.
