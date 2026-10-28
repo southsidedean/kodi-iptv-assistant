@@ -1519,7 +1519,7 @@ def cmd_threadfin_setup(args: argparse.Namespace) -> int:
     from kia import threadfin
 
     cfg = load_config(args)
-    threadfin.set_up(Path(args.config).resolve().parent, cfg.output_dir, log)
+    threadfin.set_up(Path(args.config).resolve().parent, cfg.output_dir, log, renumber=args.renumber)
     return 0
 
 
@@ -1772,6 +1772,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("threadfin-setup", help="give each Threadfin its settings before it first starts (compose runs this)")
     p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("--renumber", action="store_true",
+                   help="reset each Threadfin's channel mapping so it rebuilds channel numbers from kia's playlist "
+                        "(for a Threadfin whose Plex channels drifted); keeps a backup, then restart Threadfin and "
+                        "re-add the tuner in Plex")  # fmt: skip
     p.set_defaults(func=cmd_threadfin_setup)
 
     p = sub.add_parser("plex-tuners", help="add kia's Threadfins to Plex as a DVR of their own (docs/plex.md)")

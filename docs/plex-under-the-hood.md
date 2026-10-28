@@ -37,6 +37,23 @@ Threadfin's page has no login by default, so anyone on your network could change
 
 A Threadfin that already has settings keeps them: threadfin-setup only adds the login, if it has none. Changes you make on Threadfin's own page stay.
 
+## Channel numbers
+
+Each channel keeps the number kia gives it (`tvg-chno`), which stays the same for that channel and is never reused for another, even after a channel goes away. Threadfin uses that number as the channel's own, so Plex sees kia's numbers and they stay put when Pluto adds or drops channels.
+
+An older Threadfin can be out of step. Threadfin keeps a channel's number once it has assigned one, so a Threadfin first set up before kia had stable numbers held the numbers it chose then (counting up from 1), and as Pluto's lineup changed it handed Plex a number it had cached for a different channel, which shows the wrong name and guide. To put an existing install right:
+
+1. Reset Threadfin's channel mapping so it builds kia's numbers again (it keeps a backup):
+
+   ```sh
+   docker compose run --rm threadfin-setup threadfin-setup --renumber
+   ```
+
+2. Restart Threadfin so it rebuilds: `docker compose restart threadfin` (and `threadfin-2` if you run it).
+3. In Plex, remove and re-add the tuner (Settings, Live TV & DVR), so Plex reads the new numbers and drops the ones it had cached.
+
+New installs get kia's numbers from the start, so this is only for one set up before stable numbers existed.
+
 ## Adding the tuners to Plex (`kia plex-tuners`)
 
 Plex's own setup page adds a tuner only when Plex has no DVR yet, and won't give an XMLTV guide to a DVR that uses Plex's own guide (an antenna tuner's, say). So kia talks to Plex's API directly, making the same calls as Plex's web page. For each running Threadfin, kia:

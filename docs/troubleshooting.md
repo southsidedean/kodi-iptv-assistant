@@ -48,6 +48,17 @@ Some channels have no guide data anywhere. They show their own name in the guide
 
 Most likely kia matched it to a guide by name, and the name belongs to a different channel. `mapping-report.html` lists every channel matched by name, with the name the guide site uses. Add the channel's guide ID (`tvg-id` in the report, such as `CNN.us`) to `ignore_name_matches` under `[epg]` in `kia.toml`, for example `ignore_name_matches = ["News12.us@SD"]`. From the next run, the channel uses another guide source or shows its own name.
 
+### In Plex, lots of channels show the wrong name or guide
+
+If many channels in Plex are labelled as other channels (common after Pluto adds or drops channels), it's usually Threadfin's channel numbers drifting from kia's. Threadfin keeps a channel's number once it has assigned one, so a Threadfin first set up before kia had stable numbers can hand Plex a number it had cached for a different channel. Reset Threadfin so it rebuilds kia's numbers (it keeps a backup), restart it, then re-add the tuner in Plex:
+
+```sh
+docker compose run --rm threadfin-setup threadfin-setup --renumber
+docker compose restart threadfin
+```
+
+Then in Plex, under Settings, Live TV & DVR, remove and re-add the tuner so it reads the new numbers. [Plex and Threadfin under the hood](plex-under-the-hood.md#channel-numbers) has the detail. New installs already use kia's numbers, so this is a one-time fix for an older setup.
+
 ### A channel won't play
 
 Free streams come and go. The nightly check drops a stream once it has failed a few nights in a row, so a stream that has just broken can stay in the list for a couple of days. `report.html` shows each stream's last result.
