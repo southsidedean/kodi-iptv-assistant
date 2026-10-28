@@ -231,7 +231,7 @@ EOF
 # Desktop's file watch misses later changes.) The accounts aren't here (they live in LLDAP, and
 # changing one needs no Authelia restart), so only the settings are stamped. Its own name, so a
 # link put there by a taken-over kia is never opened.
-stamp() { cat "$config" 2>/dev/null | if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | cut -d' ' -f1; }
+stamp() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$config"; else shasum -a 256 "$config"; fi 2>/dev/null | cut -d' ' -f1; }
 
 # On Linux Authelia notices a new settings file by itself; with Docker Desktop it doesn't, so
 # when the settings changed since it started, it's restarted. kia keeps no login state in
