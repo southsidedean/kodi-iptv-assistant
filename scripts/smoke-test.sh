@@ -18,7 +18,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 port=${SMOKE_PORT:-18780}
 https_port=${SMOKE_HTTPS_PORT:-18743}
 project="kia-smoke-$$"
-epg_ref=${SMOKE_EPG_REF:-2c3e24fdab86140181878af00e01e9b440962d9b}  # iptv-org/epg, 2026-10-26
+epg_ref=${SMOKE_EPG_REF:-5010ea56afbffb27d683092e18dbe927cd112fbe}  # iptv-org/epg, 2026-10-28
 work=$(mktemp -d "${TMPDIR:-/tmp}/kia-smoke.XXXXXX")
 
 compose() { docker compose -p "$project" "$@"; }
