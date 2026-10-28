@@ -23,6 +23,7 @@ import hmac
 import json
 import os
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
 
 from kia.files import temp_name
@@ -152,8 +153,33 @@ def _turn_on_login(conf: Path, folder: str, log) -> bool:
     return True
 
 
-def set_up(base: Path, output_dir: Path, log=print) -> list[str]:
-    """Write settings for each Threadfin folder that has none. Returns the folders set up."""
+def reset_numbers(conf: Path, folder: str, log=print) -> bool:
+    """Reset Threadfin's channel mapping so it builds the channel numbers again from kia's
+    playlist (the tvg-chno numbers kia assigns, which stay the same for a channel and are never
+    reused). Threadfin keeps a channel's number once it has one, even a number it picked before
+    kia had stable ones, so an older Threadfin drifts from kia's numbers and, when Pluto drops or
+    adds channels, hands Plex a number it had cached for a different channel, which shows the wrong
+    name and guide. Removing the mapping (kept as a backup) makes Threadfin build it fresh. Its
+    settings and login stay. Returns whether it reset anything."""
+    if not (conf / "settings.json").exists():
+        log(f"{folder}: not set up yet, so there's nothing to renumber.")
+        return False
+    mapping = conf / "xepg.json"
+    if not mapping.exists():
+        log(f"{folder}: no channel mapping yet; it uses kia's numbers when it first builds.")
+        return False
+    backup = conf / f"xepg.json.before-renumber-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+    mapping.replace(backup)
+    log(f"{folder}: reset the channel mapping (backed up to {backup.name}). Restart it with "
+        f"'docker compose restart {folder}', then remove and re-add the tuner in Plex, so it "
+        f"picks up kia's channel numbers.")  # fmt: skip
+    return True
+
+
+def set_up(base: Path, output_dir: Path, log=print, renumber: bool = False) -> list[str]:
+    """Write settings for each Threadfin folder that has none. With renumber, instead reset the
+    channel mapping of each Threadfin that's set up, so it rebuilds kia's numbers (reset_numbers).
+    Returns the folders set up (or reset)."""
     done = []
     # compose.yaml passes COMPOSE_PROFILES on, so only the Threadfins that run get set up.
     running = {p.strip() for p in os.environ.get("KIA_COMPOSE_PROFILES", "").split(",") if p.strip()}
@@ -162,6 +188,10 @@ def set_up(base: Path, output_dir: Path, log=print) -> list[str]:
             continue
         conf = base / folder / "conf"
         target = conf / "settings.json"
+        if renumber:
+            if reset_numbers(conf, folder, log):
+                done.append(folder)
+            continue
         if target.exists():
             log(f"{folder}: already set up; leaving its settings as they are.")
             secure_login(conf, folder, log)

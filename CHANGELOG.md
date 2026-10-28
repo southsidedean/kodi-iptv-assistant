@@ -17,6 +17,7 @@ Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`
 
 ### Fixes
 
+- A way to fix Plex showing the wrong channel names or guides, which could happen after Pluto added or dropped channels. Threadfin keeps a channel's number once it has one, so a Threadfin set up before kia had stable channel numbers drifted from kia's and handed Plex a number it had cached for a different channel. `docker compose run --rm threadfin-setup threadfin-setup --renumber` resets Threadfin so it rebuilds kia's stable numbers (it keeps a backup); after a restart and re-adding the tuner in Plex, the right names and guides come back. New installs already use kia's numbers. [Troubleshooting](docs/troubleshooting.md#in-plex-lots-of-channels-show-the-wrong-name-or-guide) has the steps.
 - Some Pluto TV channels could freeze or play out of sync, most often during ad breaks. A short sliver at the end of an ad can carry an audio track with nothing in it, which kia couldn't copy, so that piece failed and the player stalled or drifted. kia now plays such a piece without its (empty) sound instead of dropping it, so the channel keeps going. Every normal piece keeps its audio.
 
 ## 0.8.2 (2026-10-27)

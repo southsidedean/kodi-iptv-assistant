@@ -41,6 +41,35 @@ def test_existing_threadfin_settings_are_kept_and_it_gets_a_login(tmp_path: Path
     assert json.loads((conf / "settings.json").read_text()) == {"mine": True, "authentication.pms": False, "authentication.web": True}
 
 
+def test_renumber_resets_the_channel_mapping_and_keeps_settings(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")  # only the first Threadfin runs
+    conf = tmp_path / "threadfin" / "conf"
+    conf.mkdir(parents=True)
+    (conf / "settings.json").write_text('{"mine": true}')
+    (conf / "xepg.json").write_text('{"x-ID.1": {"name": "Alpha", "x-channelID": "3"}}')  # a stale mapping
+    assert threadfin.set_up(tmp_path, tmp_path, lambda m: None, renumber=True) == ["threadfin"]
+    # The mapping is gone (Threadfin rebuilds it from kia's numbers on its next start) but kept as
+    # a backup, and the settings are untouched.
+    assert not (conf / "xepg.json").exists()
+    assert len(list(conf.glob("xepg.json.before-renumber-*"))) == 1
+    assert json.loads((conf / "settings.json").read_text()) == {"mine": True}
+
+
+def test_renumber_does_nothing_without_settings_or_a_mapping(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")
+    said = []
+    # Not set up at all: nothing to renumber, and no settings are written.
+    assert threadfin.set_up(tmp_path, tmp_path, said.append, renumber=True) == []
+    assert not (tmp_path / "threadfin" / "conf" / "settings.json").exists()
+    assert any("nothing to renumber" in m for m in said)
+    # Set up but no mapping yet: still nothing to reset (it will use kia's numbers when it builds).
+    (tmp_path / "threadfin" / "conf").mkdir(parents=True)
+    (tmp_path / "threadfin" / "conf" / "settings.json").write_text("{}")
+    said.clear()
+    assert threadfin.set_up(tmp_path, tmp_path, said.append, renumber=True) == []
+    assert any("no channel mapping yet" in m for m in said)
+
+
 def test_the_login_is_threadfins_own_kind(tmp_path: Path):
     import base64
     import hashlib
