@@ -44,6 +44,8 @@ Everyone watching a channel shares its session and its pieces: each piece is fet
 
 Only https addresses are fetched, and at most 16 MB each, since the addresses come from Pluto's playlists. ffmpeg and ffprobe get none of kia's settings ([security](../SECURITY.md#the-containers)).
 
+Now and then Pluto sends a clip ffmpeg can't copy, and the piece fails. To look into one, make a folder named `pluto-debug` in kia's `state` folder: while it's there, kia saves the next few pieces it can't copy into it, each as the piece itself and a small file of its details (where it came from, its key, and the error), so you can examine a real failure later. It keeps at most 25, holds only what came from Pluto, and does nothing when the folder isn't there. Delete the folder to stop.
+
 ## Fresh sessions
 
 Pluto wants a new session before the old one runs out. A new session starts at a different point, and switching mid-show would show as a jump. So from half an hour before the end (or the last quarter of a short session), kia waits for the next clip change, an ad or the next part of the show, and switches there. If none comes by one and a half times the session's length, it switches anyway.
