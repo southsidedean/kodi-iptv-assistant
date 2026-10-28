@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.8.1 (unreleased)
+## 0.8.1 (2026-10-27)
+
+This release adds an optional front door that puts one login in front of kia's pages.
+
+### Upgrading from 0.8.0
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change: the front door is off until you add `frontdoor` to `KIA_STACK`. If you run the gateway part, the update pulls agentgateway v1.7.0.
 
 ### New
 
