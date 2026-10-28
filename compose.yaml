@@ -87,6 +87,11 @@ services:
       # device's limit, for kia settings.
       KIA_GATEWAY_PORT: ${KIA_GATEWAY_PORT:-}
       KIA_GATEWAY_RATE: ${KIA_GATEWAY_RATE:-}
+      # The front-door part (scripts/frontdoor.sh): its two host names and port, for the
+      # address kia shows.
+      KIA_FRONTDOOR_HOST: ${KIA_FRONTDOOR_HOST:-}
+      KIA_FRONTDOOR_AUTH_HOST: ${KIA_FRONTDOOR_AUTH_HOST:-}
+      KIA_FRONTDOOR_PORT: ${KIA_FRONTDOOR_PORT:-}
       # Optional; empty means use the setting in kia.toml.
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
@@ -576,6 +581,28 @@ services:
       - ./gateway:/gateway:ro
       - ./tls:/etc/kia-tls:ro
 
+  # The front door's identity provider (Authelia; the frontdoor part, docs/front-door.md): it
+  # holds the household's accounts, so one login covers kia's pages. scripts/frontdoor.sh writes
+  # its settings and the account into frontdoor/. It's on the gateway's network only, with no
+  # published port: the gateway is the only way to reach it, and puts a login in front of the
+  # Dashboard. It writes its own database in frontdoor/ (/config), so that mount is read-write.
+  authelia:
+    profiles: ["frontdoor"]
+    image: ${KIA_AUTHELIA_IMAGE:-authelia/authelia:4.39.28}
+    restart: unless-stopped
+    logging: *logging
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      X_AUTHELIA_CONFIG: /config/configuration.yml
+    networks: [gateway]
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./frontdoor:/config
+
 # Docker volumes for Plex's, Jellyfin's, and Grafana's databases on a Mac, where a folder
 # shared from the Mac into Docker's Linux machine breaks Plex's database within minutes.
 # KIA_PLEX_CONFIG=plex-config, KIA_JELLYFIN_CONFIG=jellyfin-config, and
@@ -586,8 +613,9 @@ volumes:
   jellyfin-config:
   grafana-data:
 
-# The gateway part's network: the gateway, kia, and its web server only, so Plex, Threadfin,
-# and the rest can't reach the gateway except through its published port, like any device.
+# The gateway part's network: the gateway, kia, its web server, and (with the front door) the
+# identity provider only, so Plex, Threadfin, and the rest can't reach the gateway or the login
+# except through the gateway's published port, like any device.
 networks:
   default:
   gateway:

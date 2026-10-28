@@ -205,6 +205,7 @@ PARTS = (
     ("observability-gpu", "The graphics card on the Hardware dashboard: NVIDIA, Linux"),
     ("observability-disks", "Each disk's health (SMART) on the Hardware dashboard: Linux"),
     ("gateway", "A gateway in front of kia's MCP server: a key for each device, with a limit and a log"),
+    ("frontdoor", "Single sign-on for the stack's pages: one login the household shares, held by a small identity provider"),
 )
 SERVICE_DIR = "stack-service"  # in the kia folder
 REQUEST, TAKEN, RESULT, CONTAINERS = "stack-request", "request", "result", "containers.tsv"

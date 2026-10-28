@@ -52,7 +52,8 @@ jellyfin|jellyfin-server|Jellyfin in the stack (docs/cookbooks/jellyfin-box.md)
 observability|monitoring|Prometheus and Grafana, and node-exporter on Linux (docs/cookbooks/observability.md)
 observability-gpu|monitoring-gpu|the graphics card on the Hardware dashboard: NVIDIA, Linux
 observability-disks|monitoring-disks|each disk's health (SMART) on the Hardware dashboard: Linux
-gateway|gateway|a gateway in front of kia's MCP server: a key for each device, with a limit and a log (docs/mcp.md)"
+gateway|gateway|a gateway in front of kia's MCP server: a key for each device, with a limit and a log (docs/mcp.md)
+frontdoor|gateway frontdoor|single sign-on for the stack's pages: one login the household shares, held by a small identity provider (docs/front-door.md)"
 
 # A setting's value as Compose reads it: the last line for it, without one pair of quotes around it.
 get() { grep "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/" || true; }
@@ -239,6 +240,8 @@ if [ "$cmd" = watch ]; then
             # The gateway part: a restart when kia renewed its certificate, which the
             # gateway misses with Docker Desktop (scripts/gateway.sh refresh).
             if [ -s gateway/loaded ]; then sh scripts/gateway.sh refresh </dev/null || true; fi
+            # The front door, the same way: a restart when its settings changed.
+            if [ -s frontdoor/loaded ]; then sh scripts/frontdoor.sh refresh </dev/null || true; fi
         fi
         take_request
         [ "$once" = no ] || exit 0
@@ -396,6 +399,14 @@ if has gateway; then
         note "no device has a gateway key yet: scripts/gateway.sh add laptop (docs/mcp.md)"
     fi
 fi
+if has frontdoor; then
+    # The front door needs its two host names (checked the same way scripts/frontdoor.sh does).
+    [ -n "$(get KIA_FRONTDOOR_HOST)" ] || problem "the front door needs KIA_FRONTDOOR_HOST in .env, the name for kia's pages, such as kia.my-server.lan (docs/front-door.md)"
+    [ -n "$(get KIA_FRONTDOOR_AUTH_HOST)" ] || problem "the front door needs KIA_FRONTDOOR_AUTH_HOST in .env, the name for the login, such as auth.my-server.lan (docs/front-door.md)"
+    if [ ! -s frontdoor/users_database.yml ] || ! grep -q '^  [a-z0-9-]\{1,\}:' frontdoor/users_database.yml 2>/dev/null; then
+        note "no account can log in at the front door yet: scripts/frontdoor.sh account dad (docs/front-door.md)"
+    fi
+fi
 [ -n "$(get KIA_PUBLIC_URL)" ] || warn "KIA_PUBLIC_URL is empty: players get links without kia's address (docs/configuration.md)"
 
 # Ports for parts that aren't running yet.
@@ -520,6 +531,8 @@ fi
 # The gateway's settings, from its devices and .env, before it starts: it reads them only
 # from that file (scripts/gateway.sh).
 if has gateway; then sh scripts/gateway.sh write; fi
+# The front door's settings, the same way, before Authelia starts (scripts/frontdoor.sh).
+if has frontdoor; then sh scripts/frontdoor.sh write; fi
 
 # The profiles given here too: one exported in this shell would win over .env's.
 compose_profiles=$(echo "$profiles" | tr ' ' ',')

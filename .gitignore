@@ -29,6 +29,9 @@ monitoring/*/*
 !monitoring/*/.gitkeep
 # The gateway part's settings, its devices' key hashes, and its token for kia (scripts/gateway.sh).
 gateway/*
+# The front-door part's settings, its secrets, its accounts, and Authelia's database (scripts/frontdoor.sh).
+frontdoor/*
+!frontdoor/.gitkeep
 # The kia-stack service's own files: its answers to the Dashboard, and the request it's on.
 stack-service/
 # Your profiles (the Dashboard writes them here), apart from the example.
