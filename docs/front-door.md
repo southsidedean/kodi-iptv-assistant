@@ -100,7 +100,11 @@ who can see what's behind the front door but not change it.
 - `scripts/frontdoor.sh remove NAME` removes an account.
 - `scripts/frontdoor.sh list` shows the accounts, with admins marked.
 
-Managing accounts from the Dashboard, without the command line, comes next.
+You can also manage accounts from the Dashboard, without the command line: the Stack page grows
+an Accounts section when the front door is on, where you add an account (with its password),
+remove one, or change who's an admin. Changes there need kia's password on the secure page, and go
+through the kia-stack service, the same one the Stack page uses, so the account store's own
+password stays on the computer and never reaches the Dashboard.
 
 ## What's under the hood
 
