@@ -114,6 +114,57 @@ def test_a_reply_in_the_wrong_shape_is_an_error():
                    run_tool=lambda n, a: {})
 
 
+def test_a_read_only_answer_has_no_requests():
+    out = chat.reply([{"role": "user", "content": "hi"}],
+                     post=lambda b: text_answer("hello"), run_tool=lambda n, a: {})
+    assert out["requests"] == []
+
+
+# Actions (KIA_CHAT_ACTIONS)
+
+
+def test_actions_offer_the_acting_tools_and_their_prompt():
+    captured = {}
+
+    def post(body):
+        captured.update(body)
+        return text_answer("ok")
+
+    chat.reply([{"role": "user", "content": "refresh the guide"}], post=post,
+               run_tool=lambda n, a: {}, actions=True)
+    names = {t["name"] for t in captured["tools"]}
+    assert {"kia_refresh_guide", "kia_test_channel", "kia_add_to_plex", "kia_check_stack"} <= names
+    assert "kia_whats_on" in names  # the read-only tools are still offered
+    assert captured["system"][0]["text"] == chat.SYSTEM_WITH_ACTIONS
+
+
+def test_without_actions_the_acting_tools_and_prompt_stay_out():
+    captured = {}
+
+    def post(body):
+        captured.update(body)
+        return text_answer("ok")
+
+    chat.reply([{"role": "user", "content": "hi"}], post=post, run_tool=lambda n, a: {})
+    names = {t["name"] for t in captured["tools"]}
+    assert not ({"kia_refresh_guide", "kia_add_to_plex"} & names)
+    assert captured["system"][0]["text"] == chat.SYSTEM
+
+
+def test_requests_from_acting_tools_are_collected():
+    # When an acting tool leaves a request, the loop pulls its id, kia's words, state, and the
+    # Dashboard link out of the tool result so the page can show the member where to approve it.
+    ask_result = {"asked": True, "id": "ab12cd", "what": "Refresh the guide", "state": "waiting",
+                  "approve_at": "https://my-server.lan:8743/#asks", "next": "Ask them to approve it."}
+    posts = [tool_call("tu_1", "kia_refresh_guide", {}),
+             text_answer("I asked kia to refresh the guide. Approve it on the Dashboard.")]
+    out = chat.reply([{"role": "user", "content": "refresh the guide"}],
+                     post=lambda b: posts.pop(0), run_tool=lambda n, a: ask_result, actions=True)
+    assert out["tools_used"] == ["kia_refresh_guide"]
+    assert out["requests"] == [{"id": "ab12cd", "what": "Refresh the guide", "state": "waiting",
+                                "approve_at": "https://my-server.lan:8743/#asks"}]
+
+
 # Telling a budget error apart
 
 
