@@ -34,6 +34,37 @@ kia (kodi-iptv-assistant) does the cleanup every night. It tests every stream in
 
 ## Quick start
 
+There are three ways in, easiest first: let an AI assistant set it up, run one command yourself, or do each step by hand.
+
+### Let your AI assistant set it up
+
+If you use an AI assistant that can run commands on this computer, such as Claude, paste it the prompt below. It reads kia's own install guide, checks what you already have, runs the installer, and helps you answer its questions. It follows kia's documented steps and runs only kia's own installer, and it asks you for the address, time zone, and preset rather than guessing them.
+
+```text
+Help me install kodi-iptv-assistant (kia) on this computer. It is a Docker Compose IPTV stack.
+
+1. First read its install guide and follow those steps instead of inventing your own:
+   https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/install.md
+   and the Quick start in
+   https://github.com/southsidedean/kodi-iptv-assistant/blob/main/README.md
+2. Check what I have: my operating system, whether Docker and Git are installed, and that I am
+   on my home network. Tell me how to install anything that is missing.
+3. When I am ready, run kia's official installer and help me answer its questions: this
+   computer's address, my time zone, and which preset fits how I plan to watch. Ask me for
+   these rather than guessing.
+4. After it finishes, tell me the Dashboard address and password it printed, and that kia's
+   first refresh takes up to an hour.
+
+The installer is one command:
+curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
+
+Only run commands from kia's own docs and installer, and ask me before running anything you are unsure about.
+```
+
+Prefer to do it yourself? The two ways below need no AI.
+
+### One command
+
 New to Docker or Git? [docs/install.md](docs/install.md) walks through installing everything, step by step. With Docker and Git installed, one command does the rest on macOS or Linux:
 
 ```sh
