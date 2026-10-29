@@ -325,6 +325,7 @@ PROTECTED = [
     ("POST", "/api/stack/check", {"parts": ["plex"]}),
     ("POST", "/api/stack/apply", {"parts": ["plex"]}),
     ("POST", "/api/plex/tuners", None),
+    ("GET", "/api/chat", None),
     ("POST", "/api/chat", {"messages": [{"role": "user", "content": "hi"}]}),
     ("PUT", "/api/name", {"name": "den"}),
     ("POST", "/api/asks/approve", {"id": "0123456789abcdef"}),
@@ -638,6 +639,17 @@ def test_chat_needs_the_secure_page_and_a_way_in(cfg):
     # With kia's password it's let in, and says the chat isn't set up yet (no gateway AI route).
     status, data = call(cfg, "POST", "/api/chat", msg, password="secret")
     assert status == 200 and data["available"] is False
+
+
+def test_chat_availability_costs_nothing(cfg, tmp_path, monkeypatch):
+    # The page asks this on load, so it must never reach the model.
+    from kia import chat
+
+    monkeypatch.setattr(chat.Gateway, "post", lambda self, body: pytest.fail("GET must not call the model"))
+    assert call(cfg, "GET", "/api/chat", password="secret")[1] == {
+        "available": False, "reply": "kia's chat is off. Turn it on with KIA_CHAT=true (docs/chat.md)."}
+    _chat_ready(cfg, tmp_path, monkeypatch)
+    assert call(cfg, "GET", "/api/chat", password="secret")[1] == {"available": True}
 
 
 def test_chat_checks_the_conversation(cfg, tmp_path, monkeypatch):

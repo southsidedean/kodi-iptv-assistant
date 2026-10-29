@@ -1038,6 +1038,13 @@ def render_system(s: dict) -> str:
     return page("System - kia", body, _footer(s), script, editor.STYLE, current="system.html")
 
 
+def render_chat(s: dict) -> str:
+    """Ask kia: a chat box over kia's read-only tools (kia.chatview drives it, kia.chat answers)."""
+    from kia import chatview
+
+    return page("Ask kia - kia", chatview.body(), _footer(s), chatview.SCRIPT, chatview.STYLE, current="chat.html")
+
+
 # Where the old Details page's cards went, for bookmarks and older docs.
 MOVED = [("sources.html", "Sources", "choosing channel sources, and how their streams did"),
          ("guide.html", "Guide", "how much of the guide is filled in, and the guide reports"),
@@ -1187,7 +1194,7 @@ LIST_SCRIPT = r"""
 
 PAGES = {"index.html": render_html, "playlists.html": render_playlists, "sources.html": render_sources,
          "guide.html": render_guide, "stack.html": render_stack, "system.html": render_system,
-         "details.html": render_details}  # fmt: skip
+         "chat.html": render_chat, "details.html": render_details}  # fmt: skip
 
 
 def write_pages(output_dir: Path, s: dict) -> None:
