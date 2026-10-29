@@ -89,6 +89,62 @@ write() {
     else
         keys="          keys: []"  # no devices yet: every call is refused
     fi
+    # The chat page's AI route (the chat part, KIA_CHAT=true; docs/chat.md). When it's on, the
+    # gateway gets an llm route to the AI provider, metered against one household budget, and kia
+    # reaches it with the household key. The provider's key stays in the gateway's environment
+    # (KIA_CHAT_PROVIDER_KEY); this file holds only the household key's hash.
+    db_line="" llm_block=""
+    if [ "$(get KIA_CHAT)" = "true" ]; then
+        [ -n "$(get KIA_CHAT_PROVIDER_KEY)" ] || die "KIA_CHAT=true needs KIA_CHAT_PROVIDER_KEY, the AI provider's key (docs/chat.md)"
+        budget=$(get KIA_CHAT_BUDGET); budget=${budget:-5}
+        # A dollar amount for the household a month: digits, with at most one point and no
+        # leading or trailing one, such as 5 or 7.50.
+        case "$budget" in
+            "" | *[!0-9.]* | *.*.* | .* | *.) die "KIA_CHAT_BUDGET is a dollar amount a month, such as 5 or 7.50" ;;
+        esac
+        model=$(get KIA_CHAT_MODEL); model=${model:-claude-sonnet-5-5}
+        heavy=$(get KIA_CHAT_MODEL_HEAVY); heavy=${heavy:-claude-opus-5-5}
+        for m in "$model" "$heavy"; do
+            case "$m" in "" | *[!a-zA-Z0-9._-]*) die "a chat model name is letters, digits, dots, and dashes, such as claude-sonnet-5-5" ;; esac
+        done
+        # The household's key for the AI route, made once and kept as plaintext only here (kia
+        # reads it to call the gateway); the gateway's config holds only its SHA-256.
+        if [ ! -s "$dir/ai-key" ]; then new_key >"$dir/ai-key.tmp" && mv -f "$dir/ai-key.tmp" "$dir/ai-key"; fi
+        ai_hash=$(sha256 <"$dir/ai-key")
+        mkdir -p "$dir/llm"  # the gateway writes its budget database here, through a writable mount
+        db_line=$(printf '\n  database:\n    url: sqlite:///llm/budgets.db')
+        llm_block=$(cat <<EOF
+# kia's chat page (the chat part): an AI route to the provider, metered against one household
+# budget. The provider's key comes from the gateway's environment, so only the household key's
+# hash is here. kia reaches this on the gateway's own network (http://gateway:4000, not published).
+llm:
+  models:
+  - name: $model
+    provider: anthropic
+    params:
+      apiKey: "\$KIA_CHAT_PROVIDER_KEY"
+  - name: $heavy
+    provider: anthropic
+    params:
+      apiKey: "\$KIA_CHAT_PROVIDER_KEY"
+  policies:
+    apiKey:
+      mode: strict
+      keys:
+      - keyHash: sha256:$ai_hash
+        metadata:
+          name: household
+        budgets:
+        - name: chat
+          limit:
+            unit: USD
+            amount: $budget
+          window:
+            rolling: 30d
+          onBudgetExceeded: Block
+EOF
+)
+    fi
     # The front door (the frontdoor part): a second listener that owns login and proxies the
     # Dashboard. Its host names and port come from .env; the client and cookie secrets come from
     # the ones scripts/frontdoor.sh wrote. The gateway's OIDC cookie key goes in gateway/oidc.env,
@@ -124,7 +180,7 @@ write() {
 # file from gateway/devices and .env: a change made here by hand is lost at its next write.
 config:
   # Its admin page could change these settings: off.
-  adminAddr: "off"
+  adminAddr: "off"${db_line}
   logging:
     format: json
 # One line a call: the time, who sent it (the device), the tool, the answer's status, and
@@ -275,6 +331,8 @@ EOF
       - host: authelia:9091
 EOF
     fi
+    # The chat page's AI route, last (a top-level key, after every bind). Empty unless KIA_CHAT is on.
+    if [ -n "$llm_block" ]; then printf '%s\n' "$llm_block" >>"$config.tmp"; fi
     mv -f "$config.tmp" "$config"
 }
 

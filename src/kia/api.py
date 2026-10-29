@@ -1174,6 +1174,8 @@ def chat_reply(cfg: ApiConfig, body: object, who: str) -> dict:
     from kia.config import load
 
     history = _chat_history(body)
+    if os.environ.get("KIA_CHAT", "").strip().lower() not in ("true", "1", "yes", "on"):
+        return {"available": False, "reply": "kia's chat is off. Turn it on with KIA_CHAT=true (docs/chat.md)."}
     url, key = os.environ.get("KIA_CHAT_URL", "").strip(), _chat_key(cfg)
     if not url or not key:
         return {"available": False,

@@ -240,3 +240,42 @@ def test_the_front_door_needs_both_host_names(kia: Path):
     (kia / ".env").write_text("KIA_FRONTDOOR_HOST=kia.my-server.lan\n")  # no auth host
     r = gateway(kia, "write")
     assert r.returncode != 0 and "KIA_FRONTDOOR_AUTH_HOST" in r.stderr
+
+
+def test_the_chat_route_is_off_by_default(kia: Path):
+    r = gateway(kia, "write")
+    assert r.returncode == 0, r.stderr
+    config = (kia / "gateway" / "config.yaml").read_text()
+    assert "llm:" not in config and "sqlite://" not in config
+    assert not (kia / "gateway" / "ai-key").exists()
+
+
+def test_the_chat_route_is_written_when_on(kia: Path):
+    (kia / ".env").write_text("KIA_CHAT=true\nKIA_CHAT_PROVIDER_KEY=sk-ant-secret\nKIA_CHAT_BUDGET=7.50\n")
+    r = gateway(kia, "write")
+    assert r.returncode == 0, r.stderr
+    config = (kia / "gateway" / "config.yaml").read_text()
+    ai_key = (kia / "gateway" / "ai-key").read_text()
+    digest = hashlib.sha256(ai_key.encode()).hexdigest()
+    assert "llm:" in config
+    assert f"keyHash: sha256:{digest}" in config  # only the hash is in the config
+    assert ai_key not in config and "sk-ant-secret" not in config  # neither key is written here
+    assert 'apiKey: "$KIA_CHAT_PROVIDER_KEY"' in config  # the provider key stays in the environment
+    assert "url: sqlite:///llm/budgets.db" in config
+    assert "amount: 7.50" in config and "rolling: 30d" in config and "onBudgetExceeded: Block" in config
+    assert "name: claude-sonnet-5-5" in config and "name: claude-opus-5-5" in config
+    assert (kia / "gateway" / "ai-key").stat().st_mode & 0o777 == 0o600  # only you (and kia, as you)
+    assert (kia / "gateway" / "llm").is_dir()  # the gateway writes its budget database here
+
+
+def test_the_chat_route_needs_a_provider_key(kia: Path):
+    (kia / ".env").write_text("KIA_CHAT=true\n")
+    r = gateway(kia, "write")
+    assert r.returncode != 0 and "KIA_CHAT_PROVIDER_KEY" in r.stderr
+    assert not (kia / "gateway" / "config.yaml").exists()  # nothing half-written
+
+
+def test_a_bad_chat_budget_is_refused(kia: Path):
+    (kia / ".env").write_text("KIA_CHAT=true\nKIA_CHAT_PROVIDER_KEY=x\nKIA_CHAT_BUDGET=5.0.0\n")
+    r = gateway(kia, "write")
+    assert r.returncode != 0 and "KIA_CHAT_BUDGET" in r.stderr

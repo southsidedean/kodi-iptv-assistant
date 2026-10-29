@@ -627,6 +627,7 @@ def _chat_ready(cfg, tmp_path, monkeypatch):
     cfg.config_file = tmp_path / "kia.toml"
     (tmp_path / "gateway").mkdir(exist_ok=True)
     (tmp_path / "gateway" / "ai-key").write_text("sk-household-key-abc123\n")
+    monkeypatch.setenv("KIA_CHAT", "true")
     monkeypatch.setenv("KIA_CHAT_URL", "http://gateway:4000/v1/messages")
 
 
