@@ -26,3 +26,10 @@ CVE-2026-111997 exp:2026-11-30
 # npm itself. Checked in kia's image, 2026-10-28; drop both when a new npm bundles the fix.
 CVE-2026-109383 exp:2026-11-30
 CVE-2026-87018 exp:2026-11-30
+
+# Another in the undici 6.29.0 that npm 12.2.1 bundles (npm's newest, which still ships it),
+# fixed in undici 6.29.1, which npm doesn't bundle yet. kia runs npm only at image-build time
+# and opens no undici WebSocket, so a flood of crafted WebSocket PONG frames (the denial of
+# service here) can't reach it. Checked in kia's image, 2026-10-29; drop when a new npm bundles
+# the fix.
+CVE-2026-109932 exp:2026-11-30
