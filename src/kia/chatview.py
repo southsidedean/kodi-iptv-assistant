@@ -1,10 +1,15 @@
-"""The Chat page (chat.html): a plain chat box over kia's read-only tools (0.8.4).
+"""The Chat page (chat.html): a plain chat box over kia's tools (0.8.4).
 
 A household member asks about their TV setup and kia answers, through the gateway's AI route.
 The page keeps a short history in the browser (localStorage) and sends only the recent turns, so
 kia stores nothing. It reads the answer in with textContent, never as HTML, because the reply and
 the tool data it quotes come partly from third-party playlists and guide sites. The server side
 is kia.api.chat_reply and kia.chat; this is only the page.
+
+With chat actions on (KIA_CHAT_ACTIONS, 0.8.5), kia can ask to do a few things too. The server
+says so on load, so the intro matches, and an answer that leaves a request shows a note under it
+with a link to approve it on the Dashboard. The note text is built the same careful way as a
+reply, with textContent, since kia's words for a request can quote a playlist or guide.
 """
 
 from __future__ import annotations
@@ -16,6 +21,10 @@ STYLE = r"""
 #chat-page .you { align-self: flex-end; background: #2b6cb0; color: #fff; }
 #chat-page .kia { align-self: flex-start; background: #eef1f5; color: #1a1d22; }
 #chat-page .tools { align-self: flex-start; font-size: .8rem; color: #667; margin-top: -.35rem; }
+#chat-page .asked { align-self: flex-start; max-width: 44rem; font-size: .85rem; margin-top: -.2rem;
+                    background: #fff6e5; color: #5a4a2a; border: 1px solid #e6d8b8;
+                    border-radius: .6rem; padding: .4rem .7rem; overflow-wrap: anywhere; }
+#chat-page .asked a { color: inherit; font-weight: 600; }
 #chat-page form { display: flex; gap: .5rem; align-items: flex-end; }
 #chat-page textarea { flex: 1; min-height: 2.6rem; max-height: 12rem; resize: vertical; font: inherit; padding: .5rem; }
 #chat-page .opts { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
@@ -25,6 +34,7 @@ STYLE = r"""
 @media (prefers-color-scheme: dark) {
   #chat-page .kia { background: #20242b; color: #e6e8ec; }
   #chat-page .tools, #chat-page .note { color: #99a; }
+  #chat-page .asked { background: #2a2720; color: #e8dcc0; border-color: #4a452f; }
 }
 """
 
@@ -39,9 +49,16 @@ SCRIPT = r"""
   var send = page.querySelector(".send");
   var heavy = page.querySelector(".heavy");
   var note = page.querySelector(".note");
+  var intro = page.querySelector(".intro");
   var pw = page.querySelector(".pw input");
   var HIST = "kia-chat-history", PASS = "kia-password", MAX = 20;
   var history = [];
+  // Shown instead of the read-only intro when chat actions are on (KIA_CHAT_ACTIONS). The server
+  // tells us on load whether they are, so we never promise what the chat can't do.
+  var ACTIONS_INTRO = "Ask about your channels, the guide, or what's on, in plain words. kia answers "
+    + "from its own tools, and it can ask to do a few things for you (refresh the guide, test a "
+    + "channel, add a channel to Plex, check a stack choice). It never changes anything on its own: "
+    + "each of those waits for you to approve it on the Dashboard.";
 
   function load() { try { history = JSON.parse(localStorage.getItem(HIST) || "[]"); } catch (e) { history = []; }
     if (!Array.isArray(history)) history = []; }
@@ -64,6 +81,37 @@ SCRIPT = r"""
   }
   function draw() { log.textContent = ""; history.forEach(function (m) { bubble(m.role, m.content); }); }
   function say(text) { note.textContent = text || ""; }
+
+  // A request an acting tool left this answer: what kia wants to do, and where to approve it. kia's
+  // words for it (req.what) can quote playlist or guide text, so every piece goes in with textContent,
+  // and the only link is the approve_at the server gave, used solely when it's a Dashboard https URL.
+  function requestNote(req) {
+    var what = req.what || "do something", state = req.state || "waiting";
+    var e = document.createElement("div");
+    e.className = "asked";
+    if (state === "waiting") {
+      e.appendChild(document.createTextNode("kia asked to " + what + ". "));
+      var at = req.approve_at || "";
+      if (at.indexOf("https://") === 0) {
+        var link = document.createElement("a");
+        link.href = at; link.textContent = "Approve it on the Dashboard";
+        e.appendChild(link);
+        e.appendChild(document.createTextNode("."));
+      } else {
+        e.appendChild(document.createTextNode("Approve it on " + (at || "the Dashboard") + "."));
+      }
+    } else if (state === "running") {
+      e.textContent = "kia is doing that now: " + what + ". The Dashboard shows how it goes.";
+    } else if (state === "done") {
+      e.textContent = "kia did that: " + what + ".";
+    } else if (state === "failed") {
+      e.textContent = "kia tried to " + what + ", but it didn't finish. The Dashboard has the details.";
+    } else {
+      e.textContent = "kia asked to " + what + " (" + state + ").";
+    }
+    log.appendChild(e);
+    log.scrollTop = log.scrollHeight;
+  }
 
   function headers() {
     var h = { "Content-Type": "application/json" };
@@ -93,6 +141,7 @@ SCRIPT = r"""
         var reply = d.reply || "(kia had no answer for that.)";
         history.push({ role: "assistant", content: reply });
         save(); bubble("assistant", reply, d.tools_used);
+        if (d.requests && d.requests.length) d.requests.forEach(requestNote);
         if (d.over_budget) say("That used the last of the household's chat allowance for now.");
       })
       .catch(function () { busy(false); say("kia couldn't answer just now. Try again."); });
@@ -120,7 +169,8 @@ SCRIPT = r"""
     .then(function (d) {
       if (!d) return;
       if (d.need) { say("Enter kia's password above to use the chat."); return; }
-      if (d.available === false) { say(d.reply || "kia's chat isn't on."); busy(true); box.disabled = false; send.disabled = true; }
+      if (d.available === false) { say(d.reply || "kia's chat isn't on."); busy(true); box.disabled = false; send.disabled = true; return; }
+      if (d.actions && intro) intro.textContent = ACTIONS_INTRO;
     })
     .catch(function () {});
 })();
@@ -134,8 +184,8 @@ def body() -> str:
     return (
         '<main id="chat-page">'
         "<h1>Ask kia</h1>"
-        "<p>Ask about your channels, the guide, or what's on, in plain words. kia answers from its "
-        "own tools. It can look things up and explain them; it can't change anything here.</p>"
+        '<p class="intro">Ask about your channels, the guide, or what\'s on, in plain words. kia answers '
+        "from its own tools. It can look things up and explain them; it can't change anything here.</p>"
         '<div class="pw"><label>kia\'s password '
         '<input type="password" autocomplete="current-password"></label></div>'
         '<div class="log" aria-live="polite"></div>'
