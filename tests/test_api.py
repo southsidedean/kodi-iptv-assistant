@@ -325,6 +325,7 @@ PROTECTED = [
     ("POST", "/api/stack/check", {"parts": ["plex"]}),
     ("POST", "/api/stack/apply", {"parts": ["plex"]}),
     ("POST", "/api/plex/tuners", None),
+    ("POST", "/api/chat", {"messages": [{"role": "user", "content": "hi"}]}),
     ("PUT", "/api/name", {"name": "den"}),
     ("POST", "/api/asks/approve", {"id": "0123456789abcdef"}),
     ("POST", "/api/asks/decline", {"id": "0123456789abcdef"}),
@@ -614,3 +615,69 @@ def test_front_door_admin_sees_the_sources_unlocked_without_the_password(cfg, tm
     assert calls[-1] is True  # a front-door admin: unlocked
     _fd_get(cfg, "/api/sources", token=None)
     assert calls[-1] is False  # no token: locked until the password
+
+
+# The chat page's route (kia.chat). The engine is tested in test_chat.py; here is the route:
+# who may use it, how it checks the conversation, and that it answers through the gateway.
+
+
+def _chat_ready(cfg, tmp_path, monkeypatch):
+    (tmp_path / "kia.toml").write_text("")
+    (tmp_path / "sources.txt").write_text("https://example.com/us.m3u\n")
+    cfg.config_file = tmp_path / "kia.toml"
+    (tmp_path / "gateway").mkdir(exist_ok=True)
+    (tmp_path / "gateway" / "ai-key").write_text("sk-household-key-abc123\n")
+    monkeypatch.setenv("KIA_CHAT_URL", "http://gateway:4000/v1/messages")
+
+
+def test_chat_needs_the_secure_page_and_a_way_in(cfg):
+    msg = {"messages": [{"role": "user", "content": "hi"}]}
+    assert call(cfg, "POST", "/api/chat", msg, secure=False)[0] == 403  # spends money: https only
+    assert call(cfg, "POST", "/api/chat", msg)[0] == 401  # secure, but no password and no front door
+    # With kia's password it's let in, and says the chat isn't set up yet (no gateway AI route).
+    status, data = call(cfg, "POST", "/api/chat", msg, password="secret")
+    assert status == 200 and data["available"] is False
+
+
+def test_chat_checks_the_conversation(cfg, tmp_path, monkeypatch):
+    _chat_ready(cfg, tmp_path, monkeypatch)
+    for body in ({}, {"messages": []}, {"messages": [{"role": "system", "content": "x"}]},
+                 {"messages": [{"role": "assistant", "content": "x"}]},  # last must be the member's
+                 {"messages": [{"role": "user", "content": 5}]}):
+        assert call(cfg, "POST", "/api/chat", body, password="secret")[0] == 400
+
+
+def test_chat_answers_through_the_gateway(cfg, tmp_path, monkeypatch):
+    from kia import chat
+
+    _chat_ready(cfg, tmp_path, monkeypatch)
+    sent = {}
+
+    def fake_post(self, body):
+        sent.update(body)
+        return {"role": "assistant", "stop_reason": "end_turn",
+                "content": [{"type": "text", "text": "Channel 2 is CNN and it's working."}],
+                "usage": {"input_tokens": 12, "output_tokens": 7}}
+
+    monkeypatch.setattr(chat.Gateway, "post", fake_post)
+    status, data = call(cfg, "POST", "/api/chat",
+                        {"messages": [{"role": "user", "content": "what is channel 2?"}]}, password="secret")
+    assert status == 200 and data["available"] and data["reply"] == "Channel 2 is CNN and it's working."
+    assert sent["model"] == chat.DEFAULT_MODEL  # the cheaper default
+    call(cfg, "POST", "/api/chat",
+         {"messages": [{"role": "user", "content": "hi"}], "model": "heavy"}, password="secret")
+    assert sent["model"] == chat.OPUS_MODEL  # the opt-in model
+
+
+def test_chat_shows_a_plain_message_when_over_budget(cfg, tmp_path, monkeypatch):
+    from kia import chat
+
+    _chat_ready(cfg, tmp_path, monkeypatch)
+
+    def over_budget(self, body):
+        raise chat.BudgetExceeded("You've used your chat allowance for now.")
+
+    monkeypatch.setattr(chat.Gateway, "post", over_budget)
+    status, data = call(cfg, "POST", "/api/chat",
+                        {"messages": [{"role": "user", "content": "hi"}]}, password="secret")
+    assert status == 200 and data["over_budget"] and "allowance" in data["reply"]

@@ -1106,6 +1106,97 @@ def change_password(cfg: ApiConfig, body: dict) -> dict:
     return {"password": cfg.auth.source}
 
 
+# kia's chat page (kia.chat): a household member's question, answered through the gateway's AI
+# route with the household's own key. Read-only, so the model can look things up with kia's tools
+# and explain them, never change anything. The settings come from the environment, like
+# KIA_PLEX_URL does: KIA_CHAT_URL is the gateway's AI route, and gateway/ai-key holds the one
+# household key (scripts/gateway.sh writes it when the chat is set up).
+CHAT_MAX_TURNS = 40  # turns kept from the browser's history (it sends the recent chat each time)
+CHAT_MAX_CHARS = 8000  # characters in one turn: a question or an answer, not a pasted file
+
+
+def _chat_key(cfg: ApiConfig) -> str | None:
+    """The household's gateway AI key, from gateway/ai-key in the kia folder. Only the first line,
+    and not a long one: anything else isn't a key scripts/gateway.sh wrote."""
+    project = cfg.config_file.parent if cfg.config_file else None
+    if project is None:
+        return None
+    try:
+        with open(project / "gateway" / "ai-key", encoding="utf-8", errors="replace") as f:
+            value = f.read(300).splitlines()[0].strip()
+    except (OSError, IndexError):
+        return None
+    return value if 8 <= len(value) <= 200 else None
+
+
+def _chat_thinking() -> bool:
+    """Whether the model may think (adaptive) before it answers (KIA_CHAT_THINKING, on by default)."""
+    return os.environ.get("KIA_CHAT_THINKING", "true").strip().lower() not in ("false", "0", "no", "off")
+
+
+def _chat_max_tokens() -> int:
+    """Room for the model's answer (KIA_CHAT_MAX_TOKENS), kept in a sensible range; a bad value
+    falls back to the default rather than stopping the chat."""
+    from kia import chat
+
+    try:
+        return max(256, min(int(os.environ.get("KIA_CHAT_MAX_TOKENS", "")), 8192))
+    except ValueError:
+        return chat.MAX_TOKENS
+
+
+def _chat_history(body: object) -> list[dict]:
+    """The conversation the browser sent, checked: a non-empty list of plain turns, each a user or
+    assistant with text content, the last one the member's new question. Raises ApiError on
+    anything else, so a crafted body can't run up a bill with a huge or malformed conversation."""
+    turns = body.get("messages") if isinstance(body, dict) else None
+    if not isinstance(turns, list) or not turns:
+        raise ApiError(400, "Send the conversation as {\"messages\": [{\"role\": \"user\", \"content\": \"...\"}]}.")
+    history = []
+    for t in turns[-CHAT_MAX_TURNS:]:
+        role, content = (t.get("role"), t.get("content")) if isinstance(t, dict) else (None, None)
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            raise ApiError(400, "Each turn needs a role of user or assistant and text content.")
+        if len(content) > CHAT_MAX_CHARS:
+            raise ApiError(400, f"A message is longer than {CHAT_MAX_CHARS} characters.")
+        history.append({"role": role, "content": content})
+    if history[-1]["role"] != "user":
+        raise ApiError(400, "The last turn must be the member's question.")
+    return history
+
+
+def chat_reply(cfg: ApiConfig, body: object, who: str) -> dict:
+    """Answer a chat question: run kia's read-only tools and a model through the gateway, with the
+    household key. who is the member kia logs. Returns what the page shows: the reply, the tools it
+    used, and whether the household is over its budget. The AI provider's key stays at the gateway;
+    kia sends only the household's gateway key."""
+    from kia import chat, mcp
+    from kia.config import load
+
+    history = _chat_history(body)
+    url, key = os.environ.get("KIA_CHAT_URL", "").strip(), _chat_key(cfg)
+    if not url or not key:
+        return {"available": False,
+                "reply": "kia's chat isn't set up yet. It needs the gateway's AI route (docs/chat.md)."}
+    if not cfg.config_file:
+        raise ApiError(409, "kia's chat needs kia's settings file, which this server wasn't given.")
+    heavy = isinstance(body, dict) and body.get("model") == "heavy"
+    model = (os.environ.get("KIA_CHAT_MODEL_HEAVY") or chat.OPUS_MODEL) if heavy else \
+            (os.environ.get("KIA_CHAT_MODEL") or chat.DEFAULT_MODEL)  # fmt: skip
+    conf = load(cfg.config_file)
+    gateway = chat.Gateway(url, key)
+    print(f"Chat: a question for {model} from {who}", flush=True)
+    try:
+        out = chat.reply(history, gateway.post,
+                         lambda name, args: mcp.run_read_only(name, conf, cfg, args),
+                         model=model, thinking=_chat_thinking(), max_tokens=_chat_max_tokens())  # fmt: skip
+    except chat.BudgetExceeded as exc:
+        return {"available": True, "over_budget": True, "reply": str(exc)}
+    except chat.ChatError as exc:
+        return {"available": True, "error": str(exc)}
+    return {"available": True, **out}
+
+
 def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure: bool = False,
            client: str = "") -> tuple[int, dict | None]:  # fmt: skip
     """Route one /api/ request. Returns (HTTP status, JSON body), the body None for none (MCP's
@@ -1122,6 +1213,14 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
 
     def need_edit() -> None:
         if secure and editor and editor[1]:
+            return
+        check_password(cfg, headers.get("X-Kia-Password"), secure)
+
+    def need_member() -> None:
+        # The chat spends money, so it's for the household: a logged-in front-door member (any
+        # role, not only admins) on the secure page, or kia's own password. Everyone in the house
+        # can ask; a direct connection without the password can't.
+        if secure and editor:
             return
         check_password(cfg, headers.get("X-Kia-Password"), secure)
 
@@ -1226,6 +1325,12 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["plex", "tuners"] and method == "POST":
             need_edit()
             return 200, start_plex_tuners(cfg)
+        if parts == ["chat"] and method == "POST":
+            need_member()
+            who = "the Dashboard"
+            if secure and editor:
+                who = re.sub(r"[^A-Za-z0-9 ._@-]", "", editor[0])[:40] or "a member"
+            return 200, chat_reply(cfg, data, who)
         if parts == ["asks"] and method == "GET":
             return 200, get_asks(cfg)
         if parts == ["asks", "approve"] and method == "POST":
