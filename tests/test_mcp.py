@@ -705,3 +705,17 @@ def test_network_gateways_from_the_route_table(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(api, "Path", lambda p: route if p == "/proc/net/route" else real(p))
     assert api._network_gateways() == {"192.0.2.1", "192.0.2.129"}  # two /25 networks
+
+
+def test_run_read_only_runs_a_read_only_tool(kia):
+    # kia.chat drives the read-only tools through this: it runs them, hides logins, and reports a
+    # bad name or wrong arguments rather than raising, so the model hears what went wrong.
+    from kia.config import load
+
+    conf = load(kia.config_file)
+    data = mcp.run_read_only("kia_overview", conf, kia, {})
+    assert "status" in data and "doctor" in data
+    assert "kia_add_to_plex" not in mcp.READ_ONLY  # a tool that acts isn't in the read-only set
+    assert "error" in mcp.run_read_only("kia_add_to_plex", conf, kia, {})  # and is refused here
+    assert "error" in mcp.run_read_only("not_a_tool", conf, kia, {})
+    assert "error" in mcp.run_read_only("kia_channel", conf, kia, {})  # missing the required query
