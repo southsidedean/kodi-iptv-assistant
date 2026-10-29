@@ -94,6 +94,16 @@ services:
       KIA_FRONTDOOR_PORT: ${KIA_FRONTDOOR_PORT:-}
       # On: the Dashboard lets the front door's admin edit without kia's own password.
       KIA_TRUST_FRONTDOOR: ${KIA_TRUST_FRONTDOOR:-}
+      # The chat page (the chat part, docs/chat.md). kia runs the chat loop and reaches the
+      # gateway's AI route on the gateway's own network; the provider's key stays in the gateway.
+      # KIA_CHAT_PROVIDER_KEY and KIA_CHAT_BUDGET are read by scripts/gateway.sh, not kia.
+      KIA_CHAT: ${KIA_CHAT:-}
+      KIA_CHAT_URL: ${KIA_CHAT_URL:-http://gateway:4000/v1/messages}
+      KIA_CHAT_MODEL: ${KIA_CHAT_MODEL:-}
+      KIA_CHAT_MODEL_HEAVY: ${KIA_CHAT_MODEL_HEAVY:-}
+      KIA_CHAT_MAX_TOKENS: ${KIA_CHAT_MAX_TOKENS:-}
+      KIA_CHAT_THINKING: ${KIA_CHAT_THINKING:-}
+      KIA_CHAT_BUDGET: ${KIA_CHAT_BUDGET:-}
       # Optional; empty means use the setting in kia.toml.
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
       KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
@@ -582,6 +592,11 @@ services:
       # The front door's login listener (the frontdoor part). Nothing listens on it until the
       # front door is on, when scripts/gateway.sh adds its listener to the config.
       - "${KIA_BIND:-0.0.0.0}:${KIA_FRONTDOOR_PORT:-8444}:8444"
+    environment:
+      # The AI provider's key for the chat page (the chat part, docs/chat.md). The gateway's
+      # config refers to it by name, so the key itself never goes into gateway/config.yaml. Empty
+      # unless the chat is on.
+      KIA_CHAT_PROVIDER_KEY: ${KIA_CHAT_PROVIDER_KEY:-}
     # The gateway's OIDC session cookie key, written by scripts/gateway.sh when the front door
     # is on. Optional, so the gateway still starts without the front door.
     env_file:
@@ -589,6 +604,9 @@ services:
         required: false
     volumes:
       - ./gateway:/gateway:ro
+      # The chat part's budget database. The gateway writes it (the rest of gateway/ is read
+      # only), so it keeps each household budget's running count across restarts.
+      - ./gateway/llm:/llm
       - ./tls:/etc/kia-tls:ro
 
   # The front door's identity provider (Authelia; the frontdoor part, docs/front-door.md): it
