@@ -527,12 +527,17 @@ RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": 
        "kia_check_stack": _check_stack, "kia_request_status": _request_status}  # fmt: skip
 
 
-def run_read_only(name: str, conf: Config, api_cfg, args: dict) -> dict:
-    """Run one read-only tool for kia's chat loop (kia.chat) and return its data, with logins in
-    any address hidden, as the MCP server does. Returns a dict with "error" instead when the name
-    isn't a read-only tool or the arguments are wrong, so the model hears what went wrong and can
-    try again. The acting tools are refused here: the chat page can't change anything."""
-    if name not in READ_ONLY:
+# Every tool, in kia's order: the read-only ones plus the ones that act. kia's chat page uses this
+# set only when the household turns chat actions on (KIA_CHAT_ACTIONS).
+ALL_TOOLS = tuple(n for n, *_ in TOOLS)
+
+
+def _run_tool(name: str, conf: Config, api_cfg, args: dict, allowed) -> dict:
+    """Run one tool for kia's chat loop (kia.chat) and return its data, with logins in any address
+    hidden, as the MCP server does. allowed is the set of tool names the chat may call. Returns a
+    dict with "error" instead when the name isn't one of those or the arguments are wrong, so the
+    model hears what went wrong and can try again."""
+    if name not in allowed:
         return {"error": f"{name} isn't a tool the chat can use."}
     schema = next(s for n, _, _, s in TOOLS if n == name)
     if problem := _args_ok(schema, args):
@@ -542,6 +547,28 @@ def run_read_only(name: str, conf: Config, api_cfg, args: dict) -> dict:
     except Exception:  # a damaged file, say: a message the model can show, details in kia's log
         traceback.print_exc()
         return {"error": f"{name} failed; kia's log has the details."}
+
+
+def run_read_only(name: str, conf: Config, api_cfg, args: dict) -> dict:
+    """Run one read-only tool for the chat loop. The acting tools are refused here: with chat
+    actions off, the chat page can only read and explain, never change anything."""
+    return _run_tool(name, conf, api_cfg, args, READ_ONLY)
+
+
+def run_with_actions(name: str, conf: Config, api_cfg, args: dict, *, who: str) -> dict:
+    """Run one tool for the chat loop with the acting tools allowed too (KIA_CHAT_ACTIONS on). The
+    acting tools leave a request the member approves on kia's Dashboard before anything happens,
+    the same as over MCP; who is the front-door member asking, so the Dashboard shows whose request
+    it is. The chat is not one of the gateway's devices, so no device is set: the household's
+    [asks] auto_approve and auto_devices policy decides on its own whether a request runs now or
+    waits for a Dashboard approval, exactly as it does for a caller with no device."""
+    who_token = _WHO.set(who)
+    device_token = _DEVICE.set("")
+    try:
+        return _run_tool(name, conf, api_cfg, args, ALL_TOOLS)
+    finally:
+        _WHO.reset(who_token)
+        _DEVICE.reset(device_token)
 
 
 # Starter prompts: MCP prompts, which assistants offer as ready-made questions (Claude Code shows

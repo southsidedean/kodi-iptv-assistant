@@ -719,3 +719,19 @@ def test_run_read_only_runs_a_read_only_tool(kia):
     assert "error" in mcp.run_read_only("kia_add_to_plex", conf, kia, {})  # and is refused here
     assert "error" in mcp.run_read_only("not_a_tool", conf, kia, {})
     assert "error" in mcp.run_read_only("kia_channel", conf, kia, {})  # missing the required query
+
+
+def test_run_with_actions_allows_the_acting_tools(kia):
+    # With chat actions on, the chat drives tools through this instead: the acting tools are
+    # allowed, each leaves a Dashboard-approval request attributed to the member who asked, and no
+    # gateway device is set, so the household's auto policy decides on its own (here: off, so it
+    # waits). A read-only tool still runs, and a bad name is still refused.
+    from kia import asks
+    from kia.config import load
+
+    conf = load(kia.config_file)
+    assert "status" in mcp.run_with_actions("kia_overview", conf, kia, {}, who="dad")
+    left = mcp.run_with_actions("kia_refresh_guide", conf, kia, {}, who="dad")
+    assert left["asked"] is True and left["state"] == "waiting" and "approve_at" in left
+    assert asks.get(kia.state_dir, left["id"])["who"] == "dad"  # attributed to the member
+    assert "error" in mcp.run_with_actions("not_a_tool", conf, kia, {}, who="dad")
