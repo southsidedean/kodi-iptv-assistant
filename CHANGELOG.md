@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.5 (unreleased)
+
+### New
+
+- A prompt you can hand to an AI assistant to install kia for you. The Quick start now opens with it: paste the prompt to an assistant that can run commands on your computer, and it reads kia's install guide, checks what you already have, runs the installer, and helps you answer its questions. It asks you for the address, time zone, and preset rather than guessing. The one-command and by-hand ways are unchanged.
+
 ## 0.8.4 (2026-10-29)
 
 This release adds a chat box to the Dashboard, so you can ask about your TV setup in plain words and kia answers from its own tools.
