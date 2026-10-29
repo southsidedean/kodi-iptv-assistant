@@ -2,6 +2,8 @@
 
 This guide takes you from nothing to a working channel list and program guide in Kodi. It takes about 30 minutes of your time, plus up to an hour for kia's first run, which you don't need to watch.
 
+If you use an AI assistant that can run commands on your computer, you can have it do the install for you by following this guide. The [README's Quick start](../README.md#quick-start) has a prompt to paste.
+
 ## What you need
 
 | You need | Details | Why |
