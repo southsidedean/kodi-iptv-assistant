@@ -227,6 +227,10 @@ TOOLS = [
 ]  # fmt: skip
 # The tools that ask, rather than only read (MCP's readOnlyHint is false for them).
 ASKING = {"kia_test_channel", "kia_refresh_guide", "kia_add_to_plex", "kia_check_stack"}
+# The read-only tools, in kia's order: everything except the ones that act. kia's own chat page
+# (kia.chat) runs only these, so the model can read and explain but never change anything; the
+# acting tools wait for a later version, behind the Dashboard's confirmation.
+READ_ONLY = tuple(n for n, *_ in TOOLS if n not in ASKING)
 _WHO: contextvars.ContextVar[str] = contextvars.ContextVar("who", default="")  # who called the tool, for a request
 # The gateway device that called, "" otherwise: set only with the gateway's token, for
 # [asks] auto_devices.
@@ -521,6 +525,23 @@ RUN = {"kia_overview": _overview, "kia_channel": _channel, "kia_find_channels": 
        "kia_whats_on": _whats_on, "kia_find_shows": _find_shows, "kia_docs": _docs, "kia_whats_new": _whats_new,
        "kia_test_channel": _test_channel, "kia_refresh_guide": _refresh_guide, "kia_add_to_plex": _add_to_plex,
        "kia_check_stack": _check_stack, "kia_request_status": _request_status}  # fmt: skip
+
+
+def run_read_only(name: str, conf: Config, api_cfg, args: dict) -> dict:
+    """Run one read-only tool for kia's chat loop (kia.chat) and return its data, with logins in
+    any address hidden, as the MCP server does. Returns a dict with "error" instead when the name
+    isn't a read-only tool or the arguments are wrong, so the model hears what went wrong and can
+    try again. The acting tools are refused here: the chat page can't change anything."""
+    if name not in READ_ONLY:
+        return {"error": f"{name} isn't a tool the chat can use."}
+    schema = next(s for n, _, _, s in TOOLS if n == name)
+    if problem := _args_ok(schema, args):
+        return {"error": f"Can't run {name}: {problem}."}
+    try:
+        return _hide_logins(RUN[name](conf, args, api_cfg))
+    except Exception:  # a damaged file, say: a message the model can show, details in kia's log
+        traceback.print_exc()
+        return {"error": f"{name} failed; kia's log has the details."}
 
 
 # Starter prompts: MCP prompts, which assistants offer as ready-made questions (Claude Code shows
