@@ -1134,6 +1134,13 @@ def _chat_thinking() -> bool:
     return os.environ.get("KIA_CHAT_THINKING", "true").strip().lower() not in ("false", "0", "no", "off")
 
 
+def _chat_actions() -> bool:
+    """Whether the chat may reach the four tools that act (KIA_CHAT_ACTIONS), off by default. When
+    it's on, each request the chat makes still waits for a Dashboard approval, or runs by itself
+    only where the household's [asks] auto_approve policy already lets that kind of request run."""
+    return os.environ.get("KIA_CHAT_ACTIONS", "").strip().lower() in ("true", "1", "yes", "on")
+
+
 def _chat_max_tokens() -> int:
     """Room for the model's answer (KIA_CHAT_MAX_TOKENS), kept in a sensible range; a bad value
     falls back to the default rather than stopping the chat."""
@@ -1171,7 +1178,7 @@ def chat_available(cfg: ApiConfig) -> dict:
     on = os.environ.get("KIA_CHAT", "").strip().lower() in ("true", "1", "yes", "on")
     ready = bool(on and os.environ.get("KIA_CHAT_URL", "").strip() and _chat_key(cfg))
     if ready:
-        return {"available": True}
+        return {"available": True, "actions": _chat_actions()}
     reason = ("kia's chat is off. Turn it on with KIA_CHAT=true (docs/chat.md)." if not on else
               "kia's chat isn't set up yet. It needs the gateway's AI route (docs/chat.md).")  # fmt: skip
     return {"available": False, "reply": reason}
@@ -1199,10 +1206,14 @@ def chat_reply(cfg: ApiConfig, body: object, who: str) -> dict:
             (os.environ.get("KIA_CHAT_MODEL") or chat.DEFAULT_MODEL)  # fmt: skip
     conf = load(cfg.config_file)
     gateway = chat.Gateway(url, key)
+    # With chat actions on, the member who asked is attributed to any request the acting tools
+    # leave, so the Dashboard approval (or the [asks] auto_approve policy) sees who it was for.
+    actions = _chat_actions()
+    run = ((lambda name, args: mcp.run_with_actions(name, conf, cfg, args, who=who)) if actions
+           else (lambda name, args: mcp.run_read_only(name, conf, cfg, args)))  # fmt: skip
     print(f"Chat: a question for {model} from {who}", flush=True)
     try:
-        out = chat.reply(history, gateway.post,
-                         lambda name, args: mcp.run_read_only(name, conf, cfg, args),
+        out = chat.reply(history, gateway.post, run, actions=actions,
                          model=model, thinking=_chat_thinking(), max_tokens=_chat_max_tokens())  # fmt: skip
     except chat.BudgetExceeded as exc:
         return {"available": True, "over_budget": True, "reply": str(exc)}

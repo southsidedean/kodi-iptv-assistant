@@ -4,6 +4,7 @@
 
 ### New
 
+- The **Ask kia** chat could only look things up before. Now it can do a few things for you too. Turn it on with `KIA_CHAT_ACTIONS=true` and you can ask kia to refresh the guide, test a channel, add a channel to Plex, or weigh a change to your stack. kia never makes the change on its own from the chat: each one becomes a request you approve on the Dashboard, the same path the MCP tools use, so it runs only after you say yes (or on its own only where your `[asks]` `auto_approve` policy already allows that kind of request). Off by default, and the read-only chat is unchanged when it's off. [The chat page](docs/chat.md) has the steps.
 - A prompt you can hand to an AI assistant to install kia for you. The Quick start now opens with it: paste the prompt to an assistant that can run commands on your computer, and it reads kia's install guide, checks what you already have, runs the installer, and helps you answer its questions. It asks you for the address, time zone, and preset rather than guessing. It leaves any command that needs sudo for you to run, and it keeps kia's password out of the chat: when the installer's output is captured, it shows only where the password is saved, not the password itself. The one-command and by-hand ways are unchanged.
 
 ## 0.8.4 (2026-10-29)

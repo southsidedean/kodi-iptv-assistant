@@ -649,7 +649,10 @@ def test_chat_availability_costs_nothing(cfg, tmp_path, monkeypatch):
     assert call(cfg, "GET", "/api/chat", password="secret")[1] == {
         "available": False, "reply": "kia's chat is off. Turn it on with KIA_CHAT=true (docs/chat.md)."}
     _chat_ready(cfg, tmp_path, monkeypatch)
-    assert call(cfg, "GET", "/api/chat", password="secret")[1] == {"available": True}
+    # Ready, and the page is told whether chat actions are on (off by default) so it can show them.
+    assert call(cfg, "GET", "/api/chat", password="secret")[1] == {"available": True, "actions": False}
+    monkeypatch.setenv("KIA_CHAT_ACTIONS", "true")
+    assert call(cfg, "GET", "/api/chat", password="secret")[1] == {"available": True, "actions": True}
 
 
 def test_chat_checks_the_conversation(cfg, tmp_path, monkeypatch):
@@ -680,6 +683,51 @@ def test_chat_answers_through_the_gateway(cfg, tmp_path, monkeypatch):
     call(cfg, "POST", "/api/chat",
          {"messages": [{"role": "user", "content": "hi"}], "model": "heavy"}, password="secret")
     assert sent["model"] == chat.OPUS_MODEL  # the opt-in model
+
+
+def test_chat_without_actions_uses_the_read_only_runner(cfg, tmp_path, monkeypatch):
+    # The default: no acting tools. The route must reach the read-only runner, never the acting one.
+    from kia import chat, mcp
+
+    _chat_ready(cfg, tmp_path, monkeypatch)  # KIA_CHAT_ACTIONS unset
+    monkeypatch.setattr(mcp, "run_with_actions",
+                        lambda *a, **k: pytest.fail("actions are off; the acting runner must not run"))
+    monkeypatch.setattr(chat.Gateway, "post", lambda self, body: {
+        "role": "assistant", "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "Channel 2 is CNN."}]})
+    status, data = call(cfg, "POST", "/api/chat",
+                        {"messages": [{"role": "user", "content": "what is channel 2?"}]}, password="secret")
+    assert status == 200 and data["reply"] == "Channel 2 is CNN." and data["requests"] == []
+
+
+def test_chat_actions_route_the_acting_tools_to_the_member(cfg, tmp_path, monkeypatch):
+    # With KIA_CHAT_ACTIONS on, an acting tool call goes through the acting runner, attributed to
+    # the member, and the request it leaves comes back for the page to show.
+    from kia import chat, mcp
+
+    _chat_ready(cfg, tmp_path, monkeypatch)
+    monkeypatch.setenv("KIA_CHAT_ACTIONS", "true")
+    seen = {}
+
+    def fake_with_actions(name, conf, api_cfg, args, *, who):
+        seen["name"], seen["who"] = name, who
+        return {"asked": True, "id": "r1", "what": "refresh the guide",
+                "state": "waiting", "approve_at": "/#asks"}
+
+    monkeypatch.setattr(mcp, "run_with_actions", fake_with_actions)
+    monkeypatch.setattr(mcp, "run_read_only",
+                        lambda *a, **k: pytest.fail("actions are on; the read-only runner must not run"))
+    answers = iter([
+        {"role": "assistant", "stop_reason": "tool_use",
+         "content": [{"type": "tool_use", "id": "t1", "name": "kia_refresh_guide", "input": {}}]},
+        {"role": "assistant", "stop_reason": "end_turn",
+         "content": [{"type": "text", "text": "I've asked to refresh the guide; approve it on the Dashboard."}]}])
+    monkeypatch.setattr(chat.Gateway, "post", lambda self, body: next(answers))
+    status, data = call(cfg, "POST", "/api/chat",
+                        {"messages": [{"role": "user", "content": "refresh the guide"}]}, password="secret")
+    assert status == 200 and data["available"]
+    assert seen["name"] == "kia_refresh_guide" and seen["who"] == "the Dashboard"
+    assert data["requests"] == [{"id": "r1", "what": "refresh the guide", "state": "waiting", "approve_at": "/#asks"}]
 
 
 def test_chat_shows_a_plain_message_when_over_budget(cfg, tmp_path, monkeypatch):
