@@ -48,17 +48,21 @@ Help me install kodi-iptv-assistant (kia) on this computer. It is a Docker Compo
    and the Quick start in
    https://github.com/southsidedean/kodi-iptv-assistant/blob/main/README.md
 2. Check what I have: my operating system, whether Docker and Git are installed, and that I am
-   on my home network. Tell me how to install anything that is missing.
+   on my home network. If installing something needs sudo (Docker or Git often do), give me the
+   exact command and let me run it myself.
 3. When I am ready, run kia's official installer and help me answer its questions: this
    computer's address, my time zone, and which preset fits how I plan to watch. Ask me for
    these rather than guessing.
-4. After it finishes, tell me the Dashboard address and password it printed, and that kia's
-   first refresh takes up to an hour.
+4. After it finishes, tell me the Dashboard address and that kia's first refresh takes up to an
+   hour. It also sets a password for making changes, saved in state/admin-password.txt; tell me
+   to read it from there myself, and do not show it to me or repeat it.
 
 The installer is one command:
 curl -fsSL https://raw.githubusercontent.com/southsidedean/kodi-iptv-assistant/main/scripts/install.sh | sh
 
-Only run commands from kia's own docs and installer, and ask me before running anything you are unsure about.
+Only run commands from kia's own docs and installer, and ask me before running anything you are
+unsure about. Do not run anything with sudo yourself, and never display or repeat a password, key,
+or token: if you see one, tell me where it is saved instead.
 ```
 
 Prefer to do it yourself? The two ways below need no AI.
