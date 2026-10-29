@@ -93,6 +93,11 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_AUTHELIA_IMAGE` | `authelia/authelia:4.39.28` | The identity provider's version, pinned to one tested with kia. |
 | `KIA_LLDAP_IMAGE` | `lldap/lldap:v0.6.3` | The account store's version, pinned to one tested with kia. |
 | `KIA_LLDAP_DATA` | `./lldap/data` | Where the account store keeps its database. On a Mac the installer sets it to a Docker volume (`lldap-data`), since a shared folder corrupts the database. |
+| `KIA_CHAT` | off | `true` turns on the Ask kia chat page (the `chat` part; needs the gateway, and the front door for more than one person). See [the chat page](chat.md). Run `scripts/gateway.sh write` after changing it. |
+| `KIA_CHAT_PROVIDER_KEY` | none | Your AI provider's key. It stays in the gateway and never reaches kia or the gateway's config file. Needed when the chat is on. |
+| `KIA_CHAT_BUDGET` | `5` | The most the household may spend on the chat a month, in US dollars. Over it, the chat says so until the month turns. |
+| `KIA_CHAT_MODEL` | `claude-sonnet-5-5` | The everyday model, picked to keep questions cheap. |
+| `KIA_CHAT_MODEL_HEAVY` | `claude-opus-5-5` | The stronger model a question can ask for, for harder questions. |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.

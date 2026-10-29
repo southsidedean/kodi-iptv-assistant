@@ -1165,6 +1165,18 @@ def _chat_history(body: object) -> list[dict]:
     return history
 
 
+def chat_available(cfg: ApiConfig) -> dict:
+    """Whether the chat is on and set up, for the page to show up front without asking a question
+    (so it costs nothing). The same checks chat_reply makes before it reaches the gateway."""
+    on = os.environ.get("KIA_CHAT", "").strip().lower() in ("true", "1", "yes", "on")
+    ready = bool(on and os.environ.get("KIA_CHAT_URL", "").strip() and _chat_key(cfg))
+    if ready:
+        return {"available": True}
+    reason = ("kia's chat is off. Turn it on with KIA_CHAT=true (docs/chat.md)." if not on else
+              "kia's chat isn't set up yet. It needs the gateway's AI route (docs/chat.md).")  # fmt: skip
+    return {"available": False, "reply": reason}
+
+
 def chat_reply(cfg: ApiConfig, body: object, who: str) -> dict:
     """Answer a chat question: run kia's read-only tools and a model through the gateway, with the
     household key. who is the member kia logs. Returns what the page shows: the reply, the tools it
@@ -1327,6 +1339,9 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
         if parts == ["plex", "tuners"] and method == "POST":
             need_edit()
             return 200, start_plex_tuners(cfg)
+        if parts == ["chat"] and method == "GET":
+            need_member()
+            return 200, chat_available(cfg)
         if parts == ["chat"] and method == "POST":
             need_member()
             who = "the Dashboard"

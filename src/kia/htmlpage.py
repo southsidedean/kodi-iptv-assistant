@@ -17,7 +17,8 @@ PROJECT_URL = "https://github.com/southsidedean/kodi-iptv-assistant"
 DOCS_URL = f"{PROJECT_URL}/blob/main/docs"
 # The Dashboard's pages, in the menu at the top of every page kia serves.
 NAV = [("index.html", "Dashboard"), ("playlists.html", "Playlists"), ("sources.html", "Sources"),
-       ("guide.html", "Guide"), ("stack.html", "Stack"), ("system.html", "System")]  # fmt: skip
+       ("guide.html", "Guide"), ("stack.html", "Stack"), ("system.html", "System"),
+       ("chat.html", "Ask kia")]  # fmt: skip
 
 # The kia logo: a screen showing program guide rows, with the "now" line in amber.
 LOGO_LIGHT = {"screen": "#1f2b4d", "rows": "#cfd8f0", "now": "#e5a52e"}
