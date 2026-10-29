@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.8.5 (unreleased)
+## 0.8.5 (2026-10-29)
+
+This release lets the Ask kia chat act on a few things for you, with your approval, and adds a prompt you can hand to an AI assistant to install kia.
+
+### Upgrading from 0.8.4
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change: chat actions stay off until you turn them on with `KIA_CHAT_ACTIONS`, and the install prompt only matters for a fresh install.
 
 ### New
 
