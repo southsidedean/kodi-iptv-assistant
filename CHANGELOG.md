@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.8.4 (unreleased)
+## 0.8.4 (2026-10-29)
+
+This release adds a chat box to the Dashboard, so you can ask about your TV setup in plain words and kia answers from its own tools.
+
+### Upgrading from 0.8.3
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). There's nothing to change: the chat is off until you turn it on with `KIA_CHAT`, and it needs the gateway part.
+
+### New
+
+- A chat box on the Dashboard, under **Ask kia**. You ask about your own setup in plain words, such as "what football is on tonight" or "why does channel 400 have no guide", and kia answers by looking things up with its own read-only tools. It can read and explain, but it cannot change anything from the chat; when something needs fixing, it tells you what to do and points you to the right page. The chat is off until you turn it on, and it is the one part of kia that costs money to use, so kia caps what the household can spend each month (`KIA_CHAT_BUDGET`, five US dollars by default). It needs the gateway part, which holds the AI provider's key and keeps the running total of spend, so the key never reaches kia. kia uses Claude by default, with a smaller, cheaper model for everyday questions and a stronger one only for a question that asks for it. [The chat page](docs/chat.md) has the steps.
 
 ### Fixes
 
