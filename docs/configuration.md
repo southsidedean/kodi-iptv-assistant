@@ -98,6 +98,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_CHAT_BUDGET` | `5` | The most the household may spend on the chat a month, in US dollars. Over it, the chat says so until the month turns. |
 | `KIA_CHAT_MODEL` | `claude-sonnet-5-5` | The everyday model, picked to keep questions cheap. |
 | `KIA_CHAT_MODEL_HEAVY` | `claude-opus-5-5` | The stronger model a question can ask for, for harder questions. |
+| `KIA_CHAT_ACTIONS` | off | `true` lets the chat ask kia to act (refresh the guide, test a channel, add to Plex, check a stack choice). Each request still waits for your approval on the Dashboard, or runs on its own only where your `[asks]` `auto_approve` policy already allows it. See [the chat page](chat.md). |
 | `KIA_IMAGE` | built here | kia's published image instead of building it, e.g. `ghcr.io/southsidedean/kodi-iptv-assistant:latest`. See [the published image](#the-published-image). |
 
 After changing `.env`, apply it with `docker compose up -d`. Add `--build` if you changed `KIA_BASE_IMAGE` or `KIA_NODE_VERSION`.

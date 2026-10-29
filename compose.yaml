@@ -103,6 +103,7 @@ services:
       KIA_CHAT_MODEL_HEAVY: ${KIA_CHAT_MODEL_HEAVY:-}
       KIA_CHAT_MAX_TOKENS: ${KIA_CHAT_MAX_TOKENS:-}
       KIA_CHAT_THINKING: ${KIA_CHAT_THINKING:-}
+      KIA_CHAT_ACTIONS: ${KIA_CHAT_ACTIONS:-}
       KIA_CHAT_BUDGET: ${KIA_CHAT_BUDGET:-}
       # Optional; empty means use the setting in kia.toml.
       KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
