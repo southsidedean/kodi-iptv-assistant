@@ -323,8 +323,13 @@ say "Dashboard:          $url/"
 say "Secure Dashboard:   https://$host:${https_port:-8743}/   (for making changes; your browser warns about kia's own certificate the first time)"
 if [ "$had_password" = yes ]; then
     say "Password for changes: in $DIR/state/admin-password.txt"
-elif [ -n "$password" ]; then
+elif [ -n "$password" ] && [ -t 1 ]; then
+    # Shown in full only to your own terminal. When the output is captured, as an AI assistant
+    # following the README's install prompt would, show where the password is, not the password
+    # itself, so it stays out of the assistant's hands. It is always in the file either way.
     say "Password for changes: $password   (also in $DIR/state/admin-password.txt)"
+elif [ -n "$password" ]; then
+    say "Password for changes: in $DIR/state/admin-password.txt"
 fi
 say "Playlist for players: $url/curated.m3u"
 say ""

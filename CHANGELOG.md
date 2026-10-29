@@ -4,7 +4,7 @@
 
 ### New
 
-- A prompt you can hand to an AI assistant to install kia for you. The Quick start now opens with it: paste the prompt to an assistant that can run commands on your computer, and it reads kia's install guide, checks what you already have, runs the installer, and helps you answer its questions. It asks you for the address, time zone, and preset rather than guessing. The one-command and by-hand ways are unchanged.
+- A prompt you can hand to an AI assistant to install kia for you. The Quick start now opens with it: paste the prompt to an assistant that can run commands on your computer, and it reads kia's install guide, checks what you already have, runs the installer, and helps you answer its questions. It asks you for the address, time zone, and preset rather than guessing. It leaves any command that needs sudo for you to run, and it keeps kia's password out of the chat: when the installer's output is captured, it shows only where the password is saved, not the password itself. The one-command and by-hand ways are unchanged.
 
 ## 0.8.4 (2026-10-29)
 
