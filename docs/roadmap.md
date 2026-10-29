@@ -15,6 +15,15 @@ stack. It runs on your own network and keeps its settings and secrets to itself.
 
 Newest first. The [changelog](../CHANGELOG.md) has the full detail for every version.
 
+- 0.8.3 to 0.8.5 finished the identity and chat work. One login now covers the whole stack, with
+  a real account per person and roles for who can change things, household accounts kept in a
+  small store you manage, and an optional clean certificate from a public authority for browsers
+  to trust with no warning. A small in-house chat sits behind the front door and answers
+  questions about your stack from kia's own tools, staying on your network with the AI provider
+  and the spending limits in your hands. The chat can also act on a few things for you now,
+  refreshing the guide, testing a channel, adding a channel to Plex, or weighing a stack change,
+  each one waiting for your approval. And a prompt you can hand to an AI assistant installs kia
+  for you ([one login for the stack](front-door.md), [the chat page](chat.md)).
 - 0.8.0 to 0.8.2 began accounts and one login: an optional front door that puts a single login in
   front of kia's pages, running offline with kia's own certificate ([one login for the
   stack](front-door.md)).
@@ -30,14 +39,7 @@ Newest first. The [changelog](../CHANGELOG.md) has the full detail for every ver
 
 ## In progress
 
-- 0.8.3 brings one login across the stack. The front door grows from one shared login into real
-  accounts, each person with their own, and roles that decide who can change things. Household
-  accounts live in a small store you can manage, and the same login can cover Grafana and the
-  stack's other pages. A clean certificate from a public authority is an optional upgrade for
-  anyone who wants browsers to trust it with no warning.
-- 0.8.4 adds a small in-house chat: a page behind the front door that answers questions about
-  your stack by using kia's own tools. It stays on your network, with the AI provider and the
-  spending limits in your hands.
+Nothing is in active development between releases right now. The next work is under Later, below.
 
 ## Later
 
