@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from kia import api, auth, profiles, serve, tls
+from kia import api, auth, mediareq, profiles, serve, tls
 from kia.m3u import Entry, write
 
 
@@ -742,3 +742,49 @@ def test_chat_shows_a_plain_message_when_over_budget(cfg, tmp_path, monkeypatch)
     status, data = call(cfg, "POST", "/api/chat",
                         {"messages": [{"role": "user", "content": "hi"}]}, password="secret")
     assert status == 200 and data["over_budget"] and "allowance" in data["reply"]
+
+
+# 0.9 privilege separation: as the web half, kia can't run the stream tools, so a guide refresh
+# goes to the media half over the request channel (kia.mediareq) instead of running here.
+
+class _Done:
+    def __init__(self, returncode, stdout="", stderr=""):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+def test_refresh_guide_summary_wording():
+    done = api._refresh_guide_summary(True, "setup\nRefreshed 2 of 3 quick guide sources\n")
+    assert done["ok"] and done["summary"] == "Refreshed 2 of 3 quick guide sources, and the guide was rebuilt."
+    assert api._refresh_guide_summary(True, "no count here")["summary"] == "The guide was rebuilt."
+    bad = api._refresh_guide_summary(False, "boom: it broke")
+    assert not bad["ok"] and "didn't finish" in bad["summary"] and "boom: it broke" in bad["summary"]
+
+
+def test_single_container_runs_the_refresh_itself(cfg, monkeypatch):
+    # media_via_request defaults off: kia runs refresh-guide as its own process, as before.
+    monkeypatch.setattr(api.subprocess, "run", lambda *a, **k: _Done(0, "Refreshed 1 of 1 quick guide sources\n"))
+    out = api._refresh_guide(cfg)
+    assert out["ok"] and "Refreshed 1 of 1" in out["summary"]
+
+
+def test_web_half_sends_the_guide_refresh_to_media(cfg, monkeypatch, tmp_path):
+    cfg.media_via_request = True
+    monkeypatch.setattr(api.subprocess, "run", lambda *a, **k: pytest.fail("the web half must not run the tools"))
+    real_ask = mediareq.ask
+
+    def ask_then_answer(state_dir, service_dir, kind, **kw):  # stand in for the media half answering at once
+        rid = real_ask(state_dir, service_dir, kind, **kw)
+        mediareq.answer(service_dir, rid, kind, state="done", exit_code=0,
+                        output="Refreshed 3 of 3 quick guide sources\n")
+        return rid
+
+    monkeypatch.setattr(mediareq, "ask", ask_then_answer)
+    out = api._refresh_guide(cfg)
+    assert out["ok"] and "Refreshed 3 of 3" in out["summary"] and "rebuilt" in out["summary"]
+
+
+def test_web_half_reports_when_media_does_not_answer(cfg, monkeypatch):
+    cfg.media_via_request = True
+    monkeypatch.setattr(mediareq, "waiting", lambda *a: None)  # as if the media half never took the request
+    out = api._refresh_guide(cfg)
+    assert not out["ok"] and "didn't answer" in out["summary"]
