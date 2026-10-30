@@ -86,9 +86,9 @@ class ApiConfig:
     # (docs/front-door.md). Admin is the "admins" group; others get read-only for now.
     trust_frontdoor: bool = False
     # Off by default, on when kia runs as the web half of the 0.9 split (daemon-web): it may not
-    # run the stream tools, so work that needs them (the guide refresh for now) goes to the media
-    # half over the request channel (kia.mediareq) instead of running here. The single-container
-    # daemon leaves this off and runs the work itself.
+    # run the stream tools, so work that needs them (the guide refresh, a channel test, and
+    # "Check now") goes to the media half over the request channel (kia.mediareq) instead of
+    # running here. The single-container daemon leaves this off and runs the work itself.
     media_via_request: bool = False
 
 
@@ -449,6 +449,7 @@ def get_sources(cfg: ApiConfig, secure: bool = False, unlocked: bool = False, lo
     """The channel sources. Addresses can carry a provider's user name and password, so
     they're shown in full only with kia's password, on the secure page. locked: why the
     password given didn't unlock them (wrong, or too many wrong ones), for the page to say."""
+    _poll_check(cfg)  # so the check state in the page matches the media half, if it runs there
     text, catalog = _sources_texts(cfg)
     rows = web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), _counts(cfg))
     unlocked = unlocked and secure
@@ -468,6 +469,7 @@ def get_sources(cfg: ApiConfig, secure: bool = False, unlocked: bool = False, lo
 
 def check_state(unlocked: bool = False) -> dict:
     state = dict(CHECK)
+    state.pop("rid", None)  # the media request's id, kia's own bookkeeping, not for the page
     if "url" in state and not unlocked:
         state["url"] = mask_url(state["url"])
     return state
@@ -581,13 +583,31 @@ def _summary(report: Path) -> dict:
     return {"total": len(streams), "ok": by["ok"], "flaky": by["flaky"], "dead": by["dead"], "sample": working[:8]}
 
 
+def _source_row(cfg: ApiConfig, url: str) -> dict | None:
+    """The playlist row for an address kia offers, or None. Both the web side (before it starts a
+    check) and the media side (before it runs one) look it up here; the media side's lookup is the
+    real check that an address the web half sent is still one kia knows."""
+    text, catalog = _sources_texts(cfg)
+    rows = web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), {})
+    return next((r for r in rows if r["url"] == url), None)
+
+
+def _check_line(url: str, row: dict) -> str:
+    """The `kia check -u` line for one playlist: its address, its name, and the radio and lan
+    markers the nightly check reads (kia.lan). A station line already carries its own name."""
+    line = f"{url} name={row['name']}" if is_station_line(url) else f"{url} {row['name']}"
+    if row["radio"] and not is_station_line(url):
+        line += " radio"
+    if row.get("lan") and not is_station_line(url):
+        line += " lan"
+    return line
+
+
 def start_check(cfg: ApiConfig, body: dict) -> dict:
     url = body.get("url") if isinstance(body, dict) else None
     if not isinstance(url, str):
         raise ApiError(400, "Expected the playlist's url.")
-    text, catalog = _sources_texts(cfg)
-    row = next((r for r in web_sources.listing(text, catalog, web_sources.load_state(cfg.state_dir), {}) if r["url"] == url),
-               None)  # fmt: skip
+    row = _source_row(cfg, url)
     if row is None:
         raise ApiError(404, "kia doesn't know that playlist.")
     if read_object(cfg.output_dir / "status.json").get("result") == "running":
@@ -599,12 +619,28 @@ def start_check(cfg: ApiConfig, body: dict) -> dict:
         before = cfg.test_report.stat().st_mtime_ns if cfg.test_report and cfg.test_report.exists() else None
         CHECK.update({"running": True, "url": url, "name": row["name"], "started": time.time()})
         CHECK_REPORT["before"] = before
-    line = f"{url} name={row['name']}" if is_station_line(url) else f"{url} {row['name']}"
-    if row["radio"] and not is_station_line(url):
-        line += " radio"
-    if row.get("lan") and not is_station_line(url):
-        line += " lan"  # as the nightly check reads the line (kia.lan)
+    if getattr(cfg, "media_via_request", False):  # the web half hands the check to the media half
+        return _start_check_via_media(cfg, url)
+    line = _check_line(url, row)
     threading.Thread(target=_run_check, args=(cfg, line), daemon=True, name="kia-check-now").start()
+    return {"check": check_state(unlocked=True)}
+
+
+def _start_check_via_media(cfg: ApiConfig, url: str) -> dict:
+    """Leave a check for the media half (kia.mediareq) and return at once: a check can run for
+    half an hour, so the Dashboard polls for the answer rather than waiting here. Clears any old
+    Stop marker first, so this check starts with none, and rolls the check back if the media half
+    is busy with another request."""
+    mediareq.clear_stop(cfg.state_dir)
+    try:
+        rid = mediareq.ask(cfg.state_dir, _project_dir(cfg) / mediareq.SERVICE_DIR, "check", url=url)
+    except mediareq.MediaError as exc:
+        with LOCK:
+            CHECK.clear()
+            CHECK["running"] = False
+        raise ApiError(409, str(exc)) from None
+    with LOCK:
+        CHECK["rid"] = rid  # the media request this check is waiting on, matched when its answer comes
     return {"check": check_state(unlocked=True)}
 
 
@@ -662,6 +698,104 @@ def _end(proc) -> None:
         pass
 
 
+# How often the media half looks at the Stop marker while a check runs, and the half hour cap it
+# shares with the in-process check. The cap counts in the module's own clock, so a test can stand
+# in for it.
+CHECK_STOP_POLL = 1.0
+CHECK_UP_TO = 1800
+
+
+def check_for_media(cfg: ApiConfig, url: str, rid: str) -> tuple[str, int, str]:
+    """Run a "Check now" the web half asked for over the request channel, on the media half. It
+    looks the address up (the real check that web sent one kia still knows), runs `kia check` in
+    its own process group, and watches for the Stop marker web writes (kia.mediareq). The answer
+    is the same summary the in-process check shows, as JSON, or "stopped" when Stop came, or a
+    reason it couldn't finish. The caller hides any login in the output, as every handler does."""
+    row = _source_row(cfg, url)
+    if row is None:  # web shouldn't send one kia doesn't offer; if it does, this refuses it
+        return "failed", 2, "kia doesn't know that playlist."
+    line = _check_line(url, row)
+    before = cfg.test_report.stat().st_mtime_ns if cfg.test_report and cfg.test_report.exists() else None
+    cmd = [sys.executable, "-m", "kia", "check", "-c", str(cfg.config_file), "-u", line]
+    # Its own process group, so Stop ends the ffprobe runs the check starts as well (_end).
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    deadline = _clock() + CHECK_UP_TO
+    stopped = False
+    while True:
+        try:
+            out, err = proc.communicate(timeout=CHECK_STOP_POLL)
+            break
+        except subprocess.TimeoutExpired:
+            if mediareq.stop_requested(cfg.state_dir, rid):
+                _end(proc)
+                out, err = proc.communicate()
+                stopped = True
+                break
+            if _clock() >= deadline:
+                _end(proc)
+                return "failed", 1, "The check took more than 30 minutes and was stopped."
+    if stopped:
+        return "stopped", 0, "Stopped. Nothing changed."
+    # A new report: there was none, or it changed (file times are too coarse to compare to now).
+    if cfg.test_report and cfg.test_report.exists() and cfg.test_report.stat().st_mtime_ns != before:
+        return "done", 0, json.dumps(_summary(cfg.test_report))
+    last = (out + err).strip().splitlines()[-1:] or ["no report"]
+    return "failed", 1, f"The check didn't finish: {last[0][:200]}"
+
+
+def _poll_check(cfg: ApiConfig) -> None:
+    """When the web half runs a check on the media half (0.9 split), fold the media half's answer
+    into CHECK, so the Dashboard's poll of check_state sees it finish. A no-op otherwise: the
+    single-container check keeps its own state in CHECK as it runs."""
+    if not getattr(cfg, "media_via_request", False):
+        return
+    with LOCK:
+        rid = CHECK.get("rid")
+        if not CHECK.get("running") or not rid:
+            return
+    service_dir = _project_dir(cfg) / mediareq.SERVICE_DIR
+    if _media_check_answer(service_dir, rid):
+        return
+    if mediareq.waiting(cfg.state_dir, service_dir) != rid:  # never taken, or the media half is gone
+        # The answer is written just before the slot frees (kia.mediareq.answer), so a check that
+        # finished between the two reads above looks gone. Look once more before giving up.
+        if _media_check_answer(service_dir, rid):
+            return
+        with LOCK:
+            CHECK["error"] = "kia's media half didn't answer. Is it running?"
+            CHECK["running"] = False
+            CHECK["finished"] = time.time()
+            CHECK.pop("rid", None)
+
+
+def _media_check_answer(service_dir: Path, rid: str) -> bool:
+    """True when the media half's answer to this check is in, having folded it into CHECK."""
+    res = mediareq.result(service_dir) or {}
+    if res.get("id") == rid and res.get("state") in ("done", "failed", "stopped"):
+        _finish_check_from_media(res)
+        return True
+    return False
+
+
+def _finish_check_from_media(res: dict) -> None:
+    """Turn the media half's answer into what the Dashboard shows: the summary, Stopped, or the
+    reason it couldn't finish, the same words the in-process check uses."""
+    state, out = res.get("state"), res.get("output", "")
+    with LOCK:
+        if state == "stopped":
+            CHECK["error"] = "Stopped. Nothing changed."
+        elif state == "failed":
+            CHECK["error"] = out or "The check didn't finish."
+        else:
+            try:
+                CHECK["result"] = json.loads(out)
+            except ValueError:
+                CHECK["error"] = "kia's media half gave an answer kia couldn't read."
+        CHECK["running"] = False
+        CHECK["finished"] = time.time()
+        CHECK.pop("rid", None)
+
+
 # Adding kia's channels to Plex as Live TV now (kia plex-tuners), from the Stack page once
 # Plex runs. kia does the same by itself after each guide refresh, within 4 hours; this
 # skips the wait, and the terminal. One at a time; the first run can take a few minutes,
@@ -706,12 +840,19 @@ def _run_plex_tuners(cfg: ApiConfig) -> None:
     PLEX_TUNERS["finished"] = time.time()
 
 
-def stop_check() -> dict:
+def stop_check(cfg: ApiConfig) -> dict:
     with LOCK:
         proc = CHECK_PROC.get("proc")
+        rid = CHECK.get("rid")
         if not CHECK.get("running"):
             raise ApiError(409, "No check is running.")
         CHECK["stopped"] = True  # one that's only starting ends as soon as it has started
+    if getattr(cfg, "media_via_request", False):
+        # The check runs on the media half; leave it a Stop marker it reads as it runs
+        # (kia.mediareq). The next poll of check_state sees the media half's "stopped" answer.
+        if rid:
+            mediareq.stop(cfg.state_dir, rid)
+        return {"check": check_state(unlocked=True)}
     if proc is not None:
         _end(proc)
     return {"check": check_state(unlocked=True)}
@@ -1384,6 +1525,7 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             why = password_error(cfg, headers.get("X-Kia-Password"), secure)
             return 200, get_sources(cfg, secure, why is None, locked=why)
         if parts == ["sources", "check"] and method == "GET":
+            _poll_check(cfg)  # fold in the media half's answer, if the check runs there (0.9 split)
             return 200, {"check": check_state()}
         if parts and parts[0] == "sources" and method in ("PUT", "POST", "DELETE"):
             need_edit()
@@ -1396,7 +1538,7 @@ def handle(cfg: ApiConfig, method: str, path: str, headers, body: bytes, secure:
             if parts == ["sources", "check"] and method == "POST":
                 return 200, start_check(cfg, data)
             if parts == ["sources", "check"] and method == "DELETE":
-                return 200, stop_check()
+                return 200, stop_check(cfg)
         if parts == ["stack"] and method == "GET":
             return 200, get_stack(cfg, secure)
         if parts == ["stack", "check"] and method == "POST":

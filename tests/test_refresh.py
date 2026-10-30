@@ -3,8 +3,6 @@ import time
 from datetime import timedelta
 from pathlib import Path
 
-import pytest
-
 from kia import cli, grab, mediareq, status
 import contextlib
 
@@ -174,13 +172,41 @@ def test_a_guide_refresh_answer_hides_logins(tmp_path: Path, monkeypatch):
 
 
 def test_a_kind_media_cannot_run_yet_is_answered_not_run(tmp_path: Path, monkeypatch):
+    # The dispatch has no handler for a kind kia doesn't run here yet. mediareq won't leave such a
+    # request (its kinds are fixed), so stand one in to reach the defensive answer.
     cfg, service = _media_cfg(tmp_path)
-    monkeypatch.setattr(cli.subprocess, "run",
-                        lambda *a, **k: pytest.fail("the stream tools must not run for this"))
+    monkeypatch.setattr(cli.mediareq, "take", lambda *a: {"id": "a" * 16, "kind": "someday"})
+    answered = {}
+    monkeypatch.setattr(cli.mediareq, "answer",
+                        lambda sd, rid, kind, **kw: answered.update(kw, kind=kind))
+    assert cli._handle_media_request(cfg, service) is True
+    assert answered["state"] == "failed" and answered["exit_code"] == 2
+    assert "someday" in answered["output"]
+
+
+def test_daemon_media_runs_a_check_request(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+    from kia import api
+    monkeypatch.setattr(api, "check_for_media",
+                        lambda c, url, rid: ("done", 0, '{"total": 2, "ok": 1, "flaky": 0, "dead": 1, "sample": ["Rock"]}'))
     mediareq.ask(cfg.state_dir, service, "check", url="http://example.com/p.m3u")
     assert cli._handle_media_request(cfg, service) is True
     answer = mediareq.result(service)
-    assert answer["state"] == "failed" and answer["exit"] == "2"
+    assert answer["state"] == "done"
+    import json as _json
+    assert _json.loads(answer["output"])["ok"] == 1
+    assert mediareq.waiting(cfg.state_dir, service) is None  # answered: slot free
+
+
+def test_a_check_answer_hides_logins(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+    from kia import api
+    monkeypatch.setattr(api, "check_for_media",
+                        lambda c, url, rid: ("failed", 1, "couldn't reach http://dad:secret@host/p.m3u"))
+    mediareq.ask(cfg.state_dir, service, "check", url="http://example.com/p.m3u")
+    cli._handle_media_request(cfg, service)
+    out = mediareq.result(service)["output"]
+    assert "secret" not in out and "dad:secret" not in out  # the login is masked before the answer
 
 
 def test_daemon_media_runs_a_channel_test_request(tmp_path: Path, monkeypatch):

@@ -1502,6 +1502,17 @@ def _test_channel_for_request(cfg: Config, key: str) -> tuple[str, int, str]:
     return "done", 0, doctor.hide_logins(json.dumps(result))
 
 
+def _check_for_request(cfg: Config, url: str, rid: str) -> tuple[str, int, str]:
+    """Run a "Check now" asked for over the request channel (kia.api.check_for_media): look the
+    playlist up, test its streams, and watch for the Stop marker web leaves while it runs. The
+    answer carries the summary as JSON, "stopped", or the reason it couldn't finish, with any
+    login in the output hidden. rid is the request's id, so the Stop marker matches this check."""
+    from kia import api, doctor
+
+    state, code, output = api.check_for_media(api_config(cfg), url, rid)
+    return state, code, doctor.hide_logins(output)
+
+
 def _handle_media_request(cfg: Config, service_dir: Path) -> bool:
     """Take one on-demand request the web half left (kia.mediareq), run it, and answer. Returns
     True when there was one to run. A handler that fails becomes a failed answer, so the servicer
@@ -1516,6 +1527,8 @@ def _handle_media_request(cfg: Config, service_dir: Path) -> bool:
             state, code, output = _refresh_guide_for_request(cfg)
         elif kind == "test-channel":
             state, code, output = _test_channel_for_request(cfg, req["key"])
+        elif kind == "check":
+            state, code, output = _check_for_request(cfg, req["url"], req["id"])
         else:
             state, code, output = "failed", 2, f"kia can't run a {kind} request here yet."
     except (Exception, SystemExit) as exc:  # a broken handler must not take the servicer down
