@@ -788,3 +788,43 @@ def test_web_half_reports_when_media_does_not_answer(cfg, monkeypatch):
     monkeypatch.setattr(mediareq, "waiting", lambda *a: None)  # as if the media half never took the request
     out = api._refresh_guide(cfg)
     assert not out["ok"] and "didn't answer" in out["summary"]
+
+
+def test_web_half_sends_a_channel_test_to_media(cfg, monkeypatch):
+    # As the web half, test_channel hands the probe to the media half and returns its answer.
+    cfg.media_via_request = True
+    real_ask = mediareq.ask
+
+    def ask_then_answer(state_dir, service_dir, kind, **kw):
+        rid = real_ask(state_dir, service_dir, kind, **kw)
+        mediareq.answer(service_dir, rid, kind, state="done", exit_code=0,
+                        output=json.dumps({"key": kw["key"], "name": "CNN", "ok": True, "seconds": 0.9}))
+        return rid
+
+    monkeypatch.setattr(mediareq, "ask", ask_then_answer)
+    out = api.test_channel(cfg, {"key": "CNN.us"})
+    assert out == {"key": "CNN.us", "name": "CNN", "ok": True, "seconds": 0.9}
+
+
+def test_web_half_passes_a_failed_channel_test_through(cfg, monkeypatch):
+    cfg.media_via_request = True
+    real_ask = mediareq.ask
+
+    def ask_then_fail(state_dir, service_dir, kind, **kw):
+        rid = real_ask(state_dir, service_dir, kind, **kw)
+        mediareq.answer(service_dir, rid, kind, state="failed", exit_code=1,
+                        output="That channel's address isn't a stream kia can test.")
+        return rid
+
+    monkeypatch.setattr(mediareq, "ask", ask_then_fail)
+    with pytest.raises(api.ApiError) as exc:
+        api.test_channel(cfg, {"key": "CNN.us"})
+    assert "isn't a stream" in str(exc.value)
+
+
+def test_web_half_reports_when_media_does_not_test(cfg, monkeypatch):
+    cfg.media_via_request = True
+    monkeypatch.setattr(mediareq, "waiting", lambda *a: None)  # as if the media half never took it
+    with pytest.raises(api.ApiError) as exc:
+        api.test_channel(cfg, {"key": "CNN.us"})
+    assert "didn't answer" in str(exc.value)

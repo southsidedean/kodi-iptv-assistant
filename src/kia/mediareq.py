@@ -40,7 +40,12 @@ from kia.files import temp_name
 
 # The work that crosses the boundary, i.e. the work that runs the stream tools. Guide and Plex
 # steps that need only a token or the network stay on the web half; only these reach media.
-KINDS = ("refresh-guide", "check")
+KINDS = ("refresh-guide", "test-channel", "check")
+
+# The one field a kind carries, by kind (refresh-guide carries none): test-channel the channel's
+# key, check the playlist's address. media looks either up in its own data before acting, and that
+# lookup is the real check, so the transport only has to keep the value a safe, single line.
+_FIELD = {"test-channel": "key", "check": "url"}
 
 REQUEST = "media-request"  # in state/, written by web
 SERVICE_DIR = "media-service"  # media's folder, read-only to web
@@ -49,29 +54,30 @@ REQUEST_EXPIRES = 300  # seconds: media won't start a request older than this
 RUNNING_UP_TO = 1800  # a request still being worked on after this long counts as stuck
 MAX_OUTPUT = 20_000  # characters of a handler's output the answer keeps
 
-# A check address as it reaches here: one line, no control characters, length-capped. This is
-# the transport's own guard, so the file stays a safe, single-line value; media still looks the
-# address up in the known sources before it tests anything, which is the real check.
-_URL = re.compile(r"[^\x00-\x1f\x7f]{1,2048}")
+# A field value as it reaches here: one line, no control characters, length-capped. This is the
+# transport's own guard, so the file stays a safe, single-line value; media still looks the key
+# or address up in its own data before it tests anything, which is the real check.
+_LINE = re.compile(r"[^\x00-\x1f\x7f]{1,2048}")
 
 
 class MediaError(ValueError):
     """A request the web half won't leave, or one already waiting for media."""
 
 
-def _validate(kind: str, url: str | None) -> dict[str, str]:
-    """The fields a kind carries, each checked. Raises MediaError on anything unexpected. Both
-    halves call this: web before it leaves a request, so a mistake shows on the Dashboard at
-    once, and media again when it takes one."""
+def _validate(kind: str, value: str | None) -> dict[str, str]:
+    """The field a kind carries, checked. Raises MediaError on anything unexpected. Both halves
+    call this: web before it leaves a request, so a mistake shows on the Dashboard at once, and
+    media again when it takes one."""
     if kind not in KINDS:
         raise MediaError(f"kia doesn't know the media request {kind!r}.")
-    if kind == "check":
-        if not isinstance(url, str) or not _URL.fullmatch(url):
-            raise MediaError("A check needs the playlist's address, on one line.")
-        return {"url": url}
-    if url is not None:
-        raise MediaError(f"The {kind} request takes no address.")
-    return {}
+    field = _FIELD.get(kind)
+    if field is None:
+        if value is not None:
+            raise MediaError(f"The {kind} request takes no field.")
+        return {}
+    if not isinstance(value, str) or not _LINE.fullmatch(value):
+        raise MediaError(f"The {kind} request needs its {field}, on one line.")
+    return {field: value}
 
 
 def _write_request(path: Path, lines: list[str]) -> None:
@@ -85,11 +91,15 @@ def _write_request(path: Path, lines: list[str]) -> None:
     tmp.replace(path)
 
 
-def ask(state_dir: Path, service_dir: Path, kind: str, *, url: str | None = None) -> str:
+def ask(state_dir: Path, service_dir: Path, kind: str, *, url: str | None = None, key: str | None = None) -> str:
     """Web leaves a request for media. Returns its id, which media's answer carries back, so the
     page knows the answer is to this request. Refuses a new one while media is still working on
-    the last, so the single slot can't be overwritten unseen."""
-    fields = _validate(kind, url)
+    the last, so the single slot can't be overwritten unseen. A kind carries at most one field,
+    passed as url or key."""
+    given = [v for v in (url, key) if v is not None]
+    if len(given) > 1:
+        raise MediaError("A request carries one field, not two.")
+    fields = _validate(kind, given[0] if given else None)
     if waiting(state_dir, service_dir) is not None:
         raise MediaError("kia is still working on the last request. Wait for its answer first.")
     rid = secrets.token_hex(8)
@@ -100,13 +110,14 @@ def ask(state_dir: Path, service_dir: Path, kind: str, *, url: str | None = None
 
 
 def _parse(text: str) -> dict[str, str]:
-    """A request file's fields: id, kind, and url, each capped. Keys it doesn't know are left
-    out, so a longer or reshaped file still parses to just what a kind can carry."""
+    """A request file's fields: id, kind, and the one field a kind carries (url or key), each
+    capped. Lines it doesn't know are left out, so a longer or reshaped file still parses to just
+    what a kind can carry."""
     out: dict[str, str] = {}
     for line in text.splitlines()[:10]:
-        key, sep, value = line.partition("=")
-        if sep and key in ("id", "kind", "url"):
-            out[key] = value[:2048]
+        name, sep, value = line.partition("=")
+        if sep and name in ("id", "kind", "url", "key"):
+            out[name] = value[:2048]
     return out
 
 
@@ -169,8 +180,9 @@ def take(state_dir: Path, service_dir: Path) -> dict[str, str] | None:
     if not re.fullmatch(r"[0-9a-f]{1,64}", rid):  # ids are secrets.token_hex; anything else is junk
         taken.unlink(missing_ok=True)
         return None
+    field = _FIELD.get(kind)
     try:
-        checked = _validate(kind, fields.get("url"))
+        checked = _validate(kind, fields.get(field) if field else None)
     except MediaError as exc:
         answer(service_dir, rid, kind, state="failed", exit_code=2, output=str(exc))
         return None

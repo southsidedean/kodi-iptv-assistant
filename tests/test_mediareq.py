@@ -36,6 +36,13 @@ def test_a_check_carries_the_address(tmp_path):
     assert taken == {"id": rid, "kind": "check", "url": "http://example.com/p.m3u?token=abc=def"}
 
 
+def test_a_test_channel_carries_the_key(tmp_path):
+    state, service = dirs(tmp_path)
+    rid = mediareq.ask(state, service, "test-channel", key="CNN.us")
+    taken = mediareq.take(state, service)
+    assert taken == {"id": rid, "kind": "test-channel", "key": "CNN.us"}
+
+
 def test_the_request_file_is_owner_only(tmp_path):
     # It can hold a playlist address with a login in it, so no one else on the computer reads it.
     state, service = dirs(tmp_path)
@@ -52,7 +59,11 @@ def test_bad_requests_are_refused_before_they_are_left(tmp_path):
     with pytest.raises(mediareq.MediaError):
         mediareq.ask(state, service, "check")  # needs an address
     with pytest.raises(mediareq.MediaError):
+        mediareq.ask(state, service, "test-channel")  # needs a key
+    with pytest.raises(mediareq.MediaError):
         mediareq.ask(state, service, "check", url="http://x\nid=evil")  # no newline injection
+    with pytest.raises(mediareq.MediaError):
+        mediareq.ask(state, service, "test-channel", key="k", url="http://x")  # one field, not two
 
 
 def test_only_one_request_waits_at_a_time(tmp_path):

@@ -1488,6 +1488,20 @@ def _refresh_guide_for_request(cfg: Config) -> tuple[str, int, str]:
     return ("done" if done.returncode == 0 else "failed"), done.returncode, out
 
 
+def _test_channel_for_request(cfg: Config, key: str) -> tuple[str, int, str]:
+    """Test one channel's stream for a web request (kia.api.test_channel), the work the web half
+    can't do itself. The result goes back as JSON in the answer, with any login in it hidden; a
+    reason the test couldn't run (an unknown channel, an address kia won't test) is a failed
+    answer carrying the message."""
+    from kia import api, doctor
+
+    try:
+        result = api.test_channel(api_config(cfg), {"key": key})
+    except api.ApiError as exc:
+        return "failed", 1, doctor.hide_logins(str(exc))
+    return "done", 0, doctor.hide_logins(json.dumps(result))
+
+
 def _handle_media_request(cfg: Config, service_dir: Path) -> bool:
     """Take one on-demand request the web half left (kia.mediareq), run it, and answer. Returns
     True when there was one to run. A handler that fails becomes a failed answer, so the servicer
@@ -1500,6 +1514,8 @@ def _handle_media_request(cfg: Config, service_dir: Path) -> bool:
     try:
         if kind == "refresh-guide":
             state, code, output = _refresh_guide_for_request(cfg)
+        elif kind == "test-channel":
+            state, code, output = _test_channel_for_request(cfg, req["key"])
         else:
             state, code, output = "failed", 2, f"kia can't run a {kind} request here yet."
     except (Exception, SystemExit) as exc:  # a broken handler must not take the servicer down
