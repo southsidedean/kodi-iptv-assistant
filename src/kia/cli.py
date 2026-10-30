@@ -959,11 +959,13 @@ def wait_until(when: datetime, poll: float = 60.0) -> None:
         time.sleep(min(poll, remaining))
 
 
-def api_config(cfg: Config):
-    """The Dashboard API's settings (kia.api)."""
+def api_config(cfg: Config, *, media_via_request: bool = False):
+    """The Dashboard API's settings (kia.api). media_via_request is on for the web half of the
+    0.9 split, which sends stream-tool work to the media half instead of running it."""
     from kia import api
 
     return api.ApiConfig(
+        media_via_request=media_via_request,
         output_dir=cfg.output_dir,
         state_dir=cfg.state_dir,
         profiles_file=cfg.profiles_file,
@@ -1383,10 +1385,11 @@ def _daemon_setup(args: argparse.Namespace) -> tuple[Config, bool]:
     return cfg, cut_short
 
 
-def _daemon_serve(cfg: Config, args: argparse.Namespace) -> None:
+def _daemon_serve(cfg: Config, args: argparse.Namespace, *, media_via_request: bool = False) -> None:
     """Start the serving side in background threads: the Pluto relay, the stack watch for the
     Dashboard's tiles, /metrics for Prometheus, and the HTTP server (plain, or plain plus the
-    secure Dashboard). Returns once they're up. This is the half `daemon-web` runs alone."""
+    secure Dashboard). Returns once they're up. This is the half `daemon-web` runs alone, which
+    passes media_via_request so stream-tool work goes to the media half (0.9 split)."""
     relay = pluto_relay(cfg) if args.serve or args.api_port else None
     players = metrics.Players(cfg.state_dir)  # one pseudonym list for Plex's and Jellyfin's players
     watch = None
@@ -1398,14 +1401,15 @@ def _daemon_serve(cfg: Config, args: argparse.Namespace) -> None:
         watch.start()
     numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config, players),
                       jellyfin_sessions(args.config, players), watch, cfg.state_dir)  # /metrics, for Prometheus
+    cfg_api = api_config(cfg, media_via_request=media_via_request)
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
-        serve.serve_in_background(cfg.output_dir, args.bind, args.port, api_config(cfg), relay=relay, metrics=numbers)
+        serve.serve_in_background(cfg.output_dir, args.bind, args.port, cfg_api, relay=relay, metrics=numbers)
         log(f"Serving {cfg.output_dir} at http://{args.bind}:{args.port}/")
     elif args.api_port:
         # With Docker, nginx serves the files (HTTP and HTTPS) and forwards /api/, /pluto/,
         # and /metrics here; this port isn't published, and nginx says which came over HTTPS.
-        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg), trust_proxy=True,  # noqa: S104  # nosec B104
+        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, cfg_api, trust_proxy=True,  # noqa: S104  # nosec B104
                                   relay=relay, metrics=numbers)  # fmt: skip
         log(f"Profile editor API and Pluto relay on port {args.api_port}")
 
@@ -1531,7 +1535,7 @@ def cmd_daemon_web(args: argparse.Namespace) -> int:
     Pluto relay, stack watch, and /metrics, with no refresh loop (that runs in `daemon-media`).
     Nothing deploys this yet; the default install still runs `daemon`."""
     cfg, _cut_short = _daemon_setup(args)
-    _daemon_serve(cfg, args)
+    _daemon_serve(cfg, args, media_via_request=True)  # the web half can't run the stream tools
     _idle_forever()
     return 0
 

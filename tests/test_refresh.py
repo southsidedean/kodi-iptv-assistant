@@ -111,7 +111,7 @@ def test_daemon_refreshes_the_guide_between_nightly_runs(tmp_path: Path, monkeyp
 def _stub_daemon_halves(monkeypatch, cfg_path: str, cut_short: bool):
     calls = []
     monkeypatch.setattr(cli, "_daemon_setup", lambda args: (cli.load(Path(cfg_path)), cut_short))
-    monkeypatch.setattr(cli, "_daemon_serve", lambda cfg, args: calls.append("serve"))
+    monkeypatch.setattr(cli, "_daemon_serve", lambda cfg, args, **kw: calls.append(("serve", kw)))
     monkeypatch.setattr(cli, "_daemon_refresh_loop", lambda cfg, args, cut: calls.append(("loop", cut)))
     monkeypatch.setattr(cli, "_idle_forever", lambda: calls.append("idle"))
     return calls
@@ -120,7 +120,8 @@ def _stub_daemon_halves(monkeypatch, cfg_path: str, cut_short: bool):
 def test_daemon_web_serves_and_never_runs_the_refresh_loop(tmp_path: Path, monkeypatch):
     calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=True)
     assert cli.main(["daemon-web", "-c", str(tmp_path / "kia.toml")]) == 0
-    assert calls == ["serve", "idle"]  # serves, then waits; the refresh is daemon-media's job
+    # Serves with media work routed to the other half, then waits; the refresh is daemon-media's.
+    assert calls == [("serve", {"media_via_request": True}), "idle"]
 
 
 def test_daemon_media_refreshes_and_never_serves(tmp_path: Path, monkeypatch):
@@ -134,7 +135,7 @@ def test_daemon_runs_both_halves_in_order(tmp_path: Path, monkeypatch):
     # carrying through whether the last run was cut short.
     calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=True)
     cli.main(["daemon", "-c", str(tmp_path / "kia.toml")])
-    assert calls == ["serve", ("loop", True)]
+    assert calls == [("serve", {}), ("loop", True)]  # serves in-process (no media routing), then refreshes
 
 
 # 0.9 privilege separation: daemon-media runs the on-demand media work the web half leaves over
@@ -198,6 +199,14 @@ def test_a_failing_handler_becomes_a_failed_answer(tmp_path: Path, monkeypatch):
 def test_handle_media_request_does_nothing_when_there_is_no_request(tmp_path: Path):
     cfg, service = _media_cfg(tmp_path)
     assert cli._handle_media_request(cfg, service) is False
+
+
+def test_daemon_web_tells_the_api_to_route_media_work(tmp_path: Path):
+    # The web half builds its API config with media_via_request on, so stream-tool work goes to
+    # the media half; the single-container daemon leaves it off and runs the work itself.
+    cfg = cli.load(Path(instance(tmp_path)))
+    assert cli.api_config(cfg, media_via_request=True).media_via_request is True
+    assert cli.api_config(cfg).media_via_request is False
 
 
 def test_daemon_media_starts_the_request_servicer(tmp_path: Path, monkeypatch):

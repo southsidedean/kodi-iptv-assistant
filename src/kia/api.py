@@ -33,7 +33,7 @@ import signal
 import subprocess
 import sys
 
-from kia import channels, lan, locks, profiles, stack
+from kia import channels, lan, locks, mediareq, profiles, stack
 from kia.config import is_station_line
 from kia.files import items, read_object
 from kia import sources as web_sources
@@ -85,6 +85,11 @@ class ApiConfig:
     # request came through the front door, so a direct connection can't fake the identity
     # (docs/front-door.md). Admin is the "admins" group; others get read-only for now.
     trust_frontdoor: bool = False
+    # Off by default, on when kia runs as the web half of the 0.9 split (daemon-web): it may not
+    # run the stream tools, so work that needs them (the guide refresh for now) goes to the media
+    # half over the request channel (kia.mediareq) instead of running here. The single-container
+    # daemon leaves this off and runs the work itself.
+    media_via_request: bool = False
 
 
 class ApiError(Exception):
@@ -882,21 +887,52 @@ def _last_lines(text: str, n: int = 20) -> str:
     return "\n".join(text.strip().splitlines()[-n:])[-3000:]
 
 
+MEDIA_WORK_UP_TO = 960  # seconds to wait for the media half's answer (over its own 900s refresh cap)
+
+
+def _refresh_guide_summary(ok: bool, out: str) -> dict:
+    """Turn a guide refresh's output into the Dashboard's one-line result, however the refresh
+    ran (here, or on the media half). The last "quick guide sources" line carries the count."""
+    said = next((line for line in reversed(out.splitlines()) if "quick guide sources" in line), "")
+    if ok:
+        summary = f"{said}, and the guide was rebuilt." if said else "The guide was rebuilt."
+    else:
+        summary = "The guide refresh didn't finish: " + (out.splitlines()[-1:] or ["no reason given"])[0][:200]
+    return {"ok": ok, "summary": summary, "output": out}
+
+
 def _refresh_guide(cfg: ApiConfig) -> dict:
     """kia refresh-guide, as the server runs it every few hours. It takes kia's refresh lock
-    (kia.locks): while the nightly refresh runs, it stops at once and says why."""
+    (kia.locks): while the nightly refresh runs, it stops at once and says why. As the web half
+    of the 0.9 split, kia can't run the stream tools, so it hands this to the media half."""
+    if cfg.media_via_request:
+        return _refresh_guide_via_media(cfg)
     cmd = [sys.executable, "-m", "kia", "refresh-guide", "-c", str(cfg.config_file)]
     try:
         done = subprocess.run(cmd, capture_output=True, text=True, timeout=900, check=False)
     except subprocess.TimeoutExpired:
         return {"ok": False, "summary": "The guide refresh took more than 15 minutes and was stopped."}
-    out = _last_lines(done.stdout + done.stderr)
-    said = next((line for line in reversed(out.splitlines()) if "quick guide sources" in line), "")
-    if done.returncode == 0:
-        summary = f"{said}, and the guide was rebuilt." if said else "The guide was rebuilt."
-    else:
-        summary = "The guide refresh didn't finish: " + (out.splitlines()[-1:] or ["no reason given"])[0][:200]
-    return {"ok": done.returncode == 0, "summary": summary, "output": out}
+    return _refresh_guide_summary(done.returncode == 0, _last_lines(done.stdout + done.stderr))
+
+
+def _refresh_guide_via_media(cfg: ApiConfig) -> dict:
+    """Leave a guide refresh for the media half and wait for its answer (kia.mediareq), the same
+    way _check_stack asks the host stack service. Gives up if the media half never takes the
+    request (its container isn't running) or doesn't answer in time."""
+    service_dir = _project_dir(cfg) / mediareq.SERVICE_DIR
+    try:
+        rid = mediareq.ask(cfg.state_dir, service_dir, "refresh-guide")
+    except mediareq.MediaError as exc:
+        return {"ok": False, "summary": str(exc)}
+    end = _clock() + MEDIA_WORK_UP_TO
+    while _clock() < end:
+        res = mediareq.result(service_dir) or {}
+        if res.get("id") == rid and res.get("state") in ("done", "failed"):
+            return _refresh_guide_summary(res.get("state") == "done", _last_lines(res.get("output", "")))
+        if mediareq.waiting(cfg.state_dir, service_dir) != rid:
+            break  # it was never taken, or is gone: the media half isn't running
+        _sleep(2)
+    return {"ok": False, "summary": "kia's media half didn't answer. Is it running?"}
 
 
 def _add_to_plex(cfg: ApiConfig) -> dict:
