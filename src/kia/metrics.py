@@ -220,7 +220,7 @@ def _sessions(out: _Out, server: MediaSessions, name: str, title: str) -> None:
 
 
 def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jellyfin: MediaSessions | None = None,
-           stack=None, state_dir: Path | None = None) -> str:
+           stack=None, state_dir: Path | None = None, pluto_stats: Path | None = None) -> str:
     # Ask Plex and Jellyfin at the same time: one after the other, two that don't answer
     # would take 5 seconds each, and Prometheus gives up on /metrics after 10.
     asking = [threading.Thread(target=x.get, daemon=True) for x in (plex, jellyfin) if x is not None]
@@ -267,17 +267,21 @@ def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jell
                 for p in items(s.get("profiles"), dict) for kind in ("tv", "radio")])  # fmt: skip
     out.one("kia_alerts", "gauge", "Alerts from the last refresh.", len(items(s.get("alerts"), object)))
 
-    if relay is not None:
-        r = relay.counters()
+    # The Pluto numbers come from a live relay (single-container daemon) or, for the web half of
+    # the 0.9 split, from the file the media half's relay writes (kia.pluto, kia_pluto_viewers
+    # below needs the numbers wherever update.sh's viewer guard runs). A missing or damaged file
+    # counts as no numbers (kia.files), so nothing is reported until the relay has written once.
+    r = relay.counters() if relay is not None else (read_object(pluto_stats) if pluto_stats else {})
+    if r:
         names = obj(s.get("pluto_channels"))
-        out.one("kia_pluto_channels_playing", "gauge", "Pluto TV channels kia is playing now.", r["playing"])
+        out.one("kia_pluto_channels_playing", "gauge", "Pluto TV channels kia is playing now.", r.get("playing"))
         out.metric("kia_pluto_viewers", "gauge", "Players watching each Pluto TV channel now.",
-                   [({"channel": cid, "name": names.get(cid, "")}, n) for cid, n in r["viewers"].items()])  # fmt: skip
+                   [({"channel": cid, "name": names.get(cid, "")}, n) for cid, n in obj(r.get("viewers")).items()])  # fmt: skip
         for key, help_text in (("sessions", "Pluto sessions started."), ("rewinds", "Times Pluto went back in a stream."),
                                ("errors", "Pieces or playlists kia couldn't pass on."),
                                ("fallbacks", "Times kia fell back to the shared Pluto stream."),
                                ("pieces", "Video pieces passed on to players."), ("bytes", "Video bytes passed on to players.")):  # fmt: skip
-            out.one(f"kia_pluto_{key}_total", "counter", help_text, r[key])
+            out.one(f"kia_pluto_{key}_total", "counter", help_text, r.get(key))
 
     if plex is not None:
         _sessions(out, plex, "plex", "Plex")

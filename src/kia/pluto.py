@@ -646,8 +646,14 @@ class Relay:
 
     def __init__(self, status_file: Path | None = None, log: Callable[[str], None] = print,
                  fetcher=None, remux_fn=remux, on_fallback: Callable[[str, int], None] | None = None,
-                 allowed: Callable[[], set[str]] | None = None, debug_dir: Path | None = None):  # fmt: skip
+                 allowed: Callable[[], set[str]] | None = None, debug_dir: Path | None = None,
+                 metrics_file: Path | None = None):  # fmt: skip
         self.status_file = status_file
+        # The relay's /metrics numbers (counters()), written beside pluto.json. The web half of
+        # the 0.9 split serves /metrics but doesn't run the relay, so it reads these from here
+        # instead of a live relay (kia.metrics). The single-container daemon reads the live relay
+        # and leaves this file alone.
+        self.metrics_file = metrics_file
         # A diagnostic, off unless you make the folder it points at (state/pluto-debug): then the
         # few pieces ffmpeg can't copy are saved there for a look, Pluto's own bytes only.
         self.debug_dir = debug_dir
@@ -788,19 +794,26 @@ class Relay:
                     "viewers": {st["id"]: st["viewers"] for st in statuses}}  # fmt: skip
 
     def save_status(self, force: bool = False) -> None:
-        if not self.status_file:
+        if not self.status_file and not self.metrics_file:
             return
         with self.save_lock:  # one writer at a time
             if not force and time.monotonic() - self.last_saved < 15:
                 return
             self.last_saved = time.monotonic()
-            try:
-                self.status_file.parent.mkdir(parents=True, exist_ok=True)
-                tmp = self.status_file.with_name(self.status_file.name + ".tmp")
-                tmp.write_text(json.dumps(self.status(), indent=1))
-                tmp.replace(self.status_file)
-            except Exception as exc:  # the status file must never stop playback
-                self.log(f"Couldn't write {self.status_file.name}: {exc}")
+            # pluto.json for the Dashboard's card, pluto-metrics.json for the web half's /metrics.
+            if self.status_file:
+                self._write_json(self.status_file, self.status())
+            if self.metrics_file:
+                self._write_json(self.metrics_file, self.counters())
+
+    def _write_json(self, path: Path, data: dict) -> None:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + ".tmp")  # whole, at once, so a reader never sees half
+            tmp.write_text(json.dumps(data, indent=1))
+            tmp.replace(path)
+        except Exception as exc:  # a status file must never stop playback
+            self.log(f"Couldn't write {path.name}: {exc}")
 
     def keep_status_fresh(self) -> None:
         """Rewrite pluto.json every minute, so it shows channels being let go."""
