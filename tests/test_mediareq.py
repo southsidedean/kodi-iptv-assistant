@@ -128,3 +128,16 @@ def test_a_symlink_in_the_inbox_is_not_followed(tmp_path):
 def test_result_is_none_before_the_first_answer(tmp_path):
     _state, service = dirs(tmp_path)
     assert mediareq.result(service) is None
+
+
+def test_a_stop_names_the_request_it_stops(tmp_path):
+    # Media stops only the check web asked to stop; a leftover marker for an earlier one is
+    # ignored, so it can't stop a later check.
+    state, _service = dirs(tmp_path)
+    assert mediareq.stop_requested(state, "abc123") is False  # no marker yet
+    mediareq.stop(state, "abc123")
+    assert mediareq.stop_requested(state, "abc123") is True
+    assert mediareq.stop_requested(state, "def456") is False  # a different check: left alone
+    mediareq.clear_stop(state)
+    assert mediareq.stop_requested(state, "abc123") is False  # cleared for the next check
+    mediareq.clear_stop(state)  # clearing again is fine

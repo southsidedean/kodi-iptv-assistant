@@ -9,6 +9,8 @@ again before trusting it.
 
   state/media-request        web writes it: id, kind, and the kind's own fields. media renames
                              it into its own folder, so a request is taken exactly once.
+  state/media-stop           web writes it to stop a check it's waiting on: just the request's
+                             id. media reads it while a check runs and stops that one request.
   media-service/request      the request media is working on (the renamed file)
   media-service/result       media's answer: id, kind, state, exit, finished, then a blank line
                              and anything to show
@@ -21,10 +23,14 @@ owner only; the two halves run as the same user, so media can still read it. med
 request older than REQUEST_EXPIRES, so one nobody is waiting for any more doesn't run later.
 
 This module is the transport only: `ask` (web leaves a request), `take` (media claims and parses
-one), and `answer` (media writes its result), plus `waiting`/`result` for the page to poll. What
-each kind actually does is the caller's handler, so the stream tools stay out of this file and
-out of the web half. media re-checks a `check` address against the known sources before acting,
-exactly as the Dashboard's "Check now" does today, so an unknown one is refused.
+one), and `answer` (media writes its result), plus `waiting`/`result` for the page to poll. A
+check can run for half an hour, so `stop`/`stop_requested`/`clear_stop` carry a Stop press: web
+writes the marker, media reads it while the check runs, and the stop names the request's id, so a
+leftover marker can't stop a later check. Only web writes and clears it, so `state/` stays
+web's to write. What each kind actually does is the caller's handler, so the stream tools stay
+out of this file and out of the web half. media re-checks a `check` address against the known
+sources before acting, exactly as the Dashboard's "Check now" does today, so an unknown one is
+refused.
 """
 
 from __future__ import annotations
@@ -50,6 +56,7 @@ _FIELD = {"test-channel": "key", "check": "url"}
 REQUEST = "media-request"  # in state/, written by web
 SERVICE_DIR = "media-service"  # media's folder, read-only to web
 TAKEN, RESULT = "request", "result"
+STOP = "media-stop"  # in state/, written by web to stop a running check, read by media
 REQUEST_EXPIRES = 300  # seconds: media won't start a request older than this
 RUNNING_UP_TO = 1800  # a request still being worked on after this long counts as stuck
 MAX_OUTPUT = 20_000  # characters of a handler's output the answer keeps
@@ -215,3 +222,27 @@ def result(service_dir: Path) -> dict[str, str] | None:
             fields[key] = value[:64]
     fields["output"] = said[-MAX_OUTPUT:]
     return fields
+
+
+def stop(state_dir: Path, rid: str) -> None:
+    """Web asks media to stop the check it's working on. The marker names the request's id, so
+    media stops only that one and a leftover from an earlier check is ignored. Web owns this
+    file: it writes it here and clears it when it starts the next check (clear_stop), and media
+    only reads it, so state/ stays web's to write."""
+    state_dir.mkdir(parents=True, exist_ok=True)
+    _write_request(state_dir / STOP, [f"id={rid[:64]}"])
+
+
+def stop_requested(state_dir: Path, rid: str) -> bool:
+    """True when web has asked to stop this very request. media's check handler polls it while
+    the check runs; any other id, or no marker, means carry on."""
+    try:
+        return _parse((state_dir / STOP).read_text(errors="replace")).get("id") == rid
+    except OSError:
+        return False
+
+
+def clear_stop(state_dir: Path) -> None:
+    """Drop any stop marker, so the next check starts with none. Web calls this as it starts a
+    check, which bounds how long a marker from a finished one can linger."""
+    (state_dir / STOP).unlink(missing_ok=True)

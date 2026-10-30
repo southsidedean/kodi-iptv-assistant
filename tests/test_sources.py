@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from kia import api, auth, sources
+from kia import api, auth, mediareq, sources
 from kia.config import load
 
 CATALOG = """\
@@ -296,6 +296,108 @@ def test_stop_right_after_start_still_stops(cfg, monkeypatch):
             break
         pause(0.05)
     assert not api.CHECK["running"] and api.CHECK["error"] == "Stopped. Nothing changed."
+
+
+JAZZ = "https://example.com/jazz.m3u"
+
+
+def _wrote_report(cfg):
+    """A Popen stand-in that "runs" a check: it writes a test report and returns no output."""
+    class Done:
+        def __init__(self, cmd, **kw):
+            cfg.test_report.parent.mkdir(parents=True, exist_ok=True)
+            cfg.test_report.write_text(json.dumps({"streams": [
+                {"name": "Rock", "status": "ok"}, {"name": "Gone", "status": "dead"}]}))  # fmt: skip
+
+        def communicate(self, timeout=None):
+            return "", ""
+
+    return Done
+
+
+def test_check_for_media_runs_a_playlist_and_summarizes(cfg, monkeypatch):
+    # The media half's side of "Check now": look the address up, run the check, return the summary.
+    monkeypatch.setattr(api.subprocess, "Popen", _wrote_report(cfg))
+    state, code, out = api.check_for_media(cfg, JAZZ, "rid1")
+    assert state == "done" and code == 0
+    assert json.loads(out) == {"total": 2, "ok": 1, "flaky": 0, "dead": 1, "sample": ["Rock"]}
+
+
+def test_check_for_media_refuses_an_address_kia_doesnt_offer(cfg, monkeypatch):
+    # web shouldn't send one, but the lookup is the real check that it did (kia.mediareq).
+    monkeypatch.setattr(api.subprocess, "Popen", lambda *a, **k: pytest.fail("the tools must not run"))
+    state, code, out = api.check_for_media(cfg, "https://nowhere.example/z.m3u", "rid1")
+    assert state == "failed" and code == 2 and "doesn't know" in out
+
+
+def test_check_for_media_reports_when_it_didnt_finish(cfg, monkeypatch):
+    class NoReport:
+        def __init__(self, cmd, **kw):
+            pass
+
+        def communicate(self, timeout=None):
+            return "", "ffprobe fell over\n"
+
+    monkeypatch.setattr(api.subprocess, "Popen", NoReport)
+    state, _code, out = api.check_for_media(cfg, JAZZ, "rid1")
+    assert state == "failed" and "didn't finish" in out and "ffprobe fell over" in out
+
+
+def test_check_for_media_stops_on_the_marker(cfg, monkeypatch):
+    # The Stop marker web leaves (kia.mediareq) ends a check the media half is running.
+    monkeypatch.setattr(api, "CHECK_STOP_POLL", 0.1)
+    real = api.subprocess.Popen
+    monkeypatch.setattr(api.subprocess, "Popen",
+                        lambda cmd, **kw: real([sys.executable, "-c", "import time; time.sleep(30)"], **kw))
+    mediareq.stop(cfg.state_dir, "rid1")  # Stop is already waiting when the check starts
+    state, _code, out = api.check_for_media(cfg, JAZZ, "rid1")
+    assert state == "stopped" and "Stopped" in out
+
+
+def test_web_half_hands_a_check_to_the_media_half(cfg, monkeypatch):
+    cfg.media_via_request = True
+    monkeypatch.setattr(api.threading, "Thread", lambda *a, **k: pytest.fail("the web half must not run the check"))
+    service = api._project_dir(cfg) / mediareq.SERVICE_DIR
+    assert call(cfg, "POST", "/api/sources/check", {"url": JAZZ})[0] == 200
+    taken = mediareq.take(cfg.state_dir, service)  # a request is waiting for the media half
+    assert taken["kind"] == "check" and taken["url"] == JAZZ
+    assert call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]["running"]
+    # The media half answers; the web half's next poll folds the summary in.
+    mediareq.answer(service, taken["id"], "check", state="done", exit_code=0,
+                    output=json.dumps({"total": 2, "ok": 1, "flaky": 0, "dead": 1, "sample": ["Rock"]}))
+    check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]
+    assert not check["running"] and check["result"]["ok"] == 1 and "rid" not in check
+
+
+def test_stopping_a_check_on_the_media_half_leaves_a_marker(cfg):
+    cfg.media_via_request = True
+    service = api._project_dir(cfg) / mediareq.SERVICE_DIR
+    assert call(cfg, "POST", "/api/sources/check", {"url": JAZZ})[0] == 200
+    rid = api.CHECK["rid"]
+    assert call(cfg, "DELETE", "/api/sources/check")[0] == 200  # the Stop button
+    assert mediareq.stop_requested(cfg.state_dir, rid)  # web asked the media half to stop this one
+    # The media half answers "stopped"; the next poll shows it.
+    mediareq.take(cfg.state_dir, service)
+    mediareq.answer(service, rid, "check", state="stopped", exit_code=0, output="Stopped. Nothing changed.")
+    check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]
+    assert not check["running"] and check["error"] == "Stopped. Nothing changed."
+
+
+def test_web_half_says_when_the_media_half_is_busy(cfg):
+    cfg.media_via_request = True
+    service = api._project_dir(cfg) / mediareq.SERVICE_DIR
+    mediareq.ask(cfg.state_dir, service, "refresh-guide")  # the one slot is taken
+    status, data = call(cfg, "POST", "/api/sources/check", {"url": JAZZ})
+    assert status == 409 and "working on the last request" in data["error"]
+    assert not call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]["running"]  # rolled back
+
+
+def test_web_half_says_when_the_media_half_never_answers(cfg):
+    cfg.media_via_request = True
+    assert call(cfg, "POST", "/api/sources/check", {"url": JAZZ})[0] == 200
+    (cfg.state_dir / mediareq.REQUEST).unlink()  # the media half never took it, or isn't running
+    check = call(cfg, "GET", "/api/sources/check", password=None)[1]["check"]
+    assert not check["running"] and "didn't answer" in check["error"]
 
 
 def test_the_page_hears_why_the_password_didnt_unlock_it(cfg, monkeypatch):
