@@ -60,8 +60,9 @@ class MediaError(ValueError):
 
 
 def _validate(kind: str, url: str | None) -> dict[str, str]:
-    """The fields a kind carries, each checked. Raises MediaError on anything unexpected, so a
-    bad request is caught where the Dashboard can show why, not only on the media side."""
+    """The fields a kind carries, each checked. Raises MediaError on anything unexpected. Both
+    halves call this: web before it leaves a request, so a mistake shows on the Dashboard at
+    once, and media again when it takes one."""
     if kind not in KINDS:
         raise MediaError(f"kia doesn't know the media request {kind!r}.")
     if kind == "check":
