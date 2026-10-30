@@ -183,6 +183,31 @@ def test_a_kind_media_cannot_run_yet_is_answered_not_run(tmp_path: Path, monkeyp
     assert answer["state"] == "failed" and answer["exit"] == "2"
 
 
+def test_daemon_media_runs_a_channel_test_request(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+    from kia import api
+    monkeypatch.setattr(api, "test_channel",
+                        lambda c, body: {"key": body["key"], "name": "CNN", "ok": True, "seconds": 1.2})
+    mediareq.ask(cfg.state_dir, service, "test-channel", key="CNN.us")
+    assert cli._handle_media_request(cfg, service) is True
+    answer = mediareq.result(service)
+    assert answer["state"] == "done"
+    import json as _json
+    assert _json.loads(answer["output"]) == {"key": "CNN.us", "name": "CNN", "ok": True, "seconds": 1.2}
+
+
+def test_a_channel_test_that_cannot_run_is_a_failed_answer(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+    from kia import api
+    def refuse(c, body):
+        raise api.ApiError(400, "That channel's address isn't a stream kia can test.")
+    monkeypatch.setattr(api, "test_channel", refuse)
+    mediareq.ask(cfg.state_dir, service, "test-channel", key="CNN.us")
+    cli._handle_media_request(cfg, service)
+    answer = mediareq.result(service)
+    assert answer["state"] == "failed" and "isn't a stream" in answer["output"]
+
+
 def test_a_failing_handler_becomes_a_failed_answer(tmp_path: Path, monkeypatch):
     cfg, service = _media_cfg(tmp_path)
 

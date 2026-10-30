@@ -331,14 +331,42 @@ def stream_url(url: str) -> str:
     return pluto.FALLBACK_URL.format(channel=m.group(1)) if m else url
 
 
+def _test_channel_via_media(cfg: ApiConfig, entry) -> dict:
+    """Hand a channel test to the media half and wait for its answer (kia.mediareq), the way
+    _refresh_guide_via_media hands over the guide refresh. The answer is the test result as JSON;
+    a failed answer, or no answer, becomes an error the Dashboard shows."""
+    service_dir = _project_dir(cfg) / mediareq.SERVICE_DIR
+    try:
+        rid = mediareq.ask(cfg.state_dir, service_dir, "test-channel", key=entry.key)
+    except mediareq.MediaError as exc:
+        raise ApiError(409, str(exc)) from None
+    end = _clock() + MEDIA_TEST_UP_TO
+    while _clock() < end:
+        res = mediareq.result(service_dir) or {}
+        if res.get("id") == rid and res.get("state") in ("done", "failed"):
+            if res["state"] == "failed":
+                raise ApiError(502, res.get("output") or "The channel test didn't run.")
+            try:
+                return json.loads(res.get("output", ""))
+            except ValueError:
+                raise ApiError(502, "kia's media half gave an answer kia couldn't read.") from None
+        if mediareq.waiting(cfg.state_dir, service_dir) != rid:
+            break  # the media half never took it, or is gone
+        _sleep(1)
+    raise ApiError(504, "kia's media half didn't answer. Is it running?")
+
+
 def test_channel(cfg: ApiConfig, body: dict) -> dict:
-    """Try a channel's stream now, the way the nightly check does."""
+    """Try a channel's stream now, the way the nightly check does. As the web half of the 0.9
+    split, kia can't run the stream tools, so it hands the test to the media half."""
     import asyncio
 
     from kia.cli import is_stream_url
     from kia.probe import probe, probe_guarded
 
     entry = _entry(cfg, body)
+    if getattr(cfg, "media_via_request", False):  # the web half sends it to media; absent means run here
+        return _test_channel_via_media(cfg, entry)
     if not is_stream_url(stream_url(entry.url)):  # as the nightly check: only stream addresses
         raise ApiError(400, "That channel's address isn't a stream kia can test.")
     if lan.is_local(lan.host_of(stream_url(entry.url))) and not _from_yours(cfg, entry):
@@ -887,7 +915,8 @@ def _last_lines(text: str, n: int = 20) -> str:
     return "\n".join(text.strip().splitlines()[-n:])[-3000:]
 
 
-MEDIA_WORK_UP_TO = 960  # seconds to wait for the media half's answer (over its own 900s refresh cap)
+MEDIA_WORK_UP_TO = 960  # seconds to wait for the media half's guide refresh (over its 900s cap)
+MEDIA_TEST_UP_TO = 40  # seconds to wait for the media half's channel test (over its 20s probe)
 
 
 def _refresh_guide_summary(ok: bool, out: str) -> dict:
