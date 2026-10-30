@@ -13,7 +13,9 @@ import re
 import shutil
 import tarfile
 import socket
+import subprocess
 import sys
+import threading
 import time
 import tomllib
 import urllib.error
@@ -27,7 +29,7 @@ from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 from kia import __version__, dnscheck, epgmap, epgshare, grab, htmlpage, m3u, metrics, playlistguide, profiles, radio, serve, status, upstream, xmltv
-from kia import alerts, auth, channels, lan, locks, native, newchannels, pluto, settings, stack, tls
+from kia import alerts, auth, channels, lan, locks, mediareq, native, newchannels, pluto, settings, stack, tls
 from kia import name as kia_name
 from kia.alerts import EXIT_ALERT
 from kia.config import DEFAULT_USER_AGENT, Config, env_bool, load
@@ -1464,6 +1466,56 @@ def _idle_forever() -> None:
             time.sleep(3600)
 
 
+MEDIA_POLL = 2.0  # seconds between checks for a web request, so the Dashboard isn't left waiting
+
+
+def _refresh_guide_for_request(cfg: Config) -> tuple[str, int, str]:
+    """Run a quick guide refresh asked for over the request channel, as its own process, the way
+    the Dashboard's guide refresh runs today (kia.api). Returns the answer's state, the exit
+    code, and the output to show, with any logins in that output hidden."""
+    from kia import doctor
+
+    cmd = [sys.executable, "-m", "kia", "refresh-guide", "-c", str(cfg.config_file)]
+    try:
+        done = subprocess.run(cmd, capture_output=True, text=True, timeout=900, check=False)
+    except subprocess.TimeoutExpired:
+        return "failed", 1, "The guide refresh took more than 15 minutes and was stopped."
+    out = doctor.hide_logins(done.stdout + done.stderr)
+    return ("done" if done.returncode == 0 else "failed"), done.returncode, out
+
+
+def _handle_media_request(cfg: Config, service_dir: Path) -> bool:
+    """Take one on-demand request the web half left (kia.mediareq), run it, and answer. Returns
+    True when there was one to run. A handler that fails becomes a failed answer, so the servicer
+    keeps going. Only the kinds media can run have a handler here; a kind without one (nothing
+    sends it yet) is answered as not-yet-handled rather than run."""
+    req = mediareq.take(cfg.state_dir, service_dir)
+    if req is None:
+        return False
+    kind = req["kind"]
+    try:
+        if kind == "refresh-guide":
+            state, code, output = _refresh_guide_for_request(cfg)
+        else:
+            state, code, output = "failed", 2, f"kia can't run a {kind} request here yet."
+    except (Exception, SystemExit) as exc:  # a broken handler must not take the servicer down
+        state, code, output = "failed", 1, f"{type(exc).__name__}: {exc}"
+    mediareq.answer(service_dir, req["id"], kind, state=state, exit_code=code, output=output)
+    return True
+
+
+def _serve_media_requests(cfg: Config) -> None:
+    """Poll for on-demand media work the web half left and run it, forever. daemon-media runs
+    this in a thread beside its refresh loop; the refresh lock (kia.locks) keeps a request and
+    the nightly run from overlapping. The single-container daemon doesn't run this: there the
+    server does the work itself, in its own process."""
+    base = cfg.config_file.parent if cfg.config_file else cfg.state_dir.parent
+    service_dir = base / mediareq.SERVICE_DIR
+    while True:
+        if not _handle_media_request(cfg, service_dir):
+            time.sleep(MEDIA_POLL)
+
+
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Run the pipeline daily at --at (local time; set TZ), forever. The single-container
     default: one process both serves the Dashboard and runs the refresh. The split `daemon-web`
@@ -1486,9 +1538,12 @@ def cmd_daemon_web(args: argparse.Namespace) -> int:
 
 def cmd_daemon_media(args: argparse.Namespace) -> int:
     """The refresh half of `daemon` (0.9 privilege separation): the nightly run and the quick
-    guide refreshes, with no serving. Nothing deploys this yet; the default install still runs
-    `daemon`."""
+    guide refreshes, with no serving. It also runs the on-demand media work the web half leaves
+    over the request channel (kia.mediareq), in a thread beside the refresh loop. Nothing deploys
+    this yet; the default install still runs `daemon`."""
     cfg, cut_short = _daemon_setup(args)
+    threading.Thread(target=_serve_media_requests, args=(cfg,), daemon=True,
+                     name="kia-media-requests").start()  # fmt: skip
     _daemon_refresh_loop(cfg, args, cut_short)  # never returns
 
 

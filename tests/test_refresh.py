@@ -3,7 +3,9 @@ import time
 from datetime import timedelta
 from pathlib import Path
 
-from kia import cli, grab, status
+import pytest
+
+from kia import cli, grab, mediareq, status
 import contextlib
 
 
@@ -133,3 +135,84 @@ def test_daemon_runs_both_halves_in_order(tmp_path: Path, monkeypatch):
     calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=True)
     cli.main(["daemon", "-c", str(tmp_path / "kia.toml")])
     assert calls == ["serve", ("loop", True)]
+
+
+# 0.9 privilege separation: daemon-media runs the on-demand media work the web half leaves over
+# the request channel (kia.mediareq). These drive one request at a time through the handler.
+
+class _Done:
+    def __init__(self, returncode, stdout="", stderr=""):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+def _media_cfg(tmp_path):
+    cfg = cli.load(Path(instance(tmp_path)))
+    return cfg, tmp_path / "media-service"
+
+
+def test_daemon_media_runs_a_guide_refresh_request(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+    monkeypatch.setattr(cli.subprocess, "run",
+                        lambda *a, **k: _Done(0, "Refreshed 3 of 3 quick guide sources\n"))
+    mediareq.ask(cfg.state_dir, service, "refresh-guide")
+    assert cli._handle_media_request(cfg, service) is True
+    answer = mediareq.result(service)
+    assert answer["state"] == "done" and answer["exit"] == "0"
+    assert "Refreshed 3 of 3" in answer["output"]
+    assert mediareq.waiting(cfg.state_dir, service) is None  # answered: slot free
+
+
+def test_a_guide_refresh_answer_hides_logins(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+    monkeypatch.setattr(cli.subprocess, "run",
+                        lambda *a, **k: _Done(1, "", "failed on http://dad:secret@host/p.m3u\n"))
+    mediareq.ask(cfg.state_dir, service, "refresh-guide")
+    cli._handle_media_request(cfg, service)
+    out = mediareq.result(service)["output"]
+    assert "secret" not in out and "dad:secret" not in out  # the login is masked before the answer
+
+
+def test_a_kind_media_cannot_run_yet_is_answered_not_run(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+    monkeypatch.setattr(cli.subprocess, "run",
+                        lambda *a, **k: pytest.fail("the stream tools must not run for this"))
+    mediareq.ask(cfg.state_dir, service, "check", url="http://example.com/p.m3u")
+    assert cli._handle_media_request(cfg, service) is True
+    answer = mediareq.result(service)
+    assert answer["state"] == "failed" and answer["exit"] == "2"
+
+
+def test_a_failing_handler_becomes_a_failed_answer(tmp_path: Path, monkeypatch):
+    cfg, service = _media_cfg(tmp_path)
+
+    def boom(_cfg):
+        raise RuntimeError("the guide grabber fell over")
+
+    monkeypatch.setattr(cli, "_refresh_guide_for_request", boom)
+    mediareq.ask(cfg.state_dir, service, "refresh-guide")
+    assert cli._handle_media_request(cfg, service) is True  # survives, so the servicer keeps going
+    answer = mediareq.result(service)
+    assert answer["state"] == "failed" and "RuntimeError" in answer["output"]
+
+
+def test_handle_media_request_does_nothing_when_there_is_no_request(tmp_path: Path):
+    cfg, service = _media_cfg(tmp_path)
+    assert cli._handle_media_request(cfg, service) is False
+
+
+def test_daemon_media_starts_the_request_servicer(tmp_path: Path, monkeypatch):
+    cfg_path = instance(tmp_path)
+    started = {}
+
+    class FakeThread:
+        def __init__(self, target=None, args=(), daemon=None, name=None):
+            started["target"], started["name"] = target, name
+
+        def start(self):
+            started["started"] = True
+
+    monkeypatch.setattr(cli, "_daemon_setup", lambda args: (cli.load(Path(cfg_path)), False))
+    monkeypatch.setattr(cli, "_daemon_refresh_loop", lambda *a: None)
+    monkeypatch.setattr(cli.threading, "Thread", FakeThread)
+    cli.main(["daemon-media", "-c", str(tmp_path / "kia.toml")])
+    assert started.get("started") and started["target"] is cli._serve_media_requests
