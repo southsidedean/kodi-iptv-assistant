@@ -99,3 +99,37 @@ def test_daemon_refreshes_the_guide_between_nightly_runs(tmp_path: Path, monkeyp
     # Refreshes now, +4 h, and +8 h; the next (+12 h) is after the nightly run (+9 h), which
     # rebuilds the guide anyway, so the daemon waits for that. Failed refreshes don't loop.
     assert len(refreshes) == 3 and waits[-1] == nightly
+
+
+# 0.9 privilege separation: `daemon` splits into a serving half (`daemon-web`) and a refresh
+# half (`daemon-media`). The single-container `daemon` still runs both, in that order. These
+# check which half each command runs, with the three pieces stubbed so nothing actually serves
+# or loops forever.
+
+def _stub_daemon_halves(monkeypatch, cfg_path: str, cut_short: bool):
+    calls = []
+    monkeypatch.setattr(cli, "_daemon_setup", lambda args: (cli.load(Path(cfg_path)), cut_short))
+    monkeypatch.setattr(cli, "_daemon_serve", lambda cfg, args: calls.append("serve"))
+    monkeypatch.setattr(cli, "_daemon_refresh_loop", lambda cfg, args, cut: calls.append(("loop", cut)))
+    monkeypatch.setattr(cli, "_idle_forever", lambda: calls.append("idle"))
+    return calls
+
+
+def test_daemon_web_serves_and_never_runs_the_refresh_loop(tmp_path: Path, monkeypatch):
+    calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=True)
+    assert cli.main(["daemon-web", "-c", str(tmp_path / "kia.toml")]) == 0
+    assert calls == ["serve", "idle"]  # serves, then waits; the refresh is daemon-media's job
+
+
+def test_daemon_media_refreshes_and_never_serves(tmp_path: Path, monkeypatch):
+    calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=False)
+    cli.main(["daemon-media", "-c", str(tmp_path / "kia.toml")])
+    assert calls == [("loop", False)]  # only the refresh loop; nothing is served
+
+
+def test_daemon_runs_both_halves_in_order(tmp_path: Path, monkeypatch):
+    # The single-container default is unchanged: it serves first, then runs the refresh loop,
+    # carrying through whether the last run was cut short.
+    calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=True)
+    cli.main(["daemon", "-c", str(tmp_path / "kia.toml")])
+    assert calls == ["serve", ("loop", True)]

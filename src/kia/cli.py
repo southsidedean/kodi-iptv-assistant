@@ -1363,8 +1363,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_daemon(args: argparse.Namespace) -> int:
-    """Run the pipeline daily at --at (local time; set TZ), forever."""
+def _daemon_setup(args: argparse.Namespace) -> tuple[Config, bool]:
+    """Shared daemon startup, for `daemon` and for the split `daemon-web`/`daemon-media` (0.9
+    privilege separation). Loads the config, takes the cross-process lock so the Dashboard's
+    saves and the refreshes take turns, checks whether the last refresh was cut short (before
+    anything updates the run state), and writes the settings and status the Dashboard reads.
+    Returns the config and whether the last run was interrupted."""
     next_run(datetime.now(), args.at)  # validate --at before sleeping
     cfg = load_config(args)
     from kia import api
@@ -1374,6 +1378,13 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     secure_setup(cfg)
     write_settings(cfg, args.at, args.guide_every)
     update_status(cfg)
+    return cfg, cut_short
+
+
+def _daemon_serve(cfg: Config, args: argparse.Namespace) -> None:
+    """Start the serving side in background threads: the Pluto relay, the stack watch for the
+    Dashboard's tiles, /metrics for Prometheus, and the HTTP server (plain, or plain plus the
+    secure Dashboard). Returns once they're up. This is the half `daemon-web` runs alone."""
     relay = pluto_relay(cfg) if args.serve or args.api_port else None
     players = metrics.Players(cfg.state_dir)  # one pseudonym list for Plex's and Jellyfin's players
     watch = None
@@ -1395,6 +1406,12 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, api_config(cfg), trust_proxy=True,  # noqa: S104  # nosec B104
                                   relay=relay, metrics=numbers)  # fmt: skip
         log(f"Profile editor API and Pluto relay on port {args.api_port}")
+
+
+def _daemon_refresh_loop(cfg: Config, args: argparse.Namespace, cut_short: bool) -> None:
+    """The nightly full refresh on its --at timer, with quick guide refreshes in between. Never
+    returns, and keeps going through errors so the daemon stays alive. This is the half
+    `daemon-media` runs alone."""
     run_now = (
         args.run_now
         or env_bool("KIA_RUN_ON_START", False)
@@ -1437,6 +1454,42 @@ def cmd_daemon(args: argparse.Namespace) -> int:
                               cfg.state_dir, cfg.alerts, log)  # fmt: skip
             except Exception as exc2:  # reporting must never stop the daemon
                 log(f"Couldn't report it: {exc2}")
+
+
+def _idle_forever() -> None:
+    """Block the main thread while the background servers run. `daemon` is held open by its
+    refresh loop; the serving-only `daemon-web` has no loop, so it waits here instead."""
+    with contextlib.suppress(KeyboardInterrupt):
+        while True:
+            time.sleep(3600)
+
+
+def cmd_daemon(args: argparse.Namespace) -> int:
+    """Run the pipeline daily at --at (local time; set TZ), forever. The single-container
+    default: one process both serves the Dashboard and runs the refresh. The split `daemon-web`
+    and `daemon-media` run those two halves in separate containers (0.9 privilege separation);
+    this command is unchanged and stays the default."""
+    cfg, cut_short = _daemon_setup(args)
+    _daemon_serve(cfg, args)
+    _daemon_refresh_loop(cfg, args, cut_short)  # never returns
+
+
+def cmd_daemon_web(args: argparse.Namespace) -> int:
+    """The serving half of `daemon` (0.9 privilege separation): the Dashboard, API, MCP server,
+    Pluto relay, stack watch, and /metrics, with no refresh loop (that runs in `daemon-media`).
+    Nothing deploys this yet; the default install still runs `daemon`."""
+    cfg, _cut_short = _daemon_setup(args)
+    _daemon_serve(cfg, args)
+    _idle_forever()
+    return 0
+
+
+def cmd_daemon_media(args: argparse.Namespace) -> int:
+    """The refresh half of `daemon` (0.9 privilege separation): the nightly run and the quick
+    guide refreshes, with no serving. Nothing deploys this yet; the default install still runs
+    `daemon`."""
+    cfg, cut_short = _daemon_setup(args)
+    _daemon_refresh_loop(cfg, args, cut_short)  # never returns
 
 
 def plex_sessions(config: str, players=None):
@@ -1636,6 +1689,24 @@ def add_serve_args(p: argparse.ArgumentParser) -> None:
                    help="the secure Dashboard's port (default: KIA_HTTPS_PORT or 8743; --https-port 0 for none)")  # fmt: skip
 
 
+def add_daemon_args(p: argparse.ArgumentParser) -> None:
+    """The options `daemon` and its split halves `daemon-web`/`daemon-media` share, so the three
+    parse identically (0.9 privilege separation)."""
+    p.add_argument("-c", "--config", default="kia.toml")
+    p.add_argument("--at", default=os.environ.get("KIA_RUN_AT") or "04:00",
+                   help="local time of day, HH:MM (default: KIA_RUN_AT or 04:00)")  # fmt: skip
+    p.add_argument(
+        "--guide-every",
+        type=float,
+        help="hours between quick guide refreshes, 0 to turn off (default: KIA_GUIDE_REFRESH_HOURS or 4)",
+    )
+    p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
+    p.add_argument("--api-port", type=int,
+                   help="serve the Dashboard's API on this port (Docker sets 8781)")  # fmt: skip
+    p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
+    add_serve_args(p)
+
+
 # Options whose default comes from .env: (option, setting, default). They're read after the
 # command line, so a typo in one is reported by name, and only for the commands that use it.
 # (option, .env name, default, highest): ports up to 65535, and a quick guide refresh at most weekly.
@@ -1807,20 +1878,19 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_serve)
 
     p = sub.add_parser("daemon", help="run the full pipeline every day at a set time")
-    p.add_argument("-c", "--config", default="kia.toml")
-    p.add_argument("--at", default=os.environ.get("KIA_RUN_AT") or "04:00",
-                   help="local time of day, HH:MM (default: KIA_RUN_AT or 04:00)")  # fmt: skip
-    p.add_argument(
-        "--guide-every",
-        type=float,
-        help="hours between quick guide refreshes, 0 to turn off (default: KIA_GUIDE_REFRESH_HOURS or 4)",
-    )
-    p.add_argument("--run-now", action="store_true", help="also run once at startup (or set KIA_RUN_ON_START)")
-    p.add_argument("--api-port", type=int,
-                   help="serve the Dashboard's API on this port (Docker sets 8781)")  # fmt: skip
-    p.add_argument("--serve", action="store_true", help="also serve the output folder (kia serve)")
-    add_serve_args(p)
+    add_daemon_args(p)
     p.set_defaults(func=cmd_daemon)
+
+    # 0.9 privilege separation: the serving and refresh halves of `daemon`, to run in separate
+    # containers. Left out of the help listing (no help=) because nothing deploys them yet; the
+    # default install runs `daemon`.
+    p = sub.add_parser("daemon-web")
+    add_daemon_args(p)
+    p.set_defaults(func=cmd_daemon_web)
+
+    p = sub.add_parser("daemon-media")
+    add_daemon_args(p)
+    p.set_defaults(func=cmd_daemon_media)
 
     args = parser.parse_args(argv)
     # A setting that can't be read (in .env or kia.toml): say which, without a traceback
@@ -1833,7 +1903,7 @@ def main(argv: list[str] | None = None) -> int:
             load_config(args)
         if getattr(args, "at", None):
             next_run(datetime.now(), args.at)
-        if args.func is cmd_daemon:
+        if args.func in (cmd_daemon, cmd_daemon_web, cmd_daemon_media):
             env_bool("KIA_RUN_ON_START", False)
     except (ValueError, tomllib.TOMLDecodeError) as exc:
         print(f"kia: {exc}", file=sys.stderr)
