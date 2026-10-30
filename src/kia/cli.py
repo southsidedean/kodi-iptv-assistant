@@ -1127,7 +1127,8 @@ def pluto_relay(cfg: Config) -> pluto.Relay | None:
             return known["ids"]
 
         _RELAY = pluto.Relay(cfg.output_dir / "pluto.json", log, on_fallback=fallback_alert, allowed=allowed,
-                             debug_dir=cfg.state_dir / "pluto-debug")  # off unless you make that folder
+                             debug_dir=cfg.state_dir / "pluto-debug",  # off unless you make that folder
+                             metrics_file=cfg.output_dir / "pluto-metrics.json")  # the web half reads this for /metrics
         _RELAY.save_status(force=True)
         _RELAY.keep_status_fresh()
     return _RELAY
@@ -1390,7 +1391,10 @@ def _daemon_serve(cfg: Config, args: argparse.Namespace, *, media_via_request: b
     Dashboard's tiles, /metrics for Prometheus, and the HTTP server (plain, or plain plus the
     secure Dashboard). Returns once they're up. This is the half `daemon-web` runs alone, which
     passes media_via_request so stream-tool work goes to the media half (0.9 split)."""
-    relay = pluto_relay(cfg) if args.serve or args.api_port else None
+    # The web half of the 0.9 split must not run the relay (it runs the stream tools): it serves
+    # /metrics from the file the media half's relay writes, and doesn't answer /pluto/ at all.
+    relay = None if media_via_request else (pluto_relay(cfg) if args.serve or args.api_port else None)
+    pluto_stats = (cfg.output_dir / "pluto-metrics.json") if media_via_request else None
     players = metrics.Players(cfg.state_dir)  # one pseudonym list for Plex's and Jellyfin's players
     watch = None
     if (running := stack.profiles()) is not None:  # kia in Docker: the Dashboard's Stack tiles
@@ -1400,7 +1404,7 @@ def _daemon_serve(cfg: Config, args: argparse.Namespace, *, media_via_request: b
         watch = stack.Watch(cfg.output_dir, running, alert=part_alert)
         watch.start()
     numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config, players),
-                      jellyfin_sessions(args.config, players), watch, cfg.state_dir)  # /metrics, for Prometheus
+                      jellyfin_sessions(args.config, players), watch, cfg.state_dir, pluto_stats)  # /metrics, for Prometheus
     cfg_api = api_config(cfg, media_via_request=media_via_request)
     if args.serve:
         serve_secure(cfg, args.bind, args.https_port)
@@ -1569,12 +1573,31 @@ def cmd_daemon_web(args: argparse.Namespace) -> int:
     return 0
 
 
+def _daemon_media_serve(cfg: Config, args: argparse.Namespace) -> None:
+    """The media half's only serving (0.9 privilege separation): the Pluto relay and its /pluto/
+    listener. The relay runs ffmpeg and ffprobe on Pluto's pieces, so it lives on this half, not
+    the serving half. It also writes the relay's numbers (pluto-metrics.json) for the web half's
+    /metrics. nginx forwards only /pluto/ here; the Dashboard, API, and /metrics are the web
+    half's. Nothing is served when the relay is off (kia.toml) or no listening port is set."""
+    relay = pluto_relay(cfg)
+    if relay is None:
+        return
+    if args.serve:
+        serve.serve_in_background(cfg.output_dir, args.bind, args.port, relay=relay)
+        log(f"Pluto relay at http://{args.bind}:{args.port}/pluto/")
+    elif args.api_port:
+        # With Docker, nginx forwards /pluto/ here; this port isn't published.
+        serve.serve_in_background(cfg.output_dir, "0.0.0.0", args.api_port, trust_proxy=True, relay=relay)  # noqa: S104  # nosec B104
+        log(f"Pluto relay on port {args.api_port}")
+
+
 def cmd_daemon_media(args: argparse.Namespace) -> int:
     """The refresh half of `daemon` (0.9 privilege separation): the nightly run and the quick
     guide refreshes, with no serving. It also runs the on-demand media work the web half leaves
     over the request channel (kia.mediareq), in a thread beside the refresh loop. Nothing deploys
     this yet; the default install still runs `daemon`."""
     cfg, cut_short = _daemon_setup(args)
+    _daemon_media_serve(cfg, args)  # the Pluto relay and its /pluto/ listener (media-tool work lives here)
     threading.Thread(target=_serve_media_requests, args=(cfg,), daemon=True,
                      name="kia-media-requests").start()  # fmt: skip
     _daemon_refresh_loop(cfg, args, cut_short)  # never returns

@@ -47,6 +47,27 @@ def test_no_status_yet(tmp_path: Path):
     assert "kia_info" in text and "kia_channels" not in text and "kia_pluto" not in text
 
 
+def test_pluto_numbers_from_the_media_halfs_file(tmp_path: Path):
+    # The web half of the 0.9 split serves /metrics but doesn't run the relay, so the Pluto
+    # numbers come from the file the media half writes (kia.pluto), not a live relay.
+    (tmp_path / "status.json").write_text(json.dumps(STATUS))
+    (tmp_path / "pluto-metrics.json").write_text(json.dumps(FakeRelay().counters()))
+    text = metrics.render(tmp_path, pluto_stats=tmp_path / "pluto-metrics.json")
+    assert "kia_pluto_channels_playing 1" in text and "kia_pluto_bytes_total 123456" in text
+    assert 'kia_pluto_viewers{channel="65c69bbfd77d450008c7ffee",name="Battlestar \\"Galactica\\""} 2' in text
+
+
+def test_pluto_numbers_absent_until_the_file_is_written(tmp_path: Path):
+    # No file yet (the media half hasn't run), so nothing is reported. update.sh then reads no
+    # viewers, which is right: there are none before the relay has run.
+    (tmp_path / "status.json").write_text(json.dumps(STATUS))
+    text = metrics.render(tmp_path, pluto_stats=tmp_path / "pluto-metrics.json")
+    assert "kia_pluto" not in text
+    # A file damaged into the wrong shape counts the same as missing (kia.files).
+    (tmp_path / "pluto-metrics.json").write_text("[not an object]")
+    assert "kia_pluto" not in metrics.render(tmp_path, pluto_stats=tmp_path / "pluto-metrics.json")
+
+
 
 def test_a_damaged_status_file_still_gives_metrics(tmp_path: Path):
     (tmp_path / "status.json").write_text(json.dumps({"result": "ok", "last_run": {"minutes": "12", "finished": "x"},

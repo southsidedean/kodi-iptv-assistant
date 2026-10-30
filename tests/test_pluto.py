@@ -364,6 +364,19 @@ def test_counters_keep_counting_after_a_channel_goes_idle(monkeypatch):
     assert (c["playing"], c["viewers"], c["sessions"], c["pieces"]) == (0, {}, 1, 1)  # totals only grow
 
 
+def test_save_status_also_writes_the_metrics_file(tmp_path: Path):
+    # The 0.9 split: the relay writes its /metrics numbers beside pluto.json, for the web half.
+    fake = FakePluto([media([(0, SHOW.format(part="p", n=0))])])
+    r, _ = relay(fake, tmp_path)
+    r.metrics_file = tmp_path / "pluto-metrics.json"
+    piece = numbers(look(r))[0]
+    assert r.handle(f"/pluto/{piece}", "tv")[0] == 200
+    r.save_status(force=True)
+    saved = json.loads((tmp_path / "pluto-metrics.json").read_text())
+    assert saved["playing"] == 1 and saved["viewers"] == {CID: 1} and saved["pieces"] == 1
+    assert json.loads((tmp_path / "pluto.json").read_text())["channels"][0]["id"] == CID  # still written too
+
+
 def test_a_piece_that_failed_is_tried_again():
     part = "162136-698541"
     fake = FakePluto([media([(0, SHOW.format(part=part, n=0))], seq=99, key=KEY.format(part=part))])
