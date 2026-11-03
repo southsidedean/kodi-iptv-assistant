@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- The repository's social preview (GitHub: Settings, General, Social preview), drawn from
+     the kia logo. After a change, render it at 1280x640 with headless Chrome:
+       chrome --headless=new --hide-scrollbars --force-device-scale-factor=1 \
+         --window-size=1280,640 --screenshot=images/social-preview.png images/social-preview.html
+     then view the image and upload it again. -->
+<html><head><meta charset="utf-8"><title>kia social preview</title>
+<style>
+  html, body { margin: 0; width: 1280px; height: 640px; overflow: hidden; }
+  body {
+    background: radial-gradient(ellipse 900px 700px at 100% 50%, #22305a 0%, #141c35 55%, #0f1529 100%);
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    color: #e3e9fb; position: relative;
+  }
+  .text { position: absolute; left: 80px; top: 0; bottom: 0; width: 600px;
+          display: flex; flex-direction: column; justify-content: center; }
+  .brand { display: flex; align-items: center; gap: 22px; margin-bottom: 34px; }
+  .brand svg { width: 96px; height: 96px; }
+  .brand .kia { font-size: 76px; font-weight: 800; letter-spacing: -2px; color: #fff; }
+  h1 { margin: 0 0 22px; font-size: 44px; line-height: 1.12; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+  h1 em { font-style: normal; color: #f2b84b; }
+  p { margin: 0 0 34px; font-size: 24px; line-height: 1.4; color: #b7c2e3; }
+  .players { display: flex; gap: 12px; }
+  .players span { font-size: 20px; font-weight: 600; padding: 8px 18px; border-radius: 999px;
+                  background: rgba(227,233,251,0.10); color: #e3e9fb; border: 1px solid rgba(227,233,251,0.18); }
+  .repo { position: absolute; left: 80px; bottom: 40px; font-size: 18px; color: #7f8bb3; letter-spacing: 0.3px; }
+
+  /* The guide: rows of shows, with the amber "now" line, echoing the logo. */
+  .guide { position: absolute; left: 730px; top: 92px; width: 500px; height: 456px;
+           background: #1f2b4d; border-radius: 28px; box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+           padding: 34px 30px; box-sizing: border-box; overflow: hidden; }
+  .times { display: flex; margin-left: 96px; margin-bottom: 18px; font-size: 15px; color: #7f8bb3; font-weight: 600; }
+  .times span { flex: 1; }
+  .row { display: flex; align-items: center; height: 48px; margin-bottom: 14px; }
+  .ch { width: 82px; margin-right: 14px; font-size: 16px; font-weight: 700; color: #b7c2e3; }
+  .ch small { display: block; font-size: 12px; font-weight: 500; color: #7f8bb3; }
+  .shows { flex: 1; display: flex; gap: 8px; height: 100%; }
+  .shows div { border-radius: 12px; background: rgba(207,216,240,0.16); }
+  .shows div.on { background: rgba(207,216,240,0.42); }
+  .now { position: absolute; left: 262px; top: 64px; bottom: 26px; width: 5px; border-radius: 3px; background: #f2b84b;
+         box-shadow: 0 0 18px rgba(242,184,75,0.6); }
+</style></head>
+<body>
+  <div class="text">
+    <div class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="4" y="8" width="56" height="42" rx="9" fill="#33447a"/><rect x="12" y="16" width="13" height="6" rx="3" fill="#e3e9fb" opacity="0.9"/><rect x="27" y="16" width="25" height="6" rx="3" fill="#e3e9fb" opacity="0.55"/><rect x="12" y="26" width="24" height="6" rx="3" fill="#e3e9fb" opacity="0.55"/><rect x="38" y="26" width="14" height="6" rx="3" fill="#e3e9fb" opacity="0.9"/><rect x="12" y="36" width="8" height="6" rx="3" fill="#e3e9fb" opacity="0.9"/><rect x="22" y="36" width="30" height="6" rx="3" fill="#e3e9fb" opacity="0.55"/><rect x="30" y="12.5" width="3" height="33" rx="1.5" fill="#f2b84b"/><rect x="24" y="53" width="16" height="4" rx="2" fill="#33447a"/></svg>
+      <span class="kia">kia</span>
+    </div>
+    <h1>Free internet TV with channels that <em>work</em> and a guide that <em>matches</em></h1>
+    <p>Tested every night, served from one computer at home.</p>
+    <div class="players"><span>Kodi</span><span>Plex</span><span>Jellyfin</span><span>and more</span></div>
+  </div>
+  <div class="repo">github.com/southsidedean/kodi-iptv-assistant</div>
+
+  <div class="guide">
+    <div class="times"><span>8:00</span><span>8:30</span><span>9:00</span></div>
+    <div class="row"><div class="ch">101<small>News</small></div><div class="shows"><div class="on" style="flex:5"></div><div style="flex:3"></div></div></div>
+    <div class="row"><div class="ch">102<small>Movies</small></div><div class="shows"><div class="on" style="flex:6"></div><div style="flex:2"></div></div></div>
+    <div class="row"><div class="ch">103<small>Comedy</small></div><div class="shows"><div style="flex:2"></div><div class="on" style="flex:2"></div><div style="flex:3"></div></div></div>
+    <div class="row"><div class="ch">104<small>Sports</small></div><div class="shows"><div class="on" style="flex:5"></div><div style="flex:2"></div></div></div>
+    <div class="row"><div class="ch">105<small>Classics</small></div><div class="shows"><div style="flex:1"></div><div class="on" style="flex:3"></div><div style="flex:3"></div></div></div>
+    <div class="row"><div class="ch">106<small>Radio</small></div><div class="shows"><div class="on" style="flex:4"></div><div style="flex:3"></div></div></div>
+    <div class="now"></div>
+  </div>
+</body></html>
