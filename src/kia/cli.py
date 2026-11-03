@@ -1385,7 +1385,8 @@ def _daemon_setup(args: argparse.Namespace) -> tuple[Config, bool]:
 
     api.LOCK.configure(cfg.state_dir)  # the Dashboard's saves and the refreshes take turns
     cut_short = interrupted_run(cfg)  # before anything updates the run state
-    secure_setup(cfg)
+    if mediareq.role() != mediareq.MEDIA:  # the media half has no private/ or tls/ to set up
+        secure_setup(cfg)
     write_settings(cfg, args.at, args.guide_every)
     update_status(cfg)
     return cfg, cut_short
@@ -1454,7 +1455,8 @@ def _daemon_refresh_loop(cfg: Config, args: argparse.Namespace, cut_short: bool)
             wait_until(nxt)
         run_now = False
         try:
-            secure_setup(cfg)  # renews kia's own certificate before it expires
+            if mediareq.role() != mediareq.MEDIA:  # daemon-web renews it there (_web_chores)
+                secure_setup(cfg)  # renews kia's own certificate before it expires
             write_settings(load_config(args), args.at, args.guide_every)  # kia.toml may have changed
             with locks.refresh(cfg.state_dir, "the nightly refresh"):
                 run_and_report(args.config, update_epg=True)
@@ -1471,12 +1473,37 @@ def _daemon_refresh_loop(cfg: Config, args: argparse.Namespace, cut_short: bool)
                 log(f"Couldn't report it: {exc2}")
 
 
-def _idle_forever() -> None:
-    """Block the main thread while the background servers run. `daemon` is held open by its
-    refresh loop; the serving-only `daemon-web` has no loop, so it waits here instead."""
+WEB_CHORES_EVERY = 15  # seconds between the web half's looks for handed-over alerts and a new guide
+RENEW_EVERY = 24 * 3600  # seconds between the web half's checks of its certificate
+
+
+def _web_chores(cfg: Config, args: argparse.Namespace) -> None:
+    """What the serving-only `daemon-web` does in place of the refresh loop, forever: send the
+    alerts the media half handed over, keep Plex in step after a new guide (it needs the Plex
+    token, which only this half holds), and renew kia's own certificate once a day (the media
+    half has no tls/). In the single-container daemon, the refresh loop does all three."""
+    guide = cfg.output_dir / "guide.xml.gz"
+
+    def built() -> float | None:
+        try:
+            return guide.stat().st_mtime
+        except OSError:
+            return None
+
+    seen, renewed = built(), time.monotonic()  # a guide from before this start was already handled
     with contextlib.suppress(KeyboardInterrupt):
         while True:
-            time.sleep(3600)
+            time.sleep(WEB_CHORES_EVERY)
+            try:
+                alerts.send_handed_off(cfg.state_dir, load_config(args).alerts, log)
+                if (now := built()) != seen:
+                    seen = now
+                    keep_plex_in_step(args.config)
+                if time.monotonic() - renewed >= RENEW_EVERY:
+                    renewed = time.monotonic()
+                    secure_setup(cfg)
+            except (Exception, SystemExit) as exc:  # e.g. kia.toml became invalid; keep serving
+                log(f"The web half's chores failed: {type(exc).__name__}: {exc}")
 
 
 MEDIA_POLL = 2.0  # seconds between checks for a web request, so the Dashboard isn't left waiting
@@ -1546,13 +1573,18 @@ def _handle_media_request(cfg: Config, service_dir: Path) -> bool:
     return True
 
 
+def _media_service_dir(cfg: Config) -> Path:
+    """media-service/ in the kia folder: the media half's own folder (kia.mediareq)."""
+    base = cfg.config_file.parent if cfg.config_file else cfg.state_dir.parent
+    return base / mediareq.SERVICE_DIR
+
+
 def _serve_media_requests(cfg: Config) -> None:
     """Poll for on-demand media work the web half left and run it, forever. daemon-media runs
     this in a thread beside its refresh loop; the refresh lock (kia.locks) keeps a request and
     the nightly run from overlapping. The single-container daemon doesn't run this: there the
     server does the work itself, in its own process."""
-    base = cfg.config_file.parent if cfg.config_file else cfg.state_dir.parent
-    service_dir = base / mediareq.SERVICE_DIR
+    service_dir = _media_service_dir(cfg)
     while True:
         if not _handle_media_request(cfg, service_dir):
             time.sleep(MEDIA_POLL)
@@ -1572,9 +1604,10 @@ def cmd_daemon_web(args: argparse.Namespace) -> int:
     """The serving half of `daemon` (0.9 privilege separation): the Dashboard, API, MCP server,
     Pluto relay, stack watch, and /metrics, with no refresh loop (that runs in `daemon-media`).
     Nothing deploys this yet; the default install still runs `daemon`."""
+    os.environ["KIA_ROLE"] = mediareq.WEB  # the stream commands refuse to run here (main)
     cfg, _cut_short = _daemon_setup(args)
     _daemon_serve(cfg, args, media_via_request=True)  # the web half can't run the stream tools
-    _idle_forever()
+    _web_chores(cfg, args)
     return 0
 
 
@@ -1601,10 +1634,15 @@ def cmd_daemon_media(args: argparse.Namespace) -> int:
     guide refreshes, with no serving. It also runs the on-demand media work the web half leaves
     over the request channel (kia.mediareq), in a thread beside the refresh loop. Nothing deploys
     this yet; the default install still runs `daemon`."""
+    # Set first, and inherited by the commands it starts: alerts go to the web half to send
+    # (kia.alerts.hand_off), and the steps that need the web half's secrets are skipped here.
+    os.environ["KIA_ROLE"] = mediareq.MEDIA
     cfg, cut_short = _daemon_setup(args)
     _daemon_media_serve(cfg, args)  # the Pluto relay and its /pluto/ listener (media-tool work lives here)
     threading.Thread(target=_serve_media_requests, args=(cfg,), daemon=True,
                      name="kia-media-requests").start()  # fmt: skip
+    threading.Thread(target=mediareq.keep_alive, args=(_media_service_dir(cfg),), daemon=True,
+                     name="kia-media-alive").start()  # fmt: skip
     _daemon_refresh_loop(cfg, args, cut_short)  # never returns
 
 
@@ -1639,8 +1677,9 @@ def jellyfin_sessions(config: str, players=None):
 
 def keep_plex_in_step(config: str) -> None:
     """With KIA_PLEX_URL set, bring Plex's Threadfin DVR up to date after a refresh, so
-    channels the playlists gained reach Plex (kia plex-tuners). Never stops the daemon."""
-    if not os.environ.get("KIA_PLEX_URL"):
+    channels the playlists gained reach Plex (kia plex-tuners). Never stops the daemon. Not on
+    the media half, which has no Plex token: the web half does it when it sees a new guide."""
+    if not os.environ.get("KIA_PLEX_URL") or mediareq.role() == mediareq.MEDIA:
         return
     try:
         main(["plex-tuners", "-c", config, "--after-refresh"])
@@ -1850,6 +1889,8 @@ def env_default(args: argparse.Namespace) -> None:
 # Commands that refresh kia's files; one runs at a time (kia.locks).
 REFRESHES = {cmd_run, cmd_refresh_guide, cmd_check, cmd_map, cmd_grab, cmd_guide, cmd_sync}
 EXIT_BUSY = 75  # another refresh is running (EX_TEMPFAIL)
+# What runs the stream tools or the guide downloader on third-party input: the media half's work.
+STREAM_COMMANDS = REFRESHES | {cmd_probe}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2026,6 +2067,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except FileNotFoundError as exc:
         print(f"kia: {exc.filename} not found", file=sys.stderr)
+        return 2
+    # The web half of the split holds kia's secrets, so the commands that test strangers'
+    # streams or download guides (third-party code) don't run there, even by hand.
+    if mediareq.role() == mediareq.WEB and args.func in STREAM_COMMANDS:
+        print(f"kia: kia {args.command} tests streams or downloads guides, so it runs in the kia-media "
+              f"container, not this one: docker compose exec kia-media python3 -m kia {args.command}", file=sys.stderr)  # fmt: skip
         return 2
     # kia check --url (the Dashboard's "check now") writes its results to work/check-test,
     # away from the refresh's files, so it can run while a refresh does.
