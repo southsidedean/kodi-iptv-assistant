@@ -31,7 +31,7 @@ trap cleanup EXIT
 trap 'cleanup; exit 130' INT TERM
 fail() {
     echo "FAIL: $*" >&2
-    (cd "$work" && compose ps && compose logs --tail 60 kia web) >&2 || true
+    (cd "$work" && compose ps && compose logs --tail 60 kia kia-media web) >&2 || true
     exit 1
 }
 ok() { echo "ok: $*"; }
@@ -49,7 +49,7 @@ sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://localhost:$port|" \
     -e "s|^PUID=.*|PUID=$(id -u)|" \
     -e "s|^PGID=.*|PGID=$(id -g)|" \
     .env.example >.env
-mkdir -p output state private work vendor profiles tls playlists
+mkdir -p output state private media-service work vendor profiles tls playlists
 printf '#EXTM3U\n#EXTINF:-1 tvg-id="Smoke.us" group-title="News",Smoke Test TV\nhttp://web/smoke.ts\n' >playlists/smoke.m3u
 printf 'playlists/smoke.m3u smoke\n' >smoke.sources.txt
 
@@ -61,14 +61,15 @@ compose run --rm --no-deps --entrypoint ffmpeg kia -v error -f lavfi -i testsrc=
 
 echo "== Start the stack and wait until it's healthy"
 compose up -d --quiet-pull 2>&1 | tail -n 20 || true
-compose ps --status running --services | grep -q '^kia$' || fail "the stack doesn't start"
+running=$(compose ps --status running --services)
+{ echo "$running" | grep -q '^kia$' && echo "$running" | grep -q '^kia-media$'; } || fail "the stack doesn't start"
 tries=0
-until [ "$(compose ps --format '{{.Service}}={{.Health}}' | grep -c '=healthy')" -ge 2 ]; do
+until [ "$(compose ps --format '{{.Service}}={{.Health}}' | grep -c '=healthy')" -ge 3 ]; do
     tries=$((tries + 1))
-    [ $tries -gt 60 ] && fail "kia and web weren't healthy after 3 minutes"
+    [ $tries -gt 60 ] && fail "kia, kia-media, and web weren't healthy after 3 minutes"
     sleep 3
 done
-ok "kia and web are healthy"
+ok "kia, kia-media, and web are healthy"
 
 # A new install refreshes as soon as kia starts (it has no guide yet), possibly before the
 # web server serving the test stream was up. Let that finish, then refresh again.
@@ -84,7 +85,7 @@ done
 ok "the first refresh finished"
 
 echo "== One full refresh, checked"
-compose exec -T kia python3 -m kia run >"$work/run.log" 2>&1 || { cat "$work/run.log" >&2; fail "the refresh failed"; }
+compose exec -T kia-media python3 -m kia run >"$work/run.log" 2>&1 || { cat "$work/run.log" >&2; fail "the refresh failed"; }
 tail -5 "$work/run.log"
 if grep -q "without Node's sandbox" "$work/run.log"; then
     cat "$work/run.log" >&2
@@ -150,8 +151,55 @@ check(get("/api/sources", method="PUT")[0] in (403, 404), "changes are refused o
 sys.exit(1 if problems else 0)
 EOF
 
+echo "== The split: kia-media sees no secrets and can't reach kia"
+{ [ -s private/admin-password.txt ] && [ ! -e state/admin-password.txt ]; } || fail "kia's password isn't in private/"
+compose exec -T kia-media python3 - <<'EOF' || fail "kia-media can see a secret or reach kia"
+import os, sys, urllib.request
+
+problems = []
+if os.path.getsize("/data/.env"):
+    problems.append(".env has something in it")
+for folder in ("/data/private", "/data/tls", "/data/gateway", "/data/plex"):
+    try:
+        if os.listdir(folder):
+            problems.append(f"{folder} isn't empty")
+    except PermissionError:
+        pass  # can't even look: as good
+if any(name in os.environ for name in ("KIA_ADMIN_PASSWORD", "KIA_SMTP_PASSWORD", "KIA_PLEX_TOKEN", "KIA_NTFY_URL")):
+    problems.append("a secret setting is in its environment")
+try:
+    urllib.request.urlopen("http://kia:8781/api/profiles", timeout=5)
+    problems.append("it reached kia's API")
+except OSError:
+    pass  # not on kia's network: the answer we want
+print("\n".join(problems) or "ok")
+sys.exit(1 if problems else 0)
+EOF
+ok "kia-media sees no secrets and can't reach kia's API"
+# The Dashboard's Test button: kia leaves the request in state/, kia-media takes it into its own
+# folder (another mount) and answers there. A rename between the two fails, so this is real.
+PYTHONPATH=src python3 - "$https_port" <<'EOF' || fail "a channel test didn't go through kia-media"
+import json, ssl, sys, urllib.request
+from kia import m3u
+
+key = m3u.parse(open("output/curated.m3u").read())[0].key
+ctx = ssl.create_default_context()
+ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+req = urllib.request.Request(f"https://localhost:{sys.argv[1]}/api/channel/test", method="POST",
+                             data=json.dumps({"key": key}).encode(),
+                             headers={"Content-Type": "application/json",
+                                      "X-Kia-Password": open("private/admin-password.txt").read().strip()})
+with urllib.request.urlopen(req, timeout=90, context=ctx) as r:
+    answer = json.load(r)
+print(answer)
+sys.exit(0 if answer.get("ok") is True else 1)
+EOF
+ok "a channel test from the Dashboard runs in kia-media and comes back"
+if compose exec -T kia python3 -m kia run >/dev/null 2>&1; then fail "kia (the web half) ran a refresh"; fi
+ok "kia (the web half) refuses to run a refresh"
+
 python3 -c "import os, sys; sys.exit(os.stat('tls/privkey.pem').st_mode & 0o007)" \
     || fail "kia's certificate key is readable by other users of this computer"
 ok "the certificate key is private (nginx reads it through your group)"
-[ "$(compose ps --format '{{.Service}}={{.Health}}' | grep -c '=healthy')" -ge 2 ] || fail "a container is no longer healthy"
+[ "$(compose ps --format '{{.Service}}={{.Health}}' | grep -c '=healthy')" -ge 3 ] || fail "a container is no longer healthy"
 echo "== All good"

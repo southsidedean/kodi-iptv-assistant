@@ -1,10 +1,13 @@
 flowchart TB
   net["From the internet:<br>playlists, streams,<br>guide sites, iptv-org's code,<br>and Pluto TV"]
-  subgraph container["kia's container: read-only, own folders only, no Docker"]
+  subgraph mediabox["kia-media's container: no secrets, own network, no Docker"]
     checks["kia's checks<br>on what it reads"]
     media["ffprobe and ffmpeg<br>none of kia's settings"]
     guard["The outbound guard<br>checks every connection"]
     sandbox["iptv-org's downloader<br>in Node's sandbox"]
+  end
+  subgraph kiabox["kia's container: the password, tokens, and key; no Docker"]
+    dash["The Dashboard's API<br>and the MCP server"]
   end
   net --> checks
   net --> guard
@@ -14,6 +17,7 @@ flowchart TB
   ai["An AI assistant (MCP)<br>reads, and asks you<br>before anything runs"] -->|"its own token, HTTPS"| webserver
   ai -.->|"or a device's key"| gw["The gateway, optional<br>a key and a limit<br>for each device"]
   gw -->|"its own token, HTTPS"| webserver
-  webserver --> checks
-  checks -->|"a request file"| svc["kia-stack service<br>on the computer, as you"]
+  webserver --> dash
+  dash -->|"a checked request file"| checks
+  dash -->|"a request file"| svc["kia-stack service<br>on the computer, as you"]
   svc -->|"checked: start or stop parts"| docker["Docker"]

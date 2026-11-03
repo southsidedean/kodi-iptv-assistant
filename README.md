@@ -111,7 +111,7 @@ It also offers the kia-stack service, so you can change what runs later on the D
    docker compose up -d --build
    ```
 
-   The first run takes up to an hour. Watch it with `docker compose logs -f kia`.
+   The first run takes up to an hour. Watch it with `docker compose logs -f kia-media`.
 
 </details>
 

@@ -9,6 +9,7 @@ __pycache__/
 output/*
 state/*
 private/*
+media-service/*
 vendor/*
 work/*
 # The secure Dashboard's certificate.

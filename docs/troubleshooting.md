@@ -140,7 +140,7 @@ If `docker compose up -d` stops with an error, or `docker compose ps` doesn't li
 - `port is already allocated` or `address already in use`: another program uses port 8780 or 8743. Pick other ports with `KIA_PORT` and `KIA_HTTPS_PORT` in `.env` (and use the new port in `KIA_PUBLIC_URL`), then run `docker compose up -d` again.
 - `no space left on device`: the disk is full. `docker system df` shows what Docker uses.
 - An error during the build: run `docker compose build --pull kia` again; a download may have failed. If it keeps failing, open an issue with the end of the output.
-- `kia` keeps restarting: `docker compose logs --tail 50 kia` shows why. A mistake in `.env` or `kia.toml` is the usual cause, and the message names the setting.
+- `kia` or `kia-media` keeps restarting: `docker compose logs --tail 50 kia` (or `kia-media`) shows why. A mistake in `.env` or `kia.toml` is the usual cause, and the message names the setting.
 
 ### Changing kia's address
 
@@ -156,15 +156,15 @@ A DHCP reservation in your router keeps the address from changing again.
 
 - Check that `KIA_BIND` in `.env` is `0.0.0.0`, then run `docker compose up -d`.
 - A firewall: with Docker, ufw on the kia computer neither opens nor closes kia's ports (Docker lets connections past it by itself), so look at the router's or the device's. Without Docker, ufw does apply: `sudo ufw allow 8780/tcp` and, for the secure Dashboard, `sudo ufw allow 8743/tcp`.
-- Check that kia is running: `docker compose ps` should list `kia` and `web` as running and `(healthy)`. If one isn't running, run `docker compose up -d`. If one says `(unhealthy)`, it's running but not answering: `docker compose logs --tail 50 kia` (or `web`) usually says why, and `docker compose restart kia` often fixes it.
+- Check that kia is running: `docker compose ps` should list `kia`, `kia-media`, and `web` as running and `(healthy)`. If one isn't running, run `docker compose up -d`. If one says `(unhealthy)`, it's running but not answering: `docker compose logs --tail 50 kia` (or `web`) usually says why, and `docker compose restart kia` often fixes it.
 - If the computer's address changed (after a restart, for example), update `KIA_PUBLIC_URL` and the playlist URL in Kodi. A DHCP reservation in your router keeps the address fixed.
 
 ### The Dashboard says the refresh failed
 
-The log says why. To see the end of it:
+The log says why. The refresh runs in the `kia-media` container, so to see the end of its log:
 
 ```sh
-docker compose logs --tail 100 kia
+docker compose logs --tail 100 kia-media
 ```
 
 Common causes:
@@ -209,4 +209,4 @@ A run usually takes 15 minutes to an hour, depending on how many playlists you'v
 
 ## Still stuck?
 
-Open an issue on [GitHub](https://github.com/southsidedean/kodi-iptv-assistant/issues) with what you see, the end of `docker compose logs kia`, and what `docker compose exec kia python3 -m kia settings` prints (it shows only whether each password is set). Please don't post your `.env`: it holds your passwords and tokens.
+Open an issue on [GitHub](https://github.com/southsidedean/kodi-iptv-assistant/issues) with what you see, the end of `docker compose logs kia kia-media`, and what `docker compose exec kia python3 -m kia settings` prints (it shows only whether each password is set). Please don't post your `.env`: it holds your passwords and tokens.

@@ -134,6 +134,8 @@ Assume someone has taken over kia's container. They can write anything in `state
 
 The tiles at the top of the Dashboard don't come from the service. Every minute, kia knocks on each program's port over Compose's network (Threadfin on 34400, Plex on 32400, Jellyfin on 8096, Grafana on 3000, and so on). A program that accepts the connection is green. For node-exporter, kia asks Prometheus instead, since it may run outside the stack (Homebrew's, on a Mac). kia writes the result to `output/stack.json`, at `http://<your address>:8780/stack.json`.
 
+kia can't knock on `kia-media`, which is on a network of its own ([two containers](security-under-the-hood.md#two-containers)). Its tile comes from a file instead: `kia-media` touches `media-service/alive` every 30 seconds, and the tile is green while that's less than two minutes old. Its Docker healthcheck reads the same file.
+
 A knock can tell a running program from one that doesn't answer. It can't tell one that's starting from one that has stopped. The Stack page's **What runs now** can, because it shows what Docker says, through the service.
 
 ## The Plex extras

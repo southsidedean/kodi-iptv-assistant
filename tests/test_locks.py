@@ -1,5 +1,5 @@
 """One refresh at a time, and the Dashboard's saves taking turns with it, across processes:
-`docker compose exec kia python3 -m kia run` is a second process next to the daemon."""
+`docker compose exec kia-media python3 -m kia run` is a second process next to the daemon."""
 
 import subprocess
 import sys

@@ -1,4 +1,6 @@
-# Runs kia and a small web server that shares output/ with Kodi.
+# Runs kia, in two containers, and a small web server that shares output/ with Kodi. kia is
+# the half that serves the Dashboard and holds kia's passwords and tokens; kia-media is the
+# half that tests strangers' streams and downloads guides, and sees none of them.
 # Settings come from .env: copy .env.example to .env, edit it, then run
 #   docker compose up -d --build
 #
@@ -126,18 +128,20 @@ services:
       # Only requests from the web server may say they came through the secure page: its
       # addresses on both networks it shares with kia (web's aliases below).
       KIA_PROXY_HOST: web,web-default,web-gateway
-      # nginx forwards /api/ and /pluto/ to this port (not published).
+      # nginx forwards /api/ and /metrics to this port (not published).
       KIA_API_PORT: "8781"
+      # The serving half: stream tests and guide downloads run in kia-media (kia.mediareq).
+      KIA_ROLE: web
     # Hard cap so a runaway guide grabber is killed instead of exhausting the host.
     mem_limit: ${KIA_MEMORY_LIMIT:-4g}
     # Processes and threads at once: a full refresh peaks under 100 (measured for 0.7.6), so
     # this leaves room for more streams or sites at once, and stops a program run wild (a
     # stream that broke ffmpeg, say) from starting thousands.
     pids_limit: 1024
-    command: ["daemon", "--at", "${KIA_RUN_AT:-04:00}"]
+    command: ["daemon-web", "--at", "${KIA_RUN_AT:-04:00}"]
     # The gateway's network too, so the Stack tiles can tell whether the gateway answers.
     networks: [default, gateway]
-    # Healthy while kia's own server (the profile editor and Pluto relay) answers.
+    # Healthy while kia's own server (the Dashboard's API) answers.
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8781/api/profiles', timeout=5)"]
       interval: 60s
@@ -163,6 +167,98 @@ services:
       # Plex's settings, where kia reads the token Plex in the stack saved when it was
       # claimed (also when KIA_PLEX_CONFIG is another folder or a Docker volume).
       - ${KIA_PLEX_CONFIG:-./plex/config}:/data/plex/config:ro
+  # The half of kia that runs ffprobe and ffmpeg on strangers' streams and iptv-org's guide
+  # downloader: the nightly refresh, the quick guide refreshes, "Check now", a channel test,
+  # and the Pluto relay. Same image as kia, different command. A stream that took over a
+  # media tool lands here, where there's nothing to steal: no password, token, or key in its
+  # settings, and the folders that hold them are empty in its view. It talks to kia only
+  # through files (state/media-request in, media-service/ out).
+  kia-media:
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${KIA_BASE_IMAGE:-cgr.dev/chainguard/wolfi-base:latest}
+        NODE_VERSION: ${KIA_NODE_VERSION:-24}
+    image: ${KIA_IMAGE:-kodi-iptv-assistant:latest}
+    restart: unless-stopped
+    logging: *logging
+    # Cleans up after the stream tests a stopped "Check now" leaves behind.
+    init: true
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    tmpfs:
+      - /tmp
+      # Empty in this container's view: every folder in the kia folder that holds a password,
+      # token, or key (kia's own, the certificate's, the gateway's and the front door's,
+      # Threadfin's, Plex's sign-in), and the other programs' data. tests/test_compose.py
+      # checks this list, so a new part with secrets of its own has to be added here.
+      - /data/private:size=1m,mode=0500
+      - /data/tls:size=1m,mode=0500
+      - /data/gateway:size=1m,mode=0500
+      - /data/frontdoor:size=1m,mode=0500
+      - /data/lldap:size=1m,mode=0500
+      - /data/threadfin:size=1m,mode=0500
+      - /data/threadfin-2:size=1m,mode=0500
+      - /data/plex:size=1m,mode=0500
+      - /data/jellyfin:size=1m,mode=0500
+      - /data/monitoring:size=1m,mode=0500
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Only the settings the refresh and the relay read: nothing here is a password or token.
+    environment:
+      TZ: ${TZ:-UTC}
+      KIA_PUBLIC_URL: ${KIA_PUBLIC_URL:-}
+      KIA_NAME: ${KIA_NAME:-}
+      KIA_SOURCES_FILE: ${KIA_SOURCES_FILE:-}
+      KIA_PROFILES_FILE: ${KIA_PROFILES_FILE:-}
+      KIA_RUN_ON_START: ${KIA_RUN_ON_START:-}
+      KIA_GUIDE_REFRESH_HOURS: ${KIA_GUIDE_REFRESH_HOURS:-}
+      KIA_UPSTREAM_URL: ${KIA_UPSTREAM_URL:-}
+      KIA_UPSTREAM_FALLBACK: ${KIA_UPSTREAM_FALLBACK:-}
+      KIA_PLUTO_RELAY: ${KIA_PLUTO_RELAY:-}
+      KIA_ALERT_EVENTS: ${KIA_ALERT_EVENTS:-}
+      KIA_EPG_DAYS: ${KIA_EPG_DAYS:-}
+      KIA_PARALLEL_SITES: ${KIA_PARALLEL_SITES:-}
+      KIA_CHECK_CONCURRENCY: ${KIA_CHECK_CONCURRENCY:-}
+      KIA_EXCLUDE_SITES: ${KIA_EXCLUDE_SITES:-}
+      KIA_EXCLUDE_GROUPS: ${KIA_EXCLUDE_GROUPS:-}
+      KIA_PLACEHOLDERS: ${KIA_PLACEHOLDERS:-}
+      KIA_RADIO_PLACEHOLDERS: ${KIA_RADIO_PLACEHOLDERS:-}
+      KIA_EPG_GIT_URL: ${KIA_EPG_GIT_URL:-}
+      KIA_EPG_GIT_REF: ${KIA_EPG_GIT_REF:-}
+      # Only the web server may say who sent a Pluto request: its name on the media network.
+      KIA_PROXY_HOST: web-media
+      # nginx forwards /pluto/ to this port (not published).
+      KIA_API_PORT: "8782"
+      # The media half: alerts go to kia to send, and the steps that need kia's secrets are kia's.
+      KIA_ROLE: media
+    mem_limit: ${KIA_MEMORY_LIMIT:-4g}
+    pids_limit: 1024
+    command: ["daemon-media", "--at", "${KIA_RUN_AT:-04:00}"]
+    # Its own network, shared only with the web server (for /pluto/): it reaches the internet
+    # for streams and guides, but not kia's API, the gateway, or the rest of the stack.
+    networks: [media]
+    # Healthy while it touches media-service/alive (every 30 seconds, kia.mediareq.keep_alive).
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os, sys, time; sys.exit(time.time() - os.stat('/data/media-service/alive').st_mtime > 120)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      # The kia folder, read-only, for kia.toml, the sources files, your playlists, and profiles.
+      - ./:/data:ro
+      # .env holds kia's passwords and tokens: an empty file in its place.
+      - ./deploy/empty.env:/data/.env:ro
+      # The folders it writes to.
+      - ./output:/data/output
+      - ./state:/data/state
+      - ./work:/data/work
+      - ./vendor:/data/vendor
+      # Its own folder: answers to kia's requests, alerts for kia to send, and its liveness file.
+      - ./media-service:/data/media-service
 
   web:
     image: ${KIA_NGINX_IMAGE:-nginx:alpine}
@@ -195,6 +291,7 @@ services:
       - "${KIA_BIND:-0.0.0.0}:${KIA_HTTPS_PORT:-8743}:443"
     depends_on:
       - kia
+      - kia-media
     # The gateway part reaches kia's MCP server through this server, on the gateway's network.
     # A name on each network, so kia can look up both of its addresses (KIA_PROXY_HOST).
     networks:
@@ -202,6 +299,8 @@ services:
         aliases: [web-default]
       gateway:
         aliases: [web-gateway]
+      media:
+        aliases: [web-media]
     # Healthy while nginx serves the Dashboard.
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
@@ -682,3 +781,5 @@ volumes:
 networks:
   default:
   gateway:
+  # kia-media's network: it and the web server only, so it can't reach kia or the stack.
+  media:

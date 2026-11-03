@@ -35,7 +35,7 @@ Near the end, it prints what to keep, like this (with your address, folder, and 
 ```text
 == Done
 kia is running its first refresh now, which takes up to an hour. Watch it with:
-  cd ~/kodi-iptv-assistant && docker compose logs -f kia
+  cd ~/kodi-iptv-assistant && docker compose logs -f kia-media
 
 Dashboard:          http://192.168.1.20:8780/
 Secure Dashboard:   https://192.168.1.20:8743/   (for making changes; your browser warns about kia's own certificate the first time)
@@ -141,7 +141,7 @@ In `.env`, set `KIA_SOURCES_FILE=sources.local.txt` (the line is already there, 
 docker compose up -d --build
 ```
 
-The first time, this downloads and builds kia (a few minutes), then starts the first run right away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia` (press Ctrl+C to stop watching; kia keeps running).
+The first time, this downloads and builds kia (a few minutes), then starts the first run right away. That run checks every stream and downloads the guide, which can take up to an hour. To watch its progress, run `docker compose logs -f kia-media` (press Ctrl+C to stop watching; kia keeps running).
 
 When the log says `Next run at ...`, it's done. Check it in a browser at `http://<your address>:8780/`. You should see kia's [Dashboard](how-it-works.md#the-dashboard), with the channel counts and your playlist's address. If another device will use kia, open that address on it too.
 

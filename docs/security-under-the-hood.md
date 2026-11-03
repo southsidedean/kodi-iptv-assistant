@@ -23,7 +23,7 @@ Most of it is ordinary, and some of it is broken. But kia reads thousands of add
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/diagrams/security-layers-dark.svg">
-  <img alt="kia's layers of protection, from the outside in. Playlists, streams, guide sites, iptv-org's code, and Pluto TV come from the internet. Each enters through a guard: kia's checks on what it reads, ffprobe and ffmpeg with none of kia's settings, reaching streams only through the outbound guard, which checks every connection, and iptv-org's downloader in Node's sandbox. All of them run inside kia's container, which is read-only apart from kia's own folders and has no Docker access. The Dashboard reaches kia through the web server, with the password over HTTPS, and so does an AI assistant using kia's MCP server, with its own token over HTTPS, directly or through the optional gateway, which gives each device a key and a limit. The assistant's tools read; the few that ask for something wait for you to approve it on the Dashboard. Only the kia-stack service, on the computer as you, reaches Docker, and it accepts only a strictly checked request to start or stop parts of the stack." src="../images/diagrams/security-layers-light.svg">
+  <img alt="kia's layers of protection, from the outside in. Playlists, streams, guide sites, iptv-org's code, and Pluto TV come from the internet. Each enters through a guard: kia's checks on what it reads, ffprobe and ffmpeg with none of kia's settings, reaching streams only through the outbound guard, which checks every connection, and iptv-org's downloader in Node's sandbox. All of them run inside kia-media's container, which holds none of kia's passwords, tokens, or keys, has a network of its own, and has no Docker access. The Dashboard reaches kia's container, which holds those secrets, through the web server, with the password over HTTPS, and so does an AI assistant using kia's MCP server, with its own token over HTTPS, directly or through the optional gateway, which gives each device a key and a limit. The assistant's tools read; the few that ask for something wait for you to approve it on the Dashboard. kia passes work to kia-media only as a request file that kia-media checks. Only the kia-stack service, on the computer as you, reaches Docker, and it accepts only a strictly checked request to start or stop parts of the stack." src="../images/diagrams/security-layers-light.svg">
 </picture>
 
 ## Where untrusted input goes
@@ -37,7 +37,7 @@ Most of it is ordinary, and some of it is broken. But kia reads thousands of add
 
 ### Streams
 
-ffprobe and ffmpeg are the programs most exposed: they read the streams themselves, in formats complicated enough to have had bugs. kia starts them with a bare environment, so none of kia's passwords or tokens are in the settings they're given, and with time limits, so a server that stalls or trickles can't hold a test open. In Docker, they run inside kia's container, with its limits (below).
+ffprobe and ffmpeg are the programs most exposed: they read the streams themselves, in formats complicated enough to have had bugs. kia starts them with a bare environment, so none of kia's passwords or tokens are in the settings they're given, and with time limits, so a server that stalls or trickles can't hold a test open. In Docker, they run inside the `kia-media` container, which holds none of kia's secrets ([two containers](#two-containers)), with its limits (below).
 
 ### The outbound guard
 
@@ -81,6 +81,17 @@ The relay fetches only https addresses (redirects too), at most 16 MB each, keep
 
 A guide from `KIA_UPSTREAM_URL` is read like any other guide: as XML, a piece at a time, keeping only the channels in your own list.
 
+## Two containers
+
+With Docker, kia runs as two containers from the same image (`compose.yaml`):
+
+- `kia` serves the Dashboard, its API, the MCP server, and `/metrics`, and holds kia's secrets: the password and tokens in `private/`, the certificate's key in `tls/`, `.env` with the Plex, Jellyfin, and alert settings. It never runs ffprobe, ffmpeg, or iptv-org's downloader, and it refuses `kia run`, `kia check`, and the other commands that would (`KIA_ROLE=web`).
+- `kia-media` does everything that reads strangers' streams and guide sites: the nightly refresh, the guide refreshes between, "Check now", a channel test, and the Pluto relay. In its view, `.env` is an empty file and every folder that holds a password, token, or key is empty (`private/`, `tls/`, `gateway/`, `frontdoor/`, `lldap/`, Threadfin's and Plex's folders); its settings are only the playlist and guide ones. It runs on a Docker network of its own, shared only with the web server, so it can reach the internet but not kia's API, the gateway, or the rest of the stack.
+
+The two talk only through files, each written by one side (`src/kia/mediareq.py`). The Dashboard asks for work by writing `state/media-request`, which `kia-media` checks strictly and renames into its own `media-service/` folder before it acts; the answer comes back there. Alerts from a refresh go the same way, as files in `media-service/alerts/` that `kia` checks before it sends them, so the SMTP password and the ntfy topic stay with `kia`. The relay's numbers reach `/metrics` as `output/pluto-metrics.json`.
+
+Without Docker, kia stays one service. The two halves would run as the same user, so one could read the other's memory and files, and on many systems the service's file limits don't apply at all. Docker is how to get the split.
+
 ## If a layer fails
 
 Suppose a program got taken over, by a stream that broke ffprobe, say. What it could do depends on where it runs:
@@ -88,9 +99,12 @@ Suppose a program got taken over, by a stream that broke ffprobe, say. What it c
 | Taken over | Could | Couldn't |
 |---|---|---|
 | iptv-org's downloader, in its sandbox | Read its own folder and the channel list, write its guide, use the network | Read kia's settings or other files, start programs |
-| ffprobe or ffmpeg, or kia itself, in Docker | Everything kia can: write `output/`, `state/`, `private/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`; read the rest of the kia folder, `.env` included, and with Plex in the stack, Plex's settings and sign-in, and Threadfin's settings and the password for its page; reach your network; leave requests for the kia-stack service | Change the system or the rest of the kia folder, see Jellyfin's or Grafana's data, reach Docker, gain privileges |
-| The same, without Docker (Linux service) | The same folders, read your files, reach your network | Change files outside kia's folders and npm's cache, where the system allows those limits ([without Docker](setups.md#without-docker)) |
+| ffprobe or ffmpeg, or the refresh, in `kia-media` | Write `output/`, `state/`, `work/`, `vendor/`, and `media-service/`; read kia.toml, the sources files, your playlists and profiles; reach the internet and, for playlists you marked as yours, your network | Read kia's password, tokens, certificate key, or `.env`; reach kia's API, the gateway, or the stack's other parts; change the system or the rest of the kia folder; reach Docker; gain privileges |
+| `kia` itself (the Dashboard's side) | Everything kia can: write `output/`, `state/`, `private/`, `profiles/`, `tls/`, and `plex/warmup/`; read the rest of the kia folder, `.env` included, and with Plex in the stack, Plex's settings and sign-in, and Threadfin's settings and the password for its page; reach your network; leave requests for the kia-stack service and for `kia-media` | Change the system or the rest of the kia folder, see Jellyfin's or Grafana's data, reach Docker, gain privileges |
+| ffprobe, ffmpeg, or kia, without Docker (Linux service) | The same folders as `kia`, read your files, reach your network | Change files outside kia's folders and npm's cache, where the system allows those limits ([without Docker](setups.md#without-docker)) |
 | The web server | Read `output/`, the certificate and its key | Change anything kia uses |
+
+A taken-over `kia-media` can still damage what's in `state/` (the run records, and the Dashboard's channel numbers and favorites), and the guide and playlists it writes. A backup puts those back.
 
 That's why kia's container has no Docker access, and why the kia-stack service checks every request as if kia had been taken over. The most a taken-over kia can do through the service is start or stop the parts of the stack you could choose on the Stack page ([the kia-stack service](../SECURITY.md#the-kia-stack-service), [under the hood](stack-under-the-hood.md#why-its-built-this-way)).
 

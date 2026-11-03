@@ -1,6 +1,6 @@
 """Locks that hold across processes, not just threads.
 
-`docker compose exec kia python3 -m kia run` is a second process next to the daemon, so a
+`docker compose exec kia-media python3 -m kia run` is a second process next to the daemon, so a
 lock in memory can't see it: two refreshes could run at once, or a refresh could write the
 channel numbers while the Dashboard saves one. These locks are files in state/, held with
 flock (on Windows, where there's no flock, they hold within one process only).
