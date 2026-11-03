@@ -150,6 +150,8 @@ services:
       # The folders kia writes to.
       - ./output:/data/output
       - ./state:/data/state
+      # kia's own password and tokens, kept apart from state/ (kia.files.private_file).
+      - ./private:/data/private
       - ./work:/data/work
       - ./vendor:/data/vendor
       # Profiles, so the Dashboard can save them.

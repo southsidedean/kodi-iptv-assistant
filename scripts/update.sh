@@ -206,6 +206,9 @@ fi
 # The gateway part's settings, from this version's scripts/gateway.sh, before it starts: it
 # reads them only from gateway/config.yaml.
 if [ -s gateway/config.yaml ]; then sh scripts/gateway.sh write; fi
+# private/ (0.9.0) is new: made here, as you, since Docker would make a missing one as root,
+# and kia couldn't keep its password there.
+mkdir -p private
 docker compose up -d
 # Docker pins a config file mounted on its own (nginx's, Prometheus's) to the copy the
 # container started with, so after a release that changed one, that container restarts.

@@ -198,7 +198,7 @@ SCRIPT = r"""
       preview,
       el("label", { class: "field", for: "ed-pass" }, [el("strong", { text: "Password" }),
         el("span", { class: "hint", text: ({ env: "The one set by KIA_ADMIN_PASSWORD in kia's .env file.",
-          generated: "kia made one: it's in state/admin-password.txt in the kia folder.",
+          generated: "kia made one: it's in private/admin-password.txt in the kia folder.",
           set: "The one set on the System page." }[data.password] || "kia's admin password.") + " This browser tab remembers it until you close it." })]), pass,
       error,
       el("div", { class: "actions" }, [save,
@@ -342,14 +342,14 @@ EDITING_SCRIPT = r"""
     if (d && d.down) { say("kia didn't answer just now (it may be restarting). Reload the page in a minute."); return; }
     if (!d) { say(location.protocol === "file:" ? "Open this page through kia's address to make changes." : "Editing isn't available from this server."); return; }
     var where = { env: "The password is set by KIA_ADMIN_PASSWORD in kia's .env file. Change it there and restart kia.",
-      generated: "kia made the password. It's in state/admin-password.txt in the kia folder until you change it here.",
+      generated: "kia made the password. It's in private/admin-password.txt in the kia folder until you change it here.",
       set: "The password was set on this page.",
       off: "Changes from the Dashboard are turned off (KIA_EDITING=false in kia's .env file)." }[d.password] || "";
     say(where);
     if (d.password !== "env" && d.password !== "off") {
       card.appendChild(el("p", { class: "muted" }, ["Forgot it? On the kia computer, in the kia folder, run ",
         el("code", { text: "docker compose exec kia python3 -m kia password --reset" }),
-        " (without Docker: ", el("code", { text: "PYTHONPATH=src python3 -m kia password --reset" }), "), then read state/admin-password.txt. ",
+        " (without Docker: ", el("code", { text: "PYTHONPATH=src python3 -m kia password --reset" }), "), then read private/admin-password.txt. ",
         el("a", { href: "https://github.com/southsidedean/kodi-iptv-assistant/blob/main/docs/secure-page.md#if-you-forget-it", text: "More" })]));
     }
     if (d.password === "env" || d.password === "off") return;

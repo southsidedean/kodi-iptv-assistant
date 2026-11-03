@@ -37,7 +37,7 @@ from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
 from kia.probe import GUARD_REFUSED, ProbeResult, probe, probe_guarded
-from kia.files import items, read_object, temp_name
+from kia.files import items, private_usable, read_object, temp_name
 import contextlib
 
 
@@ -990,6 +990,11 @@ def api_config(cfg: Config, *, media_via_request: bool = False):
 def secure_setup(cfg: Config) -> dict | None:
     """Make the admin password and the certificate if needed, and note the certificate and
     the secure page's address in state/secure.json for the Dashboard."""
+    if not private_usable(cfg.state_dir):
+        # Usually Docker made the folder, as root, because it was missing when kia started.
+        log("kia can't write the private folder next to state/ (Docker makes a missing folder as root), "
+            "so it keeps its password and tokens in state/ for now. To fix it, in the kia folder: "
+            'sudo chown "$(id -u):$(id -g)" private, then restart kia.')  # fmt: skip
     auth.from_env(cfg.state_dir).ensure(log)
     names = tls.names(cfg.public_url, cfg.tls_names,
                       extra=[h for h in (cfg.frontdoor_host, cfg.frontdoor_auth_host) if h])
@@ -1275,7 +1280,7 @@ def cmd_mcp_token(args: argparse.Namespace) -> int:
     cfg = load_config(args)
     if args.gateway:
         return _gateway_setup(cfg, args.for_)
-    path = cfg.state_dir / mcp.TOKEN_FILE
+    path = mcp.token_path(cfg.state_dir)
     if args.off:
         path.unlink(missing_ok=True)
         log("kia's MCP server is off: its token is gone, so no assistant can use it.")
@@ -1900,7 +1905,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("password", help="make a new password for editing on the Dashboard")
     p.add_argument("-c", "--config", default="kia.toml")
-    p.add_argument("--reset", action="store_true", help="replace the password with a new one, saved in state/admin-password.txt")
+    p.add_argument("--reset", action="store_true", help="replace the password with a new one, saved in private/admin-password.txt")
     p.set_defaults(func=cmd_password)
 
     p = sub.add_parser("backup", help="save your settings, playlists, profiles, and choices in one file")

@@ -49,7 +49,7 @@ sed -e "s|^KIA_PUBLIC_URL=.*|KIA_PUBLIC_URL=http://localhost:$port|" \
     -e "s|^PUID=.*|PUID=$(id -u)|" \
     -e "s|^PGID=.*|PGID=$(id -g)|" \
     .env.example >.env
-mkdir -p output state work vendor profiles tls playlists
+mkdir -p output state private work vendor profiles tls playlists
 printf '#EXTM3U\n#EXTINF:-1 tvg-id="Smoke.us" group-title="News",Smoke Test TV\nhttp://web/smoke.ts\n' >playlists/smoke.m3u
 printf 'playlists/smoke.m3u smoke\n' >smoke.sources.txt
 

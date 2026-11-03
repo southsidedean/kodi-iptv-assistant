@@ -257,7 +257,7 @@ def test_details_without_settings(tmp_path: Path):
 def test_getting_started_checklist():
     settings = [{"title": "Alerts", "rows": [{"name": "ntfy address", "value": "not set", "change": ""},
                                             {"name": "Email", "value": "set", "change": ""}]},
-                {"title": "Addresses", "rows": [{"name": "Password for changes", "value": "made by kia, in state/admin-password.txt", "change": ""}]}]  # fmt: skip
+                {"title": "Addresses", "rows": [{"name": "Password for changes", "value": "made by kia, in private/admin-password.txt", "change": ""}]}]  # fmt: skip
     s = {"last_run": {"finished": None}, "playlist_url": "http://localhost:8780/curated.m3u", "settings": settings}
     items = {i["id"]: i for i in status.checklist(s)}
     assert not items["refresh"]["done"] and not items["address"]["done"] and items["address"]["manual"]

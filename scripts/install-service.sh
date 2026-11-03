@@ -171,10 +171,11 @@ if ! [ -f .env ]; then
 fi
 # The folders kia writes, and npm's cache: on Linux the service may write only these
 # (deploy/kia.service), so they have to be there before it starts.
-mkdir -p output state work/logs vendor profiles tls "$(dirname "$target")"
+mkdir -p output state private work/logs vendor profiles tls "$(dirname "$target")"
 [ "$OS" = Darwin ] || mkdir -p "$HOME/.npm"
 # The password is shown once, when kia has just made it; after that, where it is.
-[ -s state/admin-password.txt ] && had_password=yes || had_password=no
+# Older versions kept it in state/; kia moves it to private/ when it starts.
+{ [ -s private/admin-password.txt ] || [ -s state/admin-password.txt ]; } && had_password=yes || had_password=no
 
 # The service file can hold your .env settings (passwords included), so only you can read it.
 (umask 077 && render "$template" >"$target.tmp")
@@ -215,12 +216,12 @@ fi
 url=$(sed -n 's/^KIA_PUBLIC_URL=//p' .env)
 say "Dashboard: ${url:-http://localhost:8780}/"
 i=0
-while [ $i -lt 15 ] && ! [ -s state/admin-password.txt ] && ! grep -q '^KIA_ADMIN_PASSWORD=.' .env; do
+while [ $i -lt 15 ] && ! [ -s private/admin-password.txt ] && ! [ -s state/admin-password.txt ] && ! grep -q '^KIA_ADMIN_PASSWORD=.' .env; do
     sleep 1
     i=$((i + 1))
 done
 if [ "$had_password" = yes ]; then
-    say "Password for changes on the Dashboard: in $DIR/state/admin-password.txt"
-elif [ -s state/admin-password.txt ]; then
-    say "Password for changes on the Dashboard: $(cat state/admin-password.txt)"
+    say "Password for changes on the Dashboard: in $DIR/private/admin-password.txt"
+elif [ -s private/admin-password.txt ]; then
+    say "Password for changes on the Dashboard: $(cat private/admin-password.txt)"
 fi

@@ -3,7 +3,7 @@
 Where it comes from, first match wins:
 1. KIA_ADMIN_PASSWORD in .env. The Dashboard can't change it; change it in .env.
 2. One saved from the Dashboard, or made by kia on first start, kept as a salted hash
-   in state/admin.json. A password kia made is also written to state/admin-password.txt
+   in private/admin.json. A password kia made is also written to private/admin-password.txt
    so the owner can read it; changing it on the Dashboard deletes that file.
 KIA_EDITING=false turns editing off whatever the password.
 """
@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from kia.files import temp_name
+from kia.files import private_file, temp_name
 
 # No look-alikes (0/o, 1/l/i), so it's easy to read off a screen and type on a TV.
 ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
@@ -60,11 +60,11 @@ class Auth:
 
     @property
     def saved(self) -> Path:
-        return self.state_dir / "admin.json"
+        return private_file(self.state_dir, "admin.json")
 
     @property
     def shown(self) -> Path:
-        return self.state_dir / "admin-password.txt"
+        return private_file(self.state_dir, "admin-password.txt")
 
     @property
     def source(self) -> str:
@@ -94,7 +94,7 @@ class Auth:
         self.reset(log)
 
     def reset(self, log=print) -> str:
-        """A new password, saved in state/admin-password.txt (readable only by you). It's
+        """A new password, saved in private/admin-password.txt (readable only by you). It's
         never printed, so it can't land in a log others can read."""
         password = generate()
         self._save(password, generated=True)

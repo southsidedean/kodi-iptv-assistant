@@ -1,9 +1,9 @@
 """kia backup and kia restore: your settings and choices in one file.
 
 A backup holds what you can't get back by running kia again: .env, kia.toml, your
-sources file, your own playlists (playlists/), profiles (profiles/), state/ (the
-password, channel numbers, favorites, playlist choices, stream history, alerts; not the
-MCP server's token),
+sources file, your own playlists (playlists/), profiles (profiles/), state/ (channel
+numbers, favorites, playlist choices, stream history, alerts), private/ (the password; not
+the MCP server's token),
 Threadfin's settings (threadfin/, threadfin-2/), and the secure page's certificate
 (tls/, including its private key, so keep backups private). output/, work/, and vendor/ are left out; the next refresh rebuilds them.
 
@@ -24,12 +24,13 @@ from pathlib import Path, PurePosixPath
 from kia import __version__
 
 FILES = (".env", "kia.toml", "sources.txt", "sources.local.txt")
-FOLDERS = ("playlists", "profiles", "state", "tls", "threadfin", "threadfin-2", "gateway")
+FOLDERS = ("playlists", "profiles", "state", "private", "tls", "threadfin", "threadfin-2", "gateway")
 # Left out: the MCP server's tokens (kia.mcp), kia's own and the gateway's. A backup that turns
 # up somewhere mustn't carry a working key to kia; after a restore, kia mcp-token and
 # scripts/gateway.sh write make new ones. The devices' keys are kept only as hashes, which
 # can't be used as keys.
-LEFT_OUT = ("state/mcp-token.txt", "gateway/kia-token")
+# state/mcp-token.txt is where kia kept its token before private/.
+LEFT_OUT = ("private/mcp-token.txt", "state/mcp-token.txt", "gateway/kia-token")
 # The only links a backup follows: the certificate and key you may have linked in (from Let's
 # Encrypt, say). kia's container can write state/ and tls/, so a link anywhere else could
 # point a backup made outside it at a file kia can't read (an SSH key) and carry it off.

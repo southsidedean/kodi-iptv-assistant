@@ -270,7 +270,7 @@ if [ -n "$PRESET" ]; then
 fi
 chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.
-mkdir -p output state work vendor profiles tls
+mkdir -p output state private work vendor profiles tls
 
 # Docker lets connections to the ports it publishes past ufw by itself, so ufw rules
 # neither open them nor close them: KIA_BIND does (127.0.0.1 for this computer only). The
@@ -292,7 +292,8 @@ case ",$stack," in
     *) if [ "$new_env" = yes ]; then apply_now=yes; fi ;;
 esac
 # The password is shown once, when kia has just made it; after that, where it is.
-[ -s state/admin-password.txt ] && had_password=yes || had_password=no
+# Older versions kept it in state/; kia moves it to private/ when it starts.
+{ [ -s private/admin-password.txt ] || [ -s state/admin-password.txt ]; } && had_password=yes || had_password=no
 step "Starting kia (the first build takes a few minutes)"
 if [ "$apply_now" = yes ]; then
     # Started once, with the chosen parts, so kia's first refresh isn't cut off by a restart.
@@ -309,11 +310,11 @@ host=$(printf '%s' "$url" | sed -e 's|^[a-z]*://||' -e 's|/.*||' -e 's|:[0-9]*$|
 https_port=$(sed -n 's/^KIA_HTTPS_PORT=//p' .env)
 password=""
 i=0
-while [ $i -lt 30 ] && ! [ -s state/admin-password.txt ] && ! grep -q '^KIA_ADMIN_PASSWORD=.' .env; do
+while [ $i -lt 30 ] && ! [ -s private/admin-password.txt ] && ! [ -s state/admin-password.txt ] && ! grep -q '^KIA_ADMIN_PASSWORD=.' .env; do
     sleep 2
     i=$((i + 1))
 done
-[ -s state/admin-password.txt ] && password=$(cat state/admin-password.txt)
+[ -s private/admin-password.txt ] && password=$(cat private/admin-password.txt)
 
 step "Done"
 say "kia is running its first refresh now, which takes up to an hour. Watch it with:"
@@ -322,14 +323,14 @@ say ""
 say "Dashboard:          $url/"
 say "Secure Dashboard:   https://$host:${https_port:-8743}/   (for making changes; your browser warns about kia's own certificate the first time)"
 if [ "$had_password" = yes ]; then
-    say "Password for changes: in $DIR/state/admin-password.txt"
+    say "Password for changes: in $DIR/private/admin-password.txt"
 elif [ -n "$password" ] && [ -t 1 ]; then
     # Shown in full only to your own terminal. When the output is captured, as an AI assistant
     # following the README's install prompt would, show where the password is, not the password
     # itself, so it stays out of the assistant's hands. It is always in the file either way.
-    say "Password for changes: $password   (also in $DIR/state/admin-password.txt)"
+    say "Password for changes: $password   (also in $DIR/private/admin-password.txt)"
 elif [ -n "$password" ]; then
-    say "Password for changes: in $DIR/state/admin-password.txt"
+    say "Password for changes: in $DIR/private/admin-password.txt"
 fi
 say "Playlist for players: $url/curated.m3u"
 say ""

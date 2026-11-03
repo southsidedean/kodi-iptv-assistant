@@ -115,11 +115,11 @@ That's the secure page (`https://…:8743`) and kia's own certificate. The conne
 
 ### It says the password is wrong, or I've forgotten it
 
-If you haven't changed it, it's in `state/admin-password.txt` in the kia folder. If `KIA_ADMIN_PASSWORD` is set in `.env`, that's the password. Otherwise make a new one, then read it:
+If you haven't changed it, it's in `private/admin-password.txt` in the kia folder. If `KIA_ADMIN_PASSWORD` is set in `.env`, that's the password. Otherwise make a new one, then read it:
 
 ```sh
 docker compose exec kia python3 -m kia password --reset
-cat state/admin-password.txt
+cat private/admin-password.txt
 ```
 
 ### Changes are refused "only on the secure page"
@@ -171,7 +171,7 @@ Common causes:
 
 - Many guide sites `FAILED`, or the log stops suddenly while downloading guides: kia probably ran out of memory. Lower `KIA_PARALLEL_SITES` (each guide site uses up to about 0.7 GB), or raise `KIA_MEMORY_LIMIT` if the computer has memory to spare.
 - `Permission denied`: see [file permission errors](#file-permission-errors).
-- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, so keep those settings as they are ([why](configuration.md#what-kias-containers-can-touch)).
+- `Read-only file system`: a folder setting in `kia.toml` was changed. With Docker, kia can only write to `output/`, `state/`, `private/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, so keep those settings as they are ([why](configuration.md#what-kias-containers-can-touch)).
 - An error about `.env` or `kia.toml`: the message names the setting. Fix it, run `docker compose up -d`, and [refresh now](configuration.md#when-changes-take-effect).
 
 ### File permission errors

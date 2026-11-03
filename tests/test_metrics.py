@@ -112,7 +112,7 @@ def test_plex_players_appear_by_pseudonym_only(tmp_path: Path):
     # The same device keeps its pseudonym, after a restart too (the key is kept in state/).
     again = metrics.render(tmp_path, plex=metrics.MediaSessions(FakePlex(), state_dir=state))
     assert re.findall(r'kia_plex_session_info\{player="(player-[0-9a-f]{6})"', again) == names
-    assert (state / "metrics-key").stat().st_mode & 0o077 == 0
+    assert (state.parent / "private" / "metrics-key").stat().st_mode & 0o077 == 0
     # Which is which, for the secure page only.
     known = {p["pseudonym"]: p["name"] for p in metrics.known_players(state)}
     assert sorted(known.values()) == ["Grandma's iPad", "Kitchen"] and set(known) == set(names)
@@ -184,8 +184,8 @@ def test_every_kia_number_a_dashboard_uses_is_one_kia_sends(tmp_path: Path):
     # The Plex and Jellyfin dashboards are made from one template (scripts/dashboards.py): a
     # misspelled name there would leave a panel saying kia isn't set up, forever.
     (tmp_path / "status.json").write_text(json.dumps(STATUS))
-    text = metrics.render(tmp_path, FakeRelay(), plex=metrics.MediaSessions(FakePlex(), state_dir=tmp_path),
-                          jellyfin=metrics.MediaSessions(FakePlex(), state_dir=tmp_path))  # fmt: skip
+    text = metrics.render(tmp_path, FakeRelay(), plex=metrics.MediaSessions(FakePlex(), state_dir=tmp_path / "state"),
+                          jellyfin=metrics.MediaSessions(FakePlex(), state_dir=tmp_path / "state"))  # fmt: skip
     sent = set(re.findall(r"^# TYPE (\S+)", text, re.M))
     folder = Path(__file__).resolve().parent.parent / "deploy" / "monitoring" / "dashboards"
     used = set()

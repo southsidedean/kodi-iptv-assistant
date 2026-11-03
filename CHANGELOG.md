@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0 (unreleased)
+
+### Upgrading from 0.8.5
+
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). kia now keeps its own password, its MCP server's token, and the key behind the players' made-up names in a new `private/` folder in the kia folder, instead of in `state/`, and moves them there by itself the first time it starts. The update makes the folder for you. If you update another way, make it yourself first (`mkdir private` in the kia folder), or Docker makes it owned by root and kia keeps using `state/` until you fix it; kia's log says how.
+
+If you go back to a version before 0.9.0 afterwards, it won't find the password or the token where it looks. It makes a new password (in `state/admin-password.txt`), and the MCP server stays off until you run `kia mcp-token` again. To keep the old ones, move the files from `private/` back to `state/` before you start the older kia.
+
+### Changes
+
+- kia's own password and tokens live in `private/`, apart from `state/`. This gets ready for running kia as two containers, where the one that tests streams can write `state/` but never sees `private/`. Backups include `private/`, still leaving out the MCP token.
+
 ## 0.8.5 (2026-10-29)
 
 This release lets the Ask kia chat act on a few things for you, with your approval, and adds a prompt you can hand to an AI assistant to install kia.

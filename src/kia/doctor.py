@@ -40,6 +40,7 @@ from pathlib import Path
 
 from kia import channels, m3u, native, playlistguide
 from kia.config import Config
+from kia.files import private_folder
 from kia.history import readable
 
 # Levels, worst first. A problem needs you; a note is worth knowing; ok is reassurance.
@@ -599,11 +600,14 @@ def setup(cfg: Config, now: datetime | None = None) -> Report:
     tls = secure.get("tls") if isinstance(secure.get("tls"), dict) else None
     if tls:
         report.findings += _certificate(tls, now)
-    if (cfg.state_dir / "admin-password.txt").exists():
+    # Looked for in both places without moving it (files.private_file would): the doctor only reads.
+    kept = [f"{d}/admin-password.txt" for d, folder in (("private", private_folder(cfg.state_dir)), ("state", cfg.state_dir))
+            if (folder / "admin-password.txt").exists()]  # fmt: skip
+    if kept:
         report.findings.append(Finding(NOTE, "The Dashboard still has the password kia made",
-                                       "It's still saved in state/admin-password.txt. Choose your own on the secure Dashboard's "
+                                       f"It's still saved in {kept[0]}. Choose your own on the secure Dashboard's "
                                        "System page, and kia deletes that file.",
-                                       ["state/admin-password.txt"], "docs/secure-page.md#changing-it"))  # fmt: skip
+                                       kept[:1], "docs/secure-page.md#changing-it"))  # fmt: skip
     if not cfg.alerts.ntfy_url and not cfg.alerts.email:
         report.findings.append(Finding(NOTE, "kia has nowhere to send alerts",
                                        "A failed refresh or a guide site that keeps failing shows only on the Dashboard. "

@@ -27,14 +27,14 @@ To continue, choose **Advanced**, then **Proceed** (Chrome and Edge), **Accept t
 When kia first starts, it makes a password like `kxq7-m2pa-9fht`. To see it, look in the kia folder:
 
 ```sh
-cat state/admin-password.txt
+cat private/admin-password.txt
 ```
 
 The Dashboard asks for it when you save a change, and the browser tab remembers it until you close it.
 
 ### Changing it
 
-Open the secure page, go to **System**, and use **Change password**. kia then deletes `state/admin-password.txt` and keeps only a scrambled form of the password.
+Open the secure page, go to **System**, and use **Change password**. kia then deletes `private/admin-password.txt` and keeps only a scrambled form of the password.
 
 ### If you forget it
 
@@ -42,7 +42,7 @@ Make a new one, then read it from the file kia saves it in:
 
 ```sh
 docker compose exec kia python3 -m kia password --reset
-cat state/admin-password.txt
+cat private/admin-password.txt
 ```
 
 ### Setting it in `.env`

@@ -32,11 +32,11 @@ from pathlib import Path
 from kia import __version__, doctor, stack
 from kia import name as kia_name
 from kia.config import Config
-from kia.files import temp_name
+from kia.files import private_file, temp_name
 
 # The MCP versions kia answers to, newest first (modelcontextprotocol.io/specification).
 VERSIONS = ("2025-11-25", "2025-06-18")  # 2025-03-26 would need JSON-RPC batches, which kia refuses
-TOKEN_FILE = "mcp-token.txt"  # noqa: S105  # nosec B105  # a file name: in state/, readable only by you, like admin-password.txt
+TOKEN_FILE = "mcp-token.txt"  # noqa: S105  # nosec B105  # a file name: in private/, readable only by you, like admin-password.txt
 # Tool calls each address may make a minute. MCP asks servers to limit them; this is far
 # more than a person's questions need, and stops a client that loops from keeping kia busy.
 CALLS_PER_MINUTE = 60
@@ -53,10 +53,15 @@ INSTRUCTIONS = (
 # The token
 
 
+def token_path(state_dir: Path) -> Path:
+    """Where the token is kept: private/mcp-token.txt (files.private_file)."""
+    return private_file(state_dir, TOKEN_FILE)
+
+
 def token(state_dir: Path) -> str | None:
     """The token, or None when the MCP server is off (no token made yet)."""
     try:
-        value = (state_dir / TOKEN_FILE).read_text().strip()
+        value = token_path(state_dir).read_text().strip()
     except OSError:
         return None
     return value or None
@@ -105,13 +110,14 @@ def tokens(state_dir: Path, project_dir: Path | None, gateway: bool) -> list[str
 def make_token(state_dir: Path) -> str:
     """A new token, replacing any old one (which stops working), readable only by you."""
     value = secrets.token_urlsafe(32)
-    state_dir.mkdir(parents=True, exist_ok=True)
-    tmp = temp_name(state_dir / TOKEN_FILE)
+    path = token_path(state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = temp_name(path)
     tmp.unlink(missing_ok=True)
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as f:
         f.write(value + "\n")
-    tmp.replace(state_dir / TOKEN_FILE)
+    tmp.replace(path)
     return value
 
 

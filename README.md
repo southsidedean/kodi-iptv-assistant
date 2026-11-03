@@ -54,7 +54,7 @@ Help me install kodi-iptv-assistant (kia) on this computer. It is a Docker Compo
    computer's address, my time zone, and which preset fits how I plan to watch. Ask me for
    these rather than guessing.
 4. After it finishes, tell me the Dashboard address and that kia's first refresh takes up to an
-   hour. It also sets a password for making changes, saved in state/admin-password.txt; tell me
+   hour. It also sets a password for making changes, saved in private/admin-password.txt; tell me
    to read it from there myself, and do not show it to me or repeat it.
 
 The installer is one command:

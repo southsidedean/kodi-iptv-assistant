@@ -39,11 +39,11 @@ def test_a_mistyped_ntfy_address_isnt_logged():
 
 
 def test_passwords_with_spaces_at_their_ends(tmp_path: Path):
-    a = auth.Auth(tmp_path)
+    a = auth.Auth(tmp_path / "state")
     with pytest.raises(ValueError, match="spaces"):
         a.change("  long-enough-pass ")
     said = []
-    auth.Auth(tmp_path, env_password=" long-enough-pass").ensure(said.append)
+    auth.Auth(tmp_path / "state", env_password=" long-enough-pass").ensure(said.append)
     assert any("space" in m for m in said)
 
 
