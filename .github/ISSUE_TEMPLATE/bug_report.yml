@@ -47,5 +47,5 @@ body:
     id: log
     attributes:
       label: Log
-      description: The end of `docker compose logs --tail 100 kia`, with private details removed.
+      description: The end of `docker compose logs --tail 100 kia kia-media`, with private details removed.
       render: text

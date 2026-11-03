@@ -36,7 +36,7 @@ def test_the_service_may_write_what_the_container_may_and_install_makes_it():
     # The folders compose.yaml lets kia's container write, but plex/warmup (Plex in the stack
     # is Docker only): the Linux service must allow the same ones, or a refresh fails there.
     compose = (ROOT / "compose.yaml").read_text()
-    kia = compose[compose.index("\n  kia:"):compose.index("\n  web:")]
+    kia = compose[compose.index("\n  kia:"):compose.index("\n  kia-media:")]
     writable = {m for m in re.findall(r"- \./([a-z/]+):/data/\1\s*$", kia, re.M)} - {"plex/warmup"}
     assert writable == {"output", "state", "private", "work", "vendor", "profiles", "tls"}
     unit = (ROOT / "deploy" / "kia.service").read_text()

@@ -1407,7 +1407,9 @@ def _daemon_serve(cfg: Config, args: argparse.Namespace, *, media_via_request: b
         def part_alert(title: str, message: str) -> None:
             alerts.notify("part_down", title, message, cfg.state_dir, cfg.alerts, log)
 
-        watch = stack.Watch(cfg.output_dir, running, alert=part_alert)
+        # The web half of the split shows kia-media's tile too, and alerts when it stops.
+        media = partial(stack.media_alive, _media_service_dir(cfg)) if media_via_request else None
+        watch = stack.Watch(cfg.output_dir, running, check=partial(stack.check, media=media), alert=part_alert)
         watch.start()
     numbers = partial(metrics.render, cfg.output_dir, relay, plex_sessions(args.config, players),
                       jellyfin_sessions(args.config, players), watch, cfg.state_dir, pluto_stats)  # /metrics, for Prometheus

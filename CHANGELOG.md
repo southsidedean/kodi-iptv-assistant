@@ -2,15 +2,28 @@
 
 ## 0.9.0 (unreleased)
 
+This release splits kia into two containers, so a stream that broke one of the media tools can't reach kia's password, tokens, or certificate key.
+
 ### Upgrading from 0.8.5
 
-Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). kia now keeps its own password, its MCP server's token, and the key behind the players' made-up names in a new `private/` folder in the kia folder, instead of in `state/`, and moves them there by itself the first time it starts. The update makes the folder for you. If you update another way, make it yourself first (`mkdir private` in the kia folder), or Docker makes it owned by root and kia keeps using `state/` until you fix it; kia's log says how.
+Update with `scripts/update.sh` (without Docker, `scripts/update.sh --no-docker`). With Docker, the update starts a second kia container, `kia-media`, and moves kia's own password, MCP token, and the key behind the players' made-up names from `state/` to a new `private/` folder. It also makes the two new folders, `private/` and `media-service/`. If you update another way (`git pull` and `docker compose up -d`, say), make them first with `mkdir private media-service` in the kia folder. Otherwise Docker makes them owned by root, and kia keeps its password in `state/` until you fix it; kia's log says how.
+
+A few commands move to the new container. The refresh and the stream tests now run in `kia-media`, so:
+
+- `docker compose exec kia-media python3 -m kia run` (also `check`, `refresh-guide`, `probe`, and the other refresh steps). In `kia`, they stop and print this command instead.
+- `docker compose logs -f kia-media` shows the refresh. `docker compose logs kia` still shows the Dashboard's side, the MCP server, and alerts being sent.
+- Every other command, such as `kia doctor`, `kia settings`, `kia mcp-token`, and `kia password --reset`, stays in `kia`.
+
+If your `kia.toml` has an email password or the ntfy address under `[alerts]`, move them to `.env` (`KIA_SMTP_PASSWORD`, `KIA_NTFY_URL`). `kia-media` reads `kia.toml` but never sees `.env`.
 
 If you go back to a version before 0.9.0 afterwards, it won't find the password or the token where it looks. It makes a new password (in `state/admin-password.txt`), and the MCP server stays off until you run `kia mcp-token` again. To keep the old ones, move the files from `private/` back to `state/` before you start the older kia.
 
 ### Changes
 
-- kia's own password and tokens live in `private/`, apart from `state/`. This gets ready for running kia as two containers, where the one that tests streams can write `state/` but never sees `private/`. Backups include `private/`, still leaving out the MCP token.
+- With Docker, kia runs as two containers from the same image. `kia` serves the Dashboard, its API, the MCP server, and `/metrics`, and holds the password, the tokens, and the certificate's key. `kia-media` does everything that reads strangers' streams and guide sites: the nightly refresh, the guide refreshes in between, "Check now", a channel test, and the Pluto relay. In its view, `.env` is empty and every folder that holds a secret is empty; it has none of the secret settings, and it runs on a network of its own, shared only with the web server, so it can't reach kia's API, the gateway, or the rest of the stack. The two talk through files that each side checks. Alerts from a refresh are sent by `kia`, so the email password and the ntfy topic stay there. [Two containers](docs/security-under-the-hood.md#two-containers) explains it.
+- The Dashboard's Your stack tiles include `kia-media`, and kia alerts you when it stops, like any other part.
+- kia's own password and tokens live in `private/`, apart from `state/`. Backups include `private/`, still leaving out the MCP token.
+- Without Docker, kia stays one service, as before. The docs now say plainly that it's the simplest install but the least walled off.
 
 ## 0.8.5 (2026-10-29)
 

@@ -1,6 +1,6 @@
 # How it works
 
-Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide every few hours in between ([details](#4-build-the-guide-kia-guide)). You can also run them by hand, e.g. `docker compose exec kia python3 -m kia check`.
+Every night (`KIA_RUN_AT`), kia runs four steps, and it refreshes the guide every few hours in between ([details](#4-build-the-guide-kia-guide)). You can also run them by hand, e.g. `docker compose exec kia-media python3 -m kia check`. They run in the `kia-media` container, the one that tests streams ([why two containers](security-under-the-hood.md#two-containers)).
 
 For more depth: [how the guide gets built](guide-under-the-hood.md), [the Pluto TV relay](pluto-under-the-hood.md), [Plex and Threadfin](plex-under-the-hood.md), [the stack](stack-under-the-hood.md), and [security](security-under-the-hood.md).
 

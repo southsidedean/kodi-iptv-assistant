@@ -206,9 +206,15 @@ fi
 # The gateway part's settings, from this version's scripts/gateway.sh, before it starts: it
 # reads them only from gateway/config.yaml.
 if [ -s gateway/config.yaml ]; then sh scripts/gateway.sh write; fi
-# private/ (0.9.0) is new: made here, as you, since Docker would make a missing one as root,
-# and kia couldn't keep its password there.
-mkdir -p private
+# private/ and media-service/ (0.9.0) are new: made here, as you, since Docker would make a
+# missing one as root, and kia couldn't write it.
+mkdir -p private media-service
+# kia keeps its own password and tokens in private/ (0.9.0), out of kia-media's sight. kia
+# moves them from state/ itself, but kia-media starts at the same time and can see state/, so
+# they move here first.
+for f in admin.json admin-password.txt mcp-token.txt metrics-key; do
+    if [ -f "state/$f" ] && [ ! -e "private/$f" ]; then mv "state/$f" "private/$f"; fi
+done
 docker compose up -d
 # Docker pins a config file mounted on its own (nginx's, Prometheus's) to the copy the
 # container started with, so after a release that changed one, that container restarts.

@@ -91,10 +91,24 @@ def node_exporter_up(prometheus: str = "http://prometheus:9090", timeout: float 
         return False
 
 
+MEDIA_ALIVE_FOR = 120  # seconds: kia-media touches its liveness file every 30, so this is a few missed
+
+
+def media_alive(service_dir: Path, now: Callable[[], float] = time.time) -> bool:
+    """Whether kia-media touched media-service/alive lately (kia.mediareq.keep_alive). kia
+    can't knock on it: kia-media is on its own network, which kia isn't on."""
+    try:
+        return now() - (service_dir / "alive").stat().st_mtime <= MEDIA_ALIVE_FOR
+    except OSError:
+        return False
+
+
 def check(running: list[str], knock: Callable[[str, int], bool] = answers,
-          node: Callable[[], bool] = node_exporter_up) -> list[dict]:  # fmt: skip
-    """Each chosen service, whether it answers, and where a browser opens it."""
+          node: Callable[[], bool] = node_exporter_up, media: Callable[[], bool] | None = None) -> list[dict]:  # fmt: skip
+    """Each chosen service, whether it answers, and where a browser opens it. With media
+    (kia runs as two containers), kia-media's tile comes first, from its liveness file."""
     services = chosen(running)
+    first = [{"service": "kia-media", "title": "kia-media", "ok": media()}] if media else []
 
     def one(s: Service) -> dict:
         ok = node() if s.name == "node-exporter" else knock(s.name, s.port)
@@ -109,9 +123,9 @@ def check(running: list[str], knock: Callable[[str, int], bool] = answers,
         return out
 
     if not services:
-        return []
+        return first
     with ThreadPoolExecutor(max_workers=len(services)) as pool:
-        return list(pool.map(one, services))
+        return first + list(pool.map(one, services))
 
 
 DOWN_MINUTES = 10  # without an answer this long, a part gets an alert: longer than a restart or an update takes

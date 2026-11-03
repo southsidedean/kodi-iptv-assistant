@@ -39,12 +39,13 @@ location ~ \.md$ {
     default_type "text/plain; charset=utf-8";
 }
 
-# Pluto TV channels play through kia (kia.pluto), so they keep going across ad breaks.
-# ^~ so the .m3u8 rule above doesn't take these addresses. Port 8781 isn't published.
+# Pluto TV channels play through kia (kia.pluto), so they keep going across ad breaks. The
+# relay runs ffmpeg on Pluto's pieces, so it's in kia-media, not kia (compose.yaml).
+# ^~ so the .m3u8 rule above doesn't take these addresses. Port 8782 isn't published.
 location ^~ /pluto/ {
     resolver 127.0.0.11 valid=10s;
-    set $kia http://kia:8781;
-    proxy_pass $kia;
+    set $pluto http://kia-media:8782;
+    proxy_pass $pluto;
     proxy_set_header Host $http_host;
     proxy_set_header X-Real-IP $remote_addr;
     # Only /api/ says whether a request came over HTTPS (nginx.conf). Cleared here, so an

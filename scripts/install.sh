@@ -270,7 +270,13 @@ if [ -n "$PRESET" ]; then
 fi
 chmod 600 .env  # also an .env from before kia did this
 # The folders kia writes; made here so Docker doesn't create them owned by root.
-mkdir -p output state private work vendor profiles tls
+mkdir -p output state private media-service work vendor profiles tls
+# kia keeps its own password and tokens in private/ (0.9.0), out of kia-media's sight. kia
+# moves them from state/ itself, but kia-media starts at the same time and can see state/, so
+# they move here first.
+for f in admin.json admin-password.txt mcp-token.txt metrics-key; do
+    if [ -f "state/$f" ] && [ ! -e "private/$f" ]; then mv "state/$f" "private/$f"; fi
+done
 
 # Docker lets connections to the ports it publishes past ufw by itself, so ufw rules
 # neither open them nor close them: KIA_BIND does (127.0.0.1 for this computer only). The
@@ -318,7 +324,7 @@ done
 
 step "Done"
 say "kia is running its first refresh now, which takes up to an hour. Watch it with:"
-say "  cd $DIR && docker compose logs -f kia"
+say "  cd $DIR && docker compose logs -f kia-media"
 say ""
 say "Dashboard:          $url/"
 say "Secure Dashboard:   https://$host:${https_port:-8743}/   (for making changes; your browser warns about kia's own certificate the first time)"

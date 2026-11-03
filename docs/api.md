@@ -143,7 +143,8 @@ The same jobs, and a few more, are `kia` commands. With Docker, run them in the 
 | `mcp` | kia's MCP server over standard input and output, for an AI assistant on the same computer, which starts it itself ([on the same computer](mcp.md#on-the-same-computer-as-kia)) |
 | `plex-tuners` | Adds kia's Threadfins to Plex as Live TV, or brings them up to date ([Plex](plex.md#let-kia-add-them)). `--remove` takes them out again |
 | `check-dashboards` | Which Grafana panels have data on this computer; `scripts/stack.sh` shows the same ([choosing the parts](stack.md)) |
-| `daemon` | What kia's container runs: a refresh every night at `KIA_RUN_AT`, the quick refreshes in between, and with `--serve`, the web server |
+| `daemon` | What kia runs without Docker: a refresh every night at `KIA_RUN_AT`, the quick refreshes in between, and with `--serve`, the web server |
+| `daemon-web`, `daemon-media` | What the two containers run with Docker: `kia` serves and holds the secrets, `kia-media` refreshes and tests streams ([two containers](security-under-the-hood.md#two-containers)) |
 | `serve` | Only the web server, without refreshes (for installs without Docker) |
 | `threadfin-setup` | Writes each Threadfin's first settings. Its own container runs it ([under the hood](plex-under-the-hood.md#threadfins-first-start)) |
 

@@ -62,7 +62,7 @@ Runs take longer. With one site at a time, memory use peaks around 0.7 GB. Use a
 
 ## Without Docker
 
-You can run kia directly, as a service that starts with the computer. You need Python 3.11 or newer (kia needs nothing else from Python), ffmpeg, git, openssl, and Node.js 22 or newer for guide downloads from websites. On macOS: `brew install python ffmpeg git openssl node`. On Ubuntu or Debian: `sudo apt install python3 ffmpeg git openssl`, plus Node.js from [nodejs.org](https://nodejs.org/).
+You can run kia directly, as a service that starts with the computer. It's the simplest way, but the least walled off: kia runs as one program, so the stream tests share it with your password and tokens. With Docker, they run in a container of their own that can't see them ([two containers](security-under-the-hood.md#two-containers)). If that matters to you, use Docker. You need Python 3.11 or newer (kia needs nothing else from Python), ffmpeg, git, openssl, and Node.js 22 or newer for guide downloads from websites. On macOS: `brew install python ffmpeg git openssl node`. On Ubuntu or Debian: `sudo apt install python3 ffmpeg git openssl`, plus Node.js from [nodejs.org](https://nodejs.org/).
 
 In the kia folder, run:
 

@@ -196,3 +196,20 @@ def test_the_web_halfs_chores(tmp_path: Path, monkeypatch):
     # Alerts every look; Plex only after the new guide (not for the one already there); the
     # certificate when it's due (every look here).
     assert did == ["alerts", "renew", "alerts", "plex", "renew", "alerts", "renew"]
+
+
+# The Dashboard's tile for kia-media, from its liveness file (kia can't reach it to knock).
+
+def test_kia_medias_tile_comes_from_its_liveness_file(tmp_path: Path):
+    from kia import stack
+
+    folder = tmp_path / "media-service"
+    assert not stack.media_alive(folder)  # never started
+    folder.mkdir()
+    (folder / "alive").touch()
+    assert stack.media_alive(folder)
+    os.utime(folder / "alive", (time.time() - 5 * 60,) * 2)
+    assert not stack.media_alive(folder)  # stopped a few minutes ago
+    tiles = stack.check([], knock=lambda host, port: True, media=lambda: True)
+    assert tiles == [{"service": "kia-media", "title": "kia-media", "ok": True}]
+    assert stack.check([], knock=lambda host, port: True) == []  # one container: no tile
