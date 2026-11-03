@@ -283,11 +283,11 @@ def test_someone_guessing_is_an_alert_once(cfg, monkeypatch):
 
 
 def test_a_password_the_browser_can_send(tmp_path: Path):
-    a = auth.Auth(tmp_path)
+    a = auth.Auth(tmp_path / "state")
     with pytest.raises(ValueError, match="no accents or emoji"):
         a.change("pässwörd-123")
     said = []
-    auth.Auth(tmp_path, "pässwörd-123").ensure(said.append)
+    auth.Auth(tmp_path / "state", "pässwörd-123").ensure(said.append)
     assert "characters a browser can't send" in said[0]
 
 

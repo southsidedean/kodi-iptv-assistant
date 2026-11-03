@@ -30,12 +30,15 @@ def test_state_files_in_another_shape_count_as_missing(tmp_path: Path, value):
     assert channels.load(tmp_path) == {"favorites": [], "removed": {}, "numbers": {"tv": {}, "radio": {}}}
     assert alerts.load_state(tmp_path) == {"site_failures": {}, "lan_playlists": []}
     assert metrics.known_players(tmp_path) == []
-    a = auth.Auth(tmp_path)
+    # admin.json, damaged, where an older kia left it: moved to private/ and replaced there.
+    (tmp_path / "state").mkdir()
+    (tmp_path / "admin.json").replace(tmp_path / "state" / "admin.json")
+    a = auth.Auth(tmp_path / "state")
     assert not a.check("anything") and a.source == "generated"
     said = []
     a.ensure(said.append)  # a damaged password file is replaced, so the Dashboard isn't locked for good
-    assert any("damaged" in m for m in said) and (tmp_path / "admin-password.txt").exists()
-    assert a.check((tmp_path / "admin-password.txt").read_text().strip())
+    assert any("damaged" in m for m in said) and (tmp_path / "private" / "admin-password.txt").exists()
+    assert a.check((tmp_path / "private" / "admin-password.txt").read_text().strip())
 
 
 def test_inner_values_in_another_shape_are_left_out(tmp_path: Path):

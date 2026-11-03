@@ -38,7 +38,7 @@ def test_the_service_may_write_what_the_container_may_and_install_makes_it():
     compose = (ROOT / "compose.yaml").read_text()
     kia = compose[compose.index("\n  kia:"):compose.index("\n  web:")]
     writable = {m for m in re.findall(r"- \./([a-z/]+):/data/\1\s*$", kia, re.M)} - {"plex/warmup"}
-    assert writable == {"output", "state", "work", "vendor", "profiles", "tls"}
+    assert writable == {"output", "state", "private", "work", "vendor", "profiles", "tls"}
     unit = (ROOT / "deploy" / "kia.service").read_text()
     allowed = re.search(r"^ReadWritePaths=(.*)$", unit, re.M).group(1).split()
     assert sorted(allowed) == sorted([*(f"@DIR@/{d}" for d in writable), "%h/.npm"])

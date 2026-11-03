@@ -46,7 +46,7 @@ Then wait for kia's first refresh. The Dashboard says when it's done.
 Changes happen on the secure Dashboard, at `https://` and port 8743: `https://192.168.1.20:8743/`, with your address.
 
 - The first time, your browser warns about the certificate, because kia made its own. That's expected on your home network: choose the browser's *Advanced* or *Show details*, then continue to the address. [Why, and how to stop the warning](secure-page.md#the-browser-warning).
-- The password is the one the installer printed. Lost it? It's in `state/admin-password.txt` in the kia folder ([the password](secure-page.md#the-password)).
+- The password is the one the installer printed. Lost it? It's in `private/admin-password.txt` in the kia folder ([the password](secure-page.md#the-password)).
 
 Choose **Stack** in the menu at the top, and enter the password in the **Password** box.
 

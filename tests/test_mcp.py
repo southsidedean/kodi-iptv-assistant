@@ -50,7 +50,7 @@ def call_tool(cfg, name, arguments=None, id_=1):
 
 
 def test_off_until_its_token_is_made(kia):
-    (kia.state_dir / mcp.TOKEN_FILE).unlink()
+    mcp.token_path(kia.state_dir).unlink()
     status, body = rpc(kia, {"jsonrpc": "2.0", "id": 1, "method": "ping"})
     assert status == 404 and "kia mcp-token" in body["error"]
 
@@ -81,7 +81,7 @@ def test_the_gateways_token_works_too(kia, tmp_path, monkeypatch):
     api._WRONG.clear()
     monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex,gateway")
     assert rpc(kia, ping, token=gateway_token)[0] == 200 and rpc(kia, ping)[0] == 200  # either one
-    (kia.state_dir / mcp.TOKEN_FILE).unlink()
+    mcp.token_path(kia.state_dir).unlink()
     assert rpc(kia, ping, token=gateway_token)[0] == 200  # on, with the gateway's alone
     assert rpc(kia, ping, client="192.0.2.7")[0] == 401  # kia's own is gone
     # Anything but one short line kia's script would write isn't a token.
@@ -259,13 +259,13 @@ def test_through_the_gateway_each_device_has_its_own_limit(kia, tmp_path, monkey
 
 def test_mcp_token_command(kia, capsys):
     config = str(kia.config_file)
-    (kia.state_dir / mcp.TOKEN_FILE).unlink()
+    mcp.token_path(kia.state_dir).unlink()
     assert cli.main(["mcp-token", "-c", config]) == 0
     out = capsys.readouterr().out
     made = mcp.token(kia.state_dir)
     assert made and f"Bearer {made}" in out and "claude mcp add --scope user --transport http kia https://" in out
-    assert "(kept in state/mcp-token.txt in the kia folder)" in out
-    assert (kia.state_dir / mcp.TOKEN_FILE).stat().st_mode & 0o777 == 0o600
+    assert "(kept in private/mcp-token.txt in the kia folder)" in out
+    assert mcp.token_path(kia.state_dir).stat().st_mode & 0o777 == 0o600
     assert cli.main(["mcp-token", "-c", config]) == 0 and mcp.token(kia.state_dir) == made  # shown again, not replaced
     capsys.readouterr()
     assert cli.main(["mcp-token", "-c", config, "--reset"]) == 0 and mcp.token(kia.state_dir) != made
@@ -377,7 +377,7 @@ def test_backups_leave_the_token_out(kia, tmp_path):
     (gateway / "kia-token").write_text("g" * 43 + "\n")
     (gateway / "devices").write_text("laptop " + "0" * 64 + "\n")  # hashes only: no use as keys
     names = backup.make(kia.state_dir.parent, tmp_path / "b.tar.gz")
-    assert "state/mcp-token.txt" not in names and any(n.startswith("state/") for n in [*names, "state/x"])
+    assert "private/mcp-token.txt" not in names and any(n.startswith("state/") for n in [*names, "state/x"])
     assert "gateway/kia-token" not in names and "gateway/devices" in names
 
 

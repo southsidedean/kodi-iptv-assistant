@@ -8,6 +8,7 @@ __pycache__/
 # Created by kia. The empty folders are kept so Docker doesn't create them as root.
 output/*
 state/*
+private/*
 vendor/*
 work/*
 # The secure Dashboard's certificate.

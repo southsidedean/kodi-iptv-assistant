@@ -422,7 +422,7 @@ def checklist(s: dict) -> list[dict]:
          "text": "Kodi, or another app: use a playlist address from below.", "doc": "players.md"},
         {"id": "password", "title": "Keep the password for changes safe",
          "done": password is not None and not password.startswith("made by kia"), "manual": True,
-         "text": "kia made one, in state/admin-password.txt. Change it on the secure page's System page, "
+         "text": "kia made one, in private/admin-password.txt. Change it on the secure page's System page, "
                  "or set KIA_ADMIN_PASSWORD in .env.", "doc": "secure-page.md#the-password"},
         {"id": "playlists", "title": "Choose your playlists (optional)", "manual": True,
          "text": "Add other countries, streaming services, or radio on the secure page's Sources page.",

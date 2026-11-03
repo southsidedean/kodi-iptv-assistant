@@ -82,7 +82,7 @@ write() {
     case "$rate" in "" | *[!0-9]* | 0*) die "KIA_GATEWAY_RATE is a number of requests a minute, such as 120" ;; esac
     if [ ${#rate} -gt 5 ] || [ "$rate" -gt 10000 ]; then die "KIA_GATEWAY_RATE is from 1 to 10000 requests a minute"; fi
     # The gateway's own token for kia, made the first time. kia accepts it as it does its own
-    # (state/mcp-token.txt), so with the gateway in use, kia's own token can be turned off.
+    # (private/mcp-token.txt), so with the gateway in use, kia's own token can be turned off.
     if [ ! -s "$kia_token" ]; then new_key >"$kia_token.tmp" && mv -f "$kia_token.tmp" "$kia_token"; fi
     if [ -s "$devices" ]; then
         keys=$(awk 'BEGIN { print "          keys:" } { printf "          - keyHash: sha256:%s\n            metadata:\n              device: %s\n", $2, $1 }' "$devices")

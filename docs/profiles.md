@@ -16,7 +16,7 @@ You can make profiles on kia's Dashboard or by editing a file. Both change the s
 1. Find kia's password. kia made one when it first started; in the kia folder, run:
 
    ```sh
-   cat state/admin-password.txt
+   cat private/admin-password.txt
    ```
 
    You can change it later on the Dashboard. [The secure Dashboard](secure-page.md#the-password) has more about the password.

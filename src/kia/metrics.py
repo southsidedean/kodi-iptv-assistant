@@ -26,7 +26,7 @@ from pathlib import Path
 
 from kia import __version__
 from kia import name as kia_name
-from kia.files import items, obj, read_object, temp_name
+from kia.files import items, obj, private_file, read_object, temp_name
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 STARTED = time.time()
@@ -83,7 +83,7 @@ KEEP_PLAYERS_DAYS = 90
 
 class Players:
     """Pseudonyms for Plex's and Jellyfin's players: an HMAC of the server's id for the
-    device with a secret kept in state/ (metrics-key), so the same device always gets the
+    device with a key kept in private/ (metrics-key), so the same device always gets the
     same one and nobody can work back from it. Which pseudonym is which device is kept in state/plex-players.json,
     for the secure System page."""
 
@@ -100,7 +100,7 @@ class Players:
 
     def _key_locked(self) -> bytes:
         if self.key is None:
-            path = self.state_dir / "metrics-key" if self.state_dir else None
+            path = private_file(self.state_dir, "metrics-key") if self.state_dir else None
             try:
                 self.key = bytes.fromhex(path.read_text().strip()) if path else b""
             except (OSError, ValueError):

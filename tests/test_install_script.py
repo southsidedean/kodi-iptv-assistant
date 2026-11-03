@@ -71,7 +71,7 @@ def test_without_a_terminal_it_takes_the_defaults(kia: Path):
     assert "COMPOSE_PROFILES= compose up -d --build" in calls(kia)
     assert not (kia / ".env.new").exists()
     # A password kia made before isn't printed again, only where it is.
-    assert "not-a-real-password" not in r.stdout and "state/admin-password.txt" in r.stdout
+    assert "not-a-real-password" not in r.stdout and "private/admin-password.txt" in r.stdout
 
 
 def test_a_new_password_is_not_printed_without_a_terminal(kia: Path, tmp_path: Path):
@@ -86,12 +86,12 @@ def test_a_new_password_is_not_printed_without_a_terminal(kia: Path, tmp_path: P
          f'echo "COMPOSE_PROFILES=$COMPOSE_PROFILES $*" >> {log}\n'
          'case "$*" in\n'
          '  info*) [ -z "$FAKE_DOCKER_DOWN" ] || exit 1 ;;\n'
-         '  *up*|*build*) printf "secret-made-by-kia\\n" > state/admin-password.txt ;;\n'
+         '  *up*|*build*) printf "secret-made-by-kia\\n" > private/admin-password.txt ;;\n'
          'esac\n')  # fmt: skip
     r = install(kia, "--address", "192.168.1.20")
     assert r.returncode == 0, r.stdout + r.stderr
     assert "secret-made-by-kia" not in r.stdout  # the new password is never printed
-    assert "state/admin-password.txt" in r.stdout  # only where to read it
+    assert "private/admin-password.txt" in r.stdout  # only where to read it
 
 
 def test_a_plex_preset_starts_kia_and_leaves_the_rest_for_after_the_playlist(kia: Path):

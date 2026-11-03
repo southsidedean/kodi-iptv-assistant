@@ -32,7 +32,7 @@ To see the settings kia is running with, open **System** on the Dashboard, or ru
 | `KIA_PROFILES_FILE` | `profiles/profiles.toml` | Your playlists for people and devices; see [profiles](profiles.md). With Docker it must be in the `profiles` folder, the one kia can write. |
 | `KIA_HTTPS_PORT` | `8743` | The secure Dashboard, where you make changes. Playlists and guides stay on `KIA_PORT`. See [the secure Dashboard](secure-page.md). |
 | `KIA_TLS_NAMES` | the host in `KIA_PUBLIC_URL` | Names and addresses the certificate covers, comma-separated, e.g. `kia.home.lan,192.168.1.20`. The Dashboard links to the first. |
-| `KIA_ADMIN_PASSWORD` | made by kia | The password for making changes on the Dashboard. When it's empty, kia makes one and saves it in `state/admin-password.txt`, and you can change it on the Dashboard. |
+| `KIA_ADMIN_PASSWORD` | made by kia | The password for making changes on the Dashboard. When it's empty, kia makes one and saves it in `private/admin-password.txt`, and you can change it on the Dashboard. |
 | `KIA_EDITING` | true | `false` turns off changes from the Dashboard. |
 | `KIA_PLUTO_RELAY` | true | Pluto TV channels play through kia, so they keep going across ad breaks. `false` gives players Pluto's own links, which freeze or jump back at breaks in most players. See [Pluto TV](how-it-works.md#pluto-tv). |
 | `KIA_RUN_ON_START` | false | Also refresh whenever kia starts. Without it, kia still refreshes at start when it missed the last nightly run (the computer was off). |
@@ -227,7 +227,7 @@ To stay on the versions you have now, run `scripts/pin-versions.sh` in the kia f
 
 ### What kia's containers can touch
 
-kia's two containers, kia and the web server, run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, and the web server sees only `output/`, the certificate and key in `tls/`, and its own settings. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, in Node.js's sandbox, where it can't change kia itself, your settings, or anything else on the computer, and can't read your passwords. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
+kia's two containers, kia and the web server, run locked down. They have no extra system privileges and a read-only system. kia can write only to `output/`, `state/`, `private/`, `work/`, `vendor/`, `profiles/`, `tls/`, and `plex/warmup/`, and the web server sees only `output/`, the certificate and key in `tls/`, and its own settings. That's because the guide downloader is third-party code that changes often. It runs inside the kia container, in Node.js's sandbox, where it can't change kia itself, your settings, or anything else on the computer, and can't read your passwords. For the same reason, keep the folder settings in `kia.toml` as they are when you use Docker.
 
 ### The published image
 

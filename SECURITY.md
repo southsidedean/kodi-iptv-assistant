@@ -81,7 +81,7 @@ kia's [MCP server](docs/mcp.md) lets an AI assistant read kia's record, and ask 
 - A wrong token is slowed down like a wrong password, counted apart from wrong passwords (so a token holder can't use right tokens to reset the count while guessing the password), and each address can make 60 tool calls a minute. Where every client shares one address (under Docker Desktop, say), they share that limit too; the gateway gives each device its own. kia's log records each call and each refused token, with the address it came from.
 - Requests from other websites' pages are refused, as for the rest of kia's API.
 - What it returns quotes text from strangers: channel names, guide titles, guide sites' errors. An assistant could read instructions planted there, and a taken-over kia container controls everything the tools return. kia tells the assistant at the start that this text is data, and kia's tools can't change anything. But an assistant such as Claude Code can also run commands and reach the internet, so a planted instruction that fooled it could try to use those. Keep the assistant asking before it runs commands, and don't approve one that came from an answer about kia unless kia's docs give it.
-- The token is kept in `state/mcp-token.txt`, readable only by you, and left out of backups. `kia mcp-token --reset` replaces it; `--off` turns the server off.
+- The token is kept in `private/mcp-token.txt`, readable only by you, and left out of backups. `kia mcp-token --reset` replaces it; `--off` turns the server off.
 
 ### The gateway part
 

@@ -37,7 +37,7 @@ LockPersonality=yes
 # nothing about it (only the kernel's log shows the refusal). The system call limits still apply.
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=@DIR@/output @DIR@/state @DIR@/work @DIR@/vendor @DIR@/profiles @DIR@/tls %h/.npm
+ReadWritePaths=@DIR@/output @DIR@/state @DIR@/private @DIR@/work @DIR@/vendor @DIR@/profiles @DIR@/tls %h/.npm
 PrivateTmp=yes
 
 [Install]

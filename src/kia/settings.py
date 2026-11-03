@@ -39,7 +39,7 @@ def _editing_setup(cfg: Config) -> str:
     return {
         "off": "editing is off",
         "env": "your own, from .env",
-        "generated": "made by kia, in state/admin-password.txt",
+        "generated": "made by kia, in private/admin-password.txt",
         "set": "changed on the Dashboard",
     }.get(source, source)
 

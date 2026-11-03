@@ -39,7 +39,7 @@ kia is running its first refresh now, which takes up to an hour. Watch it with:
 
 Dashboard:          http://192.168.1.20:8780/
 Secure Dashboard:   https://192.168.1.20:8743/   (for making changes; your browser warns about kia's own certificate the first time)
-Password for changes: kxq7-m2pa-9fht   (also in ~/kodi-iptv-assistant/state/admin-password.txt)
+Password for changes: kxq7-m2pa-9fht   (also in ~/kodi-iptv-assistant/private/admin-password.txt)
 Playlist for players: http://192.168.1.20:8780/curated.m3u
 ```
 
@@ -147,7 +147,7 @@ When the log says `Next run at ...`, it's done. Check it in a browser at `http:/
 
 ![kia's Dashboard after the first refresh, with this kia's name next to the logo: the menu, a banner saying everything's working, the answer to Ask kia what's wrong (the last refresh worked, and nothing needs you), the Getting started checklist with two of six steps done, the channel counts, and three playlists, each with its address and a Copy button](../images/kia-status-screenshot.png)
 
-kia also made a password for changing things on the Dashboard, such as [playlists for people and devices](profiles.md). It's in `state/admin-password.txt` in the kia folder; [the secure Dashboard](secure-page.md) explains it.
+kia also made a password for changing things on the Dashboard, such as [playlists for people and devices](profiles.md). It's in `private/admin-password.txt` in the kia folder; [the secure Dashboard](secure-page.md) explains it.
 
 If other devices can't connect (more in [troubleshooting](troubleshooting.md#other-devices-cant-connect)):
 
