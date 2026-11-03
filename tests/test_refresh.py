@@ -1,3 +1,4 @@
+import argparse
 import os
 import time
 from datetime import timedelta
@@ -110,6 +111,7 @@ def _stub_daemon_halves(monkeypatch, cfg_path: str, cut_short: bool):
     calls = []
     monkeypatch.setattr(cli, "_daemon_setup", lambda args: (cli.load(Path(cfg_path)), cut_short))
     monkeypatch.setattr(cli, "_daemon_serve", lambda cfg, args, **kw: calls.append(("serve", kw)))
+    monkeypatch.setattr(cli, "_daemon_media_serve", lambda cfg, args: calls.append("media-serve"))
     monkeypatch.setattr(cli, "_daemon_refresh_loop", lambda cfg, args, cut: calls.append(("loop", cut)))
     monkeypatch.setattr(cli, "_idle_forever", lambda: calls.append("idle"))
     return calls
@@ -125,7 +127,7 @@ def test_daemon_web_serves_and_never_runs_the_refresh_loop(tmp_path: Path, monke
 def test_daemon_media_refreshes_and_never_serves(tmp_path: Path, monkeypatch):
     calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=False)
     cli.main(["daemon-media", "-c", str(tmp_path / "kia.toml")])
-    assert calls == [("loop", False)]  # only the refresh loop; nothing is served
+    assert calls == ["media-serve", ("loop", False)]  # the Pluto relay, then the refresh loop; no Dashboard
 
 
 def test_daemon_runs_both_halves_in_order(tmp_path: Path, monkeypatch):
@@ -134,6 +136,61 @@ def test_daemon_runs_both_halves_in_order(tmp_path: Path, monkeypatch):
     calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=True)
     cli.main(["daemon", "-c", str(tmp_path / "kia.toml")])
     assert calls == [("serve", {}), ("loop", True)]  # serves in-process (no media routing), then refreshes
+
+
+# 0.9 privilege separation: the Pluto relay runs the stream tools, so it lives on the media half.
+# The web half serves /metrics from the file the media half's relay writes, and never builds a
+# relay itself. These check that wiring in _daemon_serve and _daemon_media_serve.
+
+def _serve_stubs(monkeypatch):
+    built, servers = [], []
+    monkeypatch.setattr(cli, "pluto_relay", lambda c: built.append(c) or "RELAY")
+    monkeypatch.setattr(cli, "serve_secure", lambda *a, **k: None)
+    monkeypatch.setattr(cli.stack, "profiles", lambda: None)
+    monkeypatch.setattr(cli, "plex_sessions", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "jellyfin_sessions", lambda *a, **k: None)
+    monkeypatch.setattr(cli.metrics, "Players", lambda state_dir: object())
+    monkeypatch.setattr(cli.serve, "serve_in_background", lambda *a, **k: servers.append(k) or object())
+    return built, servers
+
+
+def test_web_half_builds_no_relay_and_reads_pluto_numbers_from_the_file(tmp_path: Path, monkeypatch):
+    cfg = cli.load(Path(instance(tmp_path)))
+    built, servers = _serve_stubs(monkeypatch)
+    args = argparse.Namespace(serve=True, api_port=None, bind="127.0.0.1", port=8780, https_port=None,
+                              config=str(tmp_path / "kia.toml"))  # fmt: skip
+    cli._daemon_serve(cfg, args, media_via_request=True)
+    assert built == []  # the web half must never build the relay: it runs the stream tools
+    assert servers[-1]["relay"] is None  # so it never answers /pluto/ either
+    assert servers[-1]["metrics"].args[-1] == cfg.output_dir / "pluto-metrics.json"  # /metrics reads the file
+
+
+def test_single_container_serves_the_live_relay(tmp_path: Path, monkeypatch):
+    cfg = cli.load(Path(instance(tmp_path)))
+    built, servers = _serve_stubs(monkeypatch)
+    args = argparse.Namespace(serve=True, api_port=None, bind="127.0.0.1", port=8780, https_port=None,
+                              config=str(tmp_path / "kia.toml"))  # fmt: skip
+    cli._daemon_serve(cfg, args)  # media_via_request off: the default single container
+    assert built == [cfg] and servers[-1]["relay"] == "RELAY"  # the live relay, as today
+    assert servers[-1]["metrics"].args[-1] is None  # it reads that relay, not a file
+
+
+def test_daemon_media_serves_the_pluto_relay(tmp_path: Path, monkeypatch):
+    cfg = cli.load(Path(instance(tmp_path)))
+    _built, servers = _serve_stubs(monkeypatch)
+    args = argparse.Namespace(serve=False, api_port=8781, bind="127.0.0.1", port=8780)
+    cli._daemon_media_serve(cfg, args)
+    assert servers[-1]["relay"] == "RELAY" and servers[-1]["trust_proxy"] is True
+    assert "api" not in servers[-1] and "metrics" not in servers[-1]  # only /pluto/, nothing else
+
+
+def test_daemon_media_serves_nothing_when_the_relay_is_off(tmp_path: Path, monkeypatch):
+    cfg = cli.load(Path(instance(tmp_path)))
+    _built, servers = _serve_stubs(monkeypatch)
+    monkeypatch.setattr(cli, "pluto_relay", lambda c: None)  # relay off in kia.toml
+    args = argparse.Namespace(serve=False, api_port=8781, bind="127.0.0.1", port=8780)
+    cli._daemon_media_serve(cfg, args)
+    assert servers == []
 
 
 # 0.9 privilege separation: daemon-media runs the on-demand media work the web half leaves over
