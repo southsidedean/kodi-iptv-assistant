@@ -113,21 +113,27 @@ def _stub_daemon_halves(monkeypatch, cfg_path: str, cut_short: bool):
     monkeypatch.setattr(cli, "_daemon_serve", lambda cfg, args, **kw: calls.append(("serve", kw)))
     monkeypatch.setattr(cli, "_daemon_media_serve", lambda cfg, args: calls.append("media-serve"))
     monkeypatch.setattr(cli, "_daemon_refresh_loop", lambda cfg, args, cut: calls.append(("loop", cut)))
-    monkeypatch.setattr(cli, "_idle_forever", lambda: calls.append("idle"))
+    monkeypatch.setattr(cli, "_web_chores", lambda cfg, args: calls.append("chores"))
+    monkeypatch.setattr(cli, "_serve_media_requests", lambda cfg: None)
+    monkeypatch.setattr(cli.mediareq, "keep_alive", lambda folder: calls.append("alive"))
     return calls
 
 
 def test_daemon_web_serves_and_never_runs_the_refresh_loop(tmp_path: Path, monkeypatch):
     calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=True)
     assert cli.main(["daemon-web", "-c", str(tmp_path / "kia.toml")]) == 0
-    # Serves with media work routed to the other half, then waits; the refresh is daemon-media's.
-    assert calls == [("serve", {"media_via_request": True}), "idle"]
+    # Serves with media work routed to the other half, then does its own chores (alerts, Plex,
+    # the certificate); the refresh is daemon-media's.
+    assert calls == [("serve", {"media_via_request": True}), "chores"]
+    assert os.environ["KIA_ROLE"] == "web"
 
 
 def test_daemon_media_refreshes_and_never_serves(tmp_path: Path, monkeypatch):
     calls = _stub_daemon_halves(monkeypatch, instance(tmp_path), cut_short=False)
     cli.main(["daemon-media", "-c", str(tmp_path / "kia.toml")])
-    assert calls == ["media-serve", ("loop", False)]  # the Pluto relay, then the refresh loop; no Dashboard
+    # The Pluto relay, the liveness file, then the refresh loop; no Dashboard.
+    assert calls == ["media-serve", "alive", ("loop", False)]
+    assert os.environ["KIA_ROLE"] == "media"
 
 
 def test_daemon_runs_both_halves_in_order(tmp_path: Path, monkeypatch):
@@ -323,13 +329,14 @@ def test_daemon_media_starts_the_request_servicer(tmp_path: Path, monkeypatch):
 
     class FakeThread:
         def __init__(self, target=None, args=(), daemon=None, name=None):
-            started["target"], started["name"] = target, name
+            self.target = target
 
         def start(self):
-            started["started"] = True
+            started[self.target] = True
 
     monkeypatch.setattr(cli, "_daemon_setup", lambda args: (cli.load(Path(cfg_path)), False))
     monkeypatch.setattr(cli, "_daemon_refresh_loop", lambda *a: None)
     monkeypatch.setattr(cli.threading, "Thread", FakeThread)
     cli.main(["daemon-media", "-c", str(tmp_path / "kia.toml")])
-    assert started.get("started") and started["target"] is cli._serve_media_requests
+    # The request servicer, and the liveness file its healthcheck reads.
+    assert started[cli._serve_media_requests] and started[cli.mediareq.keep_alive]

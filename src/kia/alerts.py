@@ -5,9 +5,12 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
+import secrets
 import smtplib
 import ssl
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -16,7 +19,7 @@ from email.message import EmailMessage
 from email.utils import formataddr
 from pathlib import Path
 
-from kia import __version__
+from kia import __version__, mediareq
 from kia import name as kia_name
 from kia.history import now_iso
 from kia.files import obj, read_object, temp_name
@@ -132,6 +135,10 @@ def notify(
 
     Returns True if this was an alert that's turned on, i.e. something a person should act on.
     """
+    if mediareq.role() == mediareq.MEDIA:
+        # The media half holds no SMTP password or ntfy topic: the web half sends it.
+        hand_off(event, title, message, state_dir, log)
+        return event in cfg.events and event not in NOTICES
     # With several kia installs sending to one ntfy topic or inbox, the name says which.
     name = kia_name.current(state_dir)[0]
     title = kia_name.titled(title, name)
@@ -153,6 +160,80 @@ def notify(
     if cfg.email:
         send_email(cfg.email, title, message, log, name)
     return not notice
+
+
+# Alerts the media half hands to the web half (0.9 privilege separation): one small JSON file
+# each in media's own folder, which web reads and never writes. Web keeps the name of the last
+# one it sent in state/, so each goes out once; media removes its own after a day.
+HANDED_OFF = "alerts"  # in media-service/
+SENT_MARKER = "media-alerts-sent"  # in state/, written by web
+HAND_OFF_KEEP = 24 * 3600  # seconds media keeps a file, and how old a file web still sends
+HAND_OFF_BATCH = 20  # most alerts web sends from one look, so a flood can't fill a phone
+_HANDED_NAME = re.compile(r"\d{8}T\d{6}-\d{9}-[0-9a-f]{8}\.json")
+_EVENT = re.compile(r"[a-z_]{1,40}")
+
+
+def _hand_off_dir(state_dir: Path) -> Path:
+    return state_dir.parent / mediareq.SERVICE_DIR / HANDED_OFF
+
+
+def hand_off(event: str, title: str, message: str, state_dir: Path, log: Callable[[str], None]) -> None:
+    """Leave an alert for the web half to send. Named by time, so web sends them in order."""
+    folder = _hand_off_dir(state_dir)
+    ns = time.time_ns()
+    now = ns / 10**9
+    path = folder / f"{time.strftime('%Y%m%dT%H%M%S', time.gmtime(now))}-{ns % 10**9:09d}-{secrets.token_hex(4)}.json"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        tmp = temp_name(path)
+        tmp.write_text(json.dumps({"event": event, "title": title, "message": message}))
+        tmp.replace(path)
+        log(f"Alert for the web half to send: {title}")
+        for old in folder.iterdir():
+            if old.stat().st_mtime < now - HAND_OFF_KEEP:
+                old.unlink(missing_ok=True)
+    except OSError as exc:
+        log(f"Couldn't leave alert '{event}' for the web half: {exc}")
+
+
+def send_handed_off(state_dir: Path, cfg: AlertConfig, log: Callable[[str], None]) -> int:
+    """Send the alerts the media half left since the last one sent; returns how many. Each is
+    checked as untrusted (media is the half that reads strangers' streams): a known event, one
+    line of title, a capped message, logins hidden. Anything else is skipped, not sent."""
+    from kia.doctor import hide_logins
+
+    folder = _hand_off_dir(state_dir)
+    marker = state_dir / SENT_MARKER
+    try:
+        last = marker.read_text().strip()
+    except OSError:
+        last = ""
+    try:
+        names = sorted(p.name for p in folder.iterdir() if _HANDED_NAME.fullmatch(p.name) and p.name > last)
+    except OSError:
+        return 0  # no folder yet: media hasn't handed anything over
+    sent = 0
+    for name in names[:HAND_OFF_BATCH]:
+        path = folder / name
+        try:
+            fresh = path.stat().st_mtime >= time.time() - HAND_OFF_KEEP
+        except OSError:
+            fresh = False  # media removed it meanwhile
+        data = read_object(path) if fresh else {}
+        event, title, message = data.get("event"), data.get("title"), data.get("message")
+        if isinstance(event, str) and _EVENT.fullmatch(event) and event in EVENTS \
+                and isinstance(title, str) and isinstance(message, str):
+            title = hide_logins(" ".join(title.split()))[:200]
+            notify(event, title, hide_logins(message)[:2000], state_dir, cfg, log)
+            sent += 1
+        try:
+            state_dir.mkdir(parents=True, exist_ok=True)
+            tmp = temp_name(marker)
+            tmp.write_text(name + "\n")
+            tmp.replace(marker)
+        except OSError:
+            break  # can't remember it, so don't send more that would go again next time
+    return sent
 
 
 def send_email(cfg: EmailConfig, title: str, message: str, log: Callable[[str], None], name: str = "") -> None:

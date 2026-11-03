@@ -60,6 +60,29 @@ STOP = "media-stop"  # in state/, written by web to stop a running check, read b
 REQUEST_EXPIRES = 300  # seconds: media won't start a request older than this
 RUNNING_UP_TO = 1800  # a request still being worked on after this long counts as stuck
 MAX_OUTPUT = 20_000  # characters of a handler's output the answer keeps
+ALIVE = "alive"  # in media-service/: media touches it while it runs, for its healthcheck
+ALIVE_EVERY = 30  # seconds between touches
+
+# Which half of the split this process is (KIA_ROLE): "web" serves and holds the secrets,
+# "media" runs the stream tools. Empty in the single-container daemon, which is both.
+WEB, MEDIA = "web", "media"
+
+
+def role() -> str:
+    return (os.environ.get("KIA_ROLE") or "").strip().lower()
+
+
+def keep_alive(service_dir: Path) -> None:
+    """Touch media-service/alive every ALIVE_EVERY seconds, forever: daemon-media runs this in
+    a thread. The container's healthcheck and the Dashboard read its age; web can't reach
+    media over the network to ask."""
+    while True:
+        try:
+            service_dir.mkdir(parents=True, exist_ok=True)
+            (service_dir / ALIVE).touch()
+        except OSError:
+            pass  # a full disk, say: the healthcheck then shows it
+        time.sleep(ALIVE_EVERY)
 
 # A field value as it reaches here: one line, no control characters, length-capped. This is the
 # transport's own guard, so the file stays a safe, single-line value; media still looks the key
