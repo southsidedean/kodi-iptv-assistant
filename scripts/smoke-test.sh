@@ -176,6 +176,25 @@ print("\n".join(problems) or "ok")
 sys.exit(1 if problems else 0)
 EOF
 ok "kia-media sees no secrets and can't reach kia's API"
+# The Dashboard's Test button: kia leaves the request in state/, kia-media takes it into its own
+# folder (another mount) and answers there. A rename between the two fails, so this is real.
+PYTHONPATH=src python3 - "$https_port" <<'EOF' || fail "a channel test didn't go through kia-media"
+import json, ssl, sys, urllib.request
+from kia import m3u
+
+key = m3u.parse(open("output/curated.m3u").read())[0].key
+ctx = ssl.create_default_context()
+ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+req = urllib.request.Request(f"https://localhost:{sys.argv[1]}/api/channel/test", method="POST",
+                             data=json.dumps({"key": key}).encode(),
+                             headers={"Content-Type": "application/json",
+                                      "X-Kia-Password": open("private/admin-password.txt").read().strip()})
+with urllib.request.urlopen(req, timeout=90, context=ctx) as r:
+    answer = json.load(r)
+print(answer)
+sys.exit(0 if answer.get("ok") is True else 1)
+EOF
+ok "a channel test from the Dashboard runs in kia-media and comes back"
 if compose exec -T kia python3 -m kia run >/dev/null 2>&1; then fail "kia (the web half) ran a refresh"; fi
 ok "kia (the web half) refuses to run a refresh"
 

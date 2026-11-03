@@ -141,3 +141,36 @@ def test_a_stop_names_the_request_it_stops(tmp_path):
     mediareq.clear_stop(state)
     assert mediareq.stop_requested(state, "abc123") is False  # cleared for the next check
     mediareq.clear_stop(state)  # clearing again is fine
+
+
+def test_a_request_is_taken_across_two_mounts(tmp_path, monkeypatch):
+    # In Docker, state/ and media-service/ are separate mounts in kia-media: a rename from one
+    # to the other fails (EXDEV), as it did on a test install before this was fixed.
+    import errno
+
+    state, service = tmp_path / "state", tmp_path / "media-service"
+    real = os.replace
+
+    def one_mount_at_a_time(src, dst):
+        if os.path.dirname(os.fspath(src)) != os.path.dirname(os.fspath(dst)):
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
+        return real(src, dst)
+
+    monkeypatch.setattr(mediareq.os, "replace", one_mount_at_a_time)
+    monkeypatch.setattr(os, "replace", one_mount_at_a_time)  # Path.replace goes through os.replace too
+    rid = mediareq.ask(state, service, "refresh-guide")
+    taken = mediareq.take(state, service)
+    assert taken == {"id": rid, "kind": "refresh-guide"}
+    assert not (state / mediareq.REQUEST).exists() and not (state / mediareq.CLAIMED).exists()
+    assert mediareq.waiting(state, service) == rid  # busy while media works on it
+    assert stat.S_IMODE((service / mediareq.TAKEN).stat().st_mode) == 0o600
+    assert mediareq.take(state, service) is None  # taken once
+    mediareq.answer(service, rid, "refresh-guide", state="done", exit_code=0, output="ok")
+    assert mediareq.waiting(state, service) is None
+
+
+def test_a_request_mid_claim_still_counts_as_waiting(tmp_path):
+    state, service = tmp_path / "state", tmp_path / "media-service"
+    rid = mediareq.ask(state, service, "refresh-guide")
+    os.replace(state / mediareq.REQUEST, state / mediareq.CLAIMED)  # media, between its two steps
+    assert mediareq.waiting(state, service) == rid

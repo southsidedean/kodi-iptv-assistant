@@ -8,10 +8,11 @@ a Docker change (kia.stack): the two halves talk only through files, and each ch
 again before trusting it.
 
   state/media-request        web writes it: id, kind, and the kind's own fields. media renames
-                             it into its own folder, so a request is taken exactly once.
+                             it to media-request.claimed, so a request is taken exactly once,
+                             then copies it into its own folder.
   state/media-stop           web writes it to stop a check it's waiting on: just the request's
                              id. media reads it while a check runs and stops that one request.
-  media-service/request      the request media is working on (the renamed file)
+  media-service/request      the request media is working on (the claimed one, copied)
   media-service/result       media's answer: id, kind, state, exit, finished, then a blank line
                              and anything to show
 
@@ -56,6 +57,10 @@ _FIELD = {"test-channel": "key", "check": "url"}
 REQUEST = "media-request"  # in state/, written by web
 SERVICE_DIR = "media-service"  # media's folder, read-only to web
 TAKEN, RESULT = "request", "result"
+# In Docker, state/ and media-service/ are separate mounts in kia-media, and a rename can't
+# cross from one to the other. So media claims a request by renaming it within state/, which
+# is atomic, then copies it across and removes the claimed one.
+CLAIMED = "media-request.claimed"  # in state/, for the moment between the two
 STOP = "media-stop"  # in state/, written by web to stop a running check, read by media
 REQUEST_EXPIRES = 300  # seconds: media won't start a request older than this
 RUNNING_UP_TO = 1800  # a request still being worked on after this long counts as stuck
@@ -171,6 +176,9 @@ def waiting(state_dir: Path, service_dir: Path) -> str | None:
     left = _age(state_dir / REQUEST)
     if left is not None and left < REQUEST_EXPIRES:
         return _request_id(state_dir / REQUEST)
+    claimed = _age(state_dir / CLAIMED)  # media is moving it across right now
+    if claimed is not None and claimed < REQUEST_EXPIRES:
+        return _request_id(state_dir / CLAIMED)
     taken = _age(service_dir / TAKEN)
     if taken is not None and taken < RUNNING_UP_TO:
         return _request_id(service_dir / TAKEN)
@@ -189,23 +197,27 @@ def take(state_dir: Path, service_dir: Path) -> dict[str, str] | None:
     if age is None:
         return None
     service_dir.mkdir(parents=True, exist_ok=True)
-    taken = service_dir / TAKEN
+    claimed, taken = state_dir / CLAIMED, service_dir / TAKEN
     try:
-        os.replace(path, taken)  # claim it atomically: a second media turn finds nothing here
+        os.replace(path, claimed)  # claim it atomically: a second media turn finds nothing here
     except OSError:
         return None
     # Check again now it's claimed: web could have swapped a link in after the age check above,
     # and a rename moves a link as the link, so this catches one before anything reads it.
     try:
-        if not stat.S_ISREG(taken.lstat().st_mode):
-            taken.unlink(missing_ok=True)
+        if not stat.S_ISREG(claimed.lstat().st_mode) or age >= REQUEST_EXPIRES:
+            claimed.unlink(missing_ok=True)  # a link, or nobody is waiting for it any more: don't run
             return None
+        with open(claimed, encoding="utf-8", errors="replace") as f:
+            text = f.read(64 * 1024)  # a real request is a few lines
+        # media's own copy, written whole (readable by the owner only: it can hold a login), so
+        # waiting() sees the slot busy from here on; then the claimed one goes.
+        _write_request(taken, [text.rstrip("\n")])
+        claimed.unlink(missing_ok=True)
     except OSError:
+        claimed.unlink(missing_ok=True)
         return None
-    if age >= REQUEST_EXPIRES:
-        taken.unlink(missing_ok=True)  # nobody is waiting for it any more; free the slot, don't run
-        return None
-    fields = _parse(taken.read_text(errors="replace"))
+    fields = _parse(text)
     rid, kind = fields.get("id", ""), fields.get("kind", "")
     if not re.fullmatch(r"[0-9a-f]{1,64}", rid):  # ids are secrets.token_hex; anything else is junk
         taken.unlink(missing_ok=True)
