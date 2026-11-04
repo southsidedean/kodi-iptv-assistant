@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.0 (unreleased)
+## 0.9.0 (2026-11-04)
 
 This release splits kia into two containers, so a stream that broke one of the media tools can't reach kia's password, tokens, or certificate key.
 

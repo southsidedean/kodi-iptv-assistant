@@ -15,6 +15,10 @@ stack. It runs on your own network and keeps its settings and secrets to itself.
 
 Newest first. The [changelog](../CHANGELOG.md) has the full detail for every version.
 
+- 0.9.0 split kia into two containers with Docker. One serves the Dashboard and holds kia's
+  password, tokens, and certificate key; the other reads strangers' streams and guide sites and
+  never sees any of them, so a stream that tricks one of the media tools has nothing to steal
+  ([two containers](security-under-the-hood.md#two-containers)).
 - 0.8.3 to 0.8.5 finished the identity and chat work. One login now covers the whole stack, with
   a real account per person and roles for who can change things, household accounts kept in a
   small store you manage, and an optional clean certificate from a public authority for browsers
@@ -43,10 +47,8 @@ Nothing is in active development between releases right now. The next work is un
 
 ## Later
 
-- 0.9.x puts a stronger boundary inside kia, splitting its one container so the parts that read
-  untrusted streams can't reach its keys, password, or tokens even if one of those tools is ever
-  tricked. It gets its own release with a design pass first, and a full review of both the code
-  and the design at the end.
+- 0.9.x closes with a full independent review of the code and the docs, plus a step back to ask
+  whether kia's design is still the right one now that the split is done.
 - Windows support is on the list, not yet scheduled.
 - Podman as an alternative to Docker. kia's two containers run under rootless Podman with the
   split intact, but Podman 4.9 (Ubuntu 24.04) and 5.7 (Ubuntu 26.04) both show kia every device
