@@ -15,10 +15,10 @@ stack. It runs on your own network and keeps its settings and secrets to itself.
 
 Newest first. The [changelog](../CHANGELOG.md) has the full detail for every version.
 
-- 0.9.0 split kia into two containers with Docker. One serves the Dashboard and holds kia's
-  password, tokens, and certificate key; the other reads strangers' streams and guide sites and
-  never sees any of them, so a stream that tricks one of the media tools has nothing to steal
-  ([two containers](security-under-the-hood.md#two-containers)).
+- 0.9.0 and 0.9.1 split kia into two containers with Docker. One serves the Dashboard and holds
+  kia's password, tokens, and certificate key; the other reads strangers' streams and guide sites
+  and sees only the few files it needs, so a stream that tricks one of the media tools has nothing
+  to steal ([two containers](security-under-the-hood.md#two-containers)).
 - 0.8.3 to 0.8.5 finished the identity and chat work. One login now covers the whole stack, with
   a real account per person and roles for who can change things, household accounts kept in a
   small store you manage, and an optional clean certificate from a public authority for browsers

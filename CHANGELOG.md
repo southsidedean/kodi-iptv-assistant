@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.1 (unreleased)
+## 0.9.1 (2026-11-04)
 
 This release closes a gap in 0.9.0's split: `kia-media` could still read copies of `.env` that some installs had lying around in the kia folder.
 
