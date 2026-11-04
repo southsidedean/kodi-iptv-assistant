@@ -38,9 +38,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from kia import channels, m3u, native, playlistguide
+from kia import channels, m3u, mediareq, native, playlistguide
 from kia.config import Config
-from kia.files import private_folder
+from kia.files import env_copies, private_folder
 from kia.history import readable
 
 # Levels, worst first. A problem needs you; a note is worth knowing; ok is reassurance.
@@ -170,6 +170,13 @@ def overview(cfg: Config, now: datetime | None = None) -> Report:
         report.findings.append(Finding(PROBLEM, ".env can be read by other users on this computer",
                                        "It holds kia's passwords and tokens.", ["state/settings.json"],
                                        "In the kia folder: chmod 600 .env"))  # fmt: skip
+    if mediareq.role() == mediareq.WEB and (copies := env_copies(cfg.state_dir)):
+        # kia-media writes state/, so it can read these: the secrets the split keeps from it.
+        # Without Docker kia is one service with no kia-media, and nothing to keep them from.
+        report.findings.append(Finding(PROBLEM, "Copies of .env are in state/, where kia-media can read them",
+                                       "They hold kia's passwords and tokens, which kia-media is meant never to see.",
+                                       [f"state/{_quote(name)}" for name in copies[:5]],
+                                       "Run scripts/update.sh, which moves them to stack-service/, or move them out of the kia folder yourself."))  # fmt: skip
     report.findings += [f for f in guide(cfg, now).findings if f.level == PROBLEM]
     report.findings += [f for f in pluto(cfg, now).findings if f.level == PROBLEM]
     report.findings += [f for f in setup(cfg, now).findings if f.level == PROBLEM]

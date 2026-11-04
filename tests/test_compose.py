@@ -24,34 +24,33 @@ def block(name: str) -> str:
 
 MEDIA = block("kia-media")
 
-# Folders in the kia folder that hold a password, token, or key, or another program's data:
-# kia-media sees each as an empty folder. A new part with secrets of its own goes here, and in
-# compose.yaml's list.
-SECRET_FOLDERS = {"private", "tls", "gateway", "frontdoor", "lldap", "threadfin", "threadfin-2", "plex",
-                  "jellyfin", "monitoring"}  # fmt: skip
+# All kia-media sees of the kia folder, each read-only: what it reads to refresh (0.9.1). Listed
+# one by one, so .env, its copies, private/, tls/, and every other part's folder aren't there at
+# all, and nor is anything added to the folder later.
+READS = {"./kia.toml": "/data/kia.toml", "./sources.txt": "/data/sources.txt",
+         '"./${KIA_SOURCES_FILE:-sources.txt}"': '"/data/${KIA_SOURCES_FILE:-sources.txt}"',
+         "./playlists": "/data/playlists", "./profiles": "/data/profiles"}  # fmt: skip
+WRITES = {"output", "state", "work", "vendor", "media-service"}  # never private/, tls/, or profiles/
 
 
-def test_kia_media_sees_none_of_the_folders_that_hold_secrets():
-    hidden = set(re.findall(r"^\s+- /data/([a-z0-9-]+):size=1m,mode=0500$", MEDIA, re.M))
-    assert hidden == SECRET_FOLDERS
-    assert "- ./deploy/empty.env:/data/.env:ro" in MEDIA and (ROOT / "deploy" / "empty.env").read_text() == ""
+def test_kia_media_sees_only_what_it_reads_and_writes():
+    reads = dict(re.findall(r"^      - type: bind\n        source: (\S+)\n        target: (\S+)\n"
+                            r"        read_only: true\n        bind:\n          create_host_path: false$", MEDIA, re.M))
+    assert reads == READS
+    writes = set(re.findall(r"^\s+- \./([a-z-]+):/data/\1$", MEDIA, re.M))
+    assert writes == WRITES
+    # Nothing else: no mount of the whole folder, of .env, or of anything not listed above.
+    mounts = re.search(r"^    volumes:\n((?:      .*\n|\s*\n)+)", MEDIA, re.M).group(1)
+    assert len(re.findall(r"^      - ", mounts, re.M)) == len(READS) + len(WRITES)
+    assert "./:/data" not in MEDIA and "/data/.env" not in MEDIA
+    assert re.search(r"^    tmpfs:\n      - /tmp\n    cap_drop:", MEDIA, re.M)
 
 
-def test_every_folder_in_the_repository_with_secrets_is_hidden():
-    # The parts' own folders in the kia folder, from compose.yaml's mounts of them: each is
-    # either hidden from kia-media, or known to hold nothing secret.
-    not_secret = {"output", "state", "work", "vendor", "profiles", "media-service", "media", "playlists", "deploy",
-                  "stack-service", "stacks", "docs", "scripts", "src", "tests", "tools", "images", ".github"}  # fmt: skip
-    folders = {p.name for p in ROOT.iterdir() if p.is_dir() and not p.name.startswith(".")} - {"plans", "__pycache__"}
+def test_the_folders_kia_media_reads_are_always_there():
+    # create_host_path: false makes a missing one an error, so a fresh clone has each.
     tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
-    in_repo = {f for f in folders if any(t.startswith(f + "/") for t in tracked)}
-    assert in_repo - not_secret - SECRET_FOLDERS == set()
-
-
-def test_kia_media_writes_only_its_own_folders():
-    writable = set(re.findall(r"^\s+- \./([a-z-]+):/data/\1$", MEDIA, re.M))
-    assert writable == {"output", "state", "work", "vendor", "media-service"}  # never private/, tls/, or profiles/
-    assert "- ./:/data:ro" in MEDIA
+    for path in ("kia.toml", "sources.txt", "playlists/.gitkeep", "profiles/.gitkeep"):
+        assert path in tracked
 
 
 def test_kia_medias_settings_hold_no_secret():

@@ -215,6 +215,17 @@ mkdir -p private media-service
 for f in admin.json admin-password.txt mcp-token.txt metrics-key; do
     if [ -f "state/$f" ] && [ ! -e "private/$f" ]; then mv "state/$f" "private/$f"; fi
 done
+# Copies of .env hold kia's passwords and tokens too. stack.sh applies before 0.6.7 left them
+# in state/, which kia-media can read, and pin-versions.sh before 0.9.1 at the top of the kia
+# folder. They move to stack-service/, where newer ones go and kia-media never looks. A name
+# already taken there, or a link, stays where it is (kia doctor still names one in state/).
+(umask 077 && mkdir -p stack-service)
+for f in state/env.before-* state/.env.* .env.bak-*; do
+    if [ -f "$f" ] && [ ! -L "$f" ]; then
+        dest="stack-service/${f##*/}"
+        if [ ! -e "$dest" ] && [ ! -L "$dest" ]; then mv "$f" "$dest"; fi
+    fi
+done
 docker compose up -d
 # Docker pins a config file mounted on its own (nginx's, Prometheus's) to the copy the
 # container started with, so after a release that changed one, that container restarts.

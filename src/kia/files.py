@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -84,3 +85,20 @@ def private_file(state_dir: Path, name: str) -> Path:
             # Another kia process may have moved it a moment ago; then it's in private/ now.
             return new if new.exists() else old
     return new
+
+
+# Copies of .env, which holds kia's passwords and tokens. stack.sh applies before 0.6.7 left
+# them in state/ (env.before-stack-<date>), and so could a copy made by hand (.env.bak, say).
+# kia-media writes state/, so it can read anything there: scripts/update.sh moves these to
+# stack-service/, and kia-media's log and `kia doctor` name any still left. Names only: what's
+# inside is never read.
+ENV_COPY = re.compile(r"\.env.*|env\.before-.*")
+
+
+def env_copies(folder: Path) -> list[str]:
+    """The names of the files in folder that look like copies of .env, sorted; [] when the
+    folder can't be read."""
+    try:
+        return sorted(p.name for p in folder.iterdir() if ENV_COPY.fullmatch(p.name) and p.is_file())
+    except OSError:
+        return []

@@ -44,8 +44,10 @@ profiles/*
 .env.bak*
 .env.new
 sources.local.txt
-# Your own playlist files (see the end of sources.txt).
-playlists/
+# Your own playlist files (see the end of sources.txt). The empty folder is kept: kia-media
+# needs it to be there (compose.yaml).
+playlists/*
+!playlists/.gitkeep
 *.tmp
 # The account store's database (compose.yaml, frontdoor profile; LLDAP).
 lldap/*/*

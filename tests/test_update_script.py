@@ -405,3 +405,22 @@ def test_without_docker_a_stopped_service_is_nobody_watching(copy: Path):
     r = update(copy, "v0.4.0", "--no-docker")
     assert r.returncode == 0 and "kia says" not in r.stdout and calls.read_text() == "install-service \n", r.stdout + r.stderr
     assert not (copy.parent / "docker.log").exists()
+
+
+def test_copies_of_env_move_out_of_kia_medias_sight(copy: Path):
+    # Older stack.sh applies left copies of .env in state/, which kia-media reads (0.9.0), and
+    # older pin-versions.sh at the top of the kia folder: both go to stack-service/.
+    (copy / "state").mkdir()
+    for name in ("state/env.before-stack-20261024-134455", "state/.env.bak-20261021", ".env.bak-202610191724"):
+        (copy / name).write_text("KIA_PLEX_TOKEN=secret\n")
+    (copy / "stack-service").mkdir()
+    (copy / "stack-service" / "env.before-taken").write_text("older\n")
+    (copy / "state" / "env.before-taken").write_text("KIA_PLEX_TOKEN=secret\n")  # its name is taken there
+    (copy / "state" / ".env.link").symlink_to(copy / ".env")  # a link isn't followed or moved
+    r = update(copy)
+    assert r.returncode == 0, r.stderr
+    moved = {p.name for p in (copy / "stack-service").iterdir()}
+    assert {"env.before-stack-20261024-134455", ".env.bak-20261021", ".env.bak-202610191724"} <= moved
+    assert (copy / "stack-service" / "env.before-taken").read_text() == "older\n"
+    assert {p.name for p in (copy / "state").iterdir()} == {"env.before-taken", ".env.link"}
+    assert not list(copy.glob(".env.bak-*"))
