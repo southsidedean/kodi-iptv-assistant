@@ -33,3 +33,15 @@ CVE-2026-87018 exp:2026-11-30
 # service here) can't reach it. Checked in kia's image, 2026-10-29; drop when a new npm bundles
 # the fix.
 CVE-2026-109932 exp:2026-11-30
+
+# Two in packages npm 12.2.1 bundles (npm's newest, which still ships them). kia runs npm only at
+# image-build time, to install esbuild and the guide downloader's packages from the npm
+# registry, and no pattern or folder a stranger chooses reaches either one. Checked in kia's
+# image, 2026-11-04; drop each when a new npm bundles the fix.
+# minimatch 10.2.5: a crafted glob pattern with many **/.. parts can use up CPU and memory while
+# it compiles (fixed in 11.0.1).
+CVE-2026-118764 exp:2026-12-04
+# glob 13.0.6: after a timeout cancels a folder walk, the walk keeps going in the background, so
+# repeated timed-out requests pile up work (fixed in 14.0.2). npm sets no such time limit on its
+# own file walks.
+CVE-2026-118773 exp:2026-12-04
