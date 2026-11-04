@@ -52,3 +52,5 @@ playlists/*
 # The account store's database (compose.yaml, frontdoor profile; LLDAP).
 lldap/*/*
 !lldap/*/.gitkeep
+# Recordings from tools/playback/record.py: they name your devices.
+playback-*.jsonl
