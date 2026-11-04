@@ -48,6 +48,10 @@ Nothing is in active development between releases right now. The next work is un
   tricked. It gets its own release with a design pass first, and a full review of both the code
   and the design at the end.
 - Windows support is on the list, not yet scheduled.
+- Podman as an alternative to Docker. A trial with Ubuntu 24.04's Podman 4.9 ran kia's two
+  containers with the split intact, but rootless Podman 4.9 shows kia every device as the same
+  address, and kia's limits on password guessing and MCP calls count per address. It will be
+  tried again on Podman 5, the version Ubuntu 26.04 ships.
 - A shared gateway for several kias, one always-on install's gateway sitting in front of a few
   others so devices that can't reach every stack directly still can, is an idea being weighed,
   not scheduled.
