@@ -5,7 +5,7 @@
 #   scripts/pin-versions.sh --unpin  clear them again (follow the latest)
 #
 # Pins the base (Wolfi) and nginx images by digest and iptv-org/epg by commit. .env is backed
-# up first. Apply with: docker compose up -d --build
+# up first, to stack-service/env.before-pin-<date>. Apply with: docker compose up -d --build
 set -eu
 # Ranges such as [a-z] mean only ASCII letters in the C locale; in others (macOS's sh, in
 # UTF-8) they take capitals and accented letters too, and a name check lets them through.
@@ -26,7 +26,10 @@ set_env() {  # set_env NAME VALUE: replace the NAME= line in .env, or add it
 # A setting's value as Compose reads it, without one pair of quotes around it.
 get() { grep "^$1=" .env | tail -n 1 | cut -d= -f2- | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/" || true; }
 
-cp .env ".env.bak-$(date +%Y%m%d-%H%M%S)"
+# The copy goes in stack-service/, with stack.sh's own copies: kia-media sees only part of the
+# kia folder, and never that folder.
+mkdir -p stack-service
+cp .env "stack-service/env.before-pin-$(date +%Y%m%d-%H%M%S)"
 if [ "${1:-}" = "--unpin" ]; then
   for name in KIA_BASE_IMAGE KIA_NGINX_IMAGE KIA_EPG_GIT_REF; do set_env "$name" ""; done
   echo "Unpinned: kia follows the latest versions again. Apply with: docker compose up -d --build"

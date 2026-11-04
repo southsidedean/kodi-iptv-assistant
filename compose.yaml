@@ -188,20 +188,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      # Empty in this container's view: every folder in the kia folder that holds a password,
-      # token, or key (kia's own, the certificate's, the gateway's and the front door's,
-      # Threadfin's, Plex's sign-in), and the other programs' data. tests/test_compose.py
-      # checks this list, so a new part with secrets of its own has to be added here.
-      - /data/private:size=1m,mode=0500
-      - /data/tls:size=1m,mode=0500
-      - /data/gateway:size=1m,mode=0500
-      - /data/frontdoor:size=1m,mode=0500
-      - /data/lldap:size=1m,mode=0500
-      - /data/threadfin:size=1m,mode=0500
-      - /data/threadfin-2:size=1m,mode=0500
-      - /data/plex:size=1m,mode=0500
-      - /data/jellyfin:size=1m,mode=0500
-      - /data/monitoring:size=1m,mode=0500
     cap_drop:
       - ALL
     security_opt:
@@ -248,10 +234,42 @@ services:
       retries: 3
       start_period: 60s
     volumes:
-      # The kia folder, read-only, for kia.toml, the sources files, your playlists, and profiles.
-      - ./:/data:ro
-      # .env holds kia's passwords and tokens: an empty file in its place.
-      - ./deploy/empty.env:/data/.env:ro
+      # Only what it reads from the kia folder, each read-only: your settings, the playlist list
+      # and the sources file KIA_SOURCES_FILE names (the same file twice is fine), your own
+      # playlist files, and your profiles. Nothing else in the kia folder is there at all: not
+      # .env, the copies of it the scripts keep, private/, tls/, or the other parts' folders, nor
+      # anything added to the folder later. Each must exist (create_host_path: false): Docker
+      # would otherwise make a missing one as root, and a missing file as a folder.
+      - type: bind
+        source: ./kia.toml
+        target: /data/kia.toml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./sources.txt
+        target: /data/sources.txt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "./${KIA_SOURCES_FILE:-sources.txt}"
+        target: "/data/${KIA_SOURCES_FILE:-sources.txt}"
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./playlists
+        target: /data/playlists
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./profiles
+        target: /data/profiles
+        read_only: true
+        bind:
+          create_host_path: false
       # The folders it writes to.
       - ./output:/data/output
       - ./state:/data/state

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.1 (unreleased)
+
+This release closes a gap in 0.9.0's split: `kia-media` could still read copies of `.env` that some installs had lying around in the kia folder.
+
+### Upgrading from 0.9.0
+
+Update with `scripts/update.sh`. It moves any old copies of `.env` it finds in `state/` or at the top of the kia folder into `stack-service/`.
+
+`kia-media` now sees only the files it needs, so check three things first:
+
+- Your own playlist files go in `playlists/`. One anywhere else in the kia folder stops working, and kia's log says so.
+- If you chose your own sources file with `sources_file` in `kia.toml`, set it with `KIA_SOURCES_FILE` in `.env` instead. `kia-media` doesn't see the one `kia.toml` names unless it's `sources.txt`.
+- Your profiles file stays in `profiles/`, as before.
+
+### Fixes
+
+- `kia-media` mounted the whole kia folder and hid the folders known to hold secrets, so a secret anywhere else was in its view. Copies of `.env` were: the ones `scripts/stack.sh` kept in `state/` before 0.6.7, the ones it keeps now in `stack-service/`, and the ones `scripts/pin-versions.sh` left at the top of the kia folder. Each held the Plex token and the passwords. Now `kia-media` mounts only `kia.toml`, `sources.txt`, your own sources file, `playlists/`, and `profiles/`, plus the folders it writes, so nothing else in the kia folder reaches it, including anything added later. If one is missing, `kia-media` doesn't start and Docker says which; it used to make a missing folder itself, owned by root.
+- `scripts/pin-versions.sh` keeps its copy of `.env` in `stack-service/`, beside `scripts/stack.sh`'s.
+- `kia-media`'s log and `kia doctor` name any copy of `.env` still in `state/`, which `kia-media` can read because it writes there.
+
 ## 0.9.0 (2026-11-04)
 
 This release splits kia into two containers, so a stream that broke one of the media tools can't reach kia's password, tokens, or certificate key.

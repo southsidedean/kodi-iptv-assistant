@@ -1,16 +1,18 @@
-"""The 0.9 split's dormant pieces: which half (KIA_ROLE) does what, alerts the media half hands
-to the web half, and the web half's own chores. Nothing deploys the split yet."""
+"""The 0.9 split: which half (KIA_ROLE) does what, alerts the media half hands to the web half,
+the web half's own chores, and what the media half says about the parts of the kia folder it
+can't see (0.9.1)."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from pathlib import Path
 
 import pytest
 
-from kia import alerts, cli, mediareq
+from kia import alerts, cli, config, doctor, files, mediareq
 
 
 @pytest.fixture
@@ -213,3 +215,83 @@ def test_kia_medias_tile_comes_from_its_liveness_file(tmp_path: Path):
     tiles = stack.check([], knock=lambda host, port: True, media=lambda: True)
     assert tiles == [{"service": "kia-media", "title": "kia-media", "ok": True}]
     assert stack.check([], knock=lambda host, port: True) == []  # one container: no tile
+
+
+# What the media half can't see (0.9.1): compose.yaml mounts only part of the kia folder.
+
+
+def test_copies_of_env_are_found_by_name(tmp_path: Path):
+    for name in ("env.before-stack-20261024-134455", ".env.bak-20261021", ".env", "env.before-pin-1", "status.lock"):
+        (tmp_path / name).write_text("x")
+    (tmp_path / ".env.d").mkdir()  # a folder isn't a copy
+    assert files.env_copies(tmp_path) == [".env", ".env.bak-20261021", "env.before-pin-1", "env.before-stack-20261024-134455"]
+    assert files.env_copies(tmp_path / "missing") == []
+
+
+def test_the_media_half_names_copies_of_env_it_can_read(tmp_path: Path, monkeypatch):
+    folder_with_config(tmp_path)
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "env.before-stack-20261024-134455").write_text("KIA_PLEX_TOKEN=x\n")
+    cfg = config.load(tmp_path / "kia.toml")
+    said = []
+    monkeypatch.setattr(cli, "log", said.append)
+    monkeypatch.setattr(cli, "_daemon_setup", lambda args: (cfg, False))
+    monkeypatch.setattr(cli, "_daemon_media_serve", lambda cfg, args: None)
+    monkeypatch.setattr(cli, "_daemon_refresh_loop", lambda cfg, args, cut_short: None)
+    monkeypatch.setattr(cli.threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())
+    cli.cmd_daemon_media(None)
+    assert any("env.before-stack-20261024-134455" in s and "stack-service/" in s for s in said)
+    assert not any("KIA_PLEX_TOKEN" in s for s in said)  # names only, never what's inside
+
+
+def test_kia_doctor_names_them_only_when_kia_media_runs(tmp_path: Path, monkeypatch):
+    folder_with_config(tmp_path)
+    (tmp_path / "output").mkdir()
+    (tmp_path / "output" / "status.json").write_text(json.dumps({"result": "ok"}))
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / ".env.bak-20261021").write_text("x")
+    cfg = config.load(tmp_path / "kia.toml")
+    title = "Copies of .env are in state/, where kia-media can read them"
+    monkeypatch.setenv("KIA_ROLE", "web")
+    found = [f for f in doctor.overview(cfg).findings if f.title == title]
+    assert found and found[0].level == doctor.PROBLEM and found[0].evidence == ["state/.env.bak-20261021"]
+    monkeypatch.delenv("KIA_ROLE")  # without Docker: one service, nothing to keep them from
+    assert title not in [f.title for f in doctor.overview(cfg).findings]
+
+
+def test_the_media_half_says_when_it_cant_see_a_sources_file(tmp_path: Path, monkeypatch):
+    folder_with_config(tmp_path)
+    monkeypatch.setenv("KIA_SOURCES_FILE", "my-list.txt")
+    with pytest.raises(FileNotFoundError):
+        config.load(tmp_path / "kia.toml")  # anywhere else, the usual error
+    monkeypatch.setenv("KIA_ROLE", "media")
+    with pytest.raises(ValueError, match=re.escape("my-list.txt: kia-media can't see it")):
+        config.load(tmp_path / "kia.toml")
+    (tmp_path / "my-list.txt").write_text("https://example.com/uk.m3u\n")
+    assert config.load(tmp_path / "kia.toml").sources[0].url == "https://example.com/uk.m3u"
+
+
+def test_the_media_half_says_when_its_profiles_file_is_out_of_sight(tmp_path: Path, monkeypatch):
+    folder_with_config(tmp_path)
+    monkeypatch.setenv("KIA_PROFILES_FILE", "my-profiles.toml")
+    assert config.load(tmp_path / "kia.toml").profiles_file == tmp_path / "my-profiles.toml"
+    monkeypatch.setenv("KIA_ROLE", "media")
+    with pytest.raises(ValueError, match=re.escape("kia-media can't see it. With Docker, keep the profiles file in profiles/")):
+        config.load(tmp_path / "kia.toml")
+    for inside in ("profiles/profiles.toml", "profiles/family.toml"):
+        monkeypatch.setenv("KIA_PROFILES_FILE", inside)
+        assert config.load(tmp_path / "kia.toml").profiles_file == tmp_path / inside
+    monkeypatch.setenv("KIA_PROFILES_FILE", "profiles/../my-profiles.toml")  # out again
+    with pytest.raises(ValueError):
+        config.load(tmp_path / "kia.toml")
+
+
+def test_the_media_half_says_when_it_cant_see_a_playlist_of_your_own(tmp_path: Path, monkeypatch):
+    folder_with_config(tmp_path)
+    cfg = config.load(tmp_path / "kia.toml")
+    src = config.Source(name="mine", url=str(tmp_path / "mine.m3u"))
+    monkeypatch.setenv("KIA_ROLE", "media")
+    with pytest.raises(FileNotFoundError, match=re.escape("kia-media can't see it. With Docker, keep your own playlist files in playlists/")):
+        cli.fetch_source(cfg, src)
+    (tmp_path / "mine.m3u").write_text("#EXTM3U\n")
+    assert cli.fetch_source(cfg, src) == "#EXTM3U\n"

@@ -153,18 +153,20 @@ EOF
 
 echo "== The split: kia-media sees no secrets and can't reach kia"
 { [ -s private/admin-password.txt ] && [ ! -e state/admin-password.txt ]; } || fail "kia's password isn't in private/"
+# Copies of .env where the scripts keep them, and one made by hand at the top of the kia folder
+# after kia-media started: none of them reach it, since it mounts only what it reads.
+(umask 077 && mkdir -p stack-service && cp .env stack-service/env.before-stack-smoke && cp .env .env.bak-smoke)
 compose exec -T kia-media python3 - <<'EOF' || fail "kia-media can see a secret or reach kia"
 import os, sys, urllib.request
 
 problems = []
-if os.path.getsize("/data/.env"):
-    problems.append(".env has something in it")
-for folder in ("/data/private", "/data/tls", "/data/gateway", "/data/plex"):
-    try:
-        if os.listdir(folder):
-            problems.append(f"{folder} isn't empty")
-    except PermissionError:
-        pass  # can't even look: as good
+for path in ("/data/.env", "/data/.env.bak-smoke", "/data/stack-service", "/data/private", "/data/tls",
+             "/data/gateway", "/data/plex", "/data/threadfin", "/data/scripts"):
+    if os.path.lexists(path):
+        problems.append(f"{path} is there")
+reads = {"kia.toml", "sources.txt", os.environ["KIA_SOURCES_FILE"], "playlists", "profiles"}
+if set(os.listdir("/data")) != reads | {"output", "state", "work", "vendor", "media-service"}:
+    problems.append(f"it sees more of the kia folder than it reads: {sorted(os.listdir('/data'))}")
 if any(name in os.environ for name in ("KIA_ADMIN_PASSWORD", "KIA_SMTP_PASSWORD", "KIA_PLEX_TOKEN", "KIA_NTFY_URL")):
     problems.append("a secret setting is in its environment")
 try:
@@ -175,6 +177,7 @@ except OSError:
 print("\n".join(problems) or "ok")
 sys.exit(1 if problems else 0)
 EOF
+rm -f stack-service/env.before-stack-smoke .env.bak-smoke
 ok "kia-media sees no secrets and can't reach kia's API"
 # The Dashboard's Test button: kia leaves the request in state/, kia-media takes it into its own
 # folder (another mount) and answers there. A rename between the two fails, so this is real.

@@ -112,7 +112,7 @@ kia's container has no Docker socket, on purpose: kia runs other people's code (
 
 ### What the service writes
 
-Everything it writes stays in `stack-service/` in the kia folder. kia sees that folder read-only, like the rest of the kia folder.
+Everything it writes stays in `stack-service/` in the kia folder. kia sees that folder read-only, like the rest of the kia folder; `kia-media` doesn't see it at all.
 
 | File | What's in it |
 |---|---|

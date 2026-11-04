@@ -37,7 +37,7 @@ from kia.curate import Checked, classify, is_excluded, render_markdown, select
 from kia.history import History, now_iso
 from kia.numbers import ChannelNumbers
 from kia.probe import GUARD_REFUSED, ProbeResult, probe, probe_guarded
-from kia.files import items, private_usable, read_object, temp_name
+from kia.files import env_copies, items, private_usable, read_object, temp_name
 import contextlib
 
 
@@ -85,6 +85,9 @@ def fetch(url: str, guarded: bool = True) -> str:
 def fetch_source(cfg: Config, src) -> str:
     """A channel source's playlist; its last good copy if it can't be downloaded now."""
     if src.is_local_file:
+        if mediareq.role() == mediareq.MEDIA and not Path(src.url).exists():
+            # kia-media sees only playlists/ of your own files (compose.yaml).
+            raise FileNotFoundError(f"{src.url}: kia-media can't see it. With Docker, keep your own playlist files in playlists/")
         return fetch(src.url)
     saved = cfg.epg.work_dir / "sources" / f"{src.name}.m3u"
     try:
@@ -1634,12 +1637,17 @@ def _daemon_media_serve(cfg: Config, args: argparse.Namespace) -> None:
 def cmd_daemon_media(args: argparse.Namespace) -> int:
     """The refresh half of `daemon` (0.9 privilege separation): the nightly run and the quick
     guide refreshes, with no serving. It also runs the on-demand media work the web half leaves
-    over the request channel (kia.mediareq), in a thread beside the refresh loop. Nothing deploys
-    this yet; the default install still runs `daemon`."""
+    over the request channel (kia.mediareq), in a thread beside the refresh loop. compose.yaml's
+    kia-media service runs it."""
     # Set first, and inherited by the commands it starts: alerts go to the web half to send
     # (kia.alerts.hand_off), and the steps that need the web half's secrets are skipped here.
     os.environ["KIA_ROLE"] = mediareq.MEDIA
     cfg, cut_short = _daemon_setup(args)
+    if copies := env_copies(cfg.state_dir):
+        # This half can read state/, and these hold the passwords and tokens it's kept from.
+        log(f"Copies of .env are in state/, where this container can read them: {', '.join(copies[:5])}"
+            f"{' and more' if len(copies) > 5 else ''}. scripts/update.sh moves them to stack-service/; "
+            "or move them out of the kia folder yourself.")
     _daemon_media_serve(cfg, args)  # the Pluto relay and its /pluto/ listener (media-tool work lives here)
     threading.Thread(target=_serve_media_requests, args=(cfg,), daemon=True,
                      name="kia-media-requests").start()  # fmt: skip

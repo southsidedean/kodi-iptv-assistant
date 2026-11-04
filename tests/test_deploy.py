@@ -340,7 +340,9 @@ def test_pin_versions_script(tmp_path: Path):
     assert "KIA_NGINX_IMAGE=nginx@sha256:abc123" in text  # 'nginx:alpine' read without its quotes, as Compose does
     assert "KIA_EPG_GIT_REF=0123456789abcdef" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text
     assert "X=1\n" in text  # a last line without its line break stays its own
-    assert list(proj.glob(".env.bak-*"))
+    # The copy is in stack-service/, out of kia-media's sight, and owner-only like .env.
+    copies = list((proj / "stack-service").glob("env.before-pin-*"))
+    assert copies and copies[0].stat().st_mode & 0o077 == 0 and not list(proj.glob(".env.bak-*"))
     assert run("--unpin").returncode == 0
     text = (proj / ".env").read_text()
     assert "KIA_BASE_IMAGE=\n" in text and "KIA_EPG_GIT_REF=\n" in text and "KIA_PUBLIC_URL=http://tv.lan:8780" in text

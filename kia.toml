@@ -2,7 +2,9 @@
 # you might change it. With Docker, the most common ones can also be set in .env, which
 # takes priority over this file (the .env name is given where one exists).
 
-# The playlists to check, one per line. See the comments in that file.
+# The playlists to check, one per line. See the comments in that file. With Docker, choose
+# your own list with KIA_SOURCES_FILE in .env instead: kia-media, which reads it, sees only
+# that one and sources.txt.
 sources_file = "sources.txt"
 
 # Playlists for people and devices, made from the full list. The Dashboard edits this

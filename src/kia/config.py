@@ -219,6 +219,14 @@ def _radio_source(line: str, taken: set[str]) -> Source:
     return Source(name=name, url=f"{prefix}:{rest}".strip(), params=params)
 
 
+def _in_kia_media() -> bool:
+    """Whether this is the kia-media container, which sees only part of the kia folder
+    (compose.yaml): then a file it can't find gets a message saying so."""
+    from kia import mediareq
+
+    return mediareq.role() == mediareq.MEDIA
+
+
 def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = None) -> Config:
     """Read kia.toml. ``sources_file`` overrides the file it names; ``urls`` overrides both."""
     data = tomllib.loads(path.read_text())
@@ -234,6 +242,9 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         # ignores) so updating kia never conflicts with your choices.
         named = os.environ.get("KIA_SOURCES_FILE") or data.get("sources_file", "sources.txt")
         sources_file = sources_file or base / named
+        if not sources_file.exists() and _in_kia_media():
+            raise ValueError(f"{named}: kia-media can't see it. With Docker it sees only sources.txt and the file "
+                             "KIA_SOURCES_FILE names in .env (kia.toml's sources_file doesn't reach it)")
         text = sources_file.read_text()
         sources = parse_sources(text)
         origin = str(sources_file)
@@ -249,6 +260,11 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
             sources = web_sources.apply(sources, offers, state)
     if not sources:
         raise ValueError(f"{origin}: no playlist sources listed")
+    profiles_named = os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles/profiles.toml")
+    profiles_file = base / profiles_named
+    if _in_kia_media() and not profiles_file.resolve().is_relative_to((base / "profiles").resolve()):
+        # Missing, it would read as no profiles at all, and their playlists would go quietly.
+        raise ValueError(f"{profiles_named}: kia-media can't see it. With Docker, keep the profiles file in profiles/")
     return Config(
         sources=sources,
         sources_file=None if urls else sources_file,
@@ -272,7 +288,7 @@ def load(path: Path, sources_file: Path | None = None, urls: list[str] | None = 
         epg_url=output.get("epg_url") or _derive_epg_url(output),
         channel_numbers=_switch("[output] channel_numbers", output.get("channel_numbers", True)),
         recycle_numbers_after_days=_recycle_days(output.get("recycle_numbers_after_days", 0)),
-        profiles_file=base / (os.environ.get("KIA_PROFILES_FILE") or data.get("profiles_file", "profiles/profiles.toml")),
+        profiles_file=profiles_file,
         public_url=_public_url(output),
         tls_dir=base / output.get("tls_dir", "tls"),
         https_port=_port("KIA_HTTPS_PORT", _whole("[output] https_port", output.get("https_port", 8743), 1)),
