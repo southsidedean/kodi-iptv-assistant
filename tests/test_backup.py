@@ -63,6 +63,30 @@ def test_restore_refuses_strange_archives(tmp_path: Path):
     assert restored == []  # only kia's own settings folders are restored
 
 
+def test_copies_of_env_in_state_are_left_out_and_never_restored(tmp_path: Path):
+    # Before 0.9.1, scripts/stack.sh kept copies of .env in state/, which kia-media can read.
+    # A backup leaves them out, and a restore of an older backup that has them skips them.
+    home = kia_folder(tmp_path / "home")
+    for name in ("env.before-stack-20261020", ".env.bak", ".env.20261001"):
+        (home / "state" / name).write_text("KIA_PLEX_TOKEN=x\n")
+    names = backup.make(home, tmp_path / "b.tar.gz")
+    assert ".env" in names and "state/channels.json" in names
+    assert not [n for n in names if n.startswith("state/") and "env" in n]
+
+    old = tmp_path / "old.tar.gz"  # as a backup made before this fix looks
+    with tarfile.open(old, "w:gz") as tar:
+        for n, data in [(backup.MANIFEST, b'{"files": []}'), ("state/env.before-stack-1", b"KIA_PLEX_TOKEN=x\n"),
+                        ("state/channels.json", b"{}"), (".env", b"KIA_A=1\n")]:  # fmt: skip
+            info = tarfile.TarInfo(n)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    logged = []
+    restored, _ = backup.restore(old, tmp_path / "new", tmp_path / "safety", log=logged.append)
+    assert sorted(restored) == [".env", "state/channels.json"]
+    assert not (tmp_path / "new" / "state" / "env.before-stack-1").exists()
+    assert "Left state/env.before-stack-1 out: it's a copy of .env, and kia-media can read state/" in logged
+
+
 def test_the_safety_copy_keeps_a_sources_file_of_your_own(tmp_path: Path):
     home = kia_folder(tmp_path / "home")
     (home / "my-sources.txt").write_text("https://example.org/mine.m3u\n")
