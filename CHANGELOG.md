@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2 (unreleased)
+
+### Changes
+
+- kia's Pluto relay now counts the pieces it passes on without their sound. When a piece's sound won't copy, kia sends the picture alone so the channel keeps playing. That was meant for a tiny sliver at the end of some ads, but it can happen to a whole piece, and some players (a Roku's) then wait for sound and buffer. A piece of a second or more without its sound now shows on the Dashboard's Pluto card and in kia's log, and goes to the `pluto-debug` folder when you've made one. The count is `silent` in `pluto.json` and `kia_pluto_silent_total` in the metrics.
+
 ## 0.9.1 (2026-11-04)
 
 This release closes a gap in 0.9.0's split: `kia-media` could still read copies of `.env` that some installs had lying around in the kia folder.

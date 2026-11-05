@@ -806,6 +806,7 @@ PLUTO_SCRIPT = """
       var today = [];
       if (c.rewinds) today.push("kept it from jumping back " + c.rewinds + (c.rewinds === 1 ? " time" : " times"));
       if (c.errors) today.push(c.errors + (c.errors === 1 ? " piece" : " pieces") + " of video couldn't be passed on");
+      if (c.silent) today.push(c.silent + (c.silent === 1 ? " piece" : " pieces") + " passed on without sound");
       if (c.fallbacks) today.push("fell back to Pluto's shared stream " + c.fallbacks + (c.fallbacks === 1 ? " time" : " times"));
       tr.appendChild(el("td", today.length ? today.join("; ") : "No problems"));
       rows.appendChild(tr);

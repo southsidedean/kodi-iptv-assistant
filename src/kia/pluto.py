@@ -73,6 +73,9 @@ SESSION_GAP = 20  # seconds between new sessions, at least
 FALLBACK_RETRY = 300  # seconds on the jmp2.uk link before trying a session of our own again
 FALLBACK_ALERT = 300  # seconds on the jmp2.uk link before the pluto_fallback alert
 START = 10.0  # where kia's clock starts, in seconds
+# A piece listed as shorter than this, sent without its sound, is the expected sliver at the end of
+# an ad (remux): counted, but not reported as a problem.
+SLIVER = 1.0
 TIMEOUT = 15
 
 
@@ -256,6 +259,7 @@ class Stats:
     sessions: int = 0
     errors: int = 0
     fallbacks: int = 0
+    silent: int = 0  # pieces passed on without their sound (SoundDropped)
     problems: deque = field(default_factory=lambda: deque(maxlen=8))
     # Problems also go to kia's log, which outlives the channel (pluto.json doesn't).
     log: Callable[[str], None] = lambda text: None
@@ -548,6 +552,14 @@ class Channel:
         iv = p.iv or f"{p.upstream_seq:032x}"
         try:
             return self.relay.remux(body, key, iv, p.dur, p.t0)
+        except SoundDropped as dropped:
+            # Picture without sound. A player that follows the sound's clock (a Roku does) waits
+            # for sound that never comes, so a whole piece of it is worth knowing about.
+            self.stats.silent += 1
+            if p.dur >= SLIVER:
+                self.stats.problem(f"A {p.dur:.1f}-second piece went out without its sound ({dropped.reason[:80]})")
+                self.relay.debug_save(self.cid, p, body, key, iv, dropped)
+            return dropped.data
         except Exception as exc:
             self.stats.errors += 1
             self.stats.problem(f"ffmpeg couldn't copy a piece ({_short(exc)})")
@@ -570,8 +582,18 @@ class Channel:
             "sessions": self.stats.sessions,
             "errors": self.stats.errors,
             "fallbacks": self.stats.fallbacks,
+            "silent": self.stats.silent,
             "problems": list(self.stats.problems),
         }
+
+
+class SoundDropped(Exception):  # not an error: the piece still plays, without its sound
+    """remux copied a piece's picture but not its sound. data is that copy, ready to play;
+    reason, ffmpeg's last words on the copy with sound."""
+
+    def __init__(self, data: bytes, reason: str):
+        super().__init__(reason)
+        self.data, self.reason = data, reason
 
 
 def _short(exc: BaseException) -> str:
@@ -604,7 +626,9 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
     A short sliver at the end of an ad sometimes declares an audio stream with no usable sample
     rate and no audio packets, which the mpegts muxer refuses ("sample rate not set"). Rather than
     drop the whole piece, which stalls the player and loops the session, kia copies that one piece
-    without the sound (a few milliseconds, with nothing to hear anyway)."""
+    without the sound (a few milliseconds, with nothing to hear anyway), and raises SoundDropped
+    with the copy, so the relay can count it. The same happens to any piece whose sound won't
+    copy, sliver or not: the relay reports those that are longer."""
     tmp = tempfile.mkdtemp(prefix="kia-pluto-")
     try:
         path = f"{tmp}/in.ts"
@@ -631,7 +655,7 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
         if not proc.stdout:
             video_only = copy(with_audio=False)  # the sliver case above: keep the picture going
             if video_only.stdout:
-                return video_only.stdout
+                raise SoundDropped(video_only.stdout, (proc.stderr or b"").decode(errors="replace").strip()[-200:] or "no output")
             raise ValueError((proc.stderr or video_only.stderr).decode(errors="replace").strip()[-200:] or "no output")
         return proc.stdout
     finally:
@@ -669,13 +693,13 @@ class Relay:
         self.trace: Callable[[str], None] | None = None
         self.last_saved = 0.0
         # For /metrics: counts from channels no longer playing, and what was passed on.
-        self.retired = {"sessions": 0, "rewinds": 0, "errors": 0, "fallbacks": 0}
+        self.retired = {"sessions": 0, "rewinds": 0, "errors": 0, "fallbacks": 0, "silent": 0}
         self.pieces = 0
         self.bytes = 0
 
     def debug_save(self, cid: str, p: Piece, body: bytes, key: str | None, iv: str, exc: BaseException) -> None:
         """When the debug folder exists (you make it; it's off otherwise), save a piece ffmpeg
-        couldn't copy, raw, so a real failure can be looked at later. It keeps no more than
+        couldn't copy, or copied without its sound, raw, so a real failure can be looked at later. It keeps no more than
         DEBUG_CAPTURES pieces, and writes only what came from Pluto (the piece, its key and IV),
         never any of kia's own secrets."""
         d = self.debug_dir
@@ -694,7 +718,7 @@ class Relay:
                     "cid": cid, "uri": p.uri, "key_uri": p.key_uri, "iv": iv, "key": key,
                     "dur": p.dur, "clip": p.clip, "error": _short(exc), "at": stamp,
                 }, indent=2))  # fmt: skip
-            self.log(f"Pluto {cid}: saved a piece ffmpeg couldn't copy to {d}/{name}.ts")
+            self.log(f"Pluto {cid}: saved a piece ffmpeg couldn't copy whole to {d}/{name}.ts")
         except OSError:
             pass  # a diagnostic must never get in the way of playing
 
