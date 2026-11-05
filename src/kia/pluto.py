@@ -69,7 +69,11 @@ WINDOW = 6  # pieces in each playlist kia hands out
 KEEP = 60  # pieces kia remembers per channel
 REFRESH_EVERY = 2.0  # seconds between looks at Pluto's playlist
 IDLE_AFTER = 120  # seconds without a request before a channel is let go
-HOLD_LIMIT = 45  # seconds to hold back old pieces before playing what Pluto sends
+# Seconds to hold back old pieces before playing what Pluto sends. While kia holds back, its
+# playlist stands still, and Plex stops asking for more after about 15 to 20 seconds of that,
+# then plays what it already has over and over until the channel is started again (seen
+# 2026-11-05). A few seconds shown twice is better than that.
+HOLD_LIMIT = 10
 SESSION_GAP = 20  # seconds between new sessions, at least
 FALLBACK_RETRY = 300  # seconds on the jmp2.uk link before trying a session of our own again
 FALLBACK_ALERT = 300  # seconds on the jmp2.uk link before the pluto_fallback alert
@@ -351,6 +355,7 @@ class Channel:
         self.last_fetch = 0.0
         self.last_added = time.monotonic()
         self.last_session_try = -SESSION_GAP
+        self.back_session = False  # a new session for "Pluto went back", with nothing new since
         self.last_request = time.monotonic()
         self.fallback_since: float | None = None
         self.renew = False
@@ -427,9 +432,16 @@ class Channel:
         if self.switch_now:
             self.switch_now = False
             self.new_session("Pluto asks for a fresh one every few hours")
-        elif went_back and not added and now - self.last_session_try > SESSION_GAP:
+        elif went_back and not added and now - self.last_session_try > SESSION_GAP and not self.back_session:
+            # A fresh session puts Pluto back in step when it has lost its place in a show. One
+            # that goes back as well has started an ad break kia already sent from the top, as
+            # every new session does mid-break, so another session would only start it again:
+            # wait out the hold instead.
             self.new_session("Pluto went back")
+            self.back_session = True
             self.last_fetch = 0.0
+        if added:
+            self.back_session = False
 
     def _playlist(self) -> tuple[str, str]:
         try:
