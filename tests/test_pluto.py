@@ -207,15 +207,26 @@ def test_debug_capture_stops_at_the_cap(tmp_path, monkeypatch):
     assert len(list((tmp_path / "d").glob("*.ts"))) == 2  # no more than the cap
 
 
-def _fake_copies(monkeypatch, results):
-    """Stand in for ffmpeg: probe_start returns zero offsets, and each copy call returns the next
-    (stdout, stderr) from results. Records whether each call asked for audio."""
-    monkeypatch.setattr(pluto, "probe_start", lambda *a, **k: (0.0, 0.0))
-    calls = []
+def _fake_copies(monkeypatch, results, sound=True):
+    """Stand in for ffmpeg: probe_start returns zero offsets (and no sound unless sound), and
+    each copy call returns the next (stdout, stderr) from results. Records what each call did
+    with the sound: "copy", "silence", or "none", and in .looked, whether each probe read the
+    whole piece."""
+    looked = []
+
+    def fake_probe(*a, whole=False, **k):
+        looked.append(whole)
+        return pluto.Start(video=0.0, audio=0.0 if sound else None, rate=44100, channels=1)
+
+    monkeypatch.setattr(pluto, "probe_start", fake_probe)
+    calls = Calls()
+    calls.looked = looked
     it = iter(results)
 
     def fake_run(cmd, **k):
-        calls.append("0:a:0?" in cmd)
+        calls.append("copy" if "0:a:0?" in cmd else "silence" if "1:a:0" in cmd else "none")
+        if "1:a:0" in cmd:
+            assert "anullsrc=r=44100:cl=mono" in cmd  # in the piece's own format
         out, err = next(it)
         return subprocess.CompletedProcess(cmd, 0 if out else 1, stdout=out, stderr=err)
 
@@ -223,14 +234,45 @@ def _fake_copies(monkeypatch, results):
     return calls
 
 
-def test_remux_drops_the_audio_when_the_copy_fails_on_it(monkeypatch):
+class Calls(list):
+    looked: list
+
+
+def test_remux_puts_silence_where_the_sound_wouldnt_copy(monkeypatch):
     # The sliver case: the copy with audio yields nothing (the muxer refused the empty audio),
-    # so kia copies the piece video-only instead of failing it, and says so with the copy.
-    calls = _fake_copies(monkeypatch, [(b"", b"sample rate not set"), (b"VIDEO", b"")])
+    # so kia copies the piece with silence instead of failing it, and says so with the copy.
+    calls = _fake_copies(monkeypatch, [(b"", b"sample rate not set"), (b"FILLED", b"")])
+    with pytest.raises(pluto.SoundDropped) as dropped:
+        pluto.remux(b"body", "ab" * 16, "0" * 32, 0.033, 0.0)
+    assert dropped.value.data == b"FILLED" and dropped.value.reason == "sample rate not set"
+    assert not dropped.value.from_pluto
+    assert calls == ["copy", "silence"]
+
+
+def test_remux_drops_the_audio_when_even_silence_fails(monkeypatch):
+    calls = _fake_copies(monkeypatch, [(b"", b"sample rate not set"), (b"", b"no lavfi"), (b"VIDEO", b"")])
     with pytest.raises(pluto.SoundDropped) as dropped:
         pluto.remux(b"body", "ab" * 16, "0" * 32, 0.033, 0.0)
     assert dropped.value.data == b"VIDEO" and dropped.value.reason == "sample rate not set"
-    assert calls == [True, False]  # tried with audio, then without
+    assert calls == ["copy", "silence", "none"]
+
+
+def test_a_piece_with_no_sound_gets_silence(monkeypatch):
+    # An ad with no sound at all: silence goes in its place, so the sound has no hole for a
+    # player to close up. The whole piece is looked at first, in case its sound starts late.
+    calls = _fake_copies(monkeypatch, [(b"FILLED", b"")], sound=False)
+    with pytest.raises(pluto.SoundDropped) as dropped:
+        pluto.remux(b"body", None, "0" * 32, 5.0, 0.0)
+    assert dropped.value.data == b"FILLED" and dropped.value.from_pluto
+    assert calls == ["silence"] and calls.looked == [False, True]
+
+
+def test_a_piece_with_no_sound_still_plays_when_silence_fails(monkeypatch):
+    calls = _fake_copies(monkeypatch, [(b"", b"no lavfi"), (b"VIDEO", b"")], sound=False)
+    with pytest.raises(pluto.SoundDropped) as dropped:
+        pluto.remux(b"body", None, "0" * 32, 5.0, 0.0)
+    assert dropped.value.data == b"VIDEO" and dropped.value.from_pluto
+    assert calls == ["silence", "none"]
 
 
 def _silent_relay(tmp_path, listed: str):
@@ -267,14 +309,33 @@ def test_a_sliver_without_its_sound_is_only_counted(tmp_path):
     assert not list((tmp_path / "d").glob("*.ts"))
 
 
+def test_a_piece_pluto_sent_without_sound_is_only_counted(tmp_path):
+    # Some ads come with no sound: kia fills them with silence, so it's Pluto's normal, not a
+    # problem for the Dashboard, and nothing for the debug folder.
+    fake = FakePluto([media([(0, SHOW.format(part="p", n=0))])])
+    logged = []
+
+    def no_sound(body, key, iv, dur, t0):
+        raise pluto.SoundDropped(b"FILLED", "no sound in the piece", from_pluto=True)
+
+    r = pluto.Relay(tmp_path / "pluto.json", log=logged.append, fetcher=fake, remux_fn=no_sound, debug_dir=tmp_path / "d")
+    (tmp_path / "d").mkdir()
+    look(r)
+    assert r.handle(f"/pluto/{CID}/0.ts", "v")[2] == b"FILLED"
+    st = r.channel(CID).status()
+    assert st["soundless"] == 1 and st["silent"] == 0 and st["problems"] == []
+    assert not any("sound" in m for m in logged) and not list((tmp_path / "d").glob("*.ts"))
+    assert r.counters()["soundless"] == 1  # for /metrics
+
+
 def test_remux_keeps_the_audio_when_the_copy_works(monkeypatch):
     calls = _fake_copies(monkeypatch, [(b"OK", b"")])
     assert pluto.remux(b"body", None, "0" * 32, 5.0, 0.0) == b"OK"
-    assert calls == [True]  # one call, audio kept, no fallback
+    assert calls == ["copy"] and calls.looked == [False]  # one call, audio kept, no fallback
 
 
 def test_remux_raises_when_even_video_only_fails(monkeypatch):
-    _fake_copies(monkeypatch, [(b"", b"broken"), (b"", b"still broken")])
+    _fake_copies(monkeypatch, [(b"", b"broken"), (b"", b"still broken"), (b"", b"still broken")])
     with pytest.raises(ValueError):
         pluto.remux(b"body", None, "0" * 32, 5.0, 0.0)
 
@@ -353,11 +414,41 @@ def test_remux_decrypts_and_moves_the_clock(tmp_path: Path):
                          check=True, capture_output=True).stdout  # fmt: skip
     out = tmp_path / "out.ts"
     out.write_bytes(pluto.remux(enc, key, iv, 2.0, 100.0))
-    v, a = pluto.probe_start(str(out), None, iv)
-    assert abs(v - 100.0) < 0.05 and abs(a - 100.0) < 0.1
+    start = pluto.probe_start(str(out), None, iv)
+    assert abs(start.video - 100.0) < 0.05 and abs(start.audio - 100.0) < 0.1
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
                            capture_output=True, text=True).stdout  # fmt: skip
     assert float(probe) < 2.5  # cut back to the listed length
+
+
+@needs_ffmpeg
+def test_a_piece_without_sound_gets_silence_on_kias_clock(tmp_path: Path):
+    # A picture-only piece that says its sound would be 44.1 kHz mono: the copy has silence
+    # in that format, starting with the picture and lasting the piece's length.
+    clip = tmp_path / "clip.ts"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=30", "-t", "4",
+                    "-c:v", "libx264", "-an", "-output_ts_offset", "40", "-f", "mpegts", str(clip)], check=True)  # fmt: skip
+    with pytest.raises(pluto.SoundDropped) as dropped:
+        pluto.remux(clip.read_bytes(), None, "0" * 32, 3.0, 100.0)
+    assert dropped.value.from_pluto
+    out = tmp_path / "out.ts"
+    out.write_bytes(dropped.value.data)
+    start = pluto.probe_start(str(out), None, "0" * 32, whole=True)
+    assert abs(start.video - 100.0) < 0.1 and start.audio is not None and abs(start.audio - 100.0) < 0.1
+    assert (start.rate, start.channels) == (48000, 2)  # nothing declared: Pluto's usual
+    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_name,duration",
+                            "-of", "json", str(out)], capture_output=True, text=True).stdout  # fmt: skip
+    sound = json.loads(probe)["streams"][0]
+    assert sound["codec_name"] == "aac" and 2.9 < float(sound["duration"]) < 3.2
+
+
+@needs_ffmpeg
+def test_silence_matches_the_sound_a_piece_declares(tmp_path: Path):
+    clip = tmp_path / "clip.ts"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "2",
+                    "-ac", "1", "-c:a", "aac", "-f", "mpegts", str(clip)], check=True)  # fmt: skip
+    start = pluto.probe_start(str(clip), None, "0" * 32)
+    assert (start.rate, start.channels) == (44100, 1)
 
 
 def test_pluto_channels_from_samsungs_list_use_the_relay():

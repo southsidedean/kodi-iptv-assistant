@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3 (unreleased)
+
+### Fixes
+
+- After an ad break on a Pluto channel, the sound could play against the wrong picture until the channel was started again. Some of Pluto's ads come with no sound at all, sometimes for half a minute, and players and Plex closed up that hole in the sound, so it ran ahead of the picture. kia's Pluto relay now puts silence in place of the missing sound, the same length as the picture. It counts these pieces as `soundless` in `pluto.json` and `kia_pluto_soundless_total` in the metrics. Pieces whose sound won't copy now get silence too, instead of going out with no sound.
+
 ## 0.9.2 (2026-11-05)
 
 A small release from the first real playback tests: kia's Pluto relay now says when it sends a piece without its sound, and backups stop carrying old copies of `.env` back to where `kia-media` can read them.
