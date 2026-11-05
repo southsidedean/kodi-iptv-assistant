@@ -15,7 +15,8 @@ So for each Pluto channel someone plays, kia keeps its own Pluto session (with P
 putting in the ads), its own list of the channel's pieces in time order, and hands players
 a plain playlist on one steady clock: each piece is decrypted and its timestamps moved to
 carry on from the piece before. Pieces and keys still come straight from Pluto; ffmpeg
-only copies (no re-encoding), so it's light work.
+only copies (no re-encoding), so it's light work. The one thing kia makes itself is silence,
+for a piece that comes without sound, so the sound never stops while the picture goes on.
 
 Channels are idle until a player asks for them, and are let go two minutes after the
 last request. Everyone watching a channel shares its session and its pieces.
@@ -73,9 +74,12 @@ SESSION_GAP = 20  # seconds between new sessions, at least
 FALLBACK_RETRY = 300  # seconds on the jmp2.uk link before trying a session of our own again
 FALLBACK_ALERT = 300  # seconds on the jmp2.uk link before the pluto_fallback alert
 START = 10.0  # where kia's clock starts, in seconds
-# A piece listed as shorter than this, sent without its sound, is the expected sliver at the end of
-# an ad (remux): counted, but not reported as a problem.
+# A piece listed as shorter than this whose sound wouldn't copy is counted, but not reported as a
+# problem: too short to hear or to stall a player.
 SLIVER = 1.0
+# The silence kia puts in a piece that has no sound, when the piece doesn't say what its sound
+# would be: Pluto's own format, on every channel looked at (AAC, 48 kHz, two channels).
+SILENCE_RATE, SILENCE_CHANNELS = 48000, 2
 TIMEOUT = 15
 
 
@@ -259,7 +263,8 @@ class Stats:
     sessions: int = 0
     errors: int = 0
     fallbacks: int = 0
-    silent: int = 0  # pieces passed on without their sound (SoundDropped)
+    silent: int = 0  # pieces whose sound wouldn't copy (SoundDropped)
+    soundless: int = 0  # pieces that came from Pluto with no sound (SoundDropped.from_pluto)
     problems: deque = field(default_factory=lambda: deque(maxlen=8))
     # Problems also go to kia's log, which outlives the channel (pluto.json doesn't).
     log: Callable[[str], None] = lambda text: None
@@ -553,8 +558,13 @@ class Channel:
         try:
             return self.relay.remux(body, key, iv, p.dur, p.t0)
         except SoundDropped as dropped:
-            # Picture without sound. A player that follows the sound's clock (a Roku does) waits
-            # for sound that never comes, so a whole piece of it is worth knowing about.
+            if dropped.from_pluto:
+                # Pluto's own doing (some ads come without sound) and filled with silence: worth
+                # a count, but not a problem on the Dashboard every ad break.
+                self.stats.soundless += 1
+                return dropped.data
+            # The sound was there but wouldn't copy. A player that follows the sound's clock (a
+            # Roku does) stalls on a piece without it, so a whole piece of it is worth knowing about.
             self.stats.silent += 1
             if p.dur >= SLIVER:
                 self.stats.problem(f"A {p.dur:.1f}-second piece went out without its sound ({dropped.reason[:80]})")
@@ -583,17 +593,19 @@ class Channel:
             "errors": self.stats.errors,
             "fallbacks": self.stats.fallbacks,
             "silent": self.stats.silent,
+            "soundless": self.stats.soundless,
             "problems": list(self.stats.problems),
         }
 
 
-class SoundDropped(Exception):  # not an error: the piece still plays, without its sound
-    """remux copied a piece's picture but not its sound. data is that copy, ready to play;
-    reason, ffmpeg's last words on the copy with sound."""
+class SoundDropped(Exception):  # not an error: the piece still plays, without its own sound
+    """remux passed on a piece's picture without its sound. data is that copy, ready to play,
+    with silence in place of the sound when ffmpeg could make it; reason, why. from_pluto: the
+    piece came with no sound at all, rather than sound that wouldn't copy."""
 
-    def __init__(self, data: bytes, reason: str):
+    def __init__(self, data: bytes, reason: str, from_pluto: bool = False):
         super().__init__(reason)
-        self.data, self.reason = data, reason
+        self.data, self.reason, self.from_pluto = data, reason, from_pluto
 
 
 def _short(exc: BaseException) -> str:
@@ -601,21 +613,40 @@ def _short(exc: BaseException) -> str:
     return text[:120]
 
 
-def probe_start(path: str, key: str | None, iv: str, ffprobe: str = "ffprobe") -> tuple[float, float]:
-    """The first video and audio timestamps of a piece, in seconds."""
+@dataclass
+class Start:
+    video: float  # the first picture's timestamp, in seconds (the sound's, in a piece without one)
+    audio: float | None  # the first sound's, or None: no sound in the part looked at
+    rate: int  # the sound's format as the piece declares it, else Pluto's usual
+    channels: int
+
+
+def probe_start(path: str, key: str | None, iv: str, ffprobe: str = "ffprobe", whole: bool = False) -> Start:
+    """Where a piece's picture and sound start, from its first 3 seconds (whole: all of it)."""
     src = ["-f", "mpegts", "-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-f", "mpegts", "-i", path]
-    out = subprocess.run([ffprobe, "-v", "error", "-read_intervals", "%+3", "-show_entries",
-                          "packet=codec_type,dts_time", "-of", "csv=p=0", *src],
-                         capture_output=True, text=True, timeout=30, check=False, env=media_env()).stdout  # fmt: skip
+    look = [] if whole else ["-read_intervals", "%+3"]
+    out = subprocess.run([ffprobe, "-v", "error", *look, "-show_entries",
+                          "stream=codec_type,sample_rate,channels:packet=codec_type,dts_time", "-of", "json", *src],
+                         capture_output=True, timeout=30, check=False, env=media_env()).stdout  # fmt: skip
+    try:
+        found = json.loads(out or b"{}")
+    except ValueError:
+        found = {}
+    found = found if isinstance(found, dict) else {}
     first: dict[str, float] = {}
-    for line in out.splitlines():
-        kind, dts = ([*line.split(","), ""])[:2]
-        if kind in ("video", "audio") and kind not in first and dts not in ("", "N/A"):
+    for p in found.get("packets") or []:
+        kind, dts = (p.get("codec_type"), p.get("dts_time")) if isinstance(p, dict) else (None, None)
+        if kind in ("video", "audio") and kind not in first and dts not in (None, "", "N/A"):
             first[kind] = float(dts)
     if not first:
         raise ValueError("no audio or video in it")
-    v = first.get("video", first.get("audio"))
-    return v, first.get("audio", v)
+    # The sound's declared format, read as numbers only: these go into ffmpeg's silence below.
+    streams = found.get("streams") or []
+    sound = next((s for s in streams if isinstance(s, dict) and s.get("codec_type") == "audio"), {})
+    rate, channels = str(sound.get("sample_rate", "")), sound.get("channels")
+    return Start(video=first.get("video", first.get("audio", 0.0)), audio=first.get("audio"),
+                 rate=int(rate) if rate.isdigit() and 8000 <= int(rate) <= 96000 else SILENCE_RATE,
+                 channels=channels if type(channels) is int and channels in (1, 2) else SILENCE_CHANNELS)  # fmt: skip
 
 
 def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
@@ -623,40 +654,69 @@ def remux(body: bytes, key: str | None, iv: str, dur: float, t0: float,
     """Decrypt one piece and move it onto kia's clock, starting at t0 seconds. Audio keeps
     its small offset from the video, unless it's out by a second or more (as in some ads).
 
-    A short sliver at the end of an ad sometimes declares an audio stream with no usable sample
-    rate and no audio packets, which the mpegts muxer refuses ("sample rate not set"). Rather than
-    drop the whole piece, which stalls the player and loops the session, kia copies that one piece
-    without the sound (a few milliseconds, with nothing to hear anyway), and raises SoundDropped
-    with the copy, so the relay can count it. The same happens to any piece whose sound won't
-    copy, sliver or not: the relay reports those that are longer."""
+    Some ads come with no sound at all, for half a minute or more. Passed on like that, the
+    sound has a hole the picture doesn't, and players and Plex's converter close it up: the
+    sound after the break plays against the wrong picture until the channel is started again.
+    So kia puts silence of the piece's length in its place, and raises SoundDropped (from_pluto)
+    with that copy, so the relay can count it.
+
+    That covers the short sliver at the end of some ads, too, which declares an audio stream
+    with no usable sample rate and no audio packets: copied as it is, the mpegts muxer refuses it
+    ("sample rate not set"). A piece whose sound is there but won't copy gets silence as well, or
+    no sound if even that fails, rather than being dropped, which stalls the player and loops the
+    session. Its SoundDropped isn't from_pluto, and the relay reports those a second or longer."""
     tmp = tempfile.mkdtemp(prefix="kia-pluto-")
     try:
         path = f"{tmp}/in.ts"
         with open(path, "wb") as f:
             f.write(body)
-        v0, a0 = probe_start(path, key, iv, ffprobe)
-        tv = round((t0 - v0) * 90000)
-        ta = tv if abs(a0 - v0) < 1 else round((t0 - a0) * 90000)
+        start = probe_start(path, key, iv, ffprobe)
+        if start.audio is None:  # nothing in the first 3 seconds: look at it all before calling it soundless
+            start = probe_start(path, key, iv, ffprobe, whole=True)
+        tv = round((t0 - start.video) * 90000)
+        a0 = start.audio if start.audio is not None else start.video
+        ta = tv if abs(a0 - start.video) < 1 else round((t0 - a0) * 90000)
         src = ["-f", "mpegts", "-key", key, "-iv", iv, "-i", f"crypto:{path}"] if key else ["-f", "mpegts", "-i", path]
 
-        def copy(with_audio: bool) -> subprocess.CompletedProcess:
-            maps = ["-map", "0:v:0?"] + (["-map", "0:a:0?"] if with_audio else [])
-            bsf = ["-bsf:v", f"setts=pts=PTS+{tv}:dts=DTS+{tv}"]
-            if with_audio:
+        def copy(sound: str) -> subprocess.CompletedProcess:
+            """sound: "copy" (the piece's own), "silence" (made here, from t0), or "none"."""
+            maps, codecs, bsf = ["-map", "0:v:0?"], ["-c:v", "copy"], ["-bsf:v", f"setts=pts=PTS+{tv}:dts=DTS+{tv}"]
+            silence = []
+            if sound == "copy":
+                maps += ["-map", "0:a:0?"]
+                codecs += ["-c:a", "copy"]
                 bsf += ["-bsf:a", f"setts=pts=PTS+{ta}:dts=DTS+{ta}"]
+            elif sound == "silence":
+                # A second input, already on kia's clock (itsoffset), as long as the piece, in the
+                # piece's own sound format so a player sees no change at the join.
+                layout = "mono" if start.channels == 1 else "stereo"
+                silence = ["-itsoffset", f"{t0:.6f}", "-f", "lavfi", "-t", f"{dur:.3f}",
+                           "-i", f"anullsrc=r={start.rate}:cl={layout}"]  # fmt: skip
+                maps += ["-map", "1:a:0"]
+                codecs += ["-c:a", "aac", "-b:a", "64k"]
             cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-copyts",
                    "-t", f"{dur:.3f}", *src,  # Pluto sometimes packs in more than it lists
-                   *maps, "-c", "copy", *bsf,
+                   *silence, *maps, *codecs, *bsf,
                    "-muxdelay", "0", "-muxpreload", "0", "-mpegts_flags", "+initial_discontinuity",
                    "-f", "mpegts", "pipe:1"]  # fmt: skip
             return subprocess.run(cmd, capture_output=True, timeout=30, check=False, env=media_env())
 
-        proc = copy(with_audio=True)
+        if start.audio is None:  # no sound came from Pluto
+            filled = copy("silence")
+            if filled.stdout:
+                raise SoundDropped(filled.stdout, "no sound in the piece", from_pluto=True)
+            proc = copy("none")  # silence failed too: the picture alone, as before
+            if proc.stdout:
+                raise SoundDropped(proc.stdout, "no sound in the piece", from_pluto=True)
+            raise ValueError((filled.stderr or proc.stderr).decode(errors="replace").strip()[-200:] or "no output")
+        proc = copy("copy")
         if not proc.stdout:
-            video_only = copy(with_audio=False)  # the sliver case above: keep the picture going
-            if video_only.stdout:
-                raise SoundDropped(video_only.stdout, (proc.stderr or b"").decode(errors="replace").strip()[-200:] or "no output")
-            raise ValueError((proc.stderr or video_only.stderr).decode(errors="replace").strip()[-200:] or "no output")
+            reason = (proc.stderr or b"").decode(errors="replace").strip()[-200:] or "no output"
+            for fallback in ("silence", "none"):  # keep the picture going
+                other = copy(fallback)
+                if other.stdout:
+                    raise SoundDropped(other.stdout, reason)
+            raise ValueError((proc.stderr or other.stderr).decode(errors="replace").strip()[-200:] or "no output")
         return proc.stdout
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -693,7 +753,7 @@ class Relay:
         self.trace: Callable[[str], None] | None = None
         self.last_saved = 0.0
         # For /metrics: counts from channels no longer playing, and what was passed on.
-        self.retired = {"sessions": 0, "rewinds": 0, "errors": 0, "fallbacks": 0, "silent": 0}
+        self.retired = {"sessions": 0, "rewinds": 0, "errors": 0, "fallbacks": 0, "silent": 0, "soundless": 0}
         self.pieces = 0
         self.bytes = 0
 

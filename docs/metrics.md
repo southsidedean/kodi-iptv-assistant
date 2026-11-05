@@ -39,7 +39,8 @@ Most of the numbers change once a night or every few hours, so once a minute is 
 | `kia_pluto_channels_playing` | [Pluto TV channels](how-it-works.md#pluto-tv) kia is playing now |
 | `kia_pluto_viewers{channel,name}` | Players watching each of them |
 | `kia_pluto_sessions_total`, `kia_pluto_rewinds_total`, `kia_pluto_errors_total`, `kia_pluto_fallbacks_total` | What the Pluto relay has dealt with since kia started |
-| `kia_pluto_silent_total` | Pieces it passed on without their sound, because the sound wouldn't copy |
+| `kia_pluto_silent_total` | Pieces whose sound wouldn't copy, passed on with silence (or none, if even that failed) |
+| `kia_pluto_soundless_total` | Pieces that came from Pluto with no sound, passed on with silence |
 | `kia_pluto_pieces_total`, `kia_pluto_bytes_total` | Video it has passed on |
 | `kia_plex_up` | 1 if Plex answered kia (with `KIA_PLEX_URL` set) |
 | `kia_plex_sessions{kind,video,hw,location}` | Plex sessions now: `kind` is `live` for Live TV, or `movie`, `episode`, `track`; `video` is `copy`, `transcode`, or `directplay`; `hw` is where Plex converts video, `gpu` (the graphics card) or `cpu`, and `none` when it doesn't; `location` is `lan` or `wan` |
