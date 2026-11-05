@@ -30,7 +30,8 @@ SESSIONS = {"MediaContainer": {"Metadata": [
 MEDIA_PLAYER = """<?xml version="1.0" encoding="UTF-8" ?>
 <player error="false" state="buffer"><plugin bandwidth="5000000 bps" id="13535" name="Plex"/>
 <format audio="aac" captions="none" container="hls" drm="none" video="mpeg4_10b" video_res="1280x720"/>
-<buffering current="400" max="1000" target="0"/><position>61000 ms</position><is_live>true</is_live></player>"""
+<buffering current="400" max="1000" target="0"/><position>61000 ms</position><is_live>true</is_live>
+<stream_segment media_sequence="20" time="75500" bitrate="2533000" segment_type="mux"/></player>"""
 
 
 class Fake(BaseHTTPRequestHandler):
@@ -96,6 +97,7 @@ def test_plex_sessions_keep_live_tv_and_the_numbers_that_matter():
 def test_a_rokus_player_answer():
     r = record.roku_player(MEDIA_PLAYER)
     assert (r["state"], r["app"], r["buffer"], r["buffer_max"], r["position_s"], r["live"]) == ("buffer", "Plex", 400, 1000, 61.0, True)
+    assert r["behind"] == 14.5  # the newest piece starts 75.5 s in, the player is at 61 s
     assert record.roku_player("<player/>")["state"] is None
 
 
@@ -132,7 +134,7 @@ def test_a_recording_with_plex_a_roku_and_a_source(server, tmp_path, capsys):
     first = readings[0]
     assert first["plex"][0]["title"] == "Battlestar Galactica" and first["roku"]["Roku-Den"]["state"] == "buffer"
     assert "Plex Living Room: Battlestar Galactica (transcode, 0.8x, 8s ahead)" in printed
-    assert "Roku-Den: buffering (40% of its buffer full)" in printed
+    assert "Roku-Den: buffering, 14s behind live" in printed
     assert "Roku-Den: buffering in" in printed and "Plex Living Room: Battlestar Galactica: transcode" in printed
     # The token goes to Plex, and nowhere in what's printed or kept; nor do stream addresses.
     assert "sekrit-token" in Fake.tokens
@@ -160,3 +162,14 @@ def test_plex_out_of_reach_is_a_reading_not_a_crash(tmp_path):
     started = time.time()
     assert record.main(["--plex", "http://127.0.0.1:9", "--every", "0.2", "--minutes", str(0.3 / 60), "--out", str(out)]) == 0
     assert json.loads(out.read_text().splitlines()[0])["plex_error"] and time.time() - started < 20
+
+
+def test_a_channel_with_player_options_before_its_address(tmp_path):
+    (tmp_path / "output").mkdir()
+    (tmp_path / "output" / "curated.m3u").write_text(
+        "#EXTM3U\n#EXTINF:-1,CNN (720p)\n#EXTVLCOPT:http-user-agent=VLC/3.0.20 LibVLC/3.0.20\n"
+        "#EXTVLCOPT:http-referrer=https://example.com/\nhttps://example.com/cnn.m3u8\n#EXTINF:-1,Other\nhttps://example.com/o.m3u8\n")
+    assert record.channel_url(tmp_path, "cnn (720p)") == ("https://example.com/cnn.m3u8", "VLC/3.0.20 LibVLC/3.0.20")
+    assert record.channel_url(tmp_path, "Other") == ("https://example.com/o.m3u8", None)
+    assert record.channel_url(tmp_path, "Missing") is None
+    assert record.Source("https://example.com/x", agent="VLC/3.0.20").headers == {"User-Agent": "VLC/3.0.20"}
