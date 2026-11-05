@@ -1598,8 +1598,9 @@ def _serve_media_requests(cfg: Config) -> None:
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Run the pipeline daily at --at (local time; set TZ), forever. The single-container
     default: one process both serves the Dashboard and runs the refresh. The split `daemon-web`
-    and `daemon-media` run those two halves in separate containers (0.9 privilege separation);
-    this command is unchanged and stays the default."""
+    and `daemon-media` run those two halves in separate containers (0.9 privilege separation),
+    which is how compose.yaml runs kia. This one is for the service without Docker
+    (deploy/kia.service), and the image's default when started on its own."""
     cfg, cut_short = _daemon_setup(args)
     _daemon_serve(cfg, args)
     _daemon_refresh_loop(cfg, args, cut_short)  # never returns
@@ -1608,7 +1609,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 def cmd_daemon_web(args: argparse.Namespace) -> int:
     """The serving half of `daemon` (0.9 privilege separation): the Dashboard, API, MCP server,
     Pluto relay, stack watch, and /metrics, with no refresh loop (that runs in `daemon-media`).
-    Nothing deploys this yet; the default install still runs `daemon`."""
+    compose.yaml's kia service runs it."""
     os.environ["KIA_ROLE"] = mediareq.WEB  # the stream commands refuse to run here (main)
     cfg, _cut_short = _daemon_setup(args)
     _daemon_serve(cfg, args, media_via_request=True)  # the web half can't run the stream tools
@@ -2048,9 +2049,9 @@ def main(argv: list[str] | None = None) -> int:
     add_daemon_args(p)
     p.set_defaults(func=cmd_daemon)
 
-    # 0.9 privilege separation: the serving and refresh halves of `daemon`, to run in separate
-    # containers. Left out of the help listing (no help=) because nothing deploys them yet; the
-    # default install runs `daemon`.
+    # 0.9 privilege separation: the serving and refresh halves of `daemon`, which compose.yaml
+    # runs in separate containers. Left out of the help listing (no help=): they're for the
+    # containers, and someone running kia by hand wants `daemon`.
     p = sub.add_parser("daemon-web")
     add_daemon_args(p)
     p.set_defaults(func=cmd_daemon_web)

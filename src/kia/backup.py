@@ -6,6 +6,7 @@ numbers, favorites, playlist choices, stream history, alerts), private/ (the pas
 the MCP server's token),
 Threadfin's settings (threadfin/, threadfin-2/), and the secure page's certificate
 (tls/, including its private key, so keep backups private). output/, work/, and vendor/ are left out; the next refresh rebuilds them.
+Copies of .env in state/ are left out too, and skipped by a restore: kia-media can read state/.
 
 A restore first backs up what's there now, so it can be undone, then puts the files
 back. It refuses archives that aren't kia backups, and paths that would land outside
@@ -21,7 +22,7 @@ import tarfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from kia import __version__
+from kia import __version__, files
 
 FILES = (".env", "kia.toml", "sources.txt", "sources.local.txt")
 FOLDERS = ("playlists", "profiles", "state", "private", "tls", "threadfin", "threadfin-2", "gateway")
@@ -38,6 +39,15 @@ LINKS_FOLLOWED = ("tls/fullchain.pem", "tls/privkey.pem")
 MANIFEST = "kia-backup.json"
 
 
+def _env_copy_in_state(name: str) -> bool:
+    """Whether name (relative to the kia folder) is a copy of .env sitting in state/. Before
+    0.9.1, scripts/stack.sh kept its copies there, where kia-media can read them (it writes
+    state/). They hold the Plex token and the passwords, so a backup leaves them out, and a
+    restore of an older backup that has them doesn't put them back. .env itself is backed up."""
+    parts = PurePosixPath(name).parts
+    return len(parts) == 2 and parts[0] == "state" and files.ENV_COPY.fullmatch(parts[1]) is not None
+
+
 def _wanted(base: Path, sources_file: Path | None, extra: tuple[str, ...] = ()) -> list[Path]:
     names = set(FILES) | set(extra)
     if sources_file is not None:
@@ -49,7 +59,8 @@ def _wanted(base: Path, sources_file: Path | None, extra: tuple[str, ...] = ()) 
     for folder in FOLDERS:
         if (base / folder).is_dir() and not (base / folder).is_symlink():
             found += sorted(p for p in (base / folder).rglob("*") if p.is_file() and not p.name.endswith(".tmp")
-                            and p.relative_to(base).as_posix() not in LEFT_OUT and _not_a_link(base, p))  # fmt: skip
+                            and p.relative_to(base).as_posix() not in LEFT_OUT and not _env_copy_in_state(p.relative_to(base).as_posix())
+                            and _not_a_link(base, p))  # fmt: skip
     return found
 
 
@@ -138,6 +149,10 @@ def restore(archive: Path, base: Path, safety_folder: Path, log=print) -> tuple[
                     or (len(parts) == 1 and name.endswith(".txt") and name in manifest.get("files", [])))  # fmt: skip
 
         allowed = [m for m in members if m.isfile() and own(m.name)]
+        for m in allowed:
+            if _env_copy_in_state(m.name):
+                log(f"Left {m.name} out: it's a copy of .env, and kia-media can read state/")
+        allowed = [m for m in allowed if not _env_copy_in_state(m.name)]
         # The safety copy has what the restore replaces, a sources file of your own too.
         extra = tuple(m.name for m in allowed if "/" not in m.name and m.name not in FILES)
         safety = None
