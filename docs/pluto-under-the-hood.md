@@ -40,11 +40,13 @@ When a player asks for a piece, kia fetches it from Pluto, along with its decryp
 
 Inside a piece, the sound keeps its small offset from the picture. A few ads have sound out by a second or more; kia lines that up with the picture instead. A piece that holds more than Pluto listed is cut to its listed length.
 
+When a piece's sound won't copy, kia passes on the picture alone rather than failing the piece. That's expected for the tiny sliver some ads end with, which declares sound but holds none. A longer piece without sound is worth knowing about, since some players (a Roku's) follow the sound and wait for it: kia counts every such piece (`silent` in `pluto.json`, `kia_pluto_silent_total` in [metrics](metrics.md)), and for a piece of a second or more also says so on the Dashboard and in its log, and saves it to the debug folder below when that's on.
+
 Everyone watching a channel shares its session and its pieces: each piece is fetched and copied once, and kia keeps the last 12 for players that are a little behind. A piece that failed is tried again on the next request.
 
 Only https addresses are fetched, and at most 16 MB each, since the addresses come from Pluto's playlists. ffmpeg and ffprobe get none of kia's settings ([security](../SECURITY.md#the-containers)).
 
-Now and then Pluto sends a clip ffmpeg can't copy, and the piece fails. To look into one, make a folder named `pluto-debug` in kia's `state` folder: while it's there, kia saves the next few pieces it can't copy into it, each as the piece itself and a small file of its details (where it came from, its key, and the error), so you can examine a real failure later. It keeps at most 25, holds only what came from Pluto, and does nothing when the folder isn't there. Delete the folder to stop.
+Now and then Pluto sends a clip ffmpeg can't copy, and the piece fails. To look into one, make a folder named `pluto-debug` in kia's `state` folder: while it's there, kia saves the next few pieces it can't copy, or copies without their sound, into it, each as the piece itself and a small file of its details (where it came from, its key, and the error), so you can examine a real failure later. It keeps at most 25, holds only what came from Pluto, and does nothing when the folder isn't there. Delete the folder to stop.
 
 ## Fresh sessions
 

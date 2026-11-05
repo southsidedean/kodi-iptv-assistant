@@ -225,10 +225,46 @@ def _fake_copies(monkeypatch, results):
 
 def test_remux_drops_the_audio_when_the_copy_fails_on_it(monkeypatch):
     # The sliver case: the copy with audio yields nothing (the muxer refused the empty audio),
-    # so kia copies the piece video-only instead of failing it.
+    # so kia copies the piece video-only instead of failing it, and says so with the copy.
     calls = _fake_copies(monkeypatch, [(b"", b"sample rate not set"), (b"VIDEO", b"")])
-    assert pluto.remux(b"body", "ab" * 16, "0" * 32, 0.033, 0.0) == b"VIDEO"
+    with pytest.raises(pluto.SoundDropped) as dropped:
+        pluto.remux(b"body", "ab" * 16, "0" * 32, 0.033, 0.0)
+    assert dropped.value.data == b"VIDEO" and dropped.value.reason == "sample rate not set"
     assert calls == [True, False]  # tried with audio, then without
+
+
+def _silent_relay(tmp_path, listed: str):
+    fake = FakePluto([media([(0, SHOW.format(part="p", n=0))]).replace("#EXTINF:5,", f"#EXTINF:{listed},")])
+    logged = []
+
+    def no_sound(body, key, iv, dur, t0):
+        raise pluto.SoundDropped(b"PICTURE", "Could not write header: sample rate not set")
+
+    r = pluto.Relay(tmp_path / "pluto.json", log=logged.append, fetcher=fake, remux_fn=no_sound, debug_dir=tmp_path / "d")
+    (tmp_path / "d").mkdir()
+    look(r)
+    return r, logged
+
+
+def test_a_whole_piece_without_its_sound_is_counted_reported_and_kept(tmp_path):
+    # Picture still plays, but a Roku waits for the sound: count it, say so, and keep a copy
+    # for a look (the debug folder is armed here).
+    r, logged = _silent_relay(tmp_path, "5")
+    assert r.handle(f"/pluto/{CID}/0.ts", "v")[2] == b"PICTURE"
+    st = r.channel(CID).status()
+    assert st["silent"] == 1 and st["errors"] == 0
+    assert st["problems"][0]["text"] == "A 5.0-second piece went out without its sound (Could not write header: sample rate not set)"
+    assert any("without its sound" in m for m in logged)
+    assert len(list((tmp_path / "d").glob("*.ts"))) == 1
+    assert r.counters()["silent"] == 1  # for /metrics
+
+
+def test_a_sliver_without_its_sound_is_only_counted(tmp_path):
+    r, logged = _silent_relay(tmp_path, "0.033")
+    assert r.handle(f"/pluto/{CID}/0.ts", "v")[2] == b"PICTURE"
+    st = r.channel(CID).status()
+    assert st["silent"] == 1 and st["problems"] == [] and not any("sound" in m for m in logged)
+    assert not list((tmp_path / "d").glob("*.ts"))
 
 
 def test_remux_keeps_the_audio_when_the_copy_works(monkeypatch):

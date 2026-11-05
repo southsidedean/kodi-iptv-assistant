@@ -280,6 +280,7 @@ def render(output_dir: Path, relay=None, plex: MediaSessions | None = None, jell
         for key, help_text in (("sessions", "Pluto sessions started."), ("rewinds", "Times Pluto went back in a stream."),
                                ("errors", "Pieces or playlists kia couldn't pass on."),
                                ("fallbacks", "Times kia fell back to the shared Pluto stream."),
+                               ("silent", "Pieces passed on without their sound, which wouldn't copy."),
                                ("pieces", "Video pieces passed on to players."), ("bytes", "Video bytes passed on to players.")):  # fmt: skip
             out.one(f"kia_pluto_{key}_total", "counter", help_text, r.get(key))
 

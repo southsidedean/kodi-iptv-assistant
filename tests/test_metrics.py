@@ -8,7 +8,7 @@ from kia import metrics, serve
 
 class FakeRelay:
     def counters(self):
-        return {"sessions": 3, "rewinds": 1, "errors": 2, "fallbacks": 0, "pieces": 40, "bytes": 123456,
+        return {"sessions": 3, "rewinds": 1, "errors": 2, "fallbacks": 0, "silent": 2, "pieces": 40, "bytes": 123456,
                 "playing": 1, "viewers": {"65c69bbfd77d450008c7ffee": 2}}  # fmt: skip
 
 
@@ -33,7 +33,7 @@ def test_the_numbers_in_prometheus_format(tmp_path: Path):
     assert 'kia_source_streams{source="us",status="dead"} 281' in text
     assert 'kia_playlist_channels{playlist="kids",kind="tv"} 72' in text
     assert "kia_last_refresh_duration_seconds 1920" in text and "kia_last_refresh_success 1" in text
-    assert "kia_refresh_running 0" in text and "kia_pluto_bytes_total 123456" in text
+    assert "kia_refresh_running 0" in text and "kia_pluto_bytes_total 123456" in text and "kia_pluto_silent_total 2" in text
     assert 'kia_pluto_viewers{channel="65c69bbfd77d450008c7ffee",name="Battlestar \\"Galactica\\""} 2' in text
     # Every sample has a TYPE line before it, and every line is a comment or a sample.
     for line in text.splitlines():
