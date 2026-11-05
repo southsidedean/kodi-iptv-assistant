@@ -136,7 +136,11 @@ def roku_player(xml: str) -> dict:
     """A Roku's /query/media-player answer: playing or buffering, and its buffer."""
     player, buffering, plugin = _attrs("player", xml), _attrs("buffering", xml), _attrs("plugin", xml)
     position = _number((_tag("position", xml) or "").removesuffix("ms").strip())  # "12345 ms"
-    return {"state": player.get("state"), "app": plugin.get("name"),
+    # Where the newest piece the Roku has begins, in the same milliseconds as its position. How far
+    # the player sits behind it grows each time it stalls and picks up again on live TV.
+    newest = _number(_attrs("stream_segment", xml).get("time"))
+    behind = round((newest - position) / 1000, 1) if newest is not None and position is not None else None
+    return {"state": player.get("state"), "app": plugin.get("name"), "behind": behind,
             "buffer": _number(buffering.get("current")), "buffer_max": _number(buffering.get("max")),
             "position_s": position / 1000 if position is not None else None,
             "live": _tag("is_live", xml) == "true", "format": _attrs("format", xml).get("video")}  # fmt: skip
@@ -170,8 +174,9 @@ def roku_name(base: str) -> str:
 class Source:
     """Watches one HLS playlist in a thread: each new piece's length and when it showed up."""
 
-    def __init__(self, url: str, every: float = 2):
+    def __init__(self, url: str, every: float = 2, agent: str | None = None):
         self.url, self.every = url, every
+        self.headers = {"User-Agent": agent} if agent else {}
         self.arrivals: list[tuple[float, float]] = []  # (time it was first listed, seconds long)
         self.errors = 0
         self.lock = threading.Lock()
@@ -182,7 +187,7 @@ class Source:
     def run(self, stop: threading.Event) -> None:
         while not stop.wait(0 if self.first else self.every):
             try:
-                self.poll(fetch(self.url, timeout=10).decode("utf-8", "replace"))
+                self.poll(fetch(self.url, self.headers, timeout=10).decode("utf-8", "replace"))
             except (OSError, ValueError):
                 with self.lock:
                     self.errors += 1
@@ -223,12 +228,20 @@ class Source:
         return {"pieces": len(recent), "ratio": ratio, "errors": errors, "silent": silent}
 
 
-def channel_url(kia: Path, name: str) -> str | None:
-    """A channel's stream address from kia's playlist (output/curated.m3u), by its name."""
+def channel_url(kia: Path, name: str) -> tuple[str, str | None] | None:
+    """A channel's stream address from kia's playlist (output/curated.m3u), by its name, and
+    the player name it must be asked with, if its #EXTVLCOPT lines give one. Those lines sit
+    between the name and the address."""
     lines = (kia / "output" / "curated.m3u").read_text().splitlines()
-    for i, line in enumerate(lines[:-1]):
+    for i, line in enumerate(lines):
         if line.startswith("#EXTINF") and line.rsplit(",", 1)[-1].strip().lower() == name.lower():
-            return lines[i + 1].strip()
+            agent = None
+            for following in lines[i + 1:]:
+                if following.startswith("#EXTVLCOPT:http-user-agent="):
+                    agent = following.split("=", 1)[1].strip()
+                elif following.strip() and not following.startswith("#"):
+                    return following.strip(), agent
+            return None
     return None
 
 
@@ -249,8 +262,8 @@ def line_for(reading: dict) -> str:
         parts.append("Plex: no Live TV")
     for name, r in reading["roku"].items():
         if "state" in r:
-            full = f" ({r['buffer'] / r['buffer_max']:.0%} of its buffer full)" if r.get("buffer") is not None and r.get("buffer_max") else ""
-            parts.append(f"{name}: {ROKU_STATES.get(r['state'], r['state'])}{full}")
+            behind = f", {r['behind']:.0f}s behind live" if r.get("behind") is not None else ""
+            parts.append(f"{name}: {ROKU_STATES.get(r['state'], r['state'])}{behind}")
         else:
             parts.append(f"{name}: {r.get('app') or r.get('error') or '?'}" + (" (limited)" if r.get("limited") else ""))
     if reading.get("source"):
@@ -282,8 +295,10 @@ def summary(readings: list[dict]) -> list[str]:
             rokus.setdefault(name, []).append(state)
     for name, seen in rokus.items():
         states = [s["state"] for s in seen if "state" in s]
+        behind = [s["behind"] for s in seen if s.get("behind") is not None]
         if states:
-            out.append(f"{name}: buffering in {states.count('buffer')} of {len(states)} readings")
+            out.append(f"{name}: buffering in {states.count('buffer')} of {len(states)} readings"
+                       + (f", {behind[0]:.0f}s behind live at the start and {behind[-1]:.0f}s at the end" if behind else ""))
         elif any(s.get("limited") for s in seen):
             out.append(f"{name}: ECP is Limited, so only the open app was seen (set it to Permissive for the buffer)")
     ratios = [r["source"]["ratio"] for r in readings if r.get("source") and r["source"]["ratio"] is not None]
@@ -316,11 +331,11 @@ def main(argv: list[str] | None = None) -> int:
     names = {base: roku_name(base.rstrip("/")) for base in rokus}
     source = None
     if args.watch:
-        url = args.watch if re.match(r"https?://", args.watch) else (channel_url(args.kia, args.watch) if args.kia else None)
-        if not url:
+        found = (args.watch, None) if re.match(r"https?://", args.watch) else (channel_url(args.kia, args.watch) if args.kia else None)
+        if not found:
             print(f"{args.watch}: not in {args.kia}/output/curated.m3u (give --kia, or the stream's address)", file=sys.stderr)
             return 2
-        source = Source(url)
+        source = Source(found[0], agent=found[1])
     out = args.out or Path(f"playback-{datetime.now():%Y%m%d-%H%M}.jsonl")
     stop = threading.Event()
     if source:
