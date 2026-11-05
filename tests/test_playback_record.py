@@ -173,3 +173,91 @@ def test_a_channel_with_player_options_before_its_address(tmp_path):
     assert record.channel_url(tmp_path, "Other") == ("https://example.com/o.m3u8", None)
     assert record.channel_url(tmp_path, "Missing") is None
     assert record.Source("https://example.com/x", agent="VLC/3.0.20").headers == {"User-Agent": "VLC/3.0.20"}
+
+
+def fake_ffprobe(tmp_path, packets):
+    """A stand-in ffprobe that answers with these packets, whatever it's given."""
+    tool = tmp_path / "ffprobe"
+    tool.write_text("#!/bin/sh\ncat >/dev/null\ncat <<'END'\n" + json.dumps({"packets": packets}) + "\nEND\n")
+    tool.chmod(0o755)
+    return str(tool)
+
+
+def test_a_pieces_picture_and_sound(tmp_path):
+    video = [{"codec_type": "video", "pts_time": str(10 + n / 15), "duration_time": str(1 / 15)} for n in range(150)]
+    whole = [{"codec_type": "audio", "pts_time": str(10.05 + n * 0.5), "duration_time": "0.5"} for n in range(20)]
+    assert record.spans(b"x", fake_ffprobe(tmp_path, video + whole)) == {"video": 10.0, "audio": 10.0, "gap_ms": 50}
+    half = whole[:10]  # CNN on election night: a piece with half its sound
+    assert record.spans(b"x", fake_ffprobe(tmp_path, video + half)) == {"video": 10.0, "audio": 5.0, "gap_ms": 50}
+    assert record.spans(b"x", fake_ffprobe(tmp_path, video))["gap_ms"] is None  # no sound at all
+    assert record.spans(b"x", fake_ffprobe(tmp_path, half)) == {}  # no picture: can't say
+    assert record.spans(b"x", str(tmp_path / "missing")) == {}
+
+
+def test_the_source_counts_pieces_short_of_sound():
+    src = record.Source("http://unused/", ffprobe="ffprobe")
+    now = time.time()
+    src.probed = [(now - 5, {"video": 10.0, "audio": 10.0, "gap_ms": 10}),
+                  (now - 4, {"video": 10.0, "audio": 4.9, "gap_ms": 0}),
+                  (now - 3, {"video": 5.0, "audio": 0.0, "gap_ms": None}),  # a piece with no sound
+                  (now - 2, {}),  # ffprobe couldn't read it
+                  (now - 200, {"video": 10.0, "audio": 0.0, "gap_ms": None})]  # over a minute ago  # fmt: skip
+    r = src.reading(now)
+    assert (r["looked"], r["unreadable"], r["short_audio"], r["no_audio"], r["widest_gap_ms"]) == (3, 1, 2, 1, 10)
+    line = record.line_for({"t": "2026-11-05T09:00:00", "plex": [], "roku": {}, "source": r})
+    assert "2 pieces short of sound (1 with none)" in line
+    assert "Pieces: short of sound in 1 of 1 readings; at the worst minute, 2 of 3 (1 with no sound at all)" in record.summary(
+        [{"t": "2026-11-05T09:00:00", "plex": [], "roku": {}, "source": r}])
+    # Without ffprobe, the reading is the timing alone.
+    assert "looked" not in record.Source("http://unused/").reading(now)
+
+
+def test_encrypted_pieces_are_only_timed():
+    src = record.Source("http://unused/", ffprobe="ffprobe")
+    listed = lambda first, last: ('#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="k"\n'
+                                  + "".join(f"#EXTINF:5.0,\np{n}.ts\n" for n in range(first, last)))  # fmt: skip
+    src.poll(listed(0, 3))
+    src.poll(listed(1, 4))
+    assert len(src.arrivals) == 1 and src.to_probe.empty() and src.reading()["encrypted"]
+
+
+def fake_proc(root, cpu, plex_ticks, converters=0):
+    root.mkdir(exist_ok=True)
+    (root / "stat").write_text(f"cpu  {' '.join(str(x) for x in cpu)}\ncpu0 1 2 3\n")
+    (root / "loadavg").write_text("1.99 1.80 1.85 2/900 12345\n")
+    (root / "pressure").mkdir(exist_ok=True)
+    (root / "pressure" / "cpu").write_text("some avg10=0.02 avg60=0.04 avg300=0.00 total=1\n")
+    (root / "pressure" / "io").write_text("some avg10=4.30 avg60=2.18 avg300=1.00 total=1\nfull avg10=1.00 avg60=0 avg300=0 total=1\n")
+    procs = [("Plex Media Serv", plex_ticks), ("bash", 999)] + [("Plex Transcoder", 0)] * converters
+    for pid, (name, ticks) in enumerate(procs, start=100):
+        (root / str(pid)).mkdir(exist_ok=True)
+        # Fields after the name: state, then 10 others, then user time and system time.
+        (root / str(pid) / "stat").write_text(f"{pid} ({name}) S {' '.join(['0'] * 10)} {ticks} {ticks} 0 0\n")
+
+
+def test_the_machines_load(tmp_path):
+    proc = tmp_path / "proc"
+    gpu = lambda: {"gpu": 5.0, "encoder": 12.0, "decoder": 3.0}
+    host = record.Host(proc, gpu=gpu)
+    host.cores = 4
+    assert not host.available()
+    # user nice system idle iowait irq softirq steal
+    fake_proc(proc, [100, 0, 100, 700, 100, 0, 0, 0], plex_ticks=50)
+    assert host.available()
+    first = host.reading()
+    assert first["cpu"] is None and first["plex_cpu"] is None  # nothing to compare with yet
+    assert (first["load"], first["cpu_waiting"], first["io_waiting"], first["encoder"]) == (1.99, 0.02, 4.3, 12.0)
+    # 1000 ticks later across all 4 cores: 750 of them idle, Plex used 100 (50 user + 50 system).
+    fake_proc(proc, [250, 0, 200, 1400, 150, 0, 0, 0], plex_ticks=100, converters=2)
+    second = host.reading()
+    assert (second["cpu"], second["plex_cpu"], second["converters"]) == (25.0, 40.0, 2)  # 100 of 1000 ticks on 4 cores
+    line = record.line_for({"t": "2026-11-05T09:00:00", "plex": [], "roku": {}, "host": second})
+    assert "load 2.0/4, CPU 25%, Plex 40%, disks waited on 4%, GPU encoder 12%" in line
+    assert "Host: CPU 25% on average, 25% at the most; Plex 40% of a core on average; disks waited on 4% at the most; GPU encoder 12% at the most" in record.summary(
+        [{"t": "2026-11-05T09:00:00", "plex": [], "roku": {}, "host": first}, {"t": "2026-11-05T09:00:05", "plex": [], "roku": {}, "host": second}])
+
+
+def test_a_recording_can_leave_the_machine_out(tmp_path):
+    out = tmp_path / "rec.jsonl"
+    assert record.main(["--plex", "http://127.0.0.1:9", "--no-host", "--every", "0.2", "--minutes", str(0.3 / 60), "--out", str(out)]) == 0
+    assert "host" not in json.loads(out.read_text().splitlines()[0])
