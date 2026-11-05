@@ -6,6 +6,8 @@ Every few seconds it writes down, side by side:
 
 - Plex: each Live TV session's player, whether Plex converts the video, how fast its
   converter runs (1.0 is real time), and how many seconds it has ready ahead of the player.
+  Also how many of its DVR's grab tasks are open ("Refreshing Sub" in its activities), since
+  some have been seen stuck with nothing recording, keeping Plex busy until a restart.
 - Rokus (optional): whether each one is playing or buffering, and how full its buffer is.
   This needs the Roku's "Control by mobile apps" set to Permissive; in Limited mode a Roku
   says only which app is open. Nothing is ever sent to a Roku but questions.
@@ -99,6 +101,13 @@ def plex_sessions(container: dict) -> list[dict]:
             "ahead": round(ready - played / 1000, 1) if ready is not None and played is not None else None,
         })  # fmt: skip
     return out
+
+
+def plex_grab_tasks(container: dict) -> int:
+    """How many grab tasks Plex's DVR has open, from its /activities answer. With nothing
+    recording or tuned, any at all are stuck."""
+    return sum(1 for a in container.get("Activity") or []
+               if isinstance(a, dict) and a.get("type") == "provider.subscription.refresh")  # fmt: skip
 
 
 def _number(value: object) -> float | None:
@@ -409,6 +418,8 @@ def line_for(reading: dict) -> str:
         parts.append(f"Plex {s['player']}: {s['title']} ({s['video']}, {speed}, {ahead})")
     if not reading["plex"]:
         parts.append("Plex: no Live TV")
+    if reading.get("grab_tasks"):
+        parts.append(f"Plex grab tasks open: {reading['grab_tasks']}")
     for name, r in reading["roku"].items():
         if "state" in r:
             behind = f", {r['behind']:.0f}s behind live" if r.get("behind") is not None else ""
@@ -450,6 +461,9 @@ def summary(readings: list[dict]) -> list[str]:
         out.append(f"Plex {name}: {seen[-1]['video']}"
                    + (f", converter {sum(speeds) / len(speeds):.1f}x on average" if speeds else "")
                    + (f", {min(aheads):.0f}s ahead at the lowest ({low} readings under {LOW_AHEAD}s)" if aheads else ""))  # fmt: skip
+    grabs = [r["grab_tasks"] for r in readings if r.get("grab_tasks") is not None]
+    if grabs and max(grabs):
+        out.append(f"Plex grab tasks open: {grabs[0]} at the start, {grabs[-1]} at the end, {max(grabs)} at the most")
     rokus: dict[str, list[dict]] = {}
     for r in readings:
         for name, state in r["roku"].items():
@@ -539,6 +553,8 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     answer = json.loads(fetch(plex + "/status/sessions", {"Accept": "application/json", "X-Plex-Token": token}))
                     reading["plex"] = plex_sessions(answer.get("MediaContainer") or {})
+                    tasks = json.loads(fetch(plex + "/activities", {"Accept": "application/json", "X-Plex-Token": token}))
+                    reading["grab_tasks"] = plex_grab_tasks(tasks.get("MediaContainer") or {})
                 except (OSError, ValueError, AttributeError) as exc:
                     reading["plex_error"] = type(exc).__name__  # never the URL: it could carry the token
                 for base, name in names.items():

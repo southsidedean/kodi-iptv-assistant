@@ -27,6 +27,13 @@ SESSIONS = {"MediaContainer": {"Metadata": [
     {"live": "1", "title": "News", "viewOffset": "x", "Player": {"product": "Plex Web"}, "Media": "odd"},
 ]}}  # fmt: skip
 
+ACTIVITIES = {"MediaContainer": {"Activity": [
+    {"type": "provider.subscription.refresh", "title": "Refreshing Sub", "subtitle": "Grabbing", "progress": 50},
+    {"type": "provider.subscription.refresh", "title": "Refreshing Sub", "subtitle": "Grabbing", "progress": 0},
+    {"type": "library.update.section", "title": "Scanning"},  # not a grab
+    "odd",
+]}}
+
 MEDIA_PLAYER = """<?xml version="1.0" encoding="UTF-8" ?>
 <player error="false" state="buffer"><plugin bandwidth="5000000 bps" id="13535" name="Plex"/>
 <format audio="aac" captions="none" container="hls" drm="none" video="mpeg4_10b" video_res="1280x720"/>
@@ -43,6 +50,8 @@ class Fake(BaseHTTPRequestHandler):
         Fake.tokens.append(self.headers.get("X-Plex-Token", ""))
         if self.path == "/status/sessions":
             body, kind = json.dumps(SESSIONS), "application/json"
+        elif self.path == "/activities":
+            body, kind = json.dumps(ACTIVITIES), "application/json"
         elif self.path == "/query/active-app":
             body, kind = '<active-app><app id="13535" type="appl" version="8.0">Plex</app></active-app>', "text/xml"
         elif self.path == "/query/device-info":
@@ -136,6 +145,8 @@ def test_a_recording_with_plex_a_roku_and_a_source(server, tmp_path, capsys):
     assert "Plex Living Room: Battlestar Galactica (transcode, 0.8x, 8s ahead)" in printed
     assert "Roku-Den: buffering, 14s behind live" in printed
     assert "Roku-Den: buffering in" in printed and "Plex Living Room: Battlestar Galactica: transcode" in printed
+    assert first["grab_tasks"] == 2 and "Plex grab tasks open: 2" in printed
+    assert "Plex grab tasks open: 2 at the start, 2 at the end, 2 at the most" in printed
     # The token goes to Plex, and nowhere in what's printed or kept; nor do stream addresses.
     assert "sekrit-token" in Fake.tokens
     assert "sekrit-token" not in printed + out.read_text() and "master.m3u8" not in out.read_text()
@@ -261,3 +272,8 @@ def test_a_recording_can_leave_the_machine_out(tmp_path):
     out = tmp_path / "rec.jsonl"
     assert record.main(["--plex", "http://127.0.0.1:9", "--no-host", "--every", "0.2", "--minutes", str(0.3 / 60), "--out", str(out)]) == 0
     assert "host" not in json.loads(out.read_text().splitlines()[0])
+
+
+def test_plex_grab_tasks_are_counted():
+    assert record.plex_grab_tasks(ACTIVITIES["MediaContainer"]) == 2
+    assert record.plex_grab_tasks({}) == 0 and record.plex_grab_tasks({"Activity": "nonsense"}) == 0
