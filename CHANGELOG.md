@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.9.3 (unreleased)
+## 0.9.3 (2026-11-05)
+
+A fix for Pluto channels whose sound slipped out of step with the picture after an ad break.
+
+### Upgrading from 0.9.2
+
+Update with `scripts/update.sh`. Nothing else to do.
 
 ### Fixes
 
