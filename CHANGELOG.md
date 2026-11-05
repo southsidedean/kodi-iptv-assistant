@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.9.2 (unreleased)
+## 0.9.2 (2026-11-05)
+
+A small release from the first real playback tests: kia's Pluto relay now says when it sends a piece without its sound, and backups stop carrying old copies of `.env` back to where `kia-media` can read them.
+
+### Upgrading from 0.9.1
+
+Update with `scripts/update.sh`. Nothing else to do.
 
 ### Changes
 

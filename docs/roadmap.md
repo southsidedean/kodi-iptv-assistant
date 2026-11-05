@@ -15,6 +15,9 @@ stack. It runs on your own network and keeps its settings and secrets to itself.
 
 Newest first. The [changelog](../CHANGELOG.md) has the full detail for every version.
 
+- 0.9.2 began real playback testing: kia's Pluto relay now counts and reports the pieces it
+  sends without their sound, which some players wait on, and backups no longer carry old copies
+  of `.env` back to where the media container can read them.
 - 0.9.0 and 0.9.1 split kia into two containers with Docker. One serves the Dashboard and holds
   kia's password, tokens, and certificate key; the other reads strangers' streams and guide sites
   and sees only the few files it needs, so a stream that tricks one of the media tools has nothing
