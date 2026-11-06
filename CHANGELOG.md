@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4 (unreleased)
+
+### Fixes
+
+- A Pluto channel could loop the same few seconds of ads in Plex until it was started again. When Pluto went back to pieces kia had already sent, kia held them back for up to 45 seconds, and opened a fresh session every 20 seconds while it waited. In an ad break, each fresh session started the break from the top, so it went back too, and kia's playlist stood still for a minute or more. Plex stops asking after 15 to 20 seconds of that and plays what it has over and over. kia now holds back for at most 10 seconds, then plays what Pluto sends, so you may see a few seconds of an ad twice instead. It also opens only one fresh session for each time Pluto goes back.
+
 ## 0.9.3 (2026-11-05)
 
 A fix for Pluto channels whose sound slipped out of step with the picture after an ad break.

@@ -154,6 +154,54 @@ def test_long_rewind_plays_after_the_hold(monkeypatch):
     assert any("kept going back" in p["text"] for p in r.channel(CID).stats.problems)
 
 
+def test_a_fresh_session_that_restarts_the_ad_break_isnt_followed_by_another(monkeypatch):
+    # As on 2026-11-05: in an ad break, Pluto goes back; the fresh session kia opens starts the
+    # break from the top, which is going back again. Opening session after session only starts
+    # it over each time, so kia waits out the hold, then plays what Pluto sends.
+    monkeypatch.setattr(pluto, "SESSION_GAP", -1)
+    ad = lambda n: AD.format(n=n, sig=f"s{n}")
+    fake = FakePluto([
+        media([(0, ad(10)), (5, ad(11))]),
+        media([(10, ad(0)), (15, ad(1))]),  # went back: a fresh session
+        media([(20, ad(0)), (25, ad(1))]),  # the fresh session, from the top of the break
+        media([(30, ad(1)), (35, ad(2))]),  # and still there
+    ])  # fmt: skip
+    r, _ = relay(fake)
+    look(r)
+    look(r)
+    assert fake.boots == 2  # the first session and one fresh one
+    look(r)
+    look(r)
+    ch = r.channel(CID)
+    assert fake.boots == 2 and len(ch.pieces) == 2  # no session after session, still held
+    monkeypatch.setattr(pluto, "HOLD_LIMIT", -1)  # held long enough
+    look(r)
+    assert [p.pos for p in ch.pieces] == [10, 11, 1, 2]
+
+
+def test_going_back_again_after_new_pieces_gets_a_fresh_session(monkeypatch):
+    monkeypatch.setattr(pluto, "SESSION_GAP", -1)
+    a, b = "162136-698541", "698541-901233"
+    fake = FakePluto([
+        media([(0, SHOW.format(part=a, n=60))]),
+        media([(5, SHOW.format(part=a, n=3))]),  # went back: a fresh session
+        media([(10, SHOW.format(part=b, n=0))]),  # new pieces again
+        media([(15, SHOW.format(part=b, n=1))]),
+        media([(20, SHOW.format(part=a, n=4))]),  # went back once more: another fresh session
+    ])  # fmt: skip
+    r, _ = relay(fake)
+    for _ in range(4):
+        look(r)
+    assert fake.boots == 2
+    look(r)
+    assert fake.boots == 3
+
+
+def test_the_hold_is_shorter_than_plex_waits():
+    # Plex stopped asking after 15 to 20 seconds of a playlist standing still (2026-11-05).
+    assert pluto.HOLD_LIMIT <= 12
+
+
 def test_pieces_are_decrypted_once_for_every_viewer():
     part = "162136-698541"
     fake = FakePluto([media([(0, SHOW.format(part=part, n=0))], seq=99, key=KEY.format(part=part))])
