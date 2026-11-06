@@ -162,9 +162,9 @@ def test_a_fresh_session_that_restarts_the_ad_break_isnt_followed_by_another(mon
     ad = lambda n: AD.format(n=n, sig=f"s{n}")
     fake = FakePluto([
         media([(0, ad(10)), (5, ad(11))]),
-        media([(10, ad(0)), (15, ad(1))]),  # went back: a fresh session
-        media([(20, ad(0)), (25, ad(1))]),  # the fresh session, from the top of the break
-        media([(30, ad(1)), (35, ad(2))]),  # and still there
+        media([(10, ad(3)), (15, ad(4))]),  # went back: a fresh session
+        media([(20, ad(3)), (25, ad(4))]),  # the fresh session, back in the break as well
+        media([(30, ad(4)), (35, ad(5))]),  # and still there
     ])  # fmt: skip
     r, _ = relay(fake)
     look(r)
@@ -176,7 +176,33 @@ def test_a_fresh_session_that_restarts_the_ad_break_isnt_followed_by_another(mon
     assert fake.boots == 2 and len(ch.pieces) == 2  # no session after session, still held
     monkeypatch.setattr(pluto, "HOLD_LIMIT", -1)  # held long enough
     look(r)
-    assert [p.pos for p in ch.pieces] == [10, 11, 1, 2]
+    assert [p.pos for p in ch.pieces] == [10, 11, 4, 5]
+
+
+BUMPER = "https://siloh.pluto.tv/clip/58e5397b91586c9d2fbe8d4c_x/720p/0-end/hls/video/seg_{n:05d}.ts"
+
+
+def test_a_clip_played_again_from_the_start_isnt_a_rewind(monkeypatch):
+    # As on 2026-11-06: the same short clip opens every ad break, and once played twice in a row.
+    # Both are Pluto playing it again, so kia plays them at once, with no hold and no fresh session.
+    monkeypatch.setattr(pluto, "SESSION_GAP", -1)
+    a = "162136-698541"
+    bumper = lambda at: [(at + 5 * n, BUMPER.format(n=n)) for n in range(4)]  # 20 seconds
+    fake = FakePluto([
+        media(bumper(0)),
+        media(bumper(20)),  # twice in a row
+        media([(40, SHOW.format(part=a, n=0)), (45, SHOW.format(part=a, n=1))]),
+        media(bumper(50)),  # the next break
+        media([(70, BUMPER.format(n=2))]),  # going back into it now is a rewind
+    ])  # fmt: skip
+    r, _ = relay(fake)
+    for _ in range(4):
+        look(r)
+    ch = r.channel(CID)
+    assert [p.pos for p in ch.pieces] == [0, 1, 2, 3] * 2 + [0, 1] + [0, 1, 2, 3]
+    assert ch.stats.rewinds == 0 and fake.boots == 1
+    look(r)
+    assert ch.stats.rewinds == 1 and len(ch.pieces) == 14
 
 
 def test_going_back_again_after_new_pieces_gets_a_fresh_session(monkeypatch):

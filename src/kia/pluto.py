@@ -473,7 +473,13 @@ class Channel:
                 continue  # had it already
             clip, pos, ident = identify(p["uri"])
             done = self.furthest.get(clip) if clip else None
-            back = pos is not None and done is not None and pos <= done
+            # A clip that starts again from its first piece is Pluto playing it again, not losing
+            # its place: some channels open every ad break with the same short clip, and an ad
+            # can play twice in a row (seen 2026-11-06). Taking that for a rewind opened a fresh
+            # session, which started the break over, so the viewer saw the ads again. Losing its
+            # place, Pluto goes back into the middle of a clip.
+            again = pos == 0 and done is not None
+            back = pos is not None and done is not None and pos <= done and not again
             held_long = time.monotonic() - self.last_added > HOLD_LIMIT
             if back and not held_long:
                 if self.trace:
@@ -501,7 +507,8 @@ class Channel:
             added += 1
             self.last_added = time.monotonic()
             if clip is not None and pos is not None:
-                self.furthest[clip] = pos if back else max(pos, self.furthest.pop(clip, -1))  # popped: now the newest
+                had = self.furthest.pop(clip, -1)  # popped: now the newest
+                self.furthest[clip] = pos if back or again else max(pos, had)
                 while len(self.furthest) > 200:  # only recent clips can come back; forget the oldest
                     del self.furthest[next(iter(self.furthest))]
         if went_back:
