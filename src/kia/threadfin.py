@@ -31,8 +31,19 @@ from kia.files import temp_name
 # The Threadfins compose.yaml can start: their folder in the kia folder, and the .env
 # setting that names the kia playlist each one reads.
 THREADFINS = (("threadfin", "KIA_THREADFIN_PLAYLIST", "plex"), ("threadfin-2", "KIA_THREADFIN_2_PLAYLIST", "plex-2"))
-# Pass on the best single stream, not every quality at once (Threadfin's own options).
-FFMPEG_OPTIONS = "-hide_banner -loglevel error -i [URL] -c copy -f mpegts pipe:1"
+# Pass on the best single stream, not every quality at once (Threadfin's own options), and
+# keep going through a source's hiccups. By itself ffmpeg gives up on a live stream after 3
+# playlist loads in a row fail (-max_reload) and skips a piece that fails once
+# (-seg_max_retry); the -reconnect options retry a dropped connection. A CNN source did just
+# that, and once Threadfin's ffmpeg stops, Threadfin 1.2.37 keeps the dead stream and hands it
+# to every new request, so Plex replays its last minute until the channel is stopped (seen
+# 2026-11-06; with these options ffmpeg rode out the same source for 30 minutes).
+FFMPEG_OPTIONS = ("-hide_banner -loglevel error -max_reload 1000 -seg_max_retry 10 -reconnect 1 "
+                  "-reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_delay_max 10 "
+                  "-i [URL] -c copy -f mpegts pipe:1")
+# What kia set before: a Threadfin that still has one of these gets the new options, since
+# nobody changed them by hand. Options changed on Threadfin's own page stay.
+OLD_FFMPEG_OPTIONS = ("-hide_banner -loglevel error -i [URL] -c copy -f mpegts pipe:1",)
 TUNERS = 4
 # Threadfin re-reads the playlist and guide at these times (HHMM), so new channels reach
 # Plex the same day; kia's quick guide refresh runs every few hours too.
@@ -153,6 +164,26 @@ def _turn_on_login(conf: Path, folder: str, log) -> bool:
     return True
 
 
+def update_options(conf: Path, folder: str, log) -> bool:
+    """Give a Threadfin kia set up earlier the current FFmpeg options, when it still has the ones
+    kia set then (OLD_FFMPEG_OPTIONS). True if it changed them."""
+    settings_file = conf / "settings.json"
+    try:
+        current = json.loads(settings_file.read_text())
+    except (OSError, ValueError):
+        return False  # unreadable: left alone, as any setting kia doesn't recognize
+    if not isinstance(current, dict) or current.get("ffmpeg.options") not in OLD_FFMPEG_OPTIONS:
+        return False
+    current["ffmpeg.options"] = FFMPEG_OPTIONS
+    tmp = temp_name(settings_file)
+    tmp.write_text(json.dumps(current, indent=1) + "\n")
+    tmp.replace(settings_file)
+    # Threadfin reads its settings when it starts, so a running one needs a restart to use them.
+    log(f"{folder}: gave it FFmpeg options that ride out a source's hiccups (its other settings "
+        f"stay). If it's running, restart it to use them: docker compose restart {folder}")
+    return True
+
+
 def reset_numbers(conf: Path, folder: str, log=print) -> bool:
     """Reset Threadfin's channel mapping so it builds the channel numbers again from kia's
     playlist (the tvg-chno numbers kia assigns, which stay the same for a channel and are never
@@ -193,7 +224,8 @@ def set_up(base: Path, output_dir: Path, log=print, renumber: bool = False) -> l
                 done.append(folder)
             continue
         if target.exists():
-            log(f"{folder}: already set up; leaving its settings as they are.")
+            if not update_options(conf, folder, log):
+                log(f"{folder}: already set up; leaving its settings as they are.")
             secure_login(conf, folder, log)
             continue
         playlist = os.environ.get(setting) or playlist_for(index, output_dir)
