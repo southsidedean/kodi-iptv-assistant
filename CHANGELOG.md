@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.9.5 (unreleased)
+## 0.9.5 (2026-11-06)
+
+A fix for Pluto channels that played an ad break twice.
+
+### Upgrading from 0.9.4
+
+Update with `scripts/update.sh`. Nothing else to do.
 
 ### Fixes
 

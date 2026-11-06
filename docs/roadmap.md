@@ -15,6 +15,8 @@ stack. It runs on your own network and keeps its settings and secrets to itself.
 
 Newest first. The [changelog](../CHANGELOG.md) has the full detail for every version.
 
+- 0.9.5 stops Pluto ad breaks playing twice: a clip that starts again from the top, like the
+  short clip some channels open every break with, no longer counts as Pluto going back.
 - 0.9.4 stops Pluto channels looping in Plex during ad breaks: kia holds back for at most 10
   seconds when Pluto goes back, and opens only one fresh session each time, so Plex keeps asking
   for more.
