@@ -2,6 +2,10 @@
 
 ## 0.9.5 (unreleased)
 
+### Fixes
+
+- On a Pluto channel, an ad break could play twice. Some channels open every ad break with the same short clip, and kia remembered it from the last break, so it took the clip starting again for Pluto going back. It then opened a fresh session with Pluto, and a fresh session in the middle of a break starts the break over. kia now plays a clip that starts again from its beginning as it comes, and only treats Pluto going back into the middle of a clip as a rewind.
+
 ## 0.9.4 (2026-11-06)
 
 A fix for Pluto channels that looped a few seconds of an ad in Plex until they were started again.
