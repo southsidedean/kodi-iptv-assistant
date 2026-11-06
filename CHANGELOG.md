@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.9.4 (unreleased)
+## 0.9.4 (2026-11-06)
+
+A fix for Pluto channels that looped a few seconds of an ad in Plex until they were started again.
+
+### Upgrading from 0.9.3
+
+Update with `scripts/update.sh`. Nothing else to do.
 
 ### Fixes
 

@@ -15,6 +15,9 @@ stack. It runs on your own network and keeps its settings and secrets to itself.
 
 Newest first. The [changelog](../CHANGELOG.md) has the full detail for every version.
 
+- 0.9.4 stops Pluto channels looping in Plex during ad breaks: kia holds back for at most 10
+  seconds when Pluto goes back, and opens only one fresh session each time, so Plex keeps asking
+  for more.
 - 0.9.3 keeps the sound in step after Pluto's ad breaks: kia now fills ads that come without
   sound with silence, so players and Plex no longer close up the gap and run the sound ahead.
 - 0.9.2 began real playback testing: kia's Pluto relay now counts and reports the pieces it
