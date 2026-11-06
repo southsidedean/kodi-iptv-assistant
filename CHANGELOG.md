@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.9.6 (unreleased)
+
 ## 0.9.5 (2026-11-06)
 
 A fix for Pluto channels that played an ad break twice.
