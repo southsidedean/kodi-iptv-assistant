@@ -1,3 +1,3 @@
 """kodi-iptv-assistant: curate working IPTV streams and build a matching EPG."""
 
-__version__ = "0.9.5"
+__version__ = "0.9.6.dev0"
