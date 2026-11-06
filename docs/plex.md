@@ -91,9 +91,9 @@ For a Threadfin set up before kia did this, or to see what kia sets, these are t
 |---|---|
 | Number of Tuners | `4`, the same as the playlist's streams |
 | EPG Source | **XEPG** (use the guide from step 2) |
-| FFmpeg Options | `-hide_banner -loglevel error -i [URL] -c copy -f mpegts pipe:1` |
+| FFmpeg Options | `-hide_banner -loglevel error -max_reload 1000 -seg_max_retry 10 -reconnect 1 -reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_delay_max 10 -i [URL] -c copy -f mpegts pipe:1` |
 
-Threadfin's own FFmpeg options copy every quality of a stream at once, which uses about four times the bandwidth and can leave Plex showing the lowest quality. The options above pass on the best one.
+Threadfin's own FFmpeg options copy every quality of a stream at once, which uses about four times the bandwidth and can leave Plex showing the lowest quality. The options above pass on the best one. They also keep FFmpeg going when a source falters: by itself it gives up after a few failed tries, and Threadfin then keeps handing Plex the stopped stream, so Plex replays the same minute until you stop the channel.
 
 **5. Mapping.** Every channel is now listed with kia's channel number and its guide.
 

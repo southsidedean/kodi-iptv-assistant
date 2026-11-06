@@ -2,6 +2,10 @@
 
 ## 0.9.6 (unreleased)
 
+### Fixes
+
+- A Live TV channel through Threadfin could loop the same minute in Plex until it was stopped. When a source faltered, Threadfin's FFmpeg gave up after three failed tries, and Threadfin then kept handing Plex the stopped stream. kia now gives Threadfin FFmpeg options that keep retrying, A Threadfin kia set up earlier gets them when you update, unless you changed its FFmpeg options yourself; restart it to use them (`docker compose restart threadfin`, and `threadfin-2` if you have one).
+
 ## 0.9.5 (2026-11-06)
 
 A fix for Pluto channels that played an ad break twice.

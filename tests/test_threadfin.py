@@ -41,6 +41,30 @@ def test_existing_threadfin_settings_are_kept_and_it_gets_a_login(tmp_path: Path
     assert json.loads((conf / "settings.json").read_text()) == {"mine": True, "authentication.pms": False, "authentication.web": True}
 
 
+def test_kias_old_ffmpeg_options_are_updated_but_your_own_stay(tmp_path: Path):
+    old, mine = threadfin.OLD_FFMPEG_OPTIONS[0], "-i [URL] -c copy -f mpegts -my-own pipe:1"
+    for folder, options in (("threadfin", old), ("threadfin-2", mine)):
+        conf = tmp_path / folder / "conf"
+        conf.mkdir(parents=True)
+        (conf / "settings.json").write_text(json.dumps({"ffmpeg.options": options, "tuner": 4}))
+    said = []
+    threadfin.set_up(tmp_path, tmp_path, said.append)
+    one = json.loads((tmp_path / "threadfin" / "conf" / "settings.json").read_text())
+    two = json.loads((tmp_path / "threadfin-2" / "conf" / "settings.json").read_text())
+    assert one["ffmpeg.options"] == threadfin.FFMPEG_OPTIONS and one["tuner"] == 4
+    assert two["ffmpeg.options"] == mine
+    assert any(m.startswith("threadfin: gave it FFmpeg options") and "restart threadfin" in m for m in said)
+    assert "threadfin-2: already set up; leaving its settings as they are." in said
+
+
+def test_the_ffmpeg_options_ride_out_a_source_that_falters():
+    # ffmpeg's defaults gave up on a live CNN source after 3 failed playlist loads (2026-11-06).
+    options = threadfin.FFMPEG_OPTIONS.split()
+    assert int(options[options.index("-max_reload") + 1]) >= 100
+    assert options.index("-reconnect") < options.index("-i")  # input options go before the input
+    assert "  " not in threadfin.FFMPEG_OPTIONS  # Threadfin splits them on single spaces
+
+
 def test_renumber_resets_the_channel_mapping_and_keeps_settings(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("KIA_COMPOSE_PROFILES", "plex")  # only the first Threadfin runs
     conf = tmp_path / "threadfin" / "conf"
